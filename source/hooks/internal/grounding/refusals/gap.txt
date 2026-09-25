@@ -1,0 +1,9 @@
+NO GAP CAPTURE: refused. {draft} carries `kind: gap`: records a problem, leaves it standing.
+
+next | by what the gap needs:
+
+  repair somebody can make          make it
+  repair another row owns           plan.py finding <that row> "..."
+  question only owner settles       plan.py hold <entry> --why '<what they settle>'
+  decision that settles it          capture the decision, never the gap
+  nobody can act yet                plan.py postpone <entry> --reason '<who waits on what>'

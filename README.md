@@ -4,7 +4,8 @@ Two hooks that make a coding agent pick up where the last one stopped, and keep 
 from memory, with a skill behind each one telling the agent what it is looking at. They install
 once, for every project on the machine, and stay silent in a project that does not want them.
 
-The hooks are Claude Code hooks: plain Python, no dependencies, driven as a subprocess on an event.
+The hooks are Claude Code hooks, driven as a subprocess on an event: Go binaries built from
+`source/hooks` and installed into `~/go/bin`, or plain Python where a hook is not yet ported.
 The skills are plain Markdown, loaded by the agent when the work calls for them.
 
 ## What each one does
@@ -119,6 +120,7 @@ allowlist entry and no marker file, and installing these hooks costs it nothing.
 ```bash
 git clone git@github.com:fza/agentic-helpers.git
 cd agentic-helpers
+go install -C source/hooks ./cmd/...  # build the Go hooks into ~/go/bin
 ./install.py            # wire the hooks in, link the skills
 ./install.py --print    # write nothing, show what would land
 ./install.py --remove   # take both back out
@@ -132,6 +134,10 @@ rather than by the directory they name.
 
 A session already running keeps the wiring it started with.
 
+A Go hook runs from `~/go/bin` (or wherever `GOBIN` points), not from this checkout, so a pull
+changes nothing until `go install -C source/hooks ./cmd/...` runs again. The installer warns about a
+binary it wires that is not there yet.
+
 A skill link naming a directory that moved is replaced. A directory somebody else put there under
 one of these names is left alone and reported, rather than overwritten.
 
@@ -144,8 +150,10 @@ for anyone whose Claude Code configuration does not sit at `~/.claude`.
 ./test.sh               # every suite
 ```
 
-Each suite drives its hook as a subprocess, the way the client drives it, so a run proves the file
-that ships rather than an import of it. Every guard is asserted from both sides: the same call is
+Each Python suite drives its hook as a subprocess, the way the client drives it, so a run proves the
+file that ships rather than an import of it. The Go hooks keep their rules in
+[`source/AGENTS.md`](source/AGENTS.md), and their suites drive each hook's `Main` against a project
+tree built in a temporary directory. Every guard is asserted from both sides: the same call is
 driven once with the evidence present and once with it missing, and the two outcomes have to differ.
 A guard that cannot fail is worthless.
 

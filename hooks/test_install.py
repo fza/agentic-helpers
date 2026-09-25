@@ -54,7 +54,7 @@ class Install(unittest.TestCase):
     def test_a_settings_file_that_does_not_exist_is_created(self):
         self.assertEqual(self.run_install().returncode, 0)
         self.assertTrue(any("carryforward.py" in c for c in self.commands()))
-        self.assertTrue(any("grounding_gate.py" in c for c in self.commands()))
+        self.assertTrue(any("agentic-grounding-gate" in c for c in self.commands()))
 
     def test_everything_the_person_set_survives(self):
         self.write_theirs()
@@ -87,6 +87,16 @@ class Install(unittest.TestCase):
         stale = [c for c in self.commands() if "/somewhere/else/" in c]
         self.assertEqual(stale, [], "an entry naming the old directory stayed behind")
         self.assertTrue(any("carryforward.py" in c for c in self.commands()))
+
+    def test_a_go_hook_runs_the_installed_binary(self):
+        self.settings.write_text(json.dumps({"hooks": {"SessionEnd": [{"hooks": [
+            {"type": "command", "command": 'python3 "/somewhere/hooks/scratch.py" end'}
+        ]}]}}))
+        self.run_install()
+        scratch = [c for c in self.commands() if "scratch" in c]
+        self.assertEqual(len(scratch), 2, "the old script entry stayed beside the binary")
+        for held in scratch:
+            self.assertRegex(held, r'^"/[^"]+/bin/agentic-scratch" (start|end)$')
 
     def test_remove_takes_only_what_this_repository_owns(self):
         self.write_theirs()

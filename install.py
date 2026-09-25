@@ -10,6 +10,9 @@ Running it twice changes nothing the second time: every entry running one of
 these scripts is removed before the current set goes in, whichever directory it
 named, so a moved or renamed checkout leaves nothing stale behind.
 
+A hook built in Go runs from where `go install` put it, so this wires the
+binary's path in GOBIN (or GOPATH's bin) and warns when it is not there yet.
+
 Skills are linked rather than copied, so an edit in this checkout reaches every
 project at once and no copy drifts from the file it came from.
 
@@ -21,6 +24,7 @@ project at once and no copy drifts from the file it came from.
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -39,11 +43,11 @@ WIRING = [
     ("SessionStart", None, "carryforward.py", "session-log 4"),
     ("SessionStart", None, "carryforward.py", "session-log 5"),
     ("UserPromptSubmit", None, "carryforward.py", "prompt"),
-    ("UserPromptSubmit", None, "grounding_gate.py", "turn"),
+    ("UserPromptSubmit", None, "agentic-grounding-gate", "turn"),
     ("Stop", None, "carryforward.py", "stop"),
-    ("PostToolUse", "Bash", "grounding_gate.py", "record"),
-    ("SessionStart", None, "scratch.py", "start"),
-    ("SessionEnd", None, "scratch.py", "end"),
+    ("PostToolUse", "Bash", "agentic-grounding-gate", "record"),
+    ("SessionStart", None, "agentic-scratch", "start"),
+    ("SessionEnd", None, "agentic-scratch", "end"),
 ]
 
 TIMEOUT = 15
@@ -51,14 +55,29 @@ TIMEOUT = 15
 SKILLS = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "skills"
 
 
+def go_bin():
+    """Where `go install` puts a binary: GOBIN, else the first GOPATH's bin."""
+    done = subprocess.run(["go", "env", "GOBIN", "GOPATH"], capture_output=True, text=True,
+                          check=False)
+    gobin, gopath = (done.stdout.splitlines() + ["", ""])[:2]
+    if gobin:
+        return Path(gobin)
+
+    return Path((gopath or str(Path.home() / "go")).split(os.pathsep)[0]) / "bin"
+
+
 def command(script, mode):
-    return f'python3 "{HERE / "hooks" / script}" {mode}'
+    if script.endswith(".py"):
+        return f'python3 "{HERE / "hooks" / script}" {mode}'
+
+    return f'"{go_bin() / script}" {mode}'
 
 
 # Matching on the script names rather than on this checkout's path is what makes
 # a move survivable: an entry written before the checkout moved still names the
 # same scripts, so it is found and replaced instead of standing dead.
-SCRIPTS = ("carryforward.py", "grounding_gate.py", "scratch.py")
+SCRIPTS = ("carryforward.py", "grounding_gate.py", "scratch.py", "agentic-scratch",
+           "agentic-grounding-gate")
 
 
 def ours(entry):
@@ -150,6 +169,10 @@ def main():
     hooks = without_ours(settings)
     if not removing:
         hooks = wired(hooks)
+        for binary in sorted({script for _, _, script, _ in WIRING if not script.endswith(".py")}):
+            if not (go_bin() / binary).is_file():
+                print(f"{go_bin() / binary} is missing; run `go install -C source/hooks ./cmd/...` "
+                      "from this checkout", file=sys.stderr)
 
     held = dict(settings)
     if hooks:

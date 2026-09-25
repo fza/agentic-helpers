@@ -1,0 +1,7 @@
+GROUNDING GATE: refused. {missing}
+
+  {command}
+
+→ rerun w/ `--down 2 --up 1`. Depths are part of the command, not a default to
+  weigh: `--down` carries any rename, `--up` says whether the entry still applies.
+  Only a `prc`-layer rules entry may read shallower.

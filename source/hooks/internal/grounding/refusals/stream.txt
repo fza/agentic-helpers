@@ -1,0 +1,9 @@
+GROUNDING GATE: refused. A discarded stream turns a refusal into an empty result.
+
+  {command}
+
+Keep both streams; filter instead:
+
+  {tool} search --term '<literal>' --limit 8 | grep -E '^  [0-9]'
+
+Other cmd in same line needing null device → own step.
