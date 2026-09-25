@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "sdd": {
+      "alwaysLoad": true,
+      "args": [
+        "serve"
+      ],
+      "command": "sdd",
+      "env": {},
+      "type": "stdio"
+    }
+  }
+}
