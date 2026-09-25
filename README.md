@@ -1,11 +1,18 @@
 # agentic-helpers
 
-Two hooks that make a coding agent pick up where the last one stopped, and keep it from writing
-from memory, with a skill behind each one telling the agent what it is looking at. They install
-once, for every project on the machine, and stay silent in a project that does not want them.
+Hooks and a command that make a coding agent pick up where the last one stopped, and keep it from
+writing from memory, with a skill behind each one telling the agent what it is looking at. They
+install once, for every project on the machine, and stay silent in a project that does not want
+them.
+
+The grounding gate and `agentic-capture` exist for [sdd](https://github.com/networkteam/sdd), the
+Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd is what motivates them and what
+drives them: the gate holds an agent to real `sdd` reads before it asks or drafts, and
+`agentic-capture` writes a draft into the graph through `sdd new`. Neither does anything in a project
+carrying no sdd graph.
 
 The hooks are Claude Code hooks, driven as a subprocess on an event: Go binaries built from
-`source/hooks` and installed into `~/go/bin`.
+`source/hooks` and installed into `~/go/bin`, beside `agentic-capture`, which an agent runs itself.
 The skills are plain Markdown, loaded by the agent when the work calls for them.
 
 ## What each one does
@@ -70,6 +77,19 @@ graph tool's own output, since a swallowed refusal reads exactly like an empty g
 that stops at the entry itself, since a body is immutable and a later entry may have renamed every
 surface it names.
 
+### Capturing an entry
+
+`agentic-capture <draft.md>` writes one sdd entry from a draft file: a YAML block carrying the
+fields `sdd new` takes, and the body below it. The body reaches `sdd new` as one argument, never
+through a shell, because a second shell runs backticks in a body as commands and every code
+identifier vanishes from an entry that can never be edited.
+
+Before it writes, the draft clears three gates in turn: its header names what the call needs (and a
+topic carrying the project's `listing_prefix`, where one is set), the project's own lint reports
+nothing on the body, and `sdd new --dry-run` reports nothing of high severity. The lint is whatever
+the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --output=line` alike,
+and a project naming none gets no lint. The gate refuses a capture whose draft records a gap.
+
 ## The skills
 
 A hook fires and an agent that has never met it has to work out what just happened. Each hook has a
@@ -78,7 +98,8 @@ skill carrying what it cannot say in a one-line refusal.
 | Skill | Carries |
 |---|---|
 | `agent-carryforward` | what a seat is, how to claim one, what belongs in a carry-forward against what belongs in the graph, and the handoff procedure |
-| `agent-grounding` | the three reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
+| `agent-grounding` | the three sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
+| `agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
 | `agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
 
 Each skill is the whole of its rules. A global instruction file names the skill and says to load it;
@@ -86,14 +107,14 @@ it never restates what the skill holds, because two copies drift and a reader ob
 opened.
 
 Each says in its own description that it applies only to a project carrying the directory its hook
-needs, so an agent in an unrelated project has no reason to open either.
+needs, so an agent in an unrelated project has no reason to open any of them.
 
 Skills are linked rather than copied, so an edit here reaches every project at once.
 
 ## How a project opts in
 
-**Neither hook does anything until the project carries what it operates on.** Nothing is created,
-nothing is asked, and a project that has neither directory never hears from either hook.
+**No hook does anything until the project carries what it operates on.** Nothing is created,
+nothing is asked, and a project carrying none of the directories never hears from any hook.
 
 | Hook | Runs when the project carries | Otherwise |
 |---|---|---|
@@ -107,7 +128,7 @@ So opting a project in is one command:
 mkdir .memory          # start keeping a carry-forward here
 ```
 
-and opting out is removing the directory. A project using neither needs no configuration, no
+and opting out is removing the directory. A project using none needs no configuration, no
 allowlist entry and no marker file, and installing these hooks costs it nothing.
 
 ## Installing
@@ -115,7 +136,7 @@ allowlist entry and no marker file, and installing these hooks costs it nothing.
 ```bash
 git clone git@github.com:fza/agentic-helpers.git
 cd agentic-helpers
-go install -C source/hooks ./cmd/...  # build the Go hooks into ~/go/bin
+go install -C source/hooks ./cmd/...  # build the hooks and agentic-capture into ~/go/bin
 ./install.py            # wire the hooks in, link the skills
 ./install.py --print    # write nothing, show what would land
 ./install.py --remove   # take both back out

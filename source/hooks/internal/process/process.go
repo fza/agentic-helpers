@@ -1,5 +1,5 @@
-// Package process reads the process table through `ps`, the one reader present
-// on every machine these hooks run on without CGO.
+// Package process runs commands and reads the process table, the latter through
+// `ps`, the one reader present on every machine these hooks run on without CGO.
 package process
 
 import (

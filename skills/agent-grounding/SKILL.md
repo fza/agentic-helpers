@@ -96,13 +96,13 @@ Immutable. Get it right before capture.
 - **Never `2>/dev/null` an `sdd` call.** Filter instead: `| grep -E '^  [0-9]'`.
 - **A listing is enormous.** Another capture mid-pass invalidates it. Read the first run whole,
   then only what changed.
-- **Lint a draft before capture. Nothing lints it after.** Piping into `vale -` → reports nothing.
-  Fenced draft → reports nothing. Leave a draft unfenced.
+- **Capture through `agentic-capture`.** It lints the draft first; nothing lints an entry after.
+  The `agent-capture` skill carries the rest.
 
 ## Capturing
 
-- **Never capture a gap.** Gap = finding. Repair it, file it against the row owning the repair, or
-  put it to the owner. Capture the decision that settles it.
+- **Never capture a gap.** Gap = finding. Repair it, or put it to its owner. Capture the decision
+  that settles it.
 - **Every entry carries at least one topic.** A project naming a listing prefix → at least one
   topic carrying it.
 - **Name every surface the decision creates** - command, flag, RPC verb, config key, label, storage

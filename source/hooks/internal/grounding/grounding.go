@@ -62,7 +62,7 @@ var (
 	upDepth     = regexp.MustCompile(`--up[=\s]+(\d+)\b`)
 	entryID     = regexp.MustCompile(`\b\d{8}-\d{6}-[sd]-([a-z]{3})-[a-z0-9]{3}\b`)
 	subjectFlag = regexp.MustCompile(`--entry[=\s]+\S+`)
-	capture     = regexp.MustCompile(`graph\.py\s+capture\b`)
+	capture     = regexp.MustCompile(`\bagentic-capture\b`)
 	draftName   = regexp.MustCompile(`[\w./-]+\.md\b`)
 	gapKind     = regexp.MustCompile(`(?m)^kind:\s*gap\s*$`)
 	enters      = regexp.MustCompile(`\bcd\s+(?:'([^']+)'|"([^"]+)"|([^\s;&|]+))`)

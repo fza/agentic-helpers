@@ -503,7 +503,7 @@ func TestWhatCountsAsAReadPerformed(t *testing.T) {
 
 func TestGapCapture(t *testing.T) {
 	captureOf := func(path string) string {
-		return "python3 scripts/graph.py capture " + path + " --entry 20260901-000000-d-tac-aaa"
+		return "agentic-capture " + path
 	}
 
 	t.Run("a gap draft is refused", func(t *testing.T) {
