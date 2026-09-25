@@ -502,61 +502,23 @@ func TestWhatCountsAsAReadPerformed(t *testing.T) {
 	})
 }
 
-func TestGapCapture(t *testing.T) {
-	captureOf := func(path string) string {
-		return "agentic-capture " + path
-	}
-
-	t.Run("a gap draft is refused", func(t *testing.T) {
-		env := areaProject(t)
-		draft := filepath.Join(env.ProjectDir, "draft.md")
-		test.WriteFile(t, draft, test.Fixture(t, "drafts/gap.md"))
-
-		refuses(t, run(t, env, "gate", bash(captureOf(draft))), "carries `kind: gap`")
-	})
-
-	for _, kind := range []string{"fact", "done", "question", "insight"} {
+func TestEveryKindCaptures(t *testing.T) {
+	for _, kind := range []string{"gap", "fact", "done", "question", "insight"} {
 		t.Run(kind+" passes", func(t *testing.T) {
 			env := areaProject(t)
 			draft := filepath.Join(env.ProjectDir, "draft.md")
 			test.WriteFile(t, draft, test.Fixture(t, "drafts/"+kind+".md"))
 			ground(t, env)
 
-			passes(t, run(t, env, "gate", bash(captureOf(draft))))
+			passes(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 		})
 	}
-
-	t.Run("reading a gap draft is not capturing it", func(t *testing.T) {
-		env := areaProject(t)
-		draft := filepath.Join(env.ProjectDir, "draft.md")
-		test.WriteFile(t, draft, test.Fixture(t, "drafts/gap.md"))
-
-		passes(t, run(t, env, "gate", bash("cat "+draft)))
-	})
-
-	t.Run("another checkout's draft is not this one", func(t *testing.T) {
-		env := areaProject(t)
-		test.WriteFile(t, filepath.Join(env.ProjectDir, ".claude", "worktrees", "probe", "draft.md"), test.Fixture(t, "drafts/gap.md"))
-		env.WorkingDir = filepath.Join(env.ProjectDir, "here")
-		test.WriteFile(t, filepath.Join(env.WorkingDir, "draft.md"), test.Fixture(t, "drafts/fact.md"))
-		ground(t, env)
-
-		passes(t, run(t, env, "gate", bash(captureOf("draft.md"))))
-	})
-
-	t.Run("a gap draft in the working directory is refused", func(t *testing.T) {
-		env := areaProject(t)
-		env.WorkingDir = filepath.Join(env.ProjectDir, "local")
-		test.WriteFile(t, filepath.Join(env.WorkingDir, "draft.md"), test.Fixture(t, "drafts/gap.md"))
-
-		refuses(t, run(t, env, "gate", bash(captureOf("draft.md"))), "carries `kind: gap`")
-	})
 
 	t.Run("a draft that is not on disk passes", func(t *testing.T) {
 		env := areaProject(t)
 		ground(t, env)
 
-		passes(t, run(t, env, "gate", bash(captureOf(filepath.Join(env.ProjectDir, "absent.md")))))
+		passes(t, run(t, env, "gate", bash("agentic-capture "+filepath.Join(env.ProjectDir, "absent.md"))))
 	})
 }
 
@@ -830,6 +792,28 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		nextTurn(t, env)
 
 		passes(t, run(t, env, "gate", bash("agentic-capture .sdd/tmp/drafts/decision.md")))
+	})
+
+	t.Run("a relative capture from below the project root", func(t *testing.T) {
+		env := areaProject(t)
+		draft := draftIn(t, env)
+		ground(t, env)
+		record(t, env, save("Write", draft))
+		nextTurn(t, env)
+		env.WorkingDir = filepath.Join(env.ProjectDir, "here")
+
+		passes(t, run(t, env, "gate", bash("agentic-capture .sdd/tmp/drafts/decision.md")))
+	})
+
+	t.Run("another checkout's grounded draft grounds no relative capture", func(t *testing.T) {
+		env := areaProject(t)
+		elsewhere := filepath.Join(env.ProjectDir, ".claude", "worktrees", "probe", ".sdd", "tmp", "drafts", "decision.md")
+		test.WriteFile(t, elsewhere, test.Fixture(t, "drafts/fact.md"))
+		ground(t, env)
+		record(t, env, save("Write", elsewhere))
+		nextTurn(t, env)
+
+		refuses(t, run(t, env, "gate", bash("agentic-capture .sdd/tmp/drafts/decision.md")), "neither read")
 	})
 
 	t.Run("a draft changed since the save owes the reads", func(t *testing.T) {

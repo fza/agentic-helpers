@@ -92,7 +92,6 @@ Immutable. Get it right before capture.
 | question or draft edit, three reads missing | answering from memory |
 | capture, three reads missing, draft not grounded | writing what the graph never confirmed |
 | `sdd new` without `--dry-run`, three reads missing | same, by the path that skips the draft |
-| capture whose draft records a gap | capture the decision that settles it, never the problem |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
 | `sdd show` short of `--down 2 --up 1` | rename lives downstream; upstream says if it still applies |
 
@@ -107,8 +106,6 @@ Immutable. Get it right before capture.
 
 ## Capturing
 
-- **Never capture a gap.** Gap = finding. Repair it, or put it to its owner. Capture the decision
-  that settles it.
 - **Every entry carries at least one topic.** A project naming a listing prefix → at least one
   topic carrying it.
 - **Name every surface the decision creates** - command, flag, RPC verb, config key, label, storage

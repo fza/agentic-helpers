@@ -15,9 +15,9 @@
 // reads of the turn that wrote the draft, and a draft written through `Bash`,
 // or captured after the graph moved, still owes them.
 //
-// It also refuses a capture whose draft records a gap, a read discarding a
-// stream (a wrong flag prints usage to stderr, and discarding it turns a
-// refusal into an empty result), and a show stopping short of `--down 2 --up 1`.
+// It also refuses a read discarding a stream (a wrong flag prints usage to
+// stderr, and discarding it turns a refusal into an empty result), and a show
+// stopping short of `--down 2 --up 1`.
 //
 // Modes:
 //
@@ -80,9 +80,7 @@ var (
 	upDepth     = regexp.MustCompile(`--up[=\s]+(\d+)\b`)
 	entryID     = regexp.MustCompile(`\b\d{8}-\d{6}-[sd]-([a-z]{3})-[a-z0-9]{3}\b`)
 	subjectFlag = regexp.MustCompile(`--entry[=\s]+\S+`)
-	capture     = regexp.MustCompile(`\bagentic-capture\b`)
 	draftName   = regexp.MustCompile(`[\w./-]+\.md\b`)
-	gapKind     = regexp.MustCompile(`(?m)^kind:\s*gap\s*$`)
 	enters      = regexp.MustCompile(`\bcd\s+(?:'([^']+)'|"([^"]+)"|([^\s;&|]+))`)
 )
 
@@ -362,13 +360,9 @@ func readsBadly(env Env, raw string) string {
 		return ""
 	}
 
-	// A heredoc body is data whatever its shape, so it is dropped before the
-	// payload scan as well as before the call scan.
-	spoken := shellOnly(raw)
 	texts := spokenTexts(raw)
 
 	for _, check := range []func() string{
-		func() string { return capturesAGap(env, spoken) },
 		func() string { return discardsAStream(texts, raw) },
 		func() string { return hidesTheDownstream(texts) },
 	} {
@@ -414,8 +408,7 @@ func writing(env Env, raw string) graphWrite {
 	return writesNothing
 }
 
-// capturesGrounded reports whether a draft the capture names is grounded. A
-// draft is resolved the way the gap check resolves it.
+// capturesGrounded reports whether a draft the capture names is grounded.
 func capturesGrounded(env Env, held evidence, command string) bool {
 	for _, named := range draftPaths(env, command) {
 		draft, err := env.grounding(named.path)
@@ -459,22 +452,6 @@ func (env Env) graphState() string {
 	return fmt.Sprintf("%d:%s", count, filepath.Base(newest))
 }
 
-// capturesAGap refuses a capture whose draft records a problem rather than an
-// answer. The graph is append-only, so a gap captured by mistake stays.
-func capturesAGap(env Env, command string) string {
-	if !capture.MatchString(command) {
-		return ""
-	}
-
-	for _, named := range draftPaths(env, command) {
-		if gapKind.Match(head(named.path)) {
-			return refusal("gap.txt", "{draft}", named.name)
-		}
-	}
-
-	return ""
-}
-
 type namedDraft struct {
 	name string
 	path string
@@ -509,20 +486,6 @@ func draftPaths(env Env, command string) []namedDraft {
 	}
 
 	return found
-}
-
-func head(path string) []byte {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-
-	defer func() { _ = file.Close() }()
-
-	buffer := make([]byte, 4096)
-	read, _ := file.Read(buffer)
-
-	return buffer[:read]
 }
 
 func discardsAStream(texts []string, raw string) string {

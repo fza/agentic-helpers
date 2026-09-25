@@ -106,8 +106,8 @@ Before it writes, the draft clears three gates in turn: its header names what th
 topic carrying the project's `listing_prefix`, where one is set), the project's own lint reports
 nothing on the body, and `sdd new --dry-run` reports nothing of high severity. The lint is whatever
 the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --output=line` alike,
-and a project naming none gets no lint. The gate refuses a capture whose draft records a gap, and one whose turn carries neither the reads
-nor a grounded draft.
+and a project naming none gets no lint. The gate refuses a capture whose turn carries neither the
+reads nor a grounded draft.
 
 ## The skills
 
