@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 # The session may point every process at the real ledger; a test never reads or writes it.
 os.environ.pop("GRAPH_LEDGER_DIR", None)
@@ -23,6 +24,11 @@ def run(mode, payload, project_dir, cwd=None):
     # The gate answers nothing for a project carrying no graph, so every fixture
     # carries one: a test of the gate's reasoning is never a test of its opt-in.
     os.makedirs(os.path.join(project_dir, ".sdd"), exist_ok=True)
+    # Most cases here are about a project that wraps the tool, so the fixture
+    # carries the wrapper. The cases about a project without one build their own.
+    os.makedirs(os.path.join(project_dir, "scripts"), exist_ok=True)
+    with open(os.path.join(project_dir, "scripts", "graph.py"), "w") as handle:
+        handle.write("# a wrapper\n")
     env = dict(os.environ, CLAUDE_PROJECT_DIR=project_dir)
     result = subprocess.run([sys.executable, HOOK, mode], input=json.dumps(payload),
                             capture_output=True, text=True, env=env, check=False, cwd=cwd)
@@ -555,6 +561,50 @@ class TheTurnHookNeverBlocksAPrompt(unittest.TestCase):
     def ask(self, session="s1"):
         return {"session_id": session, "tool_name": "AskUserQuestion",
                 "tool_input": {"questions": []}}
+
+
+class WithoutAWrapper(unittest.TestCase):
+    """A project reaching the graph directly is not skipping anything.
+
+    Demanding a wrapper a project does not have refuses every legitimate read,
+    so the rule holds only where one exists. Each case drives the same call
+    against both shapes, and the two outcomes have to differ.
+    """
+
+    def setUp(self):
+        self.bare = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.bare, ".sdd"))
+
+    def call(self, command, project_dir):
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=project_dir)
+        return subprocess.run([sys.executable, HOOK, "gate"], input=json.dumps(bash(command)),
+                              capture_output=True, text=True, env=env, check=False)
+
+    def test_the_bare_tool_passes_where_no_wrapper_exists(self):
+        result = self.call("sdd show 20260907-164635-d-tac-vkm --down 2 --up 1", self.bare)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_the_same_call_is_refused_where_a_wrapper_exists(self):
+        wrapped = tempfile.mkdtemp()
+        os.makedirs(os.path.join(wrapped, ".sdd"))
+        os.makedirs(os.path.join(wrapped, "scripts"))
+        Path(wrapped, "scripts", "graph.py").write_text("# a wrapper\n")
+        result = self.call("sdd show 20260907-164635-d-tac-vkm --down 2 --up 1", wrapped)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("without the wrapper", result.stderr)
+
+    def test_every_other_rule_still_binds_without_a_wrapper(self):
+        shallow = self.call("sdd show 20260907-164635-d-tac-vkm --down 1", self.bare)
+        self.assertEqual(shallow.returncode, 2, "depth went unchecked without a wrapper")
+        self.assertIn("--down 2 --up 1", shallow.stderr)
+
+        silenced = self.call("sdd search --term x 2>/dev/null", self.bare)
+        self.assertEqual(silenced.returncode, 2, "a discarded stream went unchecked")
+
+    def test_a_refusal_names_the_tool_this_project_uses(self):
+        bare = self.call("sdd show 20260907-164635-d-tac-vkm --down 1", self.bare)
+        self.assertIn("sdd show", bare.stderr)
+        self.assertNotIn("scripts/graph.py", bare.stderr)
 
 
 class OptIn(unittest.TestCase):

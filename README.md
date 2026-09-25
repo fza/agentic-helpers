@@ -69,6 +69,11 @@ surface it names.
 
 A draft a verification already read is exempt: fixing what a reader found owes no fresh reads.
 
+Where a project puts a wrapper in front of the graph tool, so that every read is recorded against
+the subject it served, the gate holds reads to it. A project reaching the tool directly is held to
+everything else and not to that, because demanding a wrapper that does not exist refuses every
+legitimate read.
+
 ## The skills
 
 A hook fires and an agent that has never met it has to work out what just happened. Each hook has a

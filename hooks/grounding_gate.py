@@ -100,6 +100,29 @@ SDD_CALL = re.compile(TOOL + r"|graph\.py\s+[a-z]")
 # see it.
 BARE_SDD = re.compile(TOOL)
 
+# A project may put a wrapper in front of the tool, so that every read is
+# recorded against the subject it served. Only a project carrying one is held to
+# it: elsewhere the bare tool is the normal way to reach the graph, and demanding
+# a wrapper that does not exist refuses every legitimate read.
+WRAPPER = os.path.join("scripts", "graph.py")
+
+
+def wrapper():
+    """The wrapper this project puts in front of the tool, or None."""
+    root = graph_dir()
+    if not root:
+        return None
+    held = os.path.join(os.path.dirname(root), WRAPPER)
+
+    return WRAPPER if os.path.isfile(held) else None
+
+
+def tool():
+    """How a suggested command reaches the graph in this project."""
+    held = wrapper()
+
+    return f"python3 {held}" if held else "sdd"
+
 # A shell handed a string to run. What that string holds is a command rather
 # than an argument, so it is read as one. Only a shell qualifies: `grep -c` takes
 # a `-c` of its own and counts lines.
@@ -152,11 +175,11 @@ WRAPPER_REFUSAL = """GROUNDING GATE: refused. Tool reached without the wrapper �
 
 Via `scripts/graph.py`, naming the subject:
 
-  python3 scripts/graph.py search --query '<subject>' --entry <entry>
-  python3 scripts/graph.py view --layout "topic(area-<name>):as-list" --entry <entry>
-  python3 scripts/graph.py show <entry> --down 2 --entry <entry>
+  {tool} search --query '<subject>' --entry <entry>
+  {tool} view --layout "topic(area-<name>):as-list" --entry <entry>
+  {tool} show <entry> --down 2 --entry <entry>
 
-Subject still owes: python3 scripts/graph.py ground <entry>"""
+Subject still owes: {tool} ground <entry>"""
 
 STREAM_REFUSAL = """GROUNDING GATE: refused. A discarded stream turns a refusal into an empty result.
 
@@ -164,7 +187,7 @@ STREAM_REFUSAL = """GROUNDING GATE: refused. A discarded stream turns a refusal 
 
 Keep both streams; filter instead:
 
-  python3 scripts/graph.py search --term '<literal>' --limit 8 | grep -E '^  [0-9]'
+  {tool} search --term '<literal>' --limit 8 | grep -E '^  [0-9]'
 
 Other cmd in same line needing null device → own step."""
 
@@ -172,9 +195,9 @@ REFUSAL = """GROUNDING GATE: refused. {missing}
 
 Run both + an area listing, then ask again:
 
-  python3 scripts/graph.py search --term '<literal>' --entry <entry>
-  python3 scripts/graph.py search --query '<subject>' --entry <entry>
-  python3 scripts/graph.py view --layout "topic(area-<name>):as-list" --entry <entry>
+  {tool} search --term '<literal>' --entry <entry>
+  {tool} search --query '<subject>' --entry <entry>
+  {tool} view --layout "topic(area-<name>):as-list" --entry <entry>
 
 Empty search ≠ absence; area listing settles membership.
 
@@ -391,18 +414,25 @@ def captures_a_gap(command):
     if not draft:
         return 0
 
-    print(REFUSAL_GAP.format(draft=draft), file=sys.stderr)
+    print(REFUSAL_GAP.format(tool=tool(), draft=draft), file=sys.stderr)
 
     return 2
 
 
 def skips_the_wrapper(texts, raw):
-    """Refuse a read the ledger never sees, however the call is spelled."""
+    """Refuse a read the ledger never sees, however the call is spelled.
+
+    Only where this project carries a wrapper. Without one the bare tool is how
+    the graph is reached, and every read is legitimate.
+    """
+    if not wrapper():
+        return 0
+
     reached = any(BARE_SDD.search(text) for text in texts) or aliases_the_tool(raw)
     if not reached:
         return 0
 
-    print(WRAPPER_REFUSAL.format(command=raw.strip()), file=sys.stderr)
+    print(WRAPPER_REFUSAL.format(tool=tool(), command=raw.strip()), file=sys.stderr)
 
     return 2
 
@@ -413,7 +443,7 @@ def discards_a_stream(texts, raw):
     if not discarded:
         return 0
 
-    print(STREAM_REFUSAL.format(command=raw.strip()), file=sys.stderr)
+    print(STREAM_REFUSAL.format(tool=tool(), command=raw.strip()), file=sys.stderr)
 
     return 2
 
@@ -450,7 +480,7 @@ def hides_the_downstream(command):
     if layers and layers == {"prc"}:
         return 0
 
-    print(DOWNSTREAM_REFUSAL.format(command=command.strip(), missing=missing), file=sys.stderr)
+    print(DOWNSTREAM_REFUSAL.format(tool=tool(), command=command.strip(), missing=missing), file=sys.stderr)
 
     return 2
 
@@ -621,7 +651,7 @@ def gate(payload):
     if not areas:
         missing.append("No area listing ran this turn.")
 
-    print(REFUSAL.format(have=" and ".join(have) or "neither read",
+    print(REFUSAL.format(tool=tool(), have=" and ".join(have) or "neither read",
                          missing=" ".join(missing)), file=sys.stderr)
 
     return 2
