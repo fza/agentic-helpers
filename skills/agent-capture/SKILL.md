@@ -47,6 +47,7 @@ Body. Markdown, unfenced.
 
 | Step | Blocks when |
 |---|---|
+| grounding gate | turn lacks the three reads and the draft is not grounded (`agent-grounding`) |
 | header | no `type`/`layer`; `listing_prefix` set and no topic carries it |
 | project lint | `draft_lint` set and it reports; or it fails and says nothing |
 | pre-flight | `sdd new --dry-run` refuses; any `[high]` finding |

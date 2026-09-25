@@ -1,6 +1,6 @@
-// Package grounding refuses a question or a draft edit until the turn behind
-// it has read the decision graph: a literal search, a semantic search, and a
-// listing.
+// Package grounding refuses a question, a draft edit or a capture until the
+// turn behind it has read the decision graph: a literal search, a semantic
+// search, and a listing.
 //
 // One search mode alone misses what the other finds, and an empty search reads
 // as absence. A listing cannot miss that way, because it enumerates rather
@@ -9,26 +9,37 @@
 // other project to a view naming every topic. `sdd show` alone never satisfies the gate: following references
 // reaches only entries something already cited.
 //
+// A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as
+// it stands now, in a turn carrying every read, with the graph holding the same
+// entries since. The turn that confirms a playback then need not repeat the
+// reads of the turn that wrote the draft, and a draft written through `Bash`,
+// or captured after the graph moved, still owes them.
+//
 // It also refuses a capture whose draft records a gap, a read discarding a
 // stream (a wrong flag prints usage to stderr, and discarding it turns a
 // refusal into an empty result), and a show stopping short of `--down 2 --up 1`.
 //
 // Modes:
 //
-//	record  PostToolUse on Bash: notes which graph reads a command performed
-//	turn    UserPromptSubmit: starts a fresh turn, so evidence never carries over
-//	gate    PreToolUse: refuses a bad read, and refuses AskUserQuestion and a
-//	        draft edit until this turn carries every read
+//	record  PostToolUse on Bash: notes which graph reads a command performed;
+//	        on Write and Edit: notes a draft saved in a fully read turn
+//	turn    UserPromptSubmit: starts a fresh turn, so reads never carry over
+//	gate    PreToolUse: refuses a bad read, refuses AskUserQuestion and a draft
+//	        edit until this turn carries every read, and a capture until this
+//	        turn carries every read or its draft is grounded
 package grounding
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -70,6 +81,8 @@ var (
 
 var gatedTools = map[string]bool{"AskUserQuestion": true, "Write": true, "Edit": true, "NotebookEdit": true}
 
+var savingTools = map[string]bool{"Write": true, "Edit": true}
+
 // Env is where a hook invocation runs. ProjectDir is empty when the client set
 // none.
 type Env struct {
@@ -99,7 +112,7 @@ func (env Env) graphDir() string {
 // Main runs one hook invocation. A project carrying no graph gets no answer
 // rather than a refusal it cannot act on.
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
-	if len(args) != 1 || (args[0] != "record" && args[0] != "turn" && args[0] != "gate") {
+	if len(args) != 1 || !slices.Contains([]string{"record", "turn", "gate"}, args[0]) {
 		_, _ = fmt.Fprintln(streams.Err, ErrUsage)
 
 		return 1
@@ -142,6 +155,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 // quoted mention lets an `echo` satisfy the gate; the raw form says what the
 // call asked for, because the layout and search mode live inside quotes.
 func record(ctx context.Context, env Env, payload hookio.Payload) {
+	if savingTools[payload.ToolName] {
+		recordDraft(ctx, env, payload)
+
+		return
+	}
+
 	command := payload.ToolInput.Command
 	if command == "" || payload.Failed() {
 		return
@@ -189,15 +208,50 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 }
 
-// turn starts fresh. A turn that failed to clear would leave the last one's
-// evidence standing, so a failure removes the file rather than leaving it.
+// recordDraft grounds a draft saved in a turn carrying every read. The hash is
+// of the file as saved, since an `Edit` names only the strings it swapped.
+func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
+	target := payload.ToolInput.FilePath
+	if !draftPath.MatchString(target) || payload.Failed() {
+		return
+	}
+
+	path, err := ledgerPath(env.ledgerDir(), payload)
+	if err != nil {
+		return
+	}
+
+	held := loadEvidence(ctx, path)
+	if !held.complete() {
+		return
+	}
+
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(env.WorkingDir, target)
+	}
+
+	draft, err := env.grounding(target)
+	if err != nil {
+		return
+	}
+
+	held.addGrounded(draft)
+	_ = saveEvidence(ctx, path, held)
+}
+
+// turn starts fresh, keeping only the grounded drafts. A turn that failed to
+// clear would leave the last one's reads standing, so a failure removes the
+// file rather than leaving it.
 func turn(ctx context.Context, env Env, payload hookio.Payload) {
 	path, err := ledgerPath(env.ledgerDir(), payload)
 	if err != nil {
 		return
 	}
 
-	err = saveEvidence(ctx, path, freshEvidence())
+	fresh := freshEvidence()
+	fresh.Grounded = loadEvidence(ctx, path).Grounded
+
+	err = saveEvidence(ctx, path, fresh)
 	if err != nil {
 		_ = os.Remove(path)
 	}
@@ -206,10 +260,11 @@ func turn(ctx context.Context, env Env, payload hookio.Payload) {
 // gate returns the refusal this call earns, or nothing.
 func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 	if payload.ToolName == "Bash" {
-		return readsBadly(env, payload.ToolInput.Command)
-	}
-
-	if !gated(payload) {
+		found := readsBadly(env, payload.ToolInput.Command)
+		if found != "" || writing(env, payload.ToolInput.Command) == writesNothing {
+			return found
+		}
+	} else if !gated(payload) {
 		return ""
 	}
 
@@ -225,10 +280,17 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		held = loadEvidence(ctx, path)
 	}
 
-	haveSemantic, haveLiteral, haveListing := held.Query > 0, held.Term > 0, len(held.Listings) > 0
-	if haveSemantic && haveLiteral && haveListing {
+	if held.complete() {
 		return ""
 	}
+
+	// A plain `sdd new` names no draft, so nothing grounded stands in for it.
+	if payload.ToolName == "Bash" && writing(env, payload.ToolInput.Command) == writesThroughCapture &&
+		capturesGrounded(env, held, payload.ToolInput.Command) {
+		return ""
+	}
+
+	haveSemantic, haveLiteral, haveListing := held.Query > 0, held.Term > 0, len(held.Listings) > 0
 
 	var have, missing []string
 
@@ -283,13 +345,8 @@ func readsBadly(env Env, raw string) string {
 
 	// A heredoc body is data whatever its shape, so it is dropped before the
 	// payload scan as well as before the call scan.
-	written := stripHeredocs(raw)
 	spoken := shellOnly(raw)
-
-	texts := []string{spoken}
-	for _, inner := range carried(written, 0) {
-		texts = append(texts, shellOnly(inner))
-	}
+	texts := spokenTexts(raw)
 
 	for _, check := range []func() string{
 		func() string { return capturesAGap(env, spoken) },
@@ -305,6 +362,84 @@ func readsBadly(env Env, raw string) string {
 	return ""
 }
 
+type graphWrite int
+
+const (
+	writesNothing graphWrite = iota
+	writesThroughCapture
+	writesThroughNew
+)
+
+// writing says how the command writes to this project's graph, if it does.
+// `agentic-capture` wins over `sdd new`, since only it can pass on a grounded
+// draft.
+func writing(env Env, raw string) graphWrite {
+	if elsewhere(env, raw) {
+		return writesNothing
+	}
+
+	texts := spokenTexts(raw)
+
+	for _, text := range texts {
+		if callsCapture(text) {
+			return writesThroughCapture
+		}
+	}
+
+	for _, text := range texts {
+		if callsNew(text) {
+			return writesThroughNew
+		}
+	}
+
+	return writesNothing
+}
+
+// capturesGrounded reports whether a draft the capture names is grounded. A
+// draft is resolved the way the gap check resolves it.
+func capturesGrounded(env Env, held evidence, command string) bool {
+	for _, named := range draftPaths(env, command) {
+		draft, err := env.grounding(named.path)
+		if err == nil && held.grounds(draft) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// grounding is what a draft grounded now would be recorded as.
+func (env Env) grounding(path string) (groundedDraft, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return groundedDraft{}, fmt.Errorf("reading the draft: %w", err)
+	}
+
+	sum := sha256.Sum256(content)
+
+	return groundedDraft{Draft: hex.EncodeToString(sum[:]), Graph: env.graphState()}, nil
+}
+
+// graphState names what the graph holds: how many entry files, and the newest
+// by name. Entries are immutable and named for the moment they were captured,
+// so a capture moves both and only a hand edit moves neither.
+func (env Env) graphState() string {
+	count, newest := 0, ""
+
+	_ = filepath.WalkDir(filepath.Join(env.graphDir(), "graph"), func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || filepath.Ext(path) != ".md" {
+			return nil
+		}
+
+		count++
+		newest = max(newest, filepath.ToSlash(path))
+
+		return nil
+	})
+
+	return fmt.Sprintf("%d:%s", count, filepath.Base(newest))
+}
+
 // capturesAGap refuses a capture whose draft records a problem rather than an
 // answer. The graph is append-only, so a gap captured by mistake stays.
 func capturesAGap(env Env, command string) string {
@@ -312,18 +447,24 @@ func capturesAGap(env Env, command string) string {
 		return ""
 	}
 
-	draft := gapDraft(env, command)
-	if draft == "" {
-		return ""
+	for _, named := range draftPaths(env, command) {
+		if gapKind.Match(head(named.path)) {
+			return refusal("gap.txt", "{draft}", named.name)
+		}
 	}
 
-	return refusal("gap.txt", "{draft}", draft)
+	return ""
 }
 
-// gapDraft names the first draft in the command recording a gap. A relative
+type namedDraft struct {
+	name string
+	path string
+}
+
+// draftPaths names every file the command's draft names can mean. A relative
 // name resolves against the working directory and the project root only: every
 // other checkout is somebody else's.
-func gapDraft(env Env, command string) string {
+func draftPaths(env Env, command string) []namedDraft {
 	project := env.ProjectDir
 	if project == "" {
 		project = "."
@@ -334,20 +475,21 @@ func gapDraft(env Env, command string) string {
 		bases = append(bases, project)
 	}
 
-	for _, candidate := range draftName.FindAllString(command, -1) {
-		for _, base := range bases {
-			path := candidate
-			if !filepath.IsAbs(path) {
-				path = filepath.Join(base, candidate)
-			}
+	var found []namedDraft
 
-			if gapKind.Match(head(path)) {
-				return candidate
-			}
+	for _, candidate := range draftName.FindAllString(command, -1) {
+		if filepath.IsAbs(candidate) {
+			found = append(found, namedDraft{name: candidate, path: candidate})
+
+			continue
+		}
+
+		for _, base := range bases {
+			found = append(found, namedDraft{name: candidate, path: filepath.Join(base, candidate)})
 		}
 	}
 
-	return ""
+	return found
 }
 
 func head(path string) []byte {

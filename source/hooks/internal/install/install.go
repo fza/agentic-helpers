@@ -46,8 +46,8 @@ type wiring struct {
 
 // What each hook answers, and when. The carry-forward reads the session as it
 // opens and writes as it closes; the gate starts a turn on each prompt, refuses
-// a call its reads do not cover before it runs, and records what a call covered
-// after.
+// a call its reads do not cover before it runs, and records what a call
+// covered after.
 var wirings = []wiring{
 	{event: "SessionStart", binary: "agentic-carryforward", mode: "session-start"},
 	{event: "SessionStart", binary: "agentic-carryforward", mode: "session-log 1"},
@@ -59,6 +59,7 @@ var wirings = []wiring{
 	{event: "UserPromptSubmit", binary: "agentic-grounding-gate", mode: "turn"},
 	{event: "Stop", binary: "agentic-carryforward", mode: "stop"},
 	{event: "PostToolUse", matcher: "Bash", binary: "agentic-grounding-gate", mode: "record"},
+	{event: "PostToolUse", matcher: "Write|Edit", binary: "agentic-grounding-gate", mode: "record"},
 	{event: "PreToolUse", matcher: "AskUserQuestion|Write|Edit|NotebookEdit|Bash", binary: "agentic-grounding-gate", mode: "gate"},
 	{event: "SessionStart", binary: "agentic-scratch", mode: "start"},
 	{event: "SessionEnd", binary: "agentic-scratch", mode: "end"},

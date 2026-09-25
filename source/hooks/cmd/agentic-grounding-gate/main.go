@@ -1,5 +1,5 @@
 // Command agentic-grounding-gate is the Claude Code hook holding a session to
-// real reads of a project's sdd decision graph before it asks or drafts.
+// real reads of a project's sdd decision graph before it asks, drafts or captures.
 package main
 
 import (

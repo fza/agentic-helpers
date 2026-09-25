@@ -519,6 +519,7 @@ func TestGapCapture(t *testing.T) {
 			env := areaProject(t)
 			draft := filepath.Join(env.ProjectDir, "draft.md")
 			test.WriteFile(t, draft, test.Fixture(t, "drafts/"+kind+".md"))
+			ground(t, env)
 
 			passes(t, run(t, env, "gate", bash(captureOf(draft))))
 		})
@@ -537,6 +538,7 @@ func TestGapCapture(t *testing.T) {
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".claude", "worktrees", "probe", "draft.md"), test.Fixture(t, "drafts/gap.md"))
 		env.WorkingDir = filepath.Join(env.ProjectDir, "here")
 		test.WriteFile(t, filepath.Join(env.WorkingDir, "draft.md"), test.Fixture(t, "drafts/fact.md"))
+		ground(t, env)
 
 		passes(t, run(t, env, "gate", bash(captureOf("draft.md"))))
 	})
@@ -551,6 +553,7 @@ func TestGapCapture(t *testing.T) {
 
 	t.Run("a draft that is not on disk passes", func(t *testing.T) {
 		env := areaProject(t)
+		ground(t, env)
 
 		passes(t, run(t, env, "gate", bash(captureOf(filepath.Join(env.ProjectDir, "absent.md")))))
 	})
@@ -682,5 +685,212 @@ func TestListingWithAPrefix(t *testing.T) {
 		record(t, env, bash("sdd search --term x"), bash("sdd search --query 'a subject'"), bash(`sdd view --layout "topic(hooks/toolchain):as-list"`))
 
 		passes(t, run(t, env, "gate", ask("s1")))
+	})
+}
+
+func save(tool string, path string) map[string]any {
+	return map[string]any{"session_id": "s1", "tool_name": tool, "tool_input": map[string]any{"file_path": path}}
+}
+
+func draftIn(t *testing.T, env grounding.Env) string {
+	t.Helper()
+
+	draft := filepath.Join(env.ProjectDir, ".sdd", "tmp", "drafts", "decision.md")
+	test.WriteFile(t, draft, test.Fixture(t, "drafts/fact.md"))
+
+	return draft
+}
+
+func entryIn(t *testing.T, env grounding.Env, name string) {
+	t.Helper()
+
+	test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "graph", "2026", "09", name), test.Fixture(t, "drafts/fact.md"))
+}
+
+func TestCaptureNeedsEveryRead(t *testing.T) {
+	cases := []struct {
+		name    string
+		reads   []string
+		missing string
+	}{
+		{name: "no reads", missing: "neither read"},
+		{name: "no semantic search", reads: []string{literalRead, areaRead}, missing: "No `--query` search ran this turn."},
+		{name: "no literal search", reads: []string{semanticRead, areaRead}, missing: "No `--term` search ran this turn."},
+		{name: "no listing", reads: []string{literalRead, semanticRead}, missing: "No `area-` listing ran this turn."},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := areaProject(t)
+			draft := draftIn(t, env)
+
+			for _, read := range tc.reads {
+				record(t, env, bash(read))
+			}
+
+			refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), tc.missing)
+		})
+	}
+
+	t.Run("every read", func(t *testing.T) {
+		env := areaProject(t)
+		draft := draftIn(t, env)
+		ground(t, env)
+
+		passes(t, run(t, env, "gate", bash("agentic-capture "+draft)))
+	})
+}
+
+func TestWhatCountsAsAGraphWrite(t *testing.T) {
+	cases := []struct {
+		command string
+		writes  bool
+	}{
+		{command: "agentic-capture .sdd/tmp/drafts/decision.md", writes: true},
+		{command: "~/go/bin/agentic-capture .sdd/tmp/drafts/decision.md --force", writes: true},
+		{command: "cd /x && agentic-capture decision.md", writes: true},
+		{command: "bash -c 'agentic-capture d.md'", writes: true},
+		{command: "(agentic-capture d.md)", writes: true},
+		{command: "echo d.md | xargs agentic-capture", writes: true},
+		{command: `"$HOME/go/bin/agentic-capture" d.md`, writes: true},
+		{command: "env agentic-capture d.md", writes: true},
+		{command: "sdd new d tac 'body'", writes: true},
+		{command: "bash -c 'sdd new d tac body'", writes: true},
+		{command: "/opt/homebrew/bin/sdd new d tac body", writes: true},
+		{command: "(sdd new d tac body)", writes: true},
+		{command: "sdd new d tac body --dry-run", writes: false},
+		{command: "sdd new --dry-run d tac body && ls", writes: false},
+		{command: "go test -race ./cmd/agentic-capture", writes: false},
+		{command: "ls cmd/agentic-capture/", writes: false},
+		{command: "cat ./cmd/agentic-capture/main.go", writes: false},
+		{command: "./cmd/agentic-capture/testdata/probe.sh d.md", writes: false},
+		{command: "grep -rn agentic-capture skills", writes: false},
+		{command: "echo 'agentic-capture decision.md'", writes: false},
+		{command: "echo 'sdd new d tac body'", writes: false},
+		{command: "grep -n 'sdd new' README.md", writes: false},
+		{command: "cat > notes.md <<'EOF'\nagentic-capture d.md\nsdd new d tac body\nEOF", writes: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			env := areaProject(t)
+			got := run(t, env, "gate", bash(tc.command))
+
+			if !tc.writes {
+				passes(t, got)
+
+				return
+			}
+
+			refuses(t, got, "neither read")
+
+			ground(t, env)
+			passes(t, run(t, env, "gate", bash(tc.command)))
+		})
+	}
+}
+
+func TestAPlainNewHasNoGroundedDraft(t *testing.T) {
+	env := areaProject(t)
+	draft := draftIn(t, env)
+	ground(t, env)
+	record(t, env, save("Write", draft))
+	run(t, env, "turn", map[string]any{"session_id": "s1"})
+
+	passes(t, run(t, env, "gate", bash("agentic-capture "+draft)))
+	refuses(t, run(t, env, "gate", bash("sdd new d tac \"$(cat "+draft+")\"")), "neither read")
+}
+
+func TestAGroundedDraftCarriesItsReads(t *testing.T) {
+	nextTurn := func(t *testing.T, env grounding.Env) {
+		t.Helper()
+
+		run(t, env, "turn", map[string]any{"session_id": "s1"})
+	}
+
+	for _, tool := range []string{"Write", "Edit"} {
+		t.Run("a draft saved through "+tool+" captures in the next turn", func(t *testing.T) {
+			env := areaProject(t)
+			entryIn(t, env, "25-120000-d-tac-abc.md")
+			draft := draftIn(t, env)
+			ground(t, env)
+			record(t, env, save(tool, draft))
+			nextTurn(t, env)
+
+			passes(t, run(t, env, "gate", bash("agentic-capture "+draft)))
+		})
+	}
+
+	t.Run("a relative capture of the grounded draft", func(t *testing.T) {
+		env := areaProject(t)
+		draft := draftIn(t, env)
+		ground(t, env)
+		record(t, env, save("Write", draft))
+		nextTurn(t, env)
+
+		passes(t, run(t, env, "gate", bash("agentic-capture .sdd/tmp/drafts/decision.md")))
+	})
+
+	t.Run("a draft changed since the save owes the reads", func(t *testing.T) {
+		env := areaProject(t)
+		draft := draftIn(t, env)
+		ground(t, env)
+		record(t, env, save("Write", draft))
+		nextTurn(t, env)
+		test.WriteFile(t, draft, test.Fixture(t, "drafts/done.md"))
+
+		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	})
+
+	t.Run("a draft saved in a turn short of a read owes the reads", func(t *testing.T) {
+		env := areaProject(t)
+		draft := draftIn(t, env)
+		record(t, env, bash(literalRead), bash(semanticRead))
+		record(t, env, save("Write", draft))
+		nextTurn(t, env)
+
+		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	})
+
+	t.Run("a graph that gained an entry since the save owes the reads", func(t *testing.T) {
+		env := areaProject(t)
+		entryIn(t, env, "25-120000-d-tac-abc.md")
+		draft := draftIn(t, env)
+		ground(t, env)
+		record(t, env, save("Write", draft))
+		nextTurn(t, env)
+		entryIn(t, env, "25-130000-d-tac-def.md")
+
+		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	})
+
+	t.Run("a file saved outside a drafts directory is never grounded", func(t *testing.T) {
+		env := areaProject(t)
+		draft := filepath.Join(env.ProjectDir, "decision.md")
+		test.WriteFile(t, draft, test.Fixture(t, "drafts/fact.md"))
+		ground(t, env)
+		record(t, env, save("Write", draft))
+		nextTurn(t, env)
+
+		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	})
+
+	t.Run("a failed save is never grounded", func(t *testing.T) {
+		env := areaProject(t)
+		draft := draftIn(t, env)
+		ground(t, env)
+		record(t, env, with(save("Write", draft), "tool_response", map[string]any{"is_error": true}))
+		nextTurn(t, env)
+
+		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	})
+
+	t.Run("another session's grounded draft is not this one's", func(t *testing.T) {
+		env := areaProject(t)
+		draft := draftIn(t, env)
+		ground(t, env)
+		record(t, env, save("Write", draft))
+
+		refuses(t, run(t, env, "gate", with(bash("agentic-capture "+draft), "session_id", "s2")), "neither read")
 	})
 }

@@ -22,6 +22,12 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 
 - **Which listing → `.sdd/grounding.yaml`.** `listing_prefix: area-` there → list one topic
   carrying it, whole. No file, no key → the view of every topic. The refusal names the one owed.
+- **Capture turn → the reads again, unless the draft is grounded.** Grounded = saved through
+  `Write`/`Edit` under a `drafts/` directory in a turn carrying all three, unchanged since, graph
+  holding the same entries. Draft written through `Bash`, edited after, or another capture landed
+  in between → run the three before `agentic-capture`.
+- **Plain `sdd new` → the three reads, always.** No draft, nothing grounded. `--dry-run` exempt.
+  Wrapping it (`bash -c`, subshell, `xargs`, full path) changes nothing.
 
 - **Both modes. Always.** Semantic matches phrasing → misses other wording. Literal matches the
   token → misses everything phrased differently. Live decision already owning your subject → exactly
@@ -84,6 +90,8 @@ Immutable. Get it right before capture.
 | Refused | Why |
 |---|---|
 | question or draft edit, three reads missing | answering from memory |
+| capture, three reads missing, draft not grounded | writing what the graph never confirmed |
+| `sdd new` without `--dry-run`, three reads missing | same, by the path that skips the draft |
 | capture whose draft records a gap | capture the decision that settles it, never the problem |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
 | `sdd show` short of `--down 2 --up 1` | rename lives downstream; upstream says if it still applies |

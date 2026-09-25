@@ -11,7 +11,7 @@ and a command the agent calls itself:
 |---|---|---|
 | carry-forward | `agentic-carryforward` | writing down what the next session needs before the context runs out, and reading it back after |
 | scratch sweep | `agentic-scratch` | keeping throwaway work in one place per session, and clearing it when the session ends |
-| grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question or editing a draft |
+| grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing |
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
 
 **The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd)**, the
@@ -76,14 +76,23 @@ handover holds, and any `MEMORY.md` pointer that resolves to nothing.
 An agent asked to reason about a decision graph will answer from the entry it already read, or from
 what it believes the graph holds. Both are how a wrong answer gets written down with confidence.
 
-The gate refuses a question or a draft edit until the turn carries real reads: a literal search and
-a semantic one, because each misses what the other finds, and a listing, because an empty search
-result is never evidence of absence. A project naming a topic prefix in `.sdd/grounding.yaml`
-(`listing_prefix: area-`) owes a listing of one topic carrying it; every other project owes the view
-of every topic, `sdd view --layout "active:as-counts"`. It also refuses a call that would discard the
-graph tool's own output, since a swallowed refusal reads exactly like an empty graph, and a read
-that stops at the entry itself, since a body is immutable and a later entry may have renamed every
-surface it names.
+The gate refuses a question, a draft edit or an `agentic-capture` call until the turn carries real
+reads: a literal search and a semantic one, because each misses what the other finds, and a
+listing, because an empty search result is never evidence of absence. A project naming a topic
+prefix in `.sdd/grounding.yaml` (`listing_prefix: area-`) owes a listing of one topic carrying it;
+every other project owes the view of every topic, `sdd view --layout "active:as-counts"`. It also
+refuses a call that would discard the graph tool's own output, since a swallowed refusal reads
+exactly like an empty graph, and a read that stops at the entry itself, since a body is immutable
+and a later entry may have renamed every surface it names.
+
+A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as it stands now, in a
+turn carrying every read, while the graph holds the same entries (their count and the newest). The
+turn confirming a playback then need not repeat the reads the draft turn ran. A draft written
+through the shell, changed since, or captured after the graph moved owes the reads in the capture
+turn. A capture counts however the shell spells it: after a runner, in a subshell, inside
+`bash -c`, under any path. A plain `sdd new` without `--dry-run` owes the reads too, and since it
+names no draft, nothing grounded stands in for them. The gate keeps each session's reads and
+grounded drafts under `.sdd/tmp/grounding-gate/`.
 
 ### Capturing an entry
 
@@ -96,7 +105,8 @@ Before it writes, the draft clears three gates in turn: its header names what th
 topic carrying the project's `listing_prefix`, where one is set), the project's own lint reports
 nothing on the body, and `sdd new --dry-run` reports nothing of high severity. The lint is whatever
 the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --output=line` alike,
-and a project naming none gets no lint. The gate refuses a capture whose draft records a gap.
+and a project naming none gets no lint. The gate refuses a capture whose draft records a gap, and one whose turn carries neither the reads
+nor a grounded draft.
 
 ## The skills
 

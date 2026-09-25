@@ -17,6 +17,12 @@ const atCommand = `(?:^|[\n;|&]\s*|--\s+|\b(?:` + runner + `)\s+)`
 
 const sddWord = `(?:\S*/)?sdd\s+[a-z]`
 
+// `agentic-capture` as a command word: a path may lead to it, and nothing
+// path-like may follow, so `./cmd/agentic-capture/main.go` is no call.
+const captureWord = `(?:\S*/)?agentic-capture(?:[\s;&|)]|$)`
+
+const newWord = `(?:\S*/)?sdd\s+new\b`
+
 var (
 	bareSDD = regexp.MustCompile(atCommand + sddWord)
 
@@ -27,6 +33,16 @@ var (
 
 	wrapperCall = regexp.MustCompile(`graph\.py\s+[a-z]`)
 
+	bareCapture     = regexp.MustCompile(atCommand + captureWord)
+	subshellCapture = regexp.MustCompile(`\(\s*` + captureWord)
+	bareNew         = regexp.MustCompile(atCommand + newWord)
+	subshellNew     = regexp.MustCompile(`\(\s*` + newWord)
+	dryRun          = regexp.MustCompile(`^[^\n;&|]*--dry-run\b`)
+
+	// A quoted command word, `"$HOME/go/bin/agentic-capture"`, is the call
+	// itself rather than an argument, so its text survives the unquoting.
+	quotedCapture = regexp.MustCompile(`^['"][^\s'"]*/agentic-capture['"]$`)
+
 	// A shell handed a string to run. Only a shell qualifies: `grep -c` takes a
 	// `-c` of its own and counts lines.
 	shellC = regexp.MustCompile(`(?:^|[\s;|&(])(?:ba|z|da|k)?sh\s+(?:-[A-Za-z]+\s+)*-c\s+('[^']*'|"[^"]*"|\S+)`)
@@ -35,13 +51,44 @@ var (
 )
 
 func reachesBareTool(text string) bool {
-	if bareSDD.MatchString(text) {
-		return true
+	return bareSDD.MatchString(text) || opensSubshell(subshellSDD, text)
+}
+
+// opensSubshell reports whether the pattern matches where a `(` opens a
+// subshell.
+func opensSubshell(pattern *regexp.Regexp, text string) bool {
+	for _, match := range pattern.FindAllStringIndex(text, -1) {
+		if atSubshell(text, match[0]) {
+			return true
+		}
 	}
 
-	for _, match := range subshellSDD.FindAllStringIndex(text, -1) {
-		if match[0] == 0 || !strings.ContainsRune(`/.-`, rune(text[match[0]-1])) && !isWordByte(text[match[0]-1]) {
-			return true
+	return false
+}
+
+// atSubshell reports whether the `(` at start opens a subshell: only where
+// nothing word-like precedes it. RE2 has no lookbehind, so the preceding
+// character is checked by hand.
+func atSubshell(text string, start int) bool {
+	return start == 0 || !strings.ContainsRune(`/.-`, rune(text[start-1])) && !isWordByte(text[start-1])
+}
+
+func callsCapture(text string) bool {
+	return bareCapture.MatchString(text) || opensSubshell(subshellCapture, text)
+}
+
+// callsNew reports an `sdd new` that writes: a `--dry-run` in the same
+// command writes nothing.
+func callsNew(text string) bool {
+	for _, pattern := range []*regexp.Regexp{bareNew, subshellNew} {
+		for _, match := range pattern.FindAllStringIndex(text, -1) {
+			if pattern == subshellNew && !atSubshell(text, match[0]) {
+				continue
+			}
+
+			if !dryRun.MatchString(text[match[1]:]) {
+				return true
+			}
 		}
 	}
 
@@ -165,7 +212,14 @@ func unquoted(command string) string {
 	last := 0
 	for _, span := range quotedSpans(command) {
 		kept.WriteString(command[last:span[0]])
-		kept.WriteString("''")
+
+		quoted := command[span[0]:span[1]]
+		if quotedCapture.MatchString(quoted) {
+			kept.WriteString(quoted[1 : len(quoted)-1])
+		} else {
+			kept.WriteString("''")
+		}
+
 		last = span[1]
 	}
 
@@ -178,6 +232,17 @@ func unquoted(command string) string {
 // quoted arguments.
 func shellOnly(command string) string {
 	return unquoted(stripHeredocs(command))
+}
+
+// spokenTexts is the command as the shell reads it, followed by every command
+// string a shell inside it would run, each read the same way.
+func spokenTexts(raw string) []string {
+	texts := []string{shellOnly(raw)}
+	for _, inner := range carried(stripHeredocs(raw), 0) {
+		texts = append(texts, shellOnly(inner))
+	}
+
+	return texts
 }
 
 // carried lists every command string a shell inside this one would run. A

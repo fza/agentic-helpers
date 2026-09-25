@@ -121,7 +121,7 @@ func TestSettings(t *testing.T) {
 		}
 
 		found := commands(f.written())
-		if containing(found, "agentic-carryforward") != 8 || containing(found, "agentic-grounding-gate") != 3 || containing(found, "agentic-scratch") != 2 {
+		if containing(found, "agentic-carryforward") != 8 || containing(found, "agentic-grounding-gate") != 4 || containing(found, "agentic-scratch") != 2 {
 			t.Errorf("every hook should be wired, got: %v", found)
 		}
 

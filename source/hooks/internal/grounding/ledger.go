@@ -15,19 +15,42 @@ import (
 
 var errNoLedger = errors.New("no ledger for this session")
 
-// evidence is what one turn of one session read out of the graph. The file
+// evidence is what one turn of one session read out of the graph, plus the
+// drafts saved in a turn that read it all, which outlive the turn. The file
 // may carry fields another tool wrote, and they survive a record.
 type evidence struct {
-	Search   int      `json:"search"`
-	Query    int      `json:"query"`
-	Term     int      `json:"term"`
-	Listings []string `json:"listings"`
+	Search   int             `json:"search"`
+	Query    int             `json:"query"`
+	Term     int             `json:"term"`
+	Listings []string        `json:"listings"`
+	Grounded []groundedDraft `json:"grounded"`
 
 	rest map[string]json.RawMessage
 }
 
+// groundedDraft is a draft's content hash and the graph's state when a fully
+// read turn saved it. Either moving voids it.
+type groundedDraft struct {
+	Draft string `json:"draft"`
+	Graph string `json:"graph"`
+}
+
 func freshEvidence() evidence {
-	return evidence{Listings: []string{}}
+	return evidence{Listings: []string{}, Grounded: []groundedDraft{}}
+}
+
+func (held evidence) complete() bool {
+	return held.Query > 0 && held.Term > 0 && len(held.Listings) > 0
+}
+
+func (held evidence) grounds(draft groundedDraft) bool {
+	return slices.Contains(held.Grounded, draft)
+}
+
+func (held *evidence) addGrounded(draft groundedDraft) {
+	if !held.grounds(draft) {
+		held.Grounded = append(held.Grounded, draft)
+	}
 }
 
 func (held *evidence) UnmarshalJSON(data []byte) error {
@@ -47,7 +70,7 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("reading the ledger: %w", err)
 	}
 
-	for _, name := range []string{"search", "query", "term", "listings"} {
+	for _, name := range []string{"search", "query", "term", "listings", "grounded"} {
 		delete(fields, name)
 	}
 
@@ -56,6 +79,10 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 
 	if held.Listings == nil {
 		held.Listings = []string{}
+	}
+
+	if held.Grounded == nil {
+		held.Grounded = []groundedDraft{}
 	}
 
 	return nil
@@ -71,6 +98,7 @@ func (held evidence) MarshalJSON() ([]byte, error) {
 	fields["query"] = held.Query
 	fields["term"] = held.Term
 	fields["listings"] = held.Listings
+	fields["grounded"] = held.Grounded
 
 	data, err := json.Marshal(fields)
 	if err != nil {
