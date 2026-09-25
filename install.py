@@ -42,6 +42,8 @@ WIRING = [
     ("UserPromptSubmit", None, "grounding_gate.py", "turn"),
     ("Stop", None, "carryforward.py", "stop"),
     ("PostToolUse", "Bash", "grounding_gate.py", "record"),
+    ("SessionStart", None, "scratch.py", "start"),
+    ("SessionEnd", None, "scratch.py", "end"),
 ]
 
 TIMEOUT = 15
@@ -56,7 +58,7 @@ def command(script, mode):
 # Matching on the script names rather than on this checkout's path is what makes
 # a move survivable: an entry written before the checkout moved still names the
 # same scripts, so it is found and replaced instead of standing dead.
-SCRIPTS = ("carryforward.py", "grounding_gate.py")
+SCRIPTS = ("carryforward.py", "grounding_gate.py", "scratch.py")
 
 
 def ours(entry):

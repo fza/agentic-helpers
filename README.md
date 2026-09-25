@@ -32,6 +32,29 @@ inline, so the reminder arrives with the material rather than asking a session t
 └── transcripts/<session>.md         what this session did, rolled forward
 ```
 
+### The scratch sweep
+
+An agent writes probes, one-off scripts and captured output. Sent to the system temporary directory
+they are invisible to whoever reviews the work; left at the root of the project's own `.tmp/` they
+pile up, and nothing tells a throwaway apart from a draft that still matters.
+
+So a session writes its throwaway under a directory named for itself, and that directory goes when
+the session ends. A directory abandoned by a session that crashed is reaped a week later.
+
+**Only a directory named for a session is ever removed.** A name the sweep cannot parse as a session
+identifier is somebody's deliberate keep, and survives whatever its age.
+
+```
+.tmp/
+├── claude/<session-id>/   throwaway. Swept.
+├── claude/<name>/         kept. Never swept.
+├── drafts/                awaiting capture. Never swept.
+└── <the project's own>    never touched
+```
+
+At session start it also reports, without blocking, a carry-forward that has grown past the size a
+handover holds, and any `MEMORY.md` pointer that resolves to nothing.
+
 ### The grounding gate
 
 An agent asked to reason about a decision graph will answer from the entry it already read, or from
@@ -70,6 +93,7 @@ nothing is asked, and a project that has neither directory never hears from eith
 |---|---|---|
 | Carry-forward | a `.memory/` directory | exits 0, silently |
 | Grounding gate | a `.sdd/` decision graph, at the project root or above it | exits 0, silently |
+| Scratch sweep | a `.tmp/` directory | exits 0, silently |
 
 So opting a project in is one command:
 

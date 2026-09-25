@@ -57,6 +57,10 @@ python3 "$HOOK" refreshed [seat]           # carry-forward current, ladder reset
 
 - **Never a second copy of a decision.** Graph holds it. `.memory/` points at its id, stops.
 - **Write as you go**, not at the end. Compaction does not wait.
+- **One pointer line per file in `MEMORY.md`.** Dead pointer = defect, fix same turn.
+- **Past 20 KB a carry-forward has stopped being a handover.** Cut what the repo rebuilds. The
+  scratch hook reports it at session start.
+- **No credential, ever.**
 - **Register: caveman ultra.** No articles, no filler. Fragments + arrows. Ids, paths, commands
   exact. An agent reads it, not a person.
 
@@ -103,8 +107,9 @@ Triggered by `handoff`. Three steps, order fixed, all mandatory.
 **3 - EMIT. Hard cap 300 chars.**
 
 - ≤300 → print fenced, paste-ready. Count first.
-- \>300 → do not print. Write `.tmp/claude/handoff-<unique>.md`. Print a short prompt naming that
-  exact path: read it, act, delete it immediately. Unique suffix stops two handoffs colliding.
+- \>300 → do not print. Write `.tmp/claude/handoff/<unique>.md`, a named directory the scratch
+  sweep never touches. Print a short prompt naming that exact path: read it, act, delete it
+  immediately. Unique suffix stops two handoffs colliding.
 
 Prompt = pointer to persisted state. Never the carrier. Prompt explaining the work → step 1 was
 skipped.
