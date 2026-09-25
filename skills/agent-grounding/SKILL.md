@@ -41,8 +41,6 @@ default to weigh.
 - Status stays `active` throughout. Refinement does not close its target.
 - `--down 2` → refinement of a refinement. `--up 1` → what the entry answered, which says whether it
   still applies.
-- Depth zero answered `fdbox deploy config`. Three refinements had already made it
-  `fdbox deploy manage`.
 
 One exception the gate allows: `prc`-layer rules entry. Downstream chain = every entry ever captured
 under it.
