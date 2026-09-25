@@ -1,19 +1,28 @@
 # agentic-helpers
 
-Hooks and a command that make a coding agent pick up where the last one stopped, and keep it from
-writing from memory, with a skill behind each one telling the agent what it is looking at. They
-install once, for every project on the machine, and stay silent in a project that does not want
-them.
+A coding agent forgets. Its context fills, the session is summarised, and the next one starts from
+nothing. Asked about a project's decisions, it answers from whatever it happened to read last. Its
+probes and half-finished drafts pile up where nobody reviews them.
 
-The grounding gate and `agentic-capture` exist for [sdd](https://github.com/networkteam/sdd), the
-Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd is what motivates them and what
-drives them: the gate holds an agent to real `sdd` reads before it asks or drafts, and
-`agentic-capture` writes a draft into the graph through `sdd new`. Neither does anything in a project
-carrying no sdd graph.
+agentic-helpers gives Claude Code the habits that counter this, as hooks that run on every session
+and a command the agent calls itself:
 
-The hooks are Claude Code hooks, driven as a subprocess on an event: Go binaries built from
-`source/hooks` and installed into `~/go/bin`, beside `agentic-capture`, which an agent runs itself.
-The skills are plain Markdown, loaded by the agent when the work calls for them.
+| Piece | What it keeps the agent doing |
+|---|---|
+| carry-forward | writing down what the next session needs before the context runs out, and reading it back after |
+| scratch sweep | keeping throwaway work in one place per session, and clearing it when the session ends |
+| grounding gate | reading the decision graph for real before asking a question or editing a draft |
+| `agentic-capture` | writing a new graph entry through one checked path, never by hand |
+
+**The grounding gate and `agentic-capture` exist for [sdd](https://github.com/networkteam/sdd)**,
+the Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd motivates them and drives
+them: the gate counts real `sdd search` and `sdd view` reads, and `agentic-capture` writes through
+`sdd new`.
+
+Every piece installs once for the whole machine and stays silent in a project that does not carry
+the directory it works on: `.memory/`, `.tmp/` or `.sdd/`. Each comes with a skill, a Markdown file
+the agent loads to learn what the piece expects and what its refusals mean. The hooks and the
+command are Go binaries built from `source/hooks` into `~/go/bin`.
 
 ## What each one does
 
