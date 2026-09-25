@@ -49,6 +49,12 @@ ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
 # compaction, and a copy of it here goes stale and then gets believed.
 # Every carry-forward is read by an agent, so it is written in the terse register
 # every agent-facing text uses.
+# How an agent runs this file. It is installed once for every project, so a
+# message naming it names its own path rather than one inside whichever project
+# the session happens to sit in, which would not exist.
+SELF = f'python3 "{Path(__file__).resolve()}"'
+REFRESHED = f"{SELF} refreshed"
+
 ULTRA = "Write it caveman ultra: no articles/filler, fragments + arrows; ids, paths, commands exact."
 
 KEEP_RULE = (
@@ -67,14 +73,14 @@ GENERAL_RULE = (
 GENERAL_NUDGE_TEXT = (
     "Context near compaction. Fold `.memory/transcripts/{session}.md` into your "
     "carry-forward `.memory/carryforward/{role}-memory.md`, then "
-    "`python3 .claude/hooks/carryforward.py refreshed`. " + GENERAL_RULE + " No graph "
+    "`" + REFRESHED + "`. " + GENERAL_RULE + " No graph "
     "capture, no other `.memory/` file, no handoff prompt."
 )
 
 GENERAL_BACKSTOP_TEXT = (
     "Carry-forward overdue, two nudges unanswered. Fold "
     "`.memory/transcripts/{session}.md` into `.memory/carryforward/{role}-memory.md` now, "
-    "then `python3 .claude/hooks/carryforward.py refreshed` before ending the turn. "
+    "then `" + REFRESHED + "` before ending the turn. "
     + GENERAL_RULE
 )
 
@@ -96,7 +102,7 @@ def backstop_text(role: str) -> str:
 NUDGE_TEXT = (
     "Context near compaction. Read `.memory/transcripts/{session}.md`, bring your "
     "carry-forward `.memory/carryforward/{role}-memory.md` up to date, then "
-    "`python3 .claude/hooks/carryforward.py refreshed`. " + KEEP_RULE + " No graph "
+    "`" + REFRESHED + "`. " + KEEP_RULE + " No graph "
     "capture, no other `.memory/` file, no handoff prompt."
 )
 
@@ -104,7 +110,7 @@ BACKSTOP_TEXT = (
     "Carry-forward overdue, two nudges unanswered. Bring "
     "`.memory/carryforward/{role}-memory.md` up to date from "
     "`.memory/transcripts/{session}.md` now, then "
-    "`python3 .claude/hooks/carryforward.py refreshed` before ending the turn. " + KEEP_RULE
+    "`" + REFRESHED + "` before ending the turn. " + KEEP_RULE
 )
 
 
@@ -618,7 +624,7 @@ def command_session_start() -> int:
             "`.memory/carryforward/main-memory.md` for context, and any other file "
             "under `.memory/carryforward/` "
             "for a seat's own carry-forward. Claim one with "
-            f"`carryforward.py claim <role> <session-id>` (seats: {role_usage()}). "
+            f"`{SELF} claim <role> <session-id>` (seats: {role_usage()}). "
             f"Seats held: {held if held else 'none'}."
         )
     if output:
