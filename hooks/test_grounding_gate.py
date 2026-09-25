@@ -231,7 +231,7 @@ class GroundingGate(unittest.TestCase):
     def test_a_graph_read_with_both_streams_attached_passes(self):
         allowed = [
             "python3 scripts/graph.py search --term x --limit 8 | grep -E '^  [0-9]'",
-            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --up 0 --down 2",
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --up 1 --down 2",
             'python3 scripts/graph.py view --layout "topic(area-hooks):as-list"',
         ]
         for command in allowed:
@@ -246,25 +246,42 @@ class GroundingGate(unittest.TestCase):
                 self.assertEqual(run("gate", bash(command), self.dir).returncode, 0,
                                  f"only an sdd call is covered: {command}")
 
-    def test_a_show_may_not_suppress_its_downstream_chain(self):
-        blind = [
+    def test_a_show_short_of_both_depths_is_refused(self):
+        """`--down 2 --up 1` is the command. Anything shallower reads a stale surface."""
+        short = [
             "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --up 0 --down 0",
-            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 0",
-            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down=0",
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 0 --up 1",
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down=0 --up 1",
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 1 --up 1",
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2",
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2 --up 0",
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm",
             "python3 scripts/graph.py show 20260912-152909-d-cpt-ony 20260829-122703-d-tac-kuz --down 0",
         ]
-        for command in blind:
+        for command in short:
             with self.subTest(command=command):
                 result = run("gate", bash(command), self.dir)
                 self.assertEqual(result.returncode, 2, f"must refuse: {command}")
-                self.assertIn("hides the chain", result.stderr)
+                self.assertIn("--down 2 --up 1", result.stderr)
 
-    def test_a_show_that_reads_its_downstream_passes(self):
-        for command in ["python3 scripts/graph.py show 20260907-164635-d-tac-vkm --up 0 --down 2",
-                        "python3 scripts/graph.py show 20260907-164635-d-tac-vkm",
-                        "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 1"]:
+    def test_the_refusal_names_which_depth_fell_short(self):
+        missing_up = run("gate", bash(
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2"), self.dir)
+        self.assertIn("no `--up`", missing_up.stderr)
+        self.assertNotIn("--down 2` reads short", missing_up.stderr)
+
+        both = run("gate", bash(
+            "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 1 --up 0"), self.dir)
+        self.assertIn("`--down 1`", both.stderr)
+        self.assertIn("`--up 0`", both.stderr)
+
+    def test_a_show_reaching_both_depths_passes(self):
+        for command in ["python3 scripts/graph.py show 20260907-164635-d-tac-vkm --up 1 --down 2",
+                        "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2 --up 1",
+                        "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down=3 --up=2"]:
             with self.subTest(command=command):
-                self.assertEqual(run("gate", bash(command), self.dir).returncode, 0)
+                self.assertEqual(run("gate", bash(command), self.dir).returncode, 0,
+                                 f"must pass: {command}")
 
     def test_a_process_layer_rules_entry_may_suppress_it(self):
         """Its downstream chain is every entry ever captured under it."""
@@ -319,7 +336,7 @@ class GroundingGate(unittest.TestCase):
 
     def test_the_same_read_through_the_wrapper_passes(self):
         for command in ["python3 scripts/graph.py search --term x",
-                        "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2",
+                        "python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2 --up 1",
                         "python3 scripts/graph.py info"]:
             with self.subTest(command=command):
                 self.assertEqual(run("gate", bash(command), self.dir).returncode, 0)

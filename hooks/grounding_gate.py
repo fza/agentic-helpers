@@ -121,7 +121,16 @@ TO_NULL = re.compile(r"(?:&>>?|(?:[12]?>>?)(?:&\s*[12])?)\s*\|?\s*/dev/null|>\s*
 # Reading one entry with its downstream chain suppressed. A body is immutable, so
 # a name a later entry renamed still reads as current in the entry that coined it.
 # Only the downstream chain carries the refinement saying so.
-BLIND_SHOW = re.compile(r"(?:sdd|graph\.py)\s+show\b[^\n]*--down[=\s]+0+\b")
+SHOW = re.compile(r"(?:sdd|graph\.py)\s+show\b[^\n|;&]*")
+DEPTH = {"down": re.compile(r"--down[=\s]+(\d+)\b"),
+         "up": re.compile(r"--up[=\s]+(\d+)\b")}
+
+# How far a grounding read reaches, in each direction. A body is immutable, so a
+# surface it names keeps that spelling after a later entry renamed it: the rename
+# lives in the downstream chain and nowhere else. Two reaches a refinement of a
+# refinement. One upstream shows what the entry was answering, which is what says
+# whether it still applies.
+REACH = {"down": 2, "up": 1}
 
 # A rules entry in the process layer is the documented exception: its downstream
 # chain is every entry ever captured under it, and reading that settles nothing.
@@ -129,11 +138,13 @@ ENTRY_ID = re.compile(r"\b\d{8}-\d{6}-[sd]-([a-z]{3})-[a-z0-9]{3}\b")
 
 SUBJECT_FLAG = re.compile(r"--entry[=\s]+\S+")
 
-DOWNSTREAM_REFUSAL = """GROUNDING GATE: refused. `--down 0` hides the chain carrying any rename.
+DOWNSTREAM_REFUSAL = """GROUNDING GATE: refused. {missing}
 
   {command}
 
-→ rerun w/ `--down 2`+. Only a `prc`-layer rules entry may pass `--down 0`."""
+→ rerun w/ `--down 2 --up 1`. Depths are part of the command, not a default to
+  weigh: `--down` carries any rename, `--up` says whether the entry still applies.
+  Only a `prc`-layer rules entry may read shallower."""
 
 WRAPPER_REFUSAL = """GROUNDING GATE: refused. Tool reached without the wrapper → read unrecorded.
 
@@ -407,9 +418,29 @@ def discards_a_stream(texts, raw):
     return 2
 
 
+def reads_too_shallow(command):
+    """What a show falls short of, in the words the refusal needs, or nothing."""
+    found = SHOW.search(command)
+    if not found:
+        return ""
+
+    short = []
+    for flag, wanted in REACH.items():
+        given = DEPTH[flag].search(found.group(0))
+        reached = int(given.group(1)) if given else 0
+        if reached < wanted:
+            short.append(f"`--{flag} {reached}`" if given else f"no `--{flag}`")
+
+    if not short:
+        return ""
+
+    return " and ".join(short) + " reads short of `--down 2 --up 1`."
+
+
 def hides_the_downstream(command):
-    """Refuse a read that suppresses where a rename to what it names would live."""
-    if not BLIND_SHOW.search(command):
+    """Refuse a read that stops before the chain carrying a rename."""
+    missing = reads_too_shallow(command)
+    if not missing:
         return 0
 
     # The subject a read is recorded against is not what it reads, so its layer
@@ -419,7 +450,7 @@ def hides_the_downstream(command):
     if layers and layers == {"prc"}:
         return 0
 
-    print(DOWNSTREAM_REFUSAL.format(command=command.strip()), file=sys.stderr)
+    print(DOWNSTREAM_REFUSAL.format(command=command.strip(), missing=missing), file=sys.stderr)
 
     return 2
 
