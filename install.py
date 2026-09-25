@@ -33,8 +33,8 @@ HERE = Path(__file__).resolve().parent
 SETTINGS = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "settings.json"
 
 # What each hook answers, and when. A carry-forward reads the session as it opens
-# and writes as it closes; the gate reads a prompt before it lands and records
-# what a call covered after it ran.
+# and writes as it closes; the gate starts a turn on each prompt, refuses a call
+# its reads do not cover before it runs, and records what a call covered after.
 WIRING = [
     ("SessionStart", None, "agentic-carryforward", "session-start"),
     ("SessionStart", None, "agentic-carryforward", "session-log 1"),
@@ -46,6 +46,7 @@ WIRING = [
     ("UserPromptSubmit", None, "agentic-grounding-gate", "turn"),
     ("Stop", None, "agentic-carryforward", "stop"),
     ("PostToolUse", "Bash", "agentic-grounding-gate", "record"),
+    ("PreToolUse", "AskUserQuestion|Write|Edit|NotebookEdit|Bash", "agentic-grounding-gate", "gate"),
     ("SessionStart", None, "agentic-scratch", "start"),
     ("SessionEnd", None, "agentic-scratch", "end"),
 ]

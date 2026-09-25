@@ -98,6 +98,16 @@ class Install(unittest.TestCase):
         for held in scratch:
             self.assertRegex(held, r'^"/[^"]+/bin/agentic-scratch" (start|end)$')
 
+    def test_the_gate_refuses_before_a_question_a_draft_edit_or_a_read(self):
+        self.run_install()
+        groups = self.written()["hooks"]["PreToolUse"]
+        gated = [group for group in groups
+                 if any(entry["command"].endswith("agentic-grounding-gate\" gate")
+                        for entry in group["hooks"])]
+        self.assertEqual(len(gated), 1, "the gate mode should be wired once")
+        self.assertEqual(set(gated[0]["matcher"].split("|")),
+                         {"AskUserQuestion", "Write", "Edit", "NotebookEdit", "Bash"})
+
     def test_remove_takes_only_what_this_repository_owns(self):
         self.write_theirs()
         self.run_install()
