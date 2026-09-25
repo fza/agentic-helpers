@@ -27,6 +27,8 @@
 //	gate    PreToolUse: refuses a bad read, refuses AskUserQuestion and a draft
 //	        edit until this turn carries every read, and a capture until this
 //	        turn carries every read or its draft is grounded
+//	start   SessionStart: removes ledgers of sessions gone a week
+//	end     SessionEnd: removes this session's ledgers
 package grounding
 
 import (
@@ -42,6 +44,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
@@ -50,7 +53,7 @@ import (
 //go:embed refusals
 var refusals embed.FS
 
-var ErrUsage = errors.New("usage: agentic-grounding-gate record|turn|gate")
+var ErrUsage = errors.New("usage: agentic-grounding-gate record|turn|gate|start|end")
 
 const (
 	graphDirName = ".sdd"
@@ -58,6 +61,10 @@ const (
 	// A hook exit code Claude Code reads as a refusal, handing stderr to the
 	// agent.
 	refused = 2
+
+	// Long enough that a session resumed the next morning still finds its
+	// grounded drafts, and the one `agentic-scratch` keeps a scratch for.
+	orphanAge = 7 * 24 * time.Hour
 )
 
 var (
@@ -78,6 +85,10 @@ var (
 	gapKind     = regexp.MustCompile(`(?m)^kind:\s*gap\s*$`)
 	enters      = regexp.MustCompile(`\bcd\s+(?:'([^']+)'|"([^"]+)"|([^\s;&|]+))`)
 )
+
+// Matching this shape is the whole safety of the sweep: only a ledger named for
+// a session, or for an agent within one, is ever removed.
+var ledgerName = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\.[^/]+)?\.json$`)
 
 var gatedTools = map[string]bool{"AskUserQuestion": true, "Write": true, "Edit": true, "NotebookEdit": true}
 
@@ -112,7 +123,7 @@ func (env Env) graphDir() string {
 // Main runs one hook invocation. A project carrying no graph gets no answer
 // rather than a refusal it cannot act on.
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
-	if len(args) != 1 || !slices.Contains([]string{"record", "turn", "gate"}, args[0]) {
+	if len(args) != 1 || !slices.Contains([]string{"record", "turn", "gate", "start", "end"}, args[0]) {
 		_, _ = fmt.Fprintln(streams.Err, ErrUsage)
 
 		return 1
@@ -136,6 +147,14 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return 0
 	case "turn":
 		turn(ctx, env, payload)
+
+		return 0
+	case "start":
+		reap(ctx, env.ledgerDir(), time.Now())
+
+		return 0
+	case "end":
+		end(ctx, env.ledgerDir(), payload)
 
 		return 0
 	default:

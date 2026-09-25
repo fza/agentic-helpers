@@ -92,7 +92,8 @@ through the shell, changed since, or captured after the graph moved owes the rea
 turn. A capture counts however the shell spells it: after a runner, in a subshell, inside
 `bash -c`, under any path. A plain `sdd new` without `--dry-run` owes the reads too, and since it
 names no draft, nothing grounded stands in for them. The gate keeps each session's reads and
-grounded drafts under `.sdd/tmp/grounding-gate/`.
+grounded drafts under `.sdd/tmp/grounding-gate/`, removes a session's files when it ends, and at a
+session start removes those a session left a week ago without ending cleanly.
 
 ### Capturing an entry
 

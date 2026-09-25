@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 )
@@ -176,4 +177,59 @@ func saveEvidence(ctx context.Context, path string, held evidence) error {
 	}
 
 	return nil
+}
+
+// end removes the session's ledger and those of the agents it spawned. Only
+// the session's own name, or that name followed by an agent's, qualifies.
+func end(ctx context.Context, dir string, payload hookio.Payload) {
+	session := strings.ReplaceAll(payload.SessionID, "/", "-")
+	if session == "" {
+		return
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return
+		}
+
+		name := entry.Name()
+		if entry.IsDir() || !ledgerName.MatchString(name) {
+			continue
+		}
+
+		if name == session+".json" || strings.HasPrefix(name, session+".") {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
+}
+
+// reap removes the ledgers a session left when it ended without `SessionEnd`
+// firing, once they are a week untouched.
+func reap(ctx context.Context, dir string, now time.Time) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return
+		}
+
+		if entry.IsDir() || !ledgerName.MatchString(entry.Name()) {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil || now.Sub(info.ModTime()) <= orphanAge {
+			continue
+		}
+
+		_ = os.Remove(filepath.Join(dir, entry.Name()))
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -893,4 +894,68 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 
 		refuses(t, run(t, env, "gate", with(bash("agentic-capture "+draft), "session_id", "s2")), "neither read")
 	})
+}
+
+func TestLedgerCleanup(t *testing.T) {
+	ledgers := func(env grounding.Env) string {
+		return filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate")
+	}
+
+	t.Run("a session's end removes its ledgers and its agents'", func(t *testing.T) {
+		env := areaProject(t)
+		dir := ledgers(env)
+		for _, name := range []string{test.Session + ".json", test.Session + ".a1.json", test.OtherSession + ".json"} {
+			test.WriteFile(t, filepath.Join(dir, name), "{}")
+		}
+
+		passes(t, run(t, env, "end", map[string]any{"session_id": test.Session}))
+
+		if test.Exists(t, filepath.Join(dir, test.Session+".json")) || test.Exists(t, filepath.Join(dir, test.Session+".a1.json")) {
+			t.Error("the ending session's ledgers should be removed")
+		}
+
+		if !test.Exists(t, filepath.Join(dir, test.OtherSession+".json")) {
+			t.Error("another session's ledger should be kept")
+		}
+	})
+
+	t.Run("a session start reaps only week-old session ledgers", func(t *testing.T) {
+		env := areaProject(t)
+		dir := ledgers(env)
+		old := filepath.Join(dir, test.Session+".json")
+		young := filepath.Join(dir, test.OtherSession+".json")
+		kept := filepath.Join(dir, "keep.json")
+
+		for _, path := range []string{old, young, kept} {
+			test.WriteFile(t, path, "{}")
+		}
+
+		test.Age(t, old, 8*24*time.Hour)
+		test.Age(t, young, 6*24*time.Hour)
+		test.Age(t, kept, 30*24*time.Hour)
+
+		passes(t, run(t, env, "start", map[string]any{"session_id": test.OtherSession}))
+
+		if test.Exists(t, old) {
+			t.Error("an abandoned session's ledger should be reaped")
+		}
+
+		if !test.Exists(t, young) || !test.Exists(t, kept) {
+			t.Error("a recent ledger and a name no session carries should be kept")
+		}
+	})
+
+	for _, mode := range []string{"start", "end"} {
+		t.Run(mode+" leaves a project without a graph alone", func(t *testing.T) {
+			root := t.TempDir()
+
+			got := run(t, grounding.Env{ProjectDir: root, WorkingDir: root}, mode, map[string]any{"session_id": test.Session})
+
+			passes(t, got)
+
+			if test.Exists(t, filepath.Join(root, ".sdd")) || got.stderr != "" {
+				t.Error("the gate should create nothing and stay silent")
+			}
+		})
+	}
 }
