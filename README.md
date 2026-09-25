@@ -7,17 +7,16 @@ probes and half-finished drafts pile up where nobody reviews them.
 agentic-helpers gives Claude Code the habits that counter this, as hooks that run on every session
 and a command the agent calls itself:
 
-| Piece | What it keeps the agent doing |
-|---|---|
-| carry-forward | writing down what the next session needs before the context runs out, and reading it back after |
-| scratch sweep | keeping throwaway work in one place per session, and clearing it when the session ends |
-| grounding gate | reading the decision graph for real before asking a question or editing a draft |
-| `agentic-capture` | writing a new graph entry through one checked path, never by hand |
+| Piece | Binary | What it keeps the agent doing |
+|---|---|---|
+| carry-forward | `agentic-carryforward` | writing down what the next session needs before the context runs out, and reading it back after |
+| scratch sweep | `agentic-scratch` | keeping throwaway work in one place per session, and clearing it when the session ends |
+| grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question or editing a draft |
+| capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
 
-**The grounding gate and `agentic-capture` exist for [sdd](https://github.com/networkteam/sdd)**,
-the Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd motivates them and drives
-them: the gate counts real `sdd search` and `sdd view` reads, and `agentic-capture` writes through
-`sdd new`.
+**The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd)**, the
+Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd motivates them and drives them:
+the gate counts real `sdd search` and `sdd view` reads, and capture writes through `sdd new`.
 
 Every piece installs once for the whole machine and stays silent in a project that does not carry
 the directory it works on: `.memory/`, `.tmp/` or `.sdd/`. Each comes with a skill, a Markdown file
