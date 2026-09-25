@@ -13,7 +13,6 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
-	"github.com/fza/agentic-helpers/source/hooks/internal/sddap"
 )
 
 func main() {
@@ -52,7 +51,6 @@ func main() {
 		CompactWindow: window,
 		Now:           time.Now,
 		Processes:     process.Table{},
-		Seats:         sddap.Seats{Dir: root},
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

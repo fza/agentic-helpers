@@ -90,8 +90,6 @@ Immutable. Get it right before capture.
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
 | `sdd show` short of `--down 2 --up 1` | rename lives downstream; upstream says if it still applies |
 
-Exempt: draft a verification already read. Its fixes owe no fresh reads.
-
 ## Traps
 
 - **`--term`, repeatable. Not `--terms`.** Wrong flag → usage on stderr, non-zero exit.

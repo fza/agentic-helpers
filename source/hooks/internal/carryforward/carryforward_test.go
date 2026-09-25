@@ -21,7 +21,6 @@ type fixture struct {
 	env        carryforward.Env
 	transcript string
 	processes  *test.Processes
-	seats      *test.Seats
 }
 
 type result struct {
@@ -40,20 +39,17 @@ func newFixture(t *testing.T) *fixture {
 	test.WriteFile(t, transcript, "")
 
 	processes := test.NewProcesses()
-	seats := &test.Seats{}
 
 	return &fixture{
 		t:          t,
 		transcript: transcript,
 		processes:  processes,
-		seats:      seats,
 		env: carryforward.Env{
 			Root:      root,
 			Home:      t.TempDir(),
 			OwnerName: "claude",
 			Now:       time.Now,
 			Processes: processes,
-			Seats:     seats,
 		},
 	}
 }
@@ -267,10 +263,6 @@ func TestClaim(t *testing.T) {
 			t.Errorf("the lock should name the session and its owner process, got: %v", record)
 		}
 
-		if len(f.seats.Calls) != 1 || f.seats.Calls[0].Verb != "take" {
-			t.Errorf("the seat should be registered with sddap, got: %v", f.seats.Calls)
-		}
-
 		second := f.run("", "claim", "drive", "other-session")
 		if second.code != 1 || !strings.Contains(second.stderr, "drive is held by") || !strings.Contains(second.stderr, "take drive") {
 			t.Errorf("a second claim should be refused, naming take, got: %+v", second)
@@ -438,40 +430,14 @@ func TestClaim(t *testing.T) {
 	})
 }
 
-func TestReleaseAndBudget(t *testing.T) {
-	t.Run("release frees the seat and tells sddap", func(t *testing.T) {
+func TestRelease(t *testing.T) {
+	t.Run("release frees the process's own seat", func(t *testing.T) {
 		f := newFixture(t)
 		f.claim("drive", session)
 
 		got := f.run("", "release")
 		if got.code != 0 || exists(f.lockPath("drive")) {
 			t.Errorf("the process's own seat should be released, got: %+v", got)
-		}
-
-		if f.seats.Calls[len(f.seats.Calls)-1].Verb != "release" {
-			t.Error("the release should reach sddap")
-		}
-	})
-
-	t.Run("the owner speaking refills the seat budget", func(t *testing.T) {
-		f := newFixture(t)
-		f.sourced("startup", "session-start")
-		f.run("", "claim", "validate")
-		budget := f.path("roles", "validate.autopilot")
-		test.WriteFile(t, budget, "22")
-
-		if f.hookRun("prompt").code != 0 || exists(budget) {
-			t.Error("a prompt should clear the seat's budget")
-		}
-	})
-
-	t.Run("a session holding no seat touches no budget", func(t *testing.T) {
-		f := newFixture(t)
-		budget := f.path("roles", "validate.autopilot")
-		test.WriteFile(t, budget, "22")
-
-		if f.hookRun("prompt").code != 0 || !exists(budget) {
-			t.Error("a seatless prompt should leave the budget alone")
 		}
 	})
 }

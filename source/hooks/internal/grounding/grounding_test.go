@@ -182,42 +182,6 @@ func TestDraftEdits(t *testing.T) {
 	passes(t, run(t, env, "gate", with(edit("/x/.tmp/drafts/ssh-access/01-block.md"), "tool_name", "Read")))
 }
 
-func ledgerWith(t *testing.T, env grounding.Env, draft string, history []map[string]string) {
-	t.Helper()
-
-	held, err := json.Marshal(map[string]any{"drafts": map[string]any{draft: map[string]any{"hash": "x", "history": history}}})
-	if err != nil {
-		t.Fatalf("encoding the ledger: %v", err)
-	}
-
-	test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "20260901-000000-d-tac-aaa.json"), string(held))
-}
-
-func TestVerifiedDrafts(t *testing.T) {
-	t.Run("a fix to a verified draft owes no fresh reads", func(t *testing.T) {
-		env := areaProject(t)
-		draft := filepath.Join(env.ProjectDir, ".tmp", "drafts", "fix.md")
-		ledgerWith(t, env, draft, []map[string]string{{"agent": "verify-1", "verdict": "findings"}})
-
-		passes(t, run(t, env, "gate", edit(draft)))
-	})
-
-	t.Run("a registered draft nobody verified still owes the reads", func(t *testing.T) {
-		env := areaProject(t)
-		draft := filepath.Join(env.ProjectDir, ".tmp", "drafts", "new.md")
-		ledgerWith(t, env, draft, []map[string]string{})
-
-		refuses(t, run(t, env, "gate", edit(draft)), "GROUNDING GATE")
-	})
-
-	t.Run("another draft's verification opens nothing", func(t *testing.T) {
-		env := areaProject(t)
-		ledgerWith(t, env, filepath.Join(env.ProjectDir, ".tmp", "drafts", "other.md"), []map[string]string{{"agent": "verify-1", "verdict": "clean"}})
-
-		refuses(t, run(t, env, "gate", edit(filepath.Join(env.ProjectDir, ".tmp", "drafts", "new.md"))), "GROUNDING GATE")
-	})
-}
-
 func TestAnotherRepository(t *testing.T) {
 	env := areaProject(t)
 	other := filepath.Join(filepath.Dir(env.ProjectDir), filepath.Base(env.ProjectDir)+"-other")
@@ -273,7 +237,7 @@ func TestTheListingRecordsWhichAreaItRead(t *testing.T) {
 	env := areaProject(t)
 	record(t, env, bash(areaRead), bash(`python3 scripts/graph.py view --layout "topic(area-bare-host-deployment):as-counts"`), bash(areaRead))
 
-	data, err := os.ReadFile(filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json"))
+	data, err := os.ReadFile(filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "s1.json"))
 	if err != nil {
 		t.Fatalf("reading the ledger: %v", err)
 	}
@@ -294,7 +258,7 @@ func TestTheListingRecordsWhichAreaItRead(t *testing.T) {
 
 func TestARecordKeepsFieldsAnotherToolWrote(t *testing.T) {
 	env := areaProject(t)
-	ledger := filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json")
+	ledger := filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "s1.json")
 	test.WriteFile(t, ledger, `{"search": 0, "query": 0, "term": 0, "listings": [], "subject": "20260901-000000-d-tac-aaa"}`)
 
 	record(t, env, bash(literalRead))
@@ -603,22 +567,30 @@ func TestTheTurnHookNeverBlocksAPrompt(t *testing.T) {
 
 	t.Run("a ledger directory that is a file", func(t *testing.T) {
 		env := areaProject(t)
-		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns"), "occupied")
+		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate"), "occupied")
 
 		passes(t, run(t, env, "turn", map[string]any{"session_id": "s1"}))
 	})
 
 	t.Run("a ledger that only partly decodes refuses", func(t *testing.T) {
 		env := areaProject(t)
-		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json"),
+		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "s1.json"),
 			test.Fixture(t, "ledgers/mistyped.json"))
 
 		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
 	})
 
+	t.Run("an unparsable project config refuses rather than passing", func(t *testing.T) {
+		env := areaProject(t)
+		ground(t, env)
+		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), "listing_prefix: [unclosed")
+
+		refuses(t, run(t, env, "gate", ask("s1")), "grounding.yaml")
+	})
+
 	t.Run("an unreadable ledger refuses rather than passing", func(t *testing.T) {
 		env := areaProject(t)
-		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json"), "{ not json")
+		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "s1.json"), "{ not json")
 
 		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
 	})

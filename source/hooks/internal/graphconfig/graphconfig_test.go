@@ -1,0 +1,65 @@
+package graphconfig_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
+	"github.com/fza/agentic-helpers/source/hooks/test"
+)
+
+func TestGraphDir(t *testing.T) {
+	root := graphconfig.RealPath(t.TempDir())
+	below := filepath.Join(root, "source", "internal")
+
+	err := os.MkdirAll(below, 0o755)
+	if err != nil {
+		t.Fatalf("creating the tree: %v", err)
+	}
+
+	if graphconfig.GraphDir(below) != "" {
+		t.Error("a tree without a graph should have none")
+	}
+
+	err = os.Mkdir(filepath.Join(root, ".sdd"), 0o755)
+	if err != nil {
+		t.Fatalf("creating the graph: %v", err)
+	}
+
+	if graphconfig.GraphDir(below) != filepath.Join(root, ".sdd") {
+		t.Error("the graph above should govern the directory below")
+	}
+}
+
+func TestLoad(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    graphconfig.Config
+		fails   bool
+	}{
+		{name: "no file"},
+		{name: "prefix and lint", content: test.Fixture(t, "grounding/full.yaml"), want: graphconfig.Config{ListingPrefix: "area-", DraftLint: "vale --output=line"}},
+		{name: "empty file", content: "", want: graphconfig.Config{}},
+		{name: "not yaml", content: "listing_prefix: [unclosed", fails: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			graph := filepath.Join(t.TempDir(), ".sdd")
+			if tc.name != "no file" {
+				test.WriteFile(t, filepath.Join(graph, "grounding.yaml"), tc.content)
+			}
+
+			got, err := graphconfig.Load(graph)
+			if (err != nil) != tc.fails {
+				t.Fatalf("only an unparsable file should fail, got: %v", err)
+			}
+
+			if got != tc.want {
+				t.Errorf("the config should be read as written, got: %+v", got)
+			}
+		})
+	}
+}

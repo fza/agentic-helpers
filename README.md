@@ -70,8 +70,6 @@ graph tool's own output, since a swallowed refusal reads exactly like an empty g
 that stops at the entry itself, since a body is immutable and a later entry may have renamed every
 surface it names.
 
-A draft a verification already read is exempt: fixing what a reader found owes no fresh reads.
-
 ## The skills
 
 A hook fires and an agent that has never met it has to work out what just happened. Each hook has a

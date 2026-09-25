@@ -26,11 +26,6 @@ type ProcessTable interface {
 	StartTime(ctx context.Context, pid int) string
 }
 
-type SeatRegistry interface {
-	Take(ctx context.Context, role string, session string, pid int)
-	Release(ctx context.Context, role string)
-}
-
 type lock struct {
 	SessionID  string `json:"session_id"`
 	PID        int    `json:"pid"`

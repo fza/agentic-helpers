@@ -32,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 )
 
@@ -50,7 +51,6 @@ const (
 
 var (
 	everyTopic  = regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b[^\n]*\bactive:as-counts\b`)
-	listingKey  = regexp.MustCompile(`^\s*listing_prefix\s*:\s*['"]?([^'"#\s]*)['"]?\s*(?:#.*)?$`)
 	search      = regexp.MustCompile(`(?:sdd|graph\.py)\s+search\b`)
 	view        = regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b`)
 	semantic    = regexp.MustCompile(`(?:sdd|graph\.py)\s+search\b[^\n]*--query\b`)
@@ -71,11 +71,10 @@ var (
 var gatedTools = map[string]bool{"AskUserQuestion": true, "Write": true, "Edit": true, "NotebookEdit": true}
 
 // Env is where a hook invocation runs. ProjectDir is empty when the client set
-// none; LedgerDir overrides where evidence is kept.
+// none.
 type Env struct {
 	ProjectDir string
 	WorkingDir string
-	LedgerDir  string
 	Home       string
 }
 
@@ -87,39 +86,14 @@ func (env Env) project() string {
 	return env.WorkingDir
 }
 
+// ledgerDir keeps each session's evidence under the graph's own scratch
+// directory, which sdd ignores.
 func (env Env) ledgerDir() string {
-	if env.LedgerDir != "" {
-		return env.LedgerDir
-	}
-
-	base := env.ProjectDir
-	if base == "" {
-		base = env.WorkingDir
-	}
-
-	return filepath.Join(base, graphDirName, "autopilot", "turns")
+	return filepath.Join(env.graphDir(), "tmp", "grounding-gate")
 }
 
-// graphDir walks up to the graph governing this session. It stops at the
-// filesystem root rather than a repository boundary, so a graph one level
-// above a nested checkout still answers for it.
 func (env Env) graphDir() string {
-	walked := realPath(env.project())
-	for {
-		held := filepath.Join(walked, graphDirName)
-
-		info, err := os.Stat(held)
-		if err == nil && info.IsDir() {
-			return held
-		}
-
-		parent := filepath.Dir(walked)
-		if parent == walked {
-			return ""
-		}
-
-		walked = parent
-	}
+	return graphconfig.GraphDir(env.project())
 }
 
 // Main runs one hook invocation. A project carrying no graph gets no answer
@@ -196,8 +170,13 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 		}
 	}
 
+	prefix, err := env.listingPrefix()
+	if err != nil {
+		return
+	}
+
 	if view.MatchString(spoken) {
-		for _, listing := range listingsIn(env.listingPrefix(), command) {
+		for _, listing := range listingsIn(prefix, command) {
 			held.addListing(listing)
 			changed = true
 		}
@@ -230,8 +209,13 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		return readsBadly(env, payload.ToolInput.Command)
 	}
 
-	if !gated(ctx, env, payload) {
+	if !gated(payload) {
 		return ""
+	}
+
+	prefix, err := env.listingPrefix()
+	if err != nil {
+		return fmt.Sprintf("GROUNDING GATE: refused. %v\n\nFix `.sdd/grounding.yaml`, then ask again.\n", err)
 	}
 
 	path, err := ledgerPath(env.ledgerDir(), payload)
@@ -260,8 +244,6 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		missing = append(missing, "No `--term` search ran this turn.")
 	}
 
-	prefix := env.listingPrefix()
-
 	switch {
 	case haveListing:
 		have = append(have, "a listing of "+strings.Join(held.Listings, ", "))
@@ -280,7 +262,7 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		"{missing}", strings.Join(missing, " "))
 }
 
-func gated(ctx context.Context, env Env, payload hookio.Payload) bool {
+func gated(payload hookio.Payload) bool {
 	if payload.ToolName == "AskUserQuestion" {
 		return true
 	}
@@ -291,7 +273,7 @@ func gated(ctx context.Context, env Env, payload hookio.Payload) bool {
 
 	target := payload.ToolInput.FilePath
 
-	return draftPath.MatchString(target) && !verifiedBefore(ctx, env.ledgerDir(), target)
+	return draftPath.MatchString(target)
 }
 
 func readsBadly(env Env, raw string) string {
@@ -464,7 +446,7 @@ func readsTooShallow(command string) string {
 // repository. The rules here derive from this project's graph, and a session
 // working on a different tree answers to that tree.
 func elsewhere(env Env, command string) bool {
-	here := realPath(env.project())
+	here := graphconfig.RealPath(env.project())
 
 	for _, match := range enters.FindAllStringSubmatch(command, -1) {
 		target := match[1] + match[2] + match[3]
@@ -474,7 +456,7 @@ func elsewhere(env Env, command string) bool {
 			continue
 		}
 
-		walked := realPath(target)
+		walked := graphconfig.RealPath(target)
 		if walked == here || strings.HasPrefix(walked, here+string(filepath.Separator)) {
 			continue
 		}
@@ -517,27 +499,15 @@ func refusal(name string, replacements ...string) string {
 	return strings.NewReplacer(replacements...).Replace(string(text))
 }
 
-// listingPrefix is the topic prefix this project's listing has to carry, read
-// from `.sdd/grounding.yaml`, or empty where the project names none.
-func (env Env) listingPrefix() string {
-	graph := env.graphDir()
-	if graph == "" {
-		return ""
-	}
-
-	data, err := os.ReadFile(filepath.Join(graph, "grounding.yaml"))
+// listingPrefix is the topic prefix this project's listing has to carry, or
+// empty where the project names none.
+func (env Env) listingPrefix() (string, error) {
+	config, err := graphconfig.Load(env.graphDir())
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("the project's graph config: %w", err)
 	}
 
-	for _, line := range strings.Split(string(data), "\n") {
-		match := listingKey.FindStringSubmatch(line)
-		if match != nil {
-			return match[1]
-		}
-	}
-
-	return ""
+	return config.ListingPrefix, nil
 }
 
 // listingsIn names every listing a view command performed: each topic carrying

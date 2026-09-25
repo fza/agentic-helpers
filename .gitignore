@@ -9,4 +9,3 @@ __pycache__/
 .sdd/sessions/
 .sdd/staged-blobs/
 .sdd/graph/.sdd-runtime/
-.sdd/autopilot/turns/

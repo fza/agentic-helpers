@@ -37,7 +37,6 @@ type Env struct {
 	CompactWindow int
 	Now           func() time.Time
 	Processes     ProcessTable
-	Seats         SeatRegistry
 }
 
 type hook struct {
@@ -242,11 +241,6 @@ func (hook *hook) prompt(ctx context.Context) int {
 		return 0
 	}
 
-	// The owner spoke, so the seat's unattended stretch starts again. The seat
-	// gate's resting line promises exactly this, and this hook already runs on
-	// every prompt in every session.
-	_ = os.Remove(filepath.Join(hook.rolesDir(), role+".autopilot"))
-
 	state := hook.loadState(session)
 	if hook.thresholdCrossed(session, payload.TranscriptPath, state) {
 		state.Nudges++
@@ -344,8 +338,6 @@ func (hook *hook) claim(ctx context.Context, args []string, force bool) int {
 		return hook.refuse(err.Error())
 	}
 
-	hook.env.Seats.Take(ctx, role, session, pid)
-
 	state := hook.loadState(session)
 	if !isFile(hook.statePath(session)) {
 		var start int64
@@ -399,7 +391,6 @@ func (hook *hook) release(ctx context.Context, args []string) int {
 	}
 
 	_ = os.Remove(hook.lockPath(role))
-	hook.env.Seats.Release(ctx, role)
 	hook.say(role + " released")
 
 	return 0

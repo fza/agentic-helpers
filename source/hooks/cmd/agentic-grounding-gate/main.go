@@ -24,7 +24,6 @@ func main() {
 	env := grounding.Env{
 		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"),
 		WorkingDir: working,
-		LedgerDir:  os.Getenv("GRAPH_LEDGER_DIR"),
 		Home:       home,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}

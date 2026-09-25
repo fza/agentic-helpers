@@ -1,9 +1,6 @@
 package test
 
-import (
-	"context"
-	"sync"
-)
+import "context"
 
 // The fake process tree: a hook (HookPID) runs under a shell (ShellPID)
 // started by the Claude process (OwnerPID).
@@ -51,29 +48,4 @@ func (fake *Processes) ParentAndName(_ context.Context, pid int) (int, string) {
 
 func (fake *Processes) StartTime(_ context.Context, pid int) string {
 	return fake.Table[pid].Started
-}
-
-type SeatCall struct {
-	Verb    string
-	Role    string
-	Session string
-}
-
-type Seats struct {
-	mutex sync.Mutex
-	Calls []SeatCall
-}
-
-func (fake *Seats) Take(_ context.Context, role string, session string, _ int) {
-	fake.mutex.Lock()
-	defer fake.mutex.Unlock()
-
-	fake.Calls = append(fake.Calls, SeatCall{Verb: "take", Role: role, Session: session})
-}
-
-func (fake *Seats) Release(_ context.Context, role string) {
-	fake.mutex.Lock()
-	defer fake.mutex.Unlock()
-
-	fake.Calls = append(fake.Calls, SeatCall{Verb: "release", Role: role})
 }
