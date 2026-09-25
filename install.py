@@ -10,8 +10,11 @@ Running it twice changes nothing the second time: every entry running one of
 these scripts is removed before the current set goes in, whichever directory it
 named, so a moved or renamed checkout leaves nothing stale behind.
 
-    install.py            wire the hooks in
-    install.py --remove   take them out
+Skills are linked rather than copied, so an edit in this checkout reaches every
+project at once and no copy drifts from the file it came from.
+
+    install.py            wire the hooks in and link the skills
+    install.py --remove   take both back out
     install.py --print    write nothing, show what would land
 """
 
@@ -42,6 +45,8 @@ WIRING = [
 ]
 
 TIMEOUT = 15
+
+SKILLS = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "skills"
 
 
 def command(script, mode):
@@ -95,6 +100,38 @@ def wired(hooks):
     return held
 
 
+def link_skills(removing, showing):
+    """Point the skills directory at this checkout's own, one link per skill.
+
+    A link rather than a copy: an edit here reaches every project at once, and
+    nothing drifts. A link already naming somewhere else is replaced, because a
+    checkout that moved would otherwise leave every skill pointing at nothing.
+    """
+    ours = sorted(p for p in (HERE / "skills").iterdir() if p.is_dir()) \
+        if (HERE / "skills").is_dir() else []
+    acted = []
+    for skill in ours:
+        target = SKILLS / skill.name
+        wanted = None if removing else skill
+        held = os.readlink(target) if target.is_symlink() else None
+        if held == (str(wanted) if wanted else None):
+            continue
+        if showing:
+            acted.append(f"{'unlink' if removing else 'link'} {target}")
+            continue
+        if target.is_symlink() or target.exists():
+            if not target.is_symlink():
+                print(f"{target} is not a link; leaving it alone", file=sys.stderr)
+                continue
+            target.unlink()
+        if not removing:
+            SKILLS.mkdir(parents=True, exist_ok=True)
+            target.symlink_to(skill)
+        acted.append(f"{'unlinked' if removing else 'linked'} {target}")
+
+    return acted
+
+
 def main():
     removing = "--remove" in sys.argv[1:]
     showing = "--print" in sys.argv[1:]
@@ -120,7 +157,13 @@ def main():
 
     if showing:
         print(json.dumps(held.get("hooks", {}), indent=2))
+        for line in link_skills(removing, showing):
+            print(line)
         return 0
+
+    skills = link_skills(removing, showing)
+    for line in skills:
+        print(line)
 
     if held == settings:
         print(f"{SETTINGS} already says this")

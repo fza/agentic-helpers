@@ -1,10 +1,11 @@
 # agentic-helpers
 
 Two hooks that make a coding agent pick up where the last one stopped, and keep it from writing
-from memory. They install once, for every project on the machine, and stay silent in a project that
-does not want them.
+from memory, with a skill behind each one telling the agent what it is looking at. They install
+once, for every project on the machine, and stay silent in a project that does not want them.
 
-Both are Claude Code hooks: plain Python, no dependencies, driven as a subprocess on an event.
+The hooks are Claude Code hooks: plain Python, no dependencies, driven as a subprocess on an event.
+The skills are plain Markdown, loaded by the agent when the work calls for them.
 
 ## What each one does
 
@@ -45,6 +46,21 @@ surface it names.
 
 A draft a verification already read is exempt: fixing what a reader found owes no fresh reads.
 
+## The skills
+
+A hook fires and an agent that has never met it has to work out what just happened. Each hook has a
+skill carrying what it cannot say in a one-line refusal.
+
+| Skill | Carries |
+|---|---|
+| `agent-carryforward` | what a seat is, how to claim one, what belongs in a carry-forward against what belongs in the graph, and the handoff procedure |
+| `agent-grounding` | the three reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
+
+Each says in its own description that it applies only to a project carrying the directory its hook
+needs, so an agent in an unrelated project has no reason to open either.
+
+Skills are linked rather than copied, so an edit here reaches every project at once.
+
 ## How a project opts in
 
 **Neither hook does anything until the project carries what it operates on.** Nothing is created,
@@ -69,9 +85,9 @@ allowlist entry and no marker file, and installing these hooks costs it nothing.
 ```bash
 git clone git@github.com:fza/agentic-helpers.git
 cd agentic-helpers
-./install.py            # wire the hooks into ~/.claude/settings.json
+./install.py            # wire the hooks in, link the skills
 ./install.py --print    # write nothing, show what would land
-./install.py --remove   # take them back out
+./install.py --remove   # take both back out
 ```
 
 The installer edits only the hook entries running these scripts and leaves every other key exactly
@@ -82,8 +98,11 @@ rather than by the directory they name.
 
 A session already running keeps the wiring it started with.
 
-`CLAUDE_CONFIG_DIR` moves the settings file it edits, for anyone whose Claude Code configuration
-does not sit at `~/.claude`.
+A skill link naming a directory that moved is replaced. A directory somebody else put there under
+one of these names is left alone and reported, rather than overwritten.
+
+`CLAUDE_CONFIG_DIR` moves both the settings file it edits and the skills directory it links into,
+for anyone whose Claude Code configuration does not sit at `~/.claude`.
 
 ## Working on this
 

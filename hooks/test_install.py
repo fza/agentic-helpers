@@ -116,5 +116,60 @@ class Install(unittest.TestCase):
         self.assertEqual(self.settings.read_text(), "{ this is not json")
 
 
+class Skills(unittest.TestCase):
+    """Skills are linked, so an edit in the checkout reaches every project."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.skills = Path(self.dir) / "skills"
+
+    def run_install(self, *args):
+        env = dict(os.environ, CLAUDE_CONFIG_DIR=self.dir)
+        return subprocess.run([sys.executable, str(INSTALL), *args],
+                              capture_output=True, text=True, env=env, check=False)
+
+    def shipped(self):
+        return sorted(p.name for p in (INSTALL.parent / "skills").iterdir() if p.is_dir())
+
+    def test_every_skill_this_repository_ships_is_linked(self):
+        self.run_install()
+        self.assertEqual(sorted(p.name for p in self.skills.iterdir()), self.shipped())
+        for link in self.skills.iterdir():
+            self.assertTrue(link.is_symlink(), f"{link} is a copy rather than a link")
+            self.assertTrue((link / "SKILL.md").is_file())
+
+    def test_a_link_naming_somewhere_else_is_replaced(self):
+        self.skills.mkdir()
+        stale = self.skills / self.shipped()[0]
+        stale.symlink_to("/somewhere/else/that/moved")
+        self.run_install()
+        self.assertEqual(os.path.realpath(stale),
+                         str(INSTALL.parent / "skills" / stale.name))
+
+    def test_a_directory_somebody_else_put_there_is_left_alone(self):
+        self.skills.mkdir()
+        theirs = self.skills / self.shipped()[0]
+        theirs.mkdir()
+        (theirs / "SKILL.md").write_text("theirs")
+        result = self.run_install()
+        self.assertIn("not a link", result.stderr)
+        self.assertEqual((theirs / "SKILL.md").read_text(), "theirs")
+
+    def test_remove_unlinks_them(self):
+        self.run_install()
+        self.run_install("--remove")
+        self.assertEqual(list(self.skills.iterdir()), [])
+
+    def test_running_it_twice_relinks_nothing(self):
+        self.run_install()
+        second = self.run_install()
+        self.assertNotIn("linked", second.stdout)
+
+    def test_print_links_nothing(self):
+        result = self.run_install("--print")
+        self.assertIn("link ", result.stdout)
+        self.assertFalse(self.skills.exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
