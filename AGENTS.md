@@ -17,18 +17,17 @@ hook's behaviour and how a project opts in.
 |---|---|
 | `source/hooks/` | one Go module: a binary per hook and `agentic-capture` under `cmd/`, everything else under `internal/` |
 | `skills/` | one skill per hook, linked into the global skills directory |
-| `install.py` | wires the hook binaries into the global settings file and links the skills |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 
 ## Setup and commands
 
-Go 1.27 or newer, and Python 3 for the installer.
+Go 1.27 or newer.
 
 ```bash
 go install -C source/hooks ./cmd/...   # build every hook into ~/go/bin (or GOBIN)
-./install.py                           # wire them into settings.json, link the skills
-./install.py --print                   # show what would land, write nothing
-./test.sh                              # every suite: go vet, go test -race, the installer's
+agentic-install                        # wire them into settings.json, link the skills
+agentic-install --print                # show what would land, write nothing
+cd source/hooks && go vet ./... && go test -race ./...   # every suite
 ```
 
 **A hook runs from `~/go/bin`, not from this checkout.** A change reaches a session only after

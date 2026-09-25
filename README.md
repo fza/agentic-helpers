@@ -144,17 +144,20 @@ allowlist entry and no marker file, and installing these hooks costs it nothing.
 ```bash
 git clone git@github.com:fza/agentic-helpers.git
 cd agentic-helpers
-go install -C source/hooks ./cmd/...  # build the hooks and agentic-capture into ~/go/bin
-./install.py            # wire the hooks in, link the skills
-./install.py --print    # write nothing, show what would land
-./install.py --remove   # take both back out
+go install -C source/hooks ./cmd/...  # build every binary into ~/go/bin
+agentic-install               # wire the hooks in, link the skills
+agentic-install --print       # write nothing, show what would land
+agentic-install --remove      # take both back out
 ```
 
-The installer edits only the hook entries running these scripts and leaves every other key exactly
-as it found it, which matters because that file also carries credentials. A timestamped copy goes
-beside it before anything is written. Running it twice changes nothing the second time, and a
-checkout that moved leaves nothing stale behind, because entries are matched by the script they run
-rather than by the directory they name.
+`agentic-install` runs from inside this checkout, which it finds by walking up from the working
+directory, and wires the hook binaries sitting beside it.
+
+It edits only the hook entries running these binaries and leaves every other key where it found it,
+in the order it found it, which matters because that file also carries credentials. A timestamped
+copy goes beside it before anything is written. Running it twice changes nothing the second time,
+and binaries that moved leave nothing stale behind, because entries are matched by the name they
+run rather than by the directory they name.
 
 A session already running keeps the wiring it started with.
 
@@ -171,12 +174,12 @@ for anyone whose Claude Code configuration does not sit at `~/.claude`.
 ## Working on this
 
 ```bash
-./test.sh               # every suite
+cd source/hooks && go vet ./... && go test -race ./...   # every suite
 ```
 
-The installer's suite drives it as a subprocess against a settings directory of its own. The Go
-hooks keep their rules in [`source/AGENTS.md`](source/AGENTS.md), and their suites drive each hook's
-`Main` against a project tree built in a temporary directory. Every guard is asserted from both
+The rules for this code live in [`source/AGENTS.md`](source/AGENTS.md). Each suite drives its
+binary's `Main` against a tree built in a temporary directory, with processes and the settings
+directory faked, never the real ones. Every guard is asserted from both
 sides: the same call is driven once with the evidence present and once with it missing, and the two
 outcomes have to differ.
 A guard that cannot fail is worthless.
