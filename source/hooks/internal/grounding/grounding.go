@@ -1,10 +1,12 @@
 // Package grounding refuses a question or a draft edit until the turn behind
-// it has read the decision graph: a literal search, a semantic search, and an
-// area listing.
+// it has read the decision graph: a literal search, a semantic search, and a
+// listing.
 //
 // One search mode alone misses what the other finds, and an empty search reads
-// as absence. The area listing cannot miss that way, because it enumerates
-// membership. `sdd show` alone never satisfies the gate: following references
+// as absence. A listing cannot miss that way, because it enumerates rather
+// than matching words. A project naming a listing prefix in
+// `.sdd/grounding.yaml` is held to a listing of one topic carrying it; every
+// other project to a view naming every topic. `sdd show` alone never satisfies the gate: following references
 // reaches only entries something already cited.
 //
 // It also refuses a capture whose draft records a gap, a read that skips the
@@ -49,7 +51,8 @@ const (
 )
 
 var (
-	areaListing = regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b[^\n]*topic\(\s*area-`)
+	everyTopic  = regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b[^\n]*\bactive:as-counts\b`)
+	listingKey  = regexp.MustCompile(`^\s*listing_prefix\s*:\s*['"]?([^'"#\s]*)['"]?\s*(?:#.*)?$`)
 	search      = regexp.MustCompile(`(?:sdd|graph\.py)\s+search\b`)
 	view        = regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b`)
 	semantic    = regexp.MustCompile(`(?:sdd|graph\.py)\s+search\b[^\n]*--query\b`)
@@ -213,9 +216,8 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 
 	if view.MatchString(spoken) {
-		for _, match := range areaListing.FindAllStringIndex(command, -1) {
-			name, _, _ := strings.Cut(command[match[1]:], ")")
-			held.addArea("area-" + strings.TrimSpace(name))
+		for _, listing := range listingsIn(env.listingPrefix(), command) {
+			held.addListing(listing)
 			changed = true
 		}
 	}
@@ -258,8 +260,8 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		held = loadEvidence(ctx, path)
 	}
 
-	haveSemantic, haveLiteral, haveAreas := held.Query > 0, held.Term > 0, len(held.Areas) > 0
-	if haveSemantic && haveLiteral && haveAreas {
+	haveSemantic, haveLiteral, haveListing := held.Query > 0, held.Term > 0, len(held.Listings) > 0
+	if haveSemantic && haveLiteral && haveListing {
 		return ""
 	}
 
@@ -277,10 +279,15 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		missing = append(missing, "No `--term` search ran this turn.")
 	}
 
-	if haveAreas {
-		have = append(have, "an area listing of "+strings.Join(held.Areas, ", "))
-	} else {
-		missing = append(missing, "No area listing ran this turn.")
+	prefix := env.listingPrefix()
+
+	switch {
+	case haveListing:
+		have = append(have, "a listing of "+strings.Join(held.Listings, ", "))
+	case prefix != "":
+		missing = append(missing, "No `"+prefix+"` listing ran this turn.")
+	default:
+		missing = append(missing, "No listing of every topic ran this turn.")
 	}
 
 	carries := strings.Join(have, " and ")
@@ -290,7 +297,8 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 
 	tool, _ := env.tool()
 
-	return refusal("reads.txt", "{tool}", tool, "{have}", carries, "{missing}", strings.Join(missing, " "))
+	return refusal("reads.txt", "{listing}", listingCommand(prefix), "{tool}", tool, "{have}", carries,
+		"{missing}", strings.Join(missing, " "))
 }
 
 func gated(ctx context.Context, env Env, payload hookio.Payload) bool {
@@ -411,7 +419,8 @@ func skipsTheWrapper(env Env, texts []string, raw string) string {
 		return ""
 	}
 
-	return refusal("wrapper.txt", "{tool}", tool, "{command}", strings.TrimSpace(raw))
+	return refusal("wrapper.txt", "{listing}", listingCommand(env.listingPrefix()), "{tool}", tool,
+		"{command}", strings.TrimSpace(raw))
 }
 
 func discardsAStream(env Env, texts []string, raw string) string {
@@ -551,4 +560,58 @@ func refusal(name string, replacements ...string) string {
 	}
 
 	return strings.NewReplacer(replacements...).Replace(string(text))
+}
+
+// listingPrefix is the topic prefix this project's listing has to carry, read
+// from `.sdd/grounding.yaml`, or empty where the project names none.
+func (env Env) listingPrefix() string {
+	graph := env.graphDir()
+	if graph == "" {
+		return ""
+	}
+
+	data, err := os.ReadFile(filepath.Join(graph, "grounding.yaml"))
+	if err != nil {
+		return ""
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		match := listingKey.FindStringSubmatch(line)
+		if match != nil {
+			return match[1]
+		}
+	}
+
+	return ""
+}
+
+// listingsIn names every listing a view command performed: each topic carrying
+// the prefix, or, with no prefix, the view of every topic.
+func listingsIn(prefix string, command string) []string {
+	if prefix == "" {
+		if everyTopic.MatchString(command) {
+			return []string{"every topic"}
+		}
+
+		return nil
+	}
+
+	pattern := regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b[^\n]*topic\(\s*"?` + regexp.QuoteMeta(prefix))
+
+	var found []string
+
+	for _, match := range pattern.FindAllStringIndex(command, -1) {
+		name, _, _ := strings.Cut(command[match[1]:], ")")
+		found = append(found, prefix+strings.Trim(strings.TrimSpace(name), `"`))
+	}
+
+	return found
+}
+
+func listingCommand(prefix string) string {
+	if prefix == "" {
+		return `view --layout "active:as-counts"`
+	}
+
+	return `view --layout "topic(` + prefix + `<name>):as-list"`
 }

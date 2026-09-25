@@ -1,6 +1,6 @@
 ---
 name: agent-grounding
-description: Grounding a decision graph before asking, drafting or capturing: both search modes, the area listing, read depths, ref kinds. Use when reading or writing entries in an sdd graph, when the grounding gate refuses a call, before putting a question or editing a draft, and before any capture. Only projects carrying a .sdd/ graph use this.
+description: Grounding a decision graph before asking, drafting or capturing: both search modes, the listing, read depths, ref kinds. Use when reading or writing entries in an sdd graph, when the grounding gate refuses a call, before putting a question or editing a draft, and before any capture. Only projects carrying a .sdd/ graph use this.
 license: MIT
 ---
 
@@ -16,14 +16,18 @@ holds. Both → wrong answer, written down, confident.
 ```bash
 sdd search --query "<how somebody would phrase it>"    # semantic
 sdd search --term  "<literal token: flag, command, id>"
-sdd view --layout "topic(area-<name>):as-list"         # the area, whole
+sdd view --layout "active:as-counts"                   # every topic, no prefix set
+sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 ```
+
+- **Which listing → `.sdd/grounding.yaml`.** `listing_prefix: area-` there → list one topic
+  carrying it, whole. No file, no key → the view of every topic. The refusal names the one owed.
 
 - **Both modes. Always.** Semantic matches phrasing → misses other wording. Literal matches the
   token → misses everything phrased differently. Live decision already owning your subject → exactly
   what one-mode-only hides.
 - **Empty result ≠ absence.** `sdd search` finds what it matched. `sdd show` reaches only what
-  something cited. Area listing → only read that settles what an area holds.
+  something cited. A listing → only read that settles what a topic holds.
 - **`sdd info` once per session**, before the first search. `vector` where an embedding endpoint
   answers, `text` otherwise.
 
@@ -93,7 +97,7 @@ Exempt: draft a verification already read. Its fixes owe no fresh reads.
 
 - **`--term`, repeatable. Not `--terms`.** Wrong flag → usage on stderr, non-zero exit.
 - **Never `2>/dev/null` an `sdd` call.** Filter instead: `| grep -E '^  [0-9]'`.
-- **Area listing is enormous.** Another capture mid-pass invalidates it. Read the first run whole,
+- **A listing is enormous.** Another capture mid-pass invalidates it. Read the first run whole,
   then only what changed.
 - **Lint a draft before capture. Nothing lints it after.** Piping into `vale -` → reports nothing.
   Fenced draft → reports nothing. Leave a draft unfenced.
@@ -102,7 +106,8 @@ Exempt: draft a verification already read. Its fixes owe no fresh reads.
 
 - **Never capture a gap.** Gap = finding. Repair it, file it against the row owning the repair, or
   put it to the owner. Capture the decision that settles it.
-- **Every entry names at least one area** where the project uses them. Nothing outside an area.
+- **Every entry carries at least one topic.** A project naming a listing prefix → at least one
+  topic carrying it.
 - **Name every surface the decision creates** - command, flag, RPC verb, config key, label, storage
   path, environment variable. "We'll add a command" → not settled. Exact spelling → settled.
 - **No acceptance criterion waits on a decision the entry could take itself.**

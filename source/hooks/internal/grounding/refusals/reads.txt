@@ -1,11 +1,11 @@
 GROUNDING GATE: refused. {missing}
 
-Run both + an area listing, then ask again:
+Run both + the listing, then ask again:
 
   {tool} search --term '<literal>' --entry <entry>
   {tool} search --query '<subject>' --entry <entry>
-  {tool} view --layout "topic(area-<name>):as-list" --entry <entry>
+  {tool} {listing} --entry <entry>
 
-Empty search ≠ absence; area listing settles membership.
+Empty search ≠ absence; a listing settles membership.
 
 This turn carries: {have}

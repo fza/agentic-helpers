@@ -18,16 +18,16 @@ var errNoLedger = errors.New("no ledger for this session")
 // evidence is what one turn of one session read out of the graph. The file
 // may carry fields another tool wrote, and they survive a record.
 type evidence struct {
-	Search int      `json:"search"`
-	Query  int      `json:"query"`
-	Term   int      `json:"term"`
-	Areas  []string `json:"areas"`
+	Search   int      `json:"search"`
+	Query    int      `json:"query"`
+	Term     int      `json:"term"`
+	Listings []string `json:"listings"`
 
 	rest map[string]json.RawMessage
 }
 
 func freshEvidence() evidence {
-	return evidence{Areas: []string{}}
+	return evidence{Listings: []string{}}
 }
 
 func (held *evidence) UnmarshalJSON(data []byte) error {
@@ -47,15 +47,15 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("reading the ledger: %w", err)
 	}
 
-	for _, name := range []string{"search", "query", "term", "areas"} {
+	for _, name := range []string{"search", "query", "term", "listings"} {
 		delete(fields, name)
 	}
 
 	*held = evidence(read)
 	held.rest = fields
 
-	if held.Areas == nil {
-		held.Areas = []string{}
+	if held.Listings == nil {
+		held.Listings = []string{}
 	}
 
 	return nil
@@ -70,7 +70,7 @@ func (held evidence) MarshalJSON() ([]byte, error) {
 	fields["search"] = held.Search
 	fields["query"] = held.Query
 	fields["term"] = held.Term
-	fields["areas"] = held.Areas
+	fields["listings"] = held.Listings
 
 	data, err := json.Marshal(fields)
 	if err != nil {
@@ -80,9 +80,9 @@ func (held evidence) MarshalJSON() ([]byte, error) {
 	return data, nil
 }
 
-func (held *evidence) addArea(area string) {
-	if !slices.Contains(held.Areas, area) {
-		held.Areas = append(held.Areas, area)
+func (held *evidence) addListing(listing string) {
+	if !slices.Contains(held.Listings, listing) {
+		held.Listings = append(held.Listings, listing)
 	}
 }
 

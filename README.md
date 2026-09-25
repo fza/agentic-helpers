@@ -62,8 +62,10 @@ An agent asked to reason about a decision graph will answer from the entry it al
 what it believes the graph holds. Both are how a wrong answer gets written down with confidence.
 
 The gate refuses a question or a draft edit until the turn carries real reads: a literal search and
-a semantic one, because each misses what the other finds, and a listing of the area, because an
-empty search result is never evidence of absence. It also refuses a call that would discard the
+a semantic one, because each misses what the other finds, and a listing, because an empty search
+result is never evidence of absence. A project naming a topic prefix in `.sdd/grounding.yaml`
+(`listing_prefix: area-`) owes a listing of one topic carrying it; every other project owes the view
+of every topic, `sdd view --layout "active:as-counts"`. It also refuses a call that would discard the
 graph tool's own output, since a swallowed refusal reads exactly like an empty graph, and a read
 that stops at the entry itself, since a body is immutable and a later entry may have renamed every
 surface it names.

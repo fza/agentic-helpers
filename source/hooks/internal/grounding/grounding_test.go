@@ -24,12 +24,14 @@ type result struct {
 	stderr string
 }
 
-// wrapped is a project carrying a graph and a wrapper in front of the tool.
+// wrapped is a project carrying a graph, a wrapper in front of the tool, and
+// an `area-` listing prefix.
 func wrapped(t *testing.T) grounding.Env {
 	t.Helper()
 
 	env := bare(t)
 	test.WriteFile(t, filepath.Join(env.ProjectDir, "scripts", "graph.py"), "# a wrapper\n")
+	test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), test.Fixture(t, "grounding/area-prefix.yaml"))
 
 	return env
 }
@@ -137,12 +139,12 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 		missing string
 	}{
 		{name: "no reads", missing: "neither read"},
-		{name: "misspelled search alone", reads: []string{misspelled}, missing: "No area listing ran this turn."},
+		{name: "misspelled search alone", reads: []string{misspelled}, missing: "No `area-` listing ran this turn."},
 		{name: "area listing alone", reads: []string{areaRead}, missing: "No `--query` search ran this turn."},
 		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: "No `--term` search ran this turn."},
 		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: "No `--query` search ran this turn."},
 		{name: "show alone", reads: []string{"python3 scripts/graph.py show 20260829-122703-d-tac-kuz"}, missing: "neither read"},
-		{name: "facet listing is no area", reads: []string{`python3 scripts/graph.py view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: "No area listing"},
+		{name: "facet listing is no area", reads: []string{`python3 scripts/graph.py view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: "No `area-` listing"},
 	}
 
 	for _, tc := range cases {
@@ -279,7 +281,7 @@ func TestTheListingRecordsWhichAreaItRead(t *testing.T) {
 	}
 
 	var held struct {
-		Areas []string `json:"areas"`
+		Listings []string `json:"listings"`
 	}
 
 	err = json.Unmarshal(data, &held)
@@ -287,15 +289,15 @@ func TestTheListingRecordsWhichAreaItRead(t *testing.T) {
 		t.Fatalf("decoding the ledger: %v", err)
 	}
 
-	if strings.Join(held.Areas, ",") != "area-hooks,area-bare-host-deployment" {
-		t.Errorf("each area should be recorded once, in reading order, got: %v", held.Areas)
+	if strings.Join(held.Listings, ",") != "area-hooks,area-bare-host-deployment" {
+		t.Errorf("each area should be recorded once, in reading order, got: %v", held.Listings)
 	}
 }
 
 func TestARecordKeepsFieldsAnotherToolWrote(t *testing.T) {
 	env := wrapped(t)
 	ledger := filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json")
-	test.WriteFile(t, ledger, `{"search": 0, "query": 0, "term": 0, "areas": [], "subject": "20260901-000000-d-tac-aaa"}`)
+	test.WriteFile(t, ledger, `{"search": 0, "query": 0, "term": 0, "listings": [], "subject": "20260901-000000-d-tac-aaa"}`)
 
 	record(t, env, bash(literalRead))
 
@@ -648,5 +650,63 @@ func TestOptIn(t *testing.T) {
 		if got.code != 1 || !strings.Contains(got.stderr, "usage") {
 			t.Error("an unknown mode should be refused with usage")
 		}
+	})
+}
+
+func TestListingWithoutAPrefix(t *testing.T) {
+	cases := []struct {
+		name    string
+		listing string
+		opens   bool
+	}{
+		{name: "a view of every topic", listing: `sdd view --layout "active:as-counts"`, opens: true},
+		{name: "one topic's members", listing: `sdd view --layout "topic(hooks/toolchain):as-list"`},
+		{name: "an area listing", listing: `sdd view --layout "topic(area-hooks):as-list"`},
+		{name: "a mention of the view", listing: `echo 'sdd view --layout "active:as-counts"'`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := bare(t)
+			record(t, env, bash("sdd search --term x"), bash("sdd search --query 'a subject'"), bash(tc.listing))
+
+			got := run(t, env, "gate", ask("s1"))
+			if tc.opens {
+				passes(t, got)
+			} else {
+				refuses(t, got, "No listing of every topic ran this turn.")
+			}
+		})
+	}
+
+	t.Run("the refusal names the view", func(t *testing.T) {
+		got := run(t, bare(t), "gate", ask("s1"))
+		if !strings.Contains(got.stderr, `sdd view --layout "active:as-counts"`) || strings.Contains(got.stderr, "area-") {
+			t.Errorf("a project without a prefix should be pointed at the view of every topic, got: %s", got.stderr)
+		}
+	})
+}
+
+func TestListingWithAPrefix(t *testing.T) {
+	t.Run("the view of every topic is no area listing", func(t *testing.T) {
+		env := wrapped(t)
+		record(t, env, bash(literalRead), bash(semanticRead), bash(`python3 scripts/graph.py view --layout "active:as-counts"`))
+
+		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing ran this turn.")
+	})
+
+	t.Run("a quoted topic still counts", func(t *testing.T) {
+		env := wrapped(t)
+		record(t, env, bash(literalRead), bash(semanticRead), bash(`python3 scripts/graph.py view --layout 'topic("area-hooks"):as-list'`))
+
+		passes(t, run(t, env, "gate", ask("s1")))
+	})
+
+	t.Run("another prefix is honoured", func(t *testing.T) {
+		env := bare(t)
+		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), "# the listing that grounds a question\nlisting_prefix: \"hooks/\"\n")
+		record(t, env, bash("sdd search --term x"), bash("sdd search --query 'a subject'"), bash(`sdd view --layout "topic(hooks/toolchain):as-list"`))
+
+		passes(t, run(t, env, "gate", ask("s1")))
 	})
 }
