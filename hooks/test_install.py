@@ -53,7 +53,7 @@ class Install(unittest.TestCase):
 
     def test_a_settings_file_that_does_not_exist_is_created(self):
         self.assertEqual(self.run_install().returncode, 0)
-        self.assertTrue(any("carryforward.py" in c for c in self.commands()))
+        self.assertTrue(any("agentic-carryforward" in c for c in self.commands()))
         self.assertTrue(any("agentic-grounding-gate" in c for c in self.commands()))
 
     def test_everything_the_person_set_survives(self):
@@ -86,7 +86,7 @@ class Install(unittest.TestCase):
         self.run_install()
         stale = [c for c in self.commands() if "/somewhere/else/" in c]
         self.assertEqual(stale, [], "an entry naming the old directory stayed behind")
-        self.assertTrue(any("carryforward.py" in c for c in self.commands()))
+        self.assertTrue(any("agentic-carryforward" in c for c in self.commands()))
 
     def test_a_go_hook_runs_the_installed_binary(self):
         self.settings.write_text(json.dumps({"hooks": {"SessionEnd": [{"hooks": [
@@ -116,7 +116,7 @@ class Install(unittest.TestCase):
         result = self.run_install("--print")
         self.assertEqual(result.returncode, 0)
         self.assertEqual(self.written(), THEIRS)
-        self.assertIn("carryforward.py", result.stdout)
+        self.assertIn("agentic-carryforward", result.stdout)
 
     def test_settings_that_are_not_json_are_refused_rather_than_overwritten(self):
         self.settings.write_text("{ this is not json")

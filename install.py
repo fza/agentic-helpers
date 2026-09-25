@@ -36,15 +36,15 @@ SETTINGS = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / 
 # and writes as it closes; the gate reads a prompt before it lands and records
 # what a call covered after it ran.
 WIRING = [
-    ("SessionStart", None, "carryforward.py", "session-start"),
-    ("SessionStart", None, "carryforward.py", "session-log 1"),
-    ("SessionStart", None, "carryforward.py", "session-log 2"),
-    ("SessionStart", None, "carryforward.py", "session-log 3"),
-    ("SessionStart", None, "carryforward.py", "session-log 4"),
-    ("SessionStart", None, "carryforward.py", "session-log 5"),
-    ("UserPromptSubmit", None, "carryforward.py", "prompt"),
+    ("SessionStart", None, "agentic-carryforward", "session-start"),
+    ("SessionStart", None, "agentic-carryforward", "session-log 1"),
+    ("SessionStart", None, "agentic-carryforward", "session-log 2"),
+    ("SessionStart", None, "agentic-carryforward", "session-log 3"),
+    ("SessionStart", None, "agentic-carryforward", "session-log 4"),
+    ("SessionStart", None, "agentic-carryforward", "session-log 5"),
+    ("UserPromptSubmit", None, "agentic-carryforward", "prompt"),
     ("UserPromptSubmit", None, "agentic-grounding-gate", "turn"),
-    ("Stop", None, "carryforward.py", "stop"),
+    ("Stop", None, "agentic-carryforward", "stop"),
     ("PostToolUse", "Bash", "agentic-grounding-gate", "record"),
     ("SessionStart", None, "agentic-scratch", "start"),
     ("SessionEnd", None, "agentic-scratch", "end"),
@@ -76,8 +76,8 @@ def command(script, mode):
 # Matching on the script names rather than on this checkout's path is what makes
 # a move survivable: an entry written before the checkout moved still names the
 # same scripts, so it is found and replaced instead of standing dead.
-SCRIPTS = ("carryforward.py", "grounding_gate.py", "scratch.py", "agentic-scratch",
-           "agentic-grounding-gate")
+SCRIPTS = ("carryforward.py", "grounding_gate.py", "scratch.py",
+           "agentic-carryforward", "agentic-grounding-gate", "agentic-scratch")
 
 
 def ours(entry):

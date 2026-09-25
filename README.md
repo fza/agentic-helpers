@@ -5,7 +5,7 @@ from memory, with a skill behind each one telling the agent what it is looking a
 once, for every project on the machine, and stay silent in a project that does not want them.
 
 The hooks are Claude Code hooks, driven as a subprocess on an event: Go binaries built from
-`source/hooks` and installed into `~/go/bin`, or plain Python where a hook is not yet ported.
+`source/hooks` and installed into `~/go/bin`.
 The skills are plain Markdown, loaded by the agent when the work calls for them.
 
 ## What each one does
@@ -150,11 +150,11 @@ for anyone whose Claude Code configuration does not sit at `~/.claude`.
 ./test.sh               # every suite
 ```
 
-Each Python suite drives its hook as a subprocess, the way the client drives it, so a run proves the
-file that ships rather than an import of it. The Go hooks keep their rules in
-[`source/AGENTS.md`](source/AGENTS.md), and their suites drive each hook's `Main` against a project
-tree built in a temporary directory. Every guard is asserted from both sides: the same call is
-driven once with the evidence present and once with it missing, and the two outcomes have to differ.
+The installer's suite drives it as a subprocess against a settings directory of its own. The Go
+hooks keep their rules in [`source/AGENTS.md`](source/AGENTS.md), and their suites drive each hook's
+`Main` against a project tree built in a temporary directory. Every guard is asserted from both
+sides: the same call is driven once with the evidence present and once with it missing, and the two
+outcomes have to differ.
 A guard that cannot fail is worthless.
 
 ## Licence

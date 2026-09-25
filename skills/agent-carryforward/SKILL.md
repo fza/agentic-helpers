@@ -18,18 +18,15 @@ Seat = named job, one session at a time. Two sessions one seat → each overwrit
 write wins, silently. So: claim it.
 
 ```bash
-HOOK="$HOME/Codepot/sources/agentic-helpers/hooks/carryforward.py"
-
-python3 "$HOOK" holder <seat>              # exit 0 held, 1 free
-python3 "$HOOK" claim <seat> [session-id]  # take a free seat. refuses a live holder
-python3 "$HOOK" take <seat> [session-id]   # seize it. holder wedged, not gone
-python3 "$HOOK" release [seat]             # give it up
-python3 "$HOOK" sweep                      # list every seat, reap dead holders
-python3 "$HOOK" refreshed [seat]           # carry-forward current, ladder resets
+agentic-carryforward holder <seat>              # exit 0 held, 1 free
+agentic-carryforward claim <seat> [session-id]  # take a free seat. refuses a live holder
+agentic-carryforward take <seat> [session-id]   # seize it. holder wedged, not gone
+agentic-carryforward release [seat]             # give it up
+agentic-carryforward sweep                      # list every seat, reap dead holders
+agentic-carryforward refreshed [seat]           # carry-forward current, ladder resets
 ```
 
-- Seat name → lower case, hyphens, ≤24 chars. Usual: `main`, `drive`, `finalize`, `validate`,
-  `insource`, `idea`. New name fine. Set suggests, never gates.
+- Seat name → lower case, hyphens, ≤24 chars. Any name fine; none reserved.
 - **`sweep` reaps.** Dead holder → seat freed. Run it → a seat may vanish. Read-only: `holder`.
 - **Session id** → only where the session started before the machinery recorded it.
 
@@ -74,7 +71,7 @@ Nudge carries the files and the command. Do it that turn:
 
 1. Fold `.memory/transcripts/<session>.md` → your `carryforward/<seat>-memory.md`.
 2. Amend what changed. Leave untouched what did not.
-3. `python3 "$HOOK" refreshed` → ladder resets.
+3. `agentic-carryforward refreshed` → ladder resets.
 
 Ignore twice → backstop, harder. Still nothing → next session starts blind.
 
@@ -96,7 +93,7 @@ Triggered by `handoff`. Three steps, order fixed, all mandatory.
 
 **2 - WIPE YOUR OWN SEAT'S FILE ONLY.**
 
-- Your seat → `.memory/roles/`, or `python3 "$HOOK" sweep`.
+- Your seat → `.memory/roles/`, or `agentic-carryforward sweep`.
 - Rewrite `carryforward/<your seat>-memory.md` **whole**. Never patch. Never keep a paragraph "just
   in case".
 - **Every other file under `carryforward/` untouched.** Belongs to a running session. Overwrite →

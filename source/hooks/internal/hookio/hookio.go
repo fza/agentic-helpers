@@ -16,11 +16,13 @@ type Streams struct {
 }
 
 type Payload struct {
-	SessionID    string          `json:"session_id"`
-	AgentID      string          `json:"agent_id"`
-	ToolName     string          `json:"tool_name"`
-	ToolInput    ToolInput       `json:"tool_input"`
-	ToolResponse json.RawMessage `json:"tool_response"`
+	SessionID      string          `json:"session_id"`
+	AgentID        string          `json:"agent_id"`
+	Source         string          `json:"source"`
+	TranscriptPath string          `json:"transcript_path"`
+	ToolName       string          `json:"tool_name"`
+	ToolInput      ToolInput       `json:"tool_input"`
+	ToolResponse   json.RawMessage `json:"tool_response"`
 }
 
 type ToolInput struct {
