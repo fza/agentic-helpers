@@ -1,6 +1,6 @@
 ---
 name: agent-carryforward
-description: Seats and carry-forward files: what survives a context compaction. Use when a session starts and holds no seat, when a hook says the carry-forward is due or overdue, when claiming/releasing/taking a seat, when asked to hand off, or when deciding what belongs in .memory/ versus the graph versus docs. Only projects carrying a .memory/ directory use this.
+description: 'Seats and carry-forward files: what survives a context compaction. Use when a session starts and holds no seat, when a hook says the carry-forward is due or overdue, when claiming/releasing/taking a seat, when asked to hand off, or when deciding what belongs in .memory/ versus the graph versus docs. Only projects carrying a .memory/ directory use this.'
 license: MIT
 ---
 

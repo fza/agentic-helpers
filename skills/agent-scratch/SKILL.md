@@ -1,6 +1,6 @@
 ---
 name: agent-scratch
-description: Where throwaway work goes. Use before writing any probe, one-off script, captured output, draft or handoff file, and whenever reaching for /tmp. Says what the session sweep removes and what it can never touch. Only projects carrying a .tmp/ directory use this.
+description: 'Where throwaway work goes. Use before writing any probe, one-off script, captured output, draft or handoff file, and whenever reaching for /tmp. Says what the session sweep removes and what it can never touch. Only projects carrying a .tmp/ directory use this.'
 license: MIT
 ---
 

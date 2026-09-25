@@ -1,6 +1,6 @@
 ---
 name: agent-capture
-description: Capturing an sdd graph entry from a draft file with agentic-capture: the draft's shape, the project's lint, the pre-flight, what each refusal means. Use before writing a draft, before any capture, and whenever agentic-capture refuses one. Only projects carrying a .sdd/ graph use this.
+description: 'Capturing an sdd graph entry from a draft file with agentic-capture: the draft''s shape, the project''s lint, the pre-flight, what each refusal means. Use before writing a draft, before any capture, and whenever agentic-capture refuses one. Only projects carrying a .sdd/ graph use this.'
 license: MIT
 ---
 

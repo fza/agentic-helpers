@@ -1,6 +1,6 @@
 ---
 name: agent-grounding
-description: Grounding a decision graph before asking, drafting or capturing: both search modes, the listing, read depths, ref kinds. Use when reading or writing entries in an sdd graph, when the grounding gate refuses a call, before putting a question or editing a draft, and before any capture. Only projects carrying a .sdd/ graph use this.
+description: 'Grounding a decision graph before asking, drafting or capturing: both search modes, the listing, read depths, ref kinds. Use when reading or writing entries in an sdd graph, when the grounding gate refuses a call, before putting a question or editing a draft, and before any capture. Only projects carrying a .sdd/ graph use this.'
 license: MIT
 ---
 
