@@ -31,11 +31,6 @@ var (
 	// `-c` of its own and counts lines.
 	shellC = regexp.MustCompile(`(?:^|[\s;|&(])(?:ba|z|da|k)?sh\s+(?:-[A-Za-z]+\s+)*-c\s+('[^']*'|"[^"]*"|\S+)`)
 
-	// The tool reached under another name: a variable holding it, or a lookup
-	// resolving it, spells the same binary while the call reads as `$S`.
-	aliased = regexp.MustCompile(`\b[A-Za-z_]\w*=['"]?(?:\S*/)?sdd['"]?(?:[\s;&|)]|$)` +
-		"|(?:\\$\\(|`)\\s*(?:command\\s+-v|which|type\\s+-p)\\s+sdd\\s*(?:\\)|`)")
-
 	heredocOpen = regexp.MustCompile(`<<-?\s*(['"]?)(\w+)(['"]?)\r?\n`)
 )
 
@@ -209,16 +204,4 @@ func carried(command string, depth int) []string {
 	}
 
 	return found
-}
-
-func aliasesTheTool(command string) bool {
-	spans := quotedSpans(command)
-
-	for _, match := range aliased.FindAllStringIndex(command, -1) {
-		if !quotedAt(spans, match[0]) {
-			return true
-		}
-	}
-
-	return false
 }

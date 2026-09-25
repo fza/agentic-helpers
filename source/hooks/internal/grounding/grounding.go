@@ -9,10 +9,9 @@
 // other project to a view naming every topic. `sdd show` alone never satisfies the gate: following references
 // reaches only entries something already cited.
 //
-// It also refuses a capture whose draft records a gap, a read that skips the
-// project's wrapper, a read discarding a stream (a wrong flag prints usage to
-// stderr, and discarding it turns a refusal into an empty result), and a show
-// stopping short of `--down 2 --up 1`.
+// It also refuses a capture whose draft records a gap, a read discarding a
+// stream (a wrong flag prints usage to stderr, and discarding it turns a
+// refusal into an empty result), and a show stopping short of `--down 2 --up 1`.
 //
 // Modes:
 //
@@ -43,7 +42,6 @@ var ErrUsage = errors.New("usage: agentic-grounding-gate record|turn|gate")
 
 const (
 	graphDirName = ".sdd"
-	wrapperPath  = "scripts/graph.py"
 
 	// A hook exit code Claude Code reads as a refusal, handing stderr to the
 	// agent.
@@ -122,23 +120,6 @@ func (env Env) graphDir() string {
 
 		walked = parent
 	}
-}
-
-// tool is how a suggested command reaches the graph here. Only a project
-// carrying a wrapper is held to it: elsewhere the bare tool is the normal way
-// in, and demanding a wrapper that does not exist refuses every legitimate read.
-func (env Env) tool() (string, bool) {
-	graph := env.graphDir()
-	if graph == "" {
-		return "sdd", false
-	}
-
-	info, err := os.Stat(filepath.Join(filepath.Dir(graph), wrapperPath))
-	if err != nil || !info.Mode().IsRegular() {
-		return "sdd", false
-	}
-
-	return "python3 " + wrapperPath, true
 }
 
 // Main runs one hook invocation. A project carrying no graph gets no answer
@@ -295,9 +276,7 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		carries = "neither read"
 	}
 
-	tool, _ := env.tool()
-
-	return refusal("reads.txt", "{listing}", listingCommand(prefix), "{tool}", tool, "{have}", carries,
+	return refusal("reads.txt", "{listing}", listingCommand(prefix), "{have}", carries,
 		"{missing}", strings.Join(missing, " "))
 }
 
@@ -332,9 +311,8 @@ func readsBadly(env Env, raw string) string {
 
 	for _, check := range []func() string{
 		func() string { return capturesAGap(env, spoken) },
-		func() string { return skipsTheWrapper(env, texts, written) },
-		func() string { return discardsAStream(env, texts, raw) },
-		func() string { return hidesTheDownstream(env, texts) },
+		func() string { return discardsAStream(texts, raw) },
+		func() string { return hidesTheDownstream(texts) },
 	} {
 		found := check()
 		if found != "" {
@@ -404,38 +382,17 @@ func head(path string) []byte {
 	return buffer[:read]
 }
 
-func skipsTheWrapper(env Env, texts []string, raw string) string {
-	tool, wrapped := env.tool()
-	if !wrapped {
-		return ""
-	}
-
-	reached := aliasesTheTool(raw)
-	for _, text := range texts {
-		reached = reached || reachesBareTool(text)
-	}
-
-	if !reached {
-		return ""
-	}
-
-	return refusal("wrapper.txt", "{listing}", listingCommand(env.listingPrefix()), "{tool}", tool,
-		"{command}", strings.TrimSpace(raw))
-}
-
-func discardsAStream(env Env, texts []string, raw string) string {
+func discardsAStream(texts []string, raw string) string {
 	for _, text := range texts {
 		if reachesTool(text) && toNull.MatchString(text) {
-			tool, _ := env.tool()
-
-			return refusal("stream.txt", "{tool}", tool, "{command}", strings.TrimSpace(raw))
+			return refusal("stream.txt", "{command}", strings.TrimSpace(raw))
 		}
 	}
 
 	return ""
 }
 
-func hidesTheDownstream(env Env, texts []string) string {
+func hidesTheDownstream(texts []string) string {
 	for _, command := range texts {
 		missing := readsTooShallow(command)
 		if missing == "" {
@@ -457,9 +414,7 @@ func hidesTheDownstream(env Env, texts []string) string {
 			continue
 		}
 
-		tool, _ := env.tool()
-
-		return refusal("downstream.txt", "{tool}", tool, "{command}", strings.TrimSpace(command), "{missing}", missing)
+		return refusal("downstream.txt", "{command}", strings.TrimSpace(command), "{missing}", missing)
 	}
 
 	return ""

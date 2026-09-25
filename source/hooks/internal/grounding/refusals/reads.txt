@@ -2,9 +2,9 @@ GROUNDING GATE: refused. {missing}
 
 Run both + the listing, then ask again:
 
-  {tool} search --term '<literal>' --entry <entry>
-  {tool} search --query '<subject>' --entry <entry>
-  {tool} {listing} --entry <entry>
+  sdd search --term '<literal>'
+  sdd search --query '<subject>'
+  sdd {listing}
 
 Empty search ≠ absence; a listing settles membership.
 

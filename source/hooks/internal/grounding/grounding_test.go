@@ -24,19 +24,17 @@ type result struct {
 	stderr string
 }
 
-// wrapped is a project carrying a graph, a wrapper in front of the tool, and
-// an `area-` listing prefix.
-func wrapped(t *testing.T) grounding.Env {
+// areaProject is a project carrying a graph and an `area-` listing prefix.
+func areaProject(t *testing.T) grounding.Env {
 	t.Helper()
 
 	env := bare(t)
-	test.WriteFile(t, filepath.Join(env.ProjectDir, "scripts", "graph.py"), "# a wrapper\n")
 	test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), test.Fixture(t, "grounding/area-prefix.yaml"))
 
 	return env
 }
 
-// bare is a project carrying a graph and reaching the tool directly.
+// bare is a project carrying a graph and no listing prefix.
 func bare(t *testing.T) grounding.Env {
 	t.Helper()
 
@@ -149,7 +147,7 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := wrapped(t)
+			env := areaProject(t)
 			for _, read := range tc.reads {
 				record(t, env, bash(read))
 			}
@@ -160,7 +158,7 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 }
 
 func TestQuestionPassesOnEveryRead(t *testing.T) {
-	env := wrapped(t)
+	env := areaProject(t)
 	ground(t, env)
 
 	passes(t, run(t, env, "gate", ask("s1")))
@@ -168,7 +166,7 @@ func TestQuestionPassesOnEveryRead(t *testing.T) {
 
 func TestNoRefusalSpellsAFlagTheToolDoesNotTake(t *testing.T) {
 	for _, payload := range []map[string]any{ask("s1"), bash("python3 scripts/graph.py search --term x 2>/dev/null")} {
-		got := run(t, wrapped(t), "gate", payload)
+		got := run(t, areaProject(t), "gate", payload)
 
 		if !strings.Contains(got.stderr, "--term ") || strings.Contains(got.stderr, "--terms") {
 			t.Errorf("the refusal should name the real flag only, got: %s", got.stderr)
@@ -177,7 +175,7 @@ func TestNoRefusalSpellsAFlagTheToolDoesNotTake(t *testing.T) {
 }
 
 func TestDraftEdits(t *testing.T) {
-	env := wrapped(t)
+	env := areaProject(t)
 
 	refuses(t, run(t, env, "gate", edit("/x/.tmp/drafts/ssh-access/01-block.md")), "No `--query`")
 	passes(t, run(t, env, "gate", edit("/x/docs/fdbox/07-cli.md")))
@@ -197,7 +195,7 @@ func ledgerWith(t *testing.T, env grounding.Env, draft string, history []map[str
 
 func TestVerifiedDrafts(t *testing.T) {
 	t.Run("a fix to a verified draft owes no fresh reads", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		draft := filepath.Join(env.ProjectDir, ".tmp", "drafts", "fix.md")
 		ledgerWith(t, env, draft, []map[string]string{{"agent": "verify-1", "verdict": "findings"}})
 
@@ -205,7 +203,7 @@ func TestVerifiedDrafts(t *testing.T) {
 	})
 
 	t.Run("a registered draft nobody verified still owes the reads", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		draft := filepath.Join(env.ProjectDir, ".tmp", "drafts", "new.md")
 		ledgerWith(t, env, draft, []map[string]string{})
 
@@ -213,7 +211,7 @@ func TestVerifiedDrafts(t *testing.T) {
 	})
 
 	t.Run("another draft's verification opens nothing", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		ledgerWith(t, env, filepath.Join(env.ProjectDir, ".tmp", "drafts", "other.md"), []map[string]string{{"agent": "verify-1", "verdict": "clean"}})
 
 		refuses(t, run(t, env, "gate", edit(filepath.Join(env.ProjectDir, ".tmp", "drafts", "new.md"))), "GROUNDING GATE")
@@ -221,7 +219,7 @@ func TestVerifiedDrafts(t *testing.T) {
 }
 
 func TestAnotherRepository(t *testing.T) {
-	env := wrapped(t)
+	env := areaProject(t)
 	other := filepath.Join(filepath.Dir(env.ProjectDir), filepath.Base(env.ProjectDir)+"-other")
 	mkdir(t, filepath.Join(other, ".git"))
 
@@ -231,7 +229,7 @@ func TestAnotherRepository(t *testing.T) {
 		"cd /x && sdd show abc --down 2",
 		"sdd show abc --down 2",
 		"cd " + env.ProjectDir + " && sdd show abc --down 2",
-		"cd " + env.ProjectDir + "/source && sdd search --term x",
+		"cd " + env.ProjectDir + "/source && sdd search --term x 2>/dev/null",
 		"cd source && sdd show abc --down 2",
 	} {
 		t.Run(command, func(t *testing.T) {
@@ -242,7 +240,7 @@ func TestAnotherRepository(t *testing.T) {
 
 func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 	t.Run("a new turn discards the evidence", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		ground(t, env)
 		passes(t, run(t, env, "gate", ask("s1")))
 
@@ -252,7 +250,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 	})
 
 	t.Run("one session never answers for another", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		ground(t, env)
 
 		passes(t, run(t, env, "gate", ask("s1")))
@@ -260,7 +258,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 	})
 
 	t.Run("a subagent's reads never open the session's gate", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		for _, read := range []string{literalRead, semanticRead, areaRead} {
 			record(t, env, with(bash(read), "agent_id", "a1"))
 		}
@@ -272,7 +270,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 }
 
 func TestTheListingRecordsWhichAreaItRead(t *testing.T) {
-	env := wrapped(t)
+	env := areaProject(t)
 	record(t, env, bash(areaRead), bash(`python3 scripts/graph.py view --layout "topic(area-bare-host-deployment):as-counts"`), bash(areaRead))
 
 	data, err := os.ReadFile(filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json"))
@@ -295,7 +293,7 @@ func TestTheListingRecordsWhichAreaItRead(t *testing.T) {
 }
 
 func TestARecordKeepsFieldsAnotherToolWrote(t *testing.T) {
-	env := wrapped(t)
+	env := areaProject(t)
 	ledger := filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json")
 	test.WriteFile(t, ledger, `{"search": 0, "query": 0, "term": 0, "listings": [], "subject": "20260901-000000-d-tac-aaa"}`)
 
@@ -326,7 +324,7 @@ func TestStreams(t *testing.T) {
 	}
 	for _, command := range discarding {
 		t.Run(command, func(t *testing.T) {
-			refuses(t, run(t, wrapped(t), "gate", bash(command)), "discarded stream")
+			refuses(t, run(t, areaProject(t), "gate", bash(command)), "discarded stream")
 		})
 	}
 
@@ -340,7 +338,7 @@ func TestStreams(t *testing.T) {
 	}
 	for _, command := range attached {
 		t.Run(command, func(t *testing.T) {
-			passes(t, run(t, wrapped(t), "gate", bash(command)))
+			passes(t, run(t, areaProject(t), "gate", bash(command)))
 		})
 	}
 }
@@ -362,16 +360,16 @@ func TestShowDepth(t *testing.T) {
 	}
 	for _, tc := range short {
 		t.Run("short "+tc.command, func(t *testing.T) {
-			refuses(t, run(t, wrapped(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm "+tc.command)), tc.says)
+			refuses(t, run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm "+tc.command)), tc.says)
 		})
 	}
 
 	t.Run("a list is short too", func(t *testing.T) {
-		refuses(t, run(t, wrapped(t), "gate", bash("python3 scripts/graph.py show 20260912-152909-d-cpt-ony 20260829-122703-d-tac-kuz --down 0")), "--down 2 --up 1")
+		refuses(t, run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260912-152909-d-cpt-ony 20260829-122703-d-tac-kuz --down 0")), "--down 2 --up 1")
 	})
 
 	t.Run("a sufficient depth names nothing short", func(t *testing.T) {
-		got := run(t, wrapped(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2"))
+		got := run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2"))
 		if strings.Contains(got.stderr, "--down 2` reads short") {
 			t.Error("only the depth that fell short should be named")
 		}
@@ -379,7 +377,7 @@ func TestShowDepth(t *testing.T) {
 
 	for _, command := range []string{"--up 1 --down 2", "--down 2 --up 1", "--down=3 --up=2"} {
 		t.Run("deep "+command, func(t *testing.T) {
-			passes(t, run(t, wrapped(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm "+command)))
+			passes(t, run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm "+command)))
 		})
 	}
 }
@@ -398,7 +396,7 @@ func TestProcessLayerRulesEntry(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := run(t, wrapped(t), "gate", bash("python3 scripts/graph.py "+tc.command))
+			got := run(t, areaProject(t), "gate", bash("python3 scripts/graph.py "+tc.command))
 			if tc.passes {
 				passes(t, got)
 			} else {
@@ -414,76 +412,80 @@ func TestAHeredocBodyIsData(t *testing.T) {
 		"and never: sdd show 20260907-164635-d-tac-vkm --down 0'''\n" +
 		"PY"
 
-	passes(t, run(t, wrapped(t), "gate", bash(quoting)))
+	passes(t, run(t, areaProject(t), "gate", bash(quoting)))
 
 	unquoted := "cat > notes.md <<EOF\nsdd search --term x 2>/dev/null\nsdd show 20260907-164635-d-tac-vkm --down 0\nEOF\necho done"
-	passes(t, run(t, wrapped(t), "gate", bash(unquoted)))
+	passes(t, run(t, areaProject(t), "gate", bash(unquoted)))
 
-	unterminated := "cat <<EOF\nsdd info"
-	refuses(t, run(t, wrapped(t), "gate", bash(unterminated)), "without the wrapper")
+	unterminated := "cat <<EOF\nsdd info 2>/dev/null"
+	refuses(t, run(t, areaProject(t), "gate", bash(unterminated)), "discarded stream")
 }
 
-func TestWrapper(t *testing.T) {
-	bypassing := []string{
+func TestBareReadsPass(t *testing.T) {
+	for _, command := range []string{
 		"sdd search --term x",
-		`cd /x && sdd view --layout "topic(area-hooks):as-list"`,
-		"sdd show 20260907-164635-d-tac-vkm --down 2",
+		`sdd view --layout "topic(area-hooks):as-list"`,
+		"sdd show 20260907-164635-d-tac-vkm --down 2 --up 1",
 		"sdd info",
-		"(sdd search --term x)",
-		"cd /x && (sdd info)",
-		"cat x | sdd search --term y",
-		"cat x |sdd search --term y",
-		"sdd search --query 'a subject' --limit 8",
-		"bash -c 'sdd search --term x'",
-		`sh -c "sdd info"`,
-		"env sdd search --term x",
-		"env SDD_HOME=/x sdd info",
-		"/opt/homebrew/bin/sdd search --term x",
-		"S=sdd; $S search --term x",
-		"echo 20260907-164635-d-tac-vkm | xargs sdd show",
-		`bash -c 'bash -c "sdd info"'`,
-		"echo it\\'s ; sdd show 20260907-164635-d-tac-vkm --down 3 ; echo x'",
+		"python3 scripts/graph.py search --term x",
+	} {
+		t.Run(command, func(t *testing.T) {
+			passes(t, run(t, areaProject(t), "gate", bash(command)))
+		})
 	}
-	for _, command := range bypassing {
-		t.Run("refused "+command, func(t *testing.T) {
-			refuses(t, run(t, wrapped(t), "gate", bash(command)), "without the wrapper")
+}
+
+func TestEverySpellingOfACallIsSeen(t *testing.T) {
+	calls := []string{
+		"(sdd search --term x 2>/dev/null)",
+		"cd /x && (sdd info 2>/dev/null)",
+		"cat x | sdd search --term y 2>/dev/null",
+		"cat x |sdd search --term y 2>/dev/null",
+		"bash -c 'sdd search --term x 2>/dev/null'",
+		`sh -c "sdd info >/dev/null"`,
+		"env sdd search --term x 2>/dev/null",
+		"env SDD_HOME=/x sdd info 2>/dev/null",
+		"/opt/homebrew/bin/sdd search --term x 2>/dev/null",
+		"echo 20260907-164635-d-tac-vkm | xargs sdd show --down 2 --up 1 2>/dev/null",
+		`bash -c 'bash -c "sdd info 2>/dev/null"'`,
+		"echo it\\'s ; sdd show 20260907-164635-d-tac-vkm --down 3 --up 1 2>/dev/null ; echo x'",
+	}
+	for _, command := range calls {
+		t.Run("call "+command, func(t *testing.T) {
+			refuses(t, run(t, areaProject(t), "gate", bash(command)), "discarded stream")
 		})
 	}
 
 	mentions := []string{
-		"python3 scripts/graph.py search --term x",
-		"python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2 --up 1",
-		"python3 scripts/graph.py info",
-		"grep -rn sdd docs/",
-		"ls .sdd/graph",
-		"echo 'sdd is the tool'",
-		`grep -n "Bash(sdd new" skill.md`,
-		`grep -rn "captured\|sdd new" file.md`,
-		`grep -E "a|sdd show" x`,
-		"echo 'allowed-tools: Bash(sdd *)'",
-		"grep -c 'sdd show' file.md",
-		`grep -n "bash -c 'sdd info'" skill.md`,
-		"grep -n 'S=sdd' notes.md",
-		"bash -c 'ls docs/'",
+		"grep -rn sdd docs/ 2>/dev/null",
+		"echo 'sdd is the tool' 2>/dev/null",
+		`grep -n "Bash(sdd new" skill.md 2>/dev/null`,
+		`grep -rn "captured\\|sdd new" file.md 2>/dev/null`,
+		`grep -E "a|sdd show" x 2>/dev/null`,
+		"echo 'allowed-tools: Bash(sdd *)' 2>/dev/null",
+		"grep -c 'sdd show' file.md 2>/dev/null",
+		`grep -n "bash -c 'sdd info'" skill.md 2>/dev/null`,
+		"bash -c 'ls docs/' 2>/dev/null",
 	}
 	for _, command := range mentions {
-		t.Run("passed "+command, func(t *testing.T) {
-			passes(t, run(t, wrapped(t), "gate", bash(command)))
+		t.Run("mention "+command, func(t *testing.T) {
+			passes(t, run(t, areaProject(t), "gate", bash(command)))
 		})
 	}
 }
 
-func TestWithoutAWrapper(t *testing.T) {
-	passes(t, run(t, bare(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm --down 2 --up 1")))
+func TestRefusalsNameTheToolItself(t *testing.T) {
+	for _, payload := range []map[string]any{
+		ask("s1"),
+		bash("sdd show 20260907-164635-d-tac-vkm --down 1"),
+		bash("sdd search --term x 2>/dev/null"),
+	} {
+		got := run(t, areaProject(t), "gate", payload)
 
-	shallow := run(t, bare(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm --down 1"))
-	refuses(t, shallow, "sdd show")
-
-	if strings.Contains(shallow.stderr, "scripts/graph.py") {
-		t.Error("the refusal should name the tool this project uses")
+		if !strings.Contains(got.stderr, "sdd ") || strings.Contains(got.stderr, "graph.py") || strings.Contains(got.stderr, "--entry") {
+			t.Errorf("a refusal should suggest plain sdd calls, got: %s", got.stderr)
+		}
 	}
-
-	refuses(t, run(t, bare(t), "gate", bash("sdd search --term x 2>/dev/null")), "discarded stream")
 }
 
 func TestWhatCountsAsAReadPerformed(t *testing.T) {
@@ -515,7 +517,7 @@ func TestWhatCountsAsAReadPerformed(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := wrapped(t)
+			env := areaProject(t)
 			groundWith(t, env, tc.response)
 
 			got := run(t, env, "gate", ask("s1"))
@@ -528,7 +530,7 @@ func TestWhatCountsAsAReadPerformed(t *testing.T) {
 	}
 
 	t.Run("a mention of a read counts for nothing", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		record(t, env, bash("echo 'sdd search --query foo --term bar'"), bash(`echo 'sdd view --layout "topic(area-hooks):as-list"'`))
 
 		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
@@ -541,7 +543,7 @@ func TestGapCapture(t *testing.T) {
 	}
 
 	t.Run("a gap draft is refused", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		draft := filepath.Join(env.ProjectDir, "draft.md")
 		test.WriteFile(t, draft, test.Fixture(t, "drafts/gap.md"))
 
@@ -550,7 +552,7 @@ func TestGapCapture(t *testing.T) {
 
 	for _, kind := range []string{"fact", "done", "question", "insight"} {
 		t.Run(kind+" passes", func(t *testing.T) {
-			env := wrapped(t)
+			env := areaProject(t)
 			draft := filepath.Join(env.ProjectDir, "draft.md")
 			test.WriteFile(t, draft, test.Fixture(t, "drafts/"+kind+".md"))
 
@@ -559,7 +561,7 @@ func TestGapCapture(t *testing.T) {
 	}
 
 	t.Run("reading a gap draft is not capturing it", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		draft := filepath.Join(env.ProjectDir, "draft.md")
 		test.WriteFile(t, draft, test.Fixture(t, "drafts/gap.md"))
 
@@ -567,7 +569,7 @@ func TestGapCapture(t *testing.T) {
 	})
 
 	t.Run("another checkout's draft is not this one", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".claude", "worktrees", "probe", "draft.md"), test.Fixture(t, "drafts/gap.md"))
 		env.WorkingDir = filepath.Join(env.ProjectDir, "here")
 		test.WriteFile(t, filepath.Join(env.WorkingDir, "draft.md"), test.Fixture(t, "drafts/fact.md"))
@@ -576,7 +578,7 @@ func TestGapCapture(t *testing.T) {
 	})
 
 	t.Run("a gap draft in the working directory is refused", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		env.WorkingDir = filepath.Join(env.ProjectDir, "local")
 		test.WriteFile(t, filepath.Join(env.WorkingDir, "draft.md"), test.Fixture(t, "drafts/gap.md"))
 
@@ -584,7 +586,7 @@ func TestGapCapture(t *testing.T) {
 	})
 
 	t.Run("a draft that is not on disk passes", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 
 		passes(t, run(t, env, "gate", bash(captureOf(filepath.Join(env.ProjectDir, "absent.md")))))
 	})
@@ -592,22 +594,22 @@ func TestGapCapture(t *testing.T) {
 
 func TestTheTurnHookNeverBlocksAPrompt(t *testing.T) {
 	t.Run("a payload that is no object", func(t *testing.T) {
-		passes(t, runRaw(t, wrapped(t), "turn", `"a string"`))
+		passes(t, runRaw(t, areaProject(t), "turn", `"a string"`))
 	})
 
 	t.Run("a session name carrying a separator", func(t *testing.T) {
-		passes(t, run(t, wrapped(t), "turn", map[string]any{"session_id": "a/b/c"}))
+		passes(t, run(t, areaProject(t), "turn", map[string]any{"session_id": "a/b/c"}))
 	})
 
 	t.Run("a ledger directory that is a file", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns"), "occupied")
 
 		passes(t, run(t, env, "turn", map[string]any{"session_id": "s1"}))
 	})
 
 	t.Run("a ledger that only partly decodes refuses", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json"),
 			test.Fixture(t, "ledgers/mistyped.json"))
 
@@ -615,7 +617,7 @@ func TestTheTurnHookNeverBlocksAPrompt(t *testing.T) {
 	})
 
 	t.Run("an unreadable ledger refuses rather than passing", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "autopilot", "turns", "s1.json"), "{ not json")
 
 		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
@@ -689,14 +691,14 @@ func TestListingWithoutAPrefix(t *testing.T) {
 
 func TestListingWithAPrefix(t *testing.T) {
 	t.Run("the view of every topic is no area listing", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		record(t, env, bash(literalRead), bash(semanticRead), bash(`python3 scripts/graph.py view --layout "active:as-counts"`))
 
 		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing ran this turn.")
 	})
 
 	t.Run("a quoted topic still counts", func(t *testing.T) {
-		env := wrapped(t)
+		env := areaProject(t)
 		record(t, env, bash(literalRead), bash(semanticRead), bash(`python3 scripts/graph.py view --layout 'topic("area-hooks"):as-list'`))
 
 		passes(t, run(t, env, "gate", ask("s1")))

@@ -87,7 +87,6 @@ Immutable. Get it right before capture.
 |---|---|
 | question or draft edit, three reads missing | answering from memory |
 | capture whose draft records a gap | capture the decision that settles it, never the problem |
-| `sdd` reached another way | ledger never sees it → reads do not count |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
 | `sdd show` short of `--down 2 --up 1` | rename lives downstream; upstream says if it still applies |
 
