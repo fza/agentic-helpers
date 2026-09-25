@@ -78,6 +78,11 @@ skill carrying what it cannot say in a one-line refusal.
 |---|---|
 | `agent-carryforward` | what a seat is, how to claim one, what belongs in a carry-forward against what belongs in the graph, and the handoff procedure |
 | `agent-grounding` | the three reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
+| `agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
+
+Each skill is the whole of its rules. A global instruction file names the skill and says to load it;
+it never restates what the skill holds, because two copies drift and a reader obeys whichever they
+opened.
 
 Each says in its own description that it applies only to a project carrying the directory its hook
 needs, so an agent in an unrelated project has no reason to open either.

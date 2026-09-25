@@ -33,6 +33,10 @@ python3 "$HOOK" refreshed [seat]           # carry-forward current, ladder reset
 - **`sweep` reaps.** Dead holder → seat freed. Run it → a seat may vanish. Read-only: `holder`.
 - **Session id** → only where the session started before the machinery recorded it.
 
+`.memory/` lives **in the repo, gitignored**. Never the external
+`~/.claude/projects/.../memory/` path: project memory sits beside the code it is about, not in a
+path keyed to one checkout.
+
 ## Layout
 
 ```
