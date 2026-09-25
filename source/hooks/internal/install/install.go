@@ -255,7 +255,7 @@ func (run *installer) write(original []byte, settings object, held object) int {
 	}
 
 	run.say("%s %s", verb, run.settingsPath())
-	run.say("A session already running keeps the wiring it started with.")
+	run.say("Claude Code reloads the settings, so a running session picks the change up.")
 
 	return 0
 }

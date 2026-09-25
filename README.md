@@ -159,7 +159,8 @@ copy goes beside it before anything is written. Running it twice changes nothing
 and binaries that moved leave nothing stale behind, because entries are matched by the name they
 run rather than by the directory they name.
 
-A session already running keeps the wiring it started with.
+Claude Code reloads its settings while a session runs, so a running session picks up the new
+wiring.
 
 A Go hook runs from `~/go/bin` (or wherever `GOBIN` points), not from this checkout, so a pull
 changes nothing until `go install -C source/hooks ./cmd/...` runs again. The installer warns about a

@@ -31,7 +31,8 @@ cd source/hooks && go vet ./... && go test -race ./...   # every suite
 ```
 
 **A hook runs from `~/go/bin`, not from this checkout.** A change reaches a session only after
-`go install` runs again, and a session already running keeps the wiring it started with.
+`go install` runs again. Claude Code reloads its settings, so a running session picks up rewiring
+at once.
 
 ## Working agreements
 

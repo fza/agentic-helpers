@@ -13,11 +13,10 @@ What follows is Claude-Code-specific and applies on top.
 These hooks are wired into the global settings file, so the session editing them is also running
 them.
 
-- **A running session keeps the wiring it started with.** After `agentic-install` rewires an entry,
-  this session still runs the old command until it ends.
-- **Never delete a file the current wiring still runs.** A missing hook command exits non-zero, and
-  exit 2 from a `UserPromptSubmit` hook blocks every prompt that follows. Keep the file in place
-  until the session ends.
+- **A running session picks up rewiring at once.** Claude Code reloads its settings, so after
+  `agentic-install` rewires an entry, this session runs the new command from its next hook event.
+- **Never delete a file the wiring still runs.** A missing hook command exits non-zero, and exit 2
+  from a `UserPromptSubmit` hook blocks every prompt that follows. Rewire first, delete after.
 - **Rewiring edits `~/.claude/settings.json`, which also holds credentials.** Ask before running
   `agentic-install` without `--print`.
 
