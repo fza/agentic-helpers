@@ -72,14 +72,8 @@ const (
 )
 
 var (
-	everyTopic  = regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b[^\n]*\bactive:as-counts\b`)
-	search      = regexp.MustCompile(`(?:sdd|graph\.py)\s+search\b`)
-	view        = regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b`)
-	semantic    = regexp.MustCompile(`(?:sdd|graph\.py)\s+search\b[^\n]*--query\b`)
-	literal     = regexp.MustCompile(`(?:sdd|graph\.py)\s+search\b[^\n]*--term\b`)
 	draftPath   = regexp.MustCompile(`[/\\]drafts?[/\\]`)
 	toNull      = regexp.MustCompile(`(?:&>>?|(?:[12]?>>?)(?:&\s*[12])?)\s*\|?\s*/dev/null|>\s*&\s*/dev/null`)
-	show        = regexp.MustCompile(`(?:sdd|graph\.py)\s+show\b[^\n|;&]*`)
 	downDepth   = regexp.MustCompile(`--down[=\s]+(\d+)\b`)
 	upDepth     = regexp.MustCompile(`--up[=\s]+(\d+)\b`)
 	entryID     = regexp.MustCompile(`\b\d{8}-\d{6}-[sd]-([a-z]{3})-[a-z0-9]{3}\b`)
@@ -195,29 +189,33 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
-	held := loadEvidence(ctx, path)
-	changed := false
-
-	if search.MatchString(spoken) {
-		held.Search++
-		changed = true
-
-		if semantic.MatchString(command) {
-			held.Query++
-		}
-
-		if literal.MatchString(command) {
-			held.Term++
-		}
-	}
-
-	prefix, err := env.listingPrefix()
+	// A config that does not parse credits nothing: the gate refuses on it
+	// anyway, and which command reads the graph is part of what it says.
+	config, err := env.config()
 	if err != nil {
 		return
 	}
 
-	if view.MatchString(spoken) {
-		for _, listing := range listingsIn(prefix, command) {
+	reads := readsOf(config)
+
+	held := loadEvidence(ctx, path)
+	changed := false
+
+	if reads.search.MatchString(spoken) {
+		held.Search++
+		changed = true
+
+		if reads.semantic.MatchString(command) {
+			held.Query++
+		}
+
+		if reads.literal.MatchString(command) {
+			held.Term++
+		}
+	}
+
+	if reads.view.MatchString(spoken) {
+		for _, listing := range reads.listingsIn(config.ListingPrefix, command) {
 			held.addListing(listing)
 			changed = true
 		}
@@ -290,10 +288,12 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		return ""
 	}
 
-	prefix, err := env.listingPrefix()
+	config, err := env.config()
 	if err != nil {
 		return configRefusal(err)
 	}
+
+	prefix := config.ListingPrefix
 
 	path, err := ledgerPath(env.ledgerDir(), payload)
 
@@ -342,8 +342,10 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		carries = "neither read"
 	}
 
-	return refusal("reads.txt", "{listing}", listingCommand(prefix), "{have}", carries,
-		"{missing}", strings.Join(missing, " "))
+	reads := readsOf(config)
+
+	return refusal("reads.txt", "{read}", reads.command, "{suffix}", reads.suffix, "{listing}", listingCommand(prefix),
+		"{have}", carries, "{missing}", strings.Join(missing, " "))
 }
 
 func gated(payload hookio.Payload) bool {
@@ -372,9 +374,14 @@ func readsBadly(ctx context.Context, env Env, payload hookio.Payload) string {
 
 	texts := spokenTexts(raw)
 
+	// A config that does not parse still leaves bare `sdd` recognised, so a
+	// broken file never refuses a command reading nothing.
+	config, configErr := env.config()
+	reads := readsOf(config)
+
 	for _, check := range []func() string{
-		func() string { return discardsAStream(texts, raw) },
-		func() string { return hidesTheDownstream(ctx, env, payload.SessionID, texts) },
+		func() string { return discardsAStream(reads, texts, raw) },
+		func() string { return hidesTheDownstream(ctx, env, payload.SessionID, texts, reads, config.ShowDepth, configErr) },
 	} {
 		found := check()
 		if found != "" {
@@ -498,36 +505,31 @@ func draftPaths(env Env, command string) []namedDraft {
 	return found
 }
 
-func discardsAStream(texts []string, raw string) string {
+func discardsAStream(reads reads, texts []string, raw string) string {
 	for _, text := range texts {
-		if reachesTool(text) && toNull.MatchString(text) {
-			return refusal("stream.txt", "{command}", strings.TrimSpace(raw))
+		if reads.reachedBy(text) && toNull.MatchString(text) {
+			return refusal("stream.txt", "{command}", strings.TrimSpace(raw), "{read}", reads.command, "{suffix}", reads.suffix)
 		}
 	}
 
 	return ""
 }
 
-// hidesTheDownstream reads the project's config only once a show turns up, so
+// hidesTheDownstream refuses on a broken config only once a show turns up, so
 // a broken config never refuses a command reading nothing.
-func hidesTheDownstream(ctx context.Context, env Env, session string, texts []string) string {
-	var owed *graphconfig.ShowDepth
-
+func hidesTheDownstream(ctx context.Context, env Env, session string, texts []string, reads reads,
+	owed graphconfig.ShowDepth, configErr error,
+) string {
 	for _, command := range texts {
-		if !show.MatchString(command) {
+		if !reads.show.MatchString(command) {
 			continue
 		}
 
-		if owed == nil {
-			config, err := env.config()
-			if err != nil {
-				return configRefusal(err)
-			}
-
-			owed = &config.ShowDepth
+		if configErr != nil {
+			return configRefusal(configErr)
 		}
 
-		missing := readsTooShallow(command, *owed)
+		missing := readsTooShallow(reads, command, owed)
 		if missing == "" {
 			continue
 		}
@@ -552,7 +554,7 @@ func hidesTheDownstream(ctx context.Context, env Env, session string, texts []st
 		}
 
 		return refusal("downstream.txt", "{command}", strings.TrimSpace(command), "{missing}", missing,
-			"{depth}", depthFlags(*owed))
+			"{depth}", depthFlags(owed))
 	}
 
 	return ""
@@ -562,8 +564,8 @@ func hidesTheDownstream(ctx context.Context, env Env, session string, texts []st
 // needs. A body is immutable, so a surface it names keeps that spelling after a
 // later entry renamed it: the rename lives downstream. `--up` shows what the
 // entry answered, which says whether it still applies.
-func readsTooShallow(command string, owed graphconfig.ShowDepth) string {
-	found := show.FindString(command)
+func readsTooShallow(reads reads, command string, owed graphconfig.ShowDepth) string {
+	found := reads.show.FindString(command)
 	if found == "" {
 		return ""
 	}
@@ -687,17 +689,6 @@ func refusal(name string, replacements ...string) string {
 	return strings.NewReplacer(replacements...).Replace(string(text))
 }
 
-// listingPrefix is the topic prefix this project's listing has to carry, or
-// empty where the project names none.
-func (env Env) listingPrefix() (string, error) {
-	config, err := env.config()
-	if err != nil {
-		return "", err
-	}
-
-	return config.ListingPrefix, nil
-}
-
 func (env Env) config() (graphconfig.Config, error) {
 	config, err := graphconfig.Load(env.graphDir())
 	if err != nil {
@@ -709,16 +700,16 @@ func (env Env) config() (graphconfig.Config, error) {
 
 // listingsIn names every listing a view command performed: each topic carrying
 // the prefix, or, with no prefix, the view of every topic.
-func listingsIn(prefix string, command string) []string {
+func (reads reads) listingsIn(prefix string, command string) []string {
 	if prefix == "" {
-		if everyTopic.MatchString(command) {
+		if reads.everyTopic.MatchString(command) {
 			return []string{"every topic"}
 		}
 
 		return nil
 	}
 
-	pattern := regexp.MustCompile(`(?:sdd|graph\.py)\s+view\b[^\n]*topic\(\s*"?` + regexp.QuoteMeta(prefix))
+	pattern := regexp.MustCompile(reads.tool + `\s+view\b[^\n]*topic\(\s*"?` + regexp.QuoteMeta(prefix))
 
 	var found []string
 

@@ -1,0 +1,4 @@
+# Reads run through a wrapper that records each read against its subject.
+listing_prefix: area-
+read_command: python3 scripts/graph.py
+read_suffix: --entry <entry>

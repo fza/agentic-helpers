@@ -1,9 +1,9 @@
 GROUNDING GATE: refused. A discarded stream turns a refusal into an empty result.
 
-  {command}
+  sdd search --term x 2>/dev/null
 
 Keep both streams; filter instead:
 
-  {read} search --term '<literal>' --limit 8{suffix} | grep -E '^  [0-9]'
+  sdd search --term '<literal>' --limit 8 | grep -E '^  [0-9]'
 
 Other cmd in same line needing null device → own step.

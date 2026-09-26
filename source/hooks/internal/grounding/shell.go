@@ -31,8 +31,6 @@ var (
 	// has no lookbehind, so the preceding character is checked by hand.
 	subshellSDD = regexp.MustCompile(`\(\s*` + sddWord)
 
-	wrapperCall = regexp.MustCompile(`graph\.py\s+[a-z]`)
-
 	bareCapture     = regexp.MustCompile(atCommand + captureWord)
 	subshellCapture = regexp.MustCompile(`\(\s*` + captureWord)
 	bareNew         = regexp.MustCompile(atCommand + newWord)
@@ -93,10 +91,6 @@ func callsNew(text string) bool {
 	}
 
 	return false
-}
-
-func reachesTool(text string) bool {
-	return reachesBareTool(text) || wrapperCall.MatchString(text)
 }
 
 func isWordByte(char byte) bool {

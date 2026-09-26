@@ -1,0 +1,1 @@
+read_command: python3 scripts/graph.py && sdd

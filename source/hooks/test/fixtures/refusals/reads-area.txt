@@ -1,0 +1,11 @@
+GROUNDING GATE: refused. No `--query` search ran this turn. No `--term` search ran this turn. No `area-` listing ran this turn.
+
+Run both + the listing, then ask again:
+
+  sdd search --term '<literal>'
+  sdd search --query '<subject>'
+  sdd view --layout "topic(area-<name>):as-list"
+
+Empty search ≠ absence; a listing settles membership.
+
+This turn carries: neither read

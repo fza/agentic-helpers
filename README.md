@@ -97,6 +97,16 @@ show_depth:
   exempt_seats: [reviewer]
 ```
 
+A project running its reads through a wrapper names it, and the refusals suggest reads the wrapper
+accepts. `read_command` replaces `sdd` in every suggested read and counts as a read beside `sdd`
+wherever the gate looks for one; `read_suffix` ends every suggested read and is never required. A
+project naming neither gets bare `sdd`. Graph writes stay with `sdd new` and `agentic-capture`.
+
+```yaml
+read_command: python3 scripts/graph.py   # plain words: no quotes, variables or operators
+read_suffix: --entry <entry>             # one line, printed only
+```
+
 A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as it stands now, in a
 turn carrying every read, while the graph holds the same entries (their count and the newest). The
 turn confirming a playback then need not repeat the reads the draft turn ran. A draft written

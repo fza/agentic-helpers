@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	literalRead  = "python3 scripts/graph.py search --term 'ssh_host_key_changed'"
-	semanticRead = "python3 scripts/graph.py search --query 'a host key that changed'"
-	areaRead     = `python3 scripts/graph.py view --layout "topic(area-hooks):as-list"`
-	misspelled   = "python3 scripts/graph.py search --terms 'ssh_host_key_changed'"
+	literalRead  = "sdd search --term 'ssh_host_key_changed'"
+	semanticRead = "sdd search --query 'a host key that changed'"
+	areaRead     = `sdd view --layout "topic(area-hooks):as-list"`
+	misspelled   = "sdd search --terms 'ssh_host_key_changed'"
 )
 
 type result struct {
@@ -142,8 +142,8 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 		{name: "area listing alone", reads: []string{areaRead}, missing: "No `--query` search ran this turn."},
 		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: "No `--term` search ran this turn."},
 		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: "No `--query` search ran this turn."},
-		{name: "show alone", reads: []string{"python3 scripts/graph.py show 20260829-122703-d-tac-kuz"}, missing: "neither read"},
-		{name: "facet listing is no area", reads: []string{`python3 scripts/graph.py view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: "No `area-` listing"},
+		{name: "show alone", reads: []string{"sdd show 20260829-122703-d-tac-kuz"}, missing: "neither read"},
+		{name: "facet listing is no area", reads: []string{`sdd view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: "No `area-` listing"},
 	}
 
 	for _, tc := range cases {
@@ -166,7 +166,7 @@ func TestQuestionPassesOnEveryRead(t *testing.T) {
 }
 
 func TestNoRefusalSpellsAFlagTheToolDoesNotTake(t *testing.T) {
-	for _, payload := range []map[string]any{ask("s1"), bash("python3 scripts/graph.py search --term x 2>/dev/null")} {
+	for _, payload := range []map[string]any{ask("s1"), bash("sdd search --term x 2>/dev/null")} {
 		got := run(t, areaProject(t), "gate", payload)
 
 		if !strings.Contains(got.stderr, "--term ") || strings.Contains(got.stderr, "--terms") {
@@ -236,7 +236,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 
 func TestTheListingRecordsWhichAreaItRead(t *testing.T) {
 	env := areaProject(t)
-	record(t, env, bash(areaRead), bash(`python3 scripts/graph.py view --layout "topic(area-bare-host-deployment):as-counts"`), bash(areaRead))
+	record(t, env, bash(areaRead), bash(`sdd view --layout "topic(area-bare-host-deployment):as-counts"`), bash(areaRead))
 
 	data, err := os.ReadFile(filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "s1.json"))
 	if err != nil {
@@ -276,16 +276,16 @@ func TestARecordKeepsFieldsAnotherToolWrote(t *testing.T) {
 
 func TestStreams(t *testing.T) {
 	discarding := []string{
-		"python3 scripts/graph.py search --term x 2>/dev/null",
-		"python3 scripts/graph.py search --term x 2> /dev/null",
-		"python3 scripts/graph.py show abc >/dev/null",
-		"python3 scripts/graph.py view --layout y &>/dev/null",
-		"python3 scripts/graph.py search --term x >/dev/null 2>&1",
-		"python3 scripts/graph.py search --term x 2>&1 >/dev/null",
-		"python3 scripts/graph.py info 1>/dev/null",
-		"cd /x && python3 scripts/graph.py search --term x 2>/dev/null | grep e",
-		"mkdir -p q 2>/dev/null; python3 scripts/graph.py search --term x",
-		"cd /x\npython3 - <<'PY'\nprint('hello')\nPY\npython3 scripts/graph.py search --term x 2>/dev/null",
+		"sdd search --term x 2>/dev/null",
+		"sdd search --term x 2> /dev/null",
+		"sdd show abc >/dev/null",
+		"sdd view --layout y &>/dev/null",
+		"sdd search --term x >/dev/null 2>&1",
+		"sdd search --term x 2>&1 >/dev/null",
+		"sdd info 1>/dev/null",
+		"cd /x && sdd search --term x 2>/dev/null | grep e",
+		"mkdir -p q 2>/dev/null; sdd search --term x",
+		"cd /x\npython3 - <<'PY'\nprint('hello')\nPY\nsdd search --term x 2>/dev/null",
 	}
 	for _, command := range discarding {
 		t.Run(command, func(t *testing.T) {
@@ -294,8 +294,8 @@ func TestStreams(t *testing.T) {
 	}
 
 	attached := []string{
-		"python3 scripts/graph.py search --term x --limit 8 | grep -E '^  [0-9]'",
-		"python3 scripts/graph.py show 20260907-164635-d-tac-vkm --up 1 --down 2",
+		"sdd search --term x --limit 8 | grep -E '^  [0-9]'",
+		"sdd show 20260907-164635-d-tac-vkm --up 1 --down 2",
 		areaRead,
 		"grep -r sdd docs/ 2>/dev/null",
 		"ls .sdd/ 2>/dev/null",
@@ -325,16 +325,16 @@ func TestShowDepth(t *testing.T) {
 	}
 	for _, tc := range short {
 		t.Run("short "+tc.command, func(t *testing.T) {
-			refuses(t, run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm "+tc.command)), tc.says)
+			refuses(t, run(t, areaProject(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm "+tc.command)), tc.says)
 		})
 	}
 
 	t.Run("a list is short too", func(t *testing.T) {
-		refuses(t, run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260912-152909-d-cpt-ony 20260829-122703-d-tac-kuz --down 0")), "--down 2 --up 1")
+		refuses(t, run(t, areaProject(t), "gate", bash("sdd show 20260912-152909-d-cpt-ony 20260829-122703-d-tac-kuz --down 0")), "--down 2 --up 1")
 	})
 
 	t.Run("a sufficient depth names nothing short", func(t *testing.T) {
-		got := run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm --down 2"))
+		got := run(t, areaProject(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm --down 2"))
 		if strings.Contains(got.stderr, "--down 2` reads short") {
 			t.Error("only the depth that fell short should be named")
 		}
@@ -342,7 +342,7 @@ func TestShowDepth(t *testing.T) {
 
 	for _, command := range []string{"--up 1 --down 2", "--down 2 --up 1", "--down=3 --up=2"} {
 		t.Run("deep "+command, func(t *testing.T) {
-			passes(t, run(t, areaProject(t), "gate", bash("python3 scripts/graph.py show 20260907-164635-d-tac-vkm "+command)))
+			passes(t, run(t, areaProject(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm "+command)))
 		})
 	}
 }
@@ -361,7 +361,7 @@ func TestProcessLayerRulesEntry(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := run(t, areaProject(t), "gate", bash("python3 scripts/graph.py "+tc.command))
+			got := run(t, areaProject(t), "gate", bash("sdd "+tc.command))
 			if tc.passes {
 				passes(t, got)
 			} else {
@@ -392,7 +392,6 @@ func TestBareReadsPass(t *testing.T) {
 		`sdd view --layout "topic(area-hooks):as-list"`,
 		"sdd show 20260907-164635-d-tac-vkm --down 2 --up 1",
 		"sdd info",
-		"python3 scripts/graph.py search --term x",
 	} {
 		t.Run(command, func(t *testing.T) {
 			passes(t, run(t, areaProject(t), "gate", bash(command)))
@@ -457,7 +456,7 @@ func TestWhatCountsAsAReadPerformed(t *testing.T) {
 	groundWith := func(t *testing.T, env grounding.Env, response any) {
 		t.Helper()
 
-		for _, command := range []string{"python3 scripts/graph.py search --query 'a subject' --term x", areaRead} {
+		for _, command := range []string{"sdd search --query 'a subject' --term x", areaRead} {
 			payload := bash(command)
 			if response != nil {
 				payload = with(payload, "tool_response", response)
@@ -630,14 +629,14 @@ func TestListingWithoutAPrefix(t *testing.T) {
 func TestListingWithAPrefix(t *testing.T) {
 	t.Run("the view of every topic is no area listing", func(t *testing.T) {
 		env := areaProject(t)
-		record(t, env, bash(literalRead), bash(semanticRead), bash(`python3 scripts/graph.py view --layout "active:as-counts"`))
+		record(t, env, bash(literalRead), bash(semanticRead), bash(`sdd view --layout "active:as-counts"`))
 
 		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing ran this turn.")
 	})
 
 	t.Run("a quoted topic still counts", func(t *testing.T) {
 		env := areaProject(t)
-		record(t, env, bash(literalRead), bash(semanticRead), bash(`python3 scripts/graph.py view --layout 'topic("area-hooks"):as-list'`))
+		record(t, env, bash(literalRead), bash(semanticRead), bash(`sdd view --layout 'topic("area-hooks"):as-list'`))
 
 		passes(t, run(t, env, "gate", ask("s1")))
 	})
