@@ -40,7 +40,15 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 ## Reading an entry
 
 **Every grounding read → `sdd show <id> --down 2 --up 1`.** Depths are part of the command, not a
-default to weigh.
+default to weigh. A project may owe another depth: `show_depth` in `.sdd/grounding.yaml` sets it,
+and the refusal names the depth owed.
+
+```yaml
+show_depth:
+  down: 3                    # left out → 2; 0 → nothing owed that way
+  up: 1                      # left out → 1
+  exempt_seats: [reviewer]   # carry-forward seats owing no depth
+```
 
 - Body immutable → surface it names keeps that spelling forever, including after a rename. Rename
   lives downstream, nowhere else.
@@ -48,8 +56,13 @@ default to weigh.
 - `--down 2` → refinement of a refinement. `--up 1` → what the entry answered, which says whether it
   still applies.
 
-One exception the gate allows: `prc`-layer rules entry. Downstream chain = every entry ever captured
-under it.
+Two exceptions the gate allows:
+
+- **`prc`-layer rules entry.** Downstream chain = every entry ever captured under it.
+- **Session holding a seat named in `exempt_seats`.** Seat = the carry-forward claim under
+  `.memory/roles/` naming the session; its subagents count as it. No claim → the depth is owed.
+  Lifts the depth alone: a discarded stream, a question, a draft edit, a capture and a plain
+  `sdd new` owe what they owe every seat.
 
 ## Body = lead. Never ground truth.
 
@@ -93,7 +106,7 @@ Immutable. Get it right before capture.
 | capture, three reads missing, draft not grounded | writing what the graph never confirmed |
 | `sdd new` without `--dry-run`, three reads missing | same, by the path that skips the draft |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
-| `sdd show` short of `--down 2 --up 1` | rename lives downstream; upstream says if it still applies |
+| `sdd show` short of the depth owed (`--down 2 --up 1` by default) | rename lives downstream; upstream says if it still applies |
 
 ## Traps
 

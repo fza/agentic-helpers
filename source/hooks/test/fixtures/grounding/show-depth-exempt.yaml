@@ -1,0 +1,3 @@
+# A seat owing no depth, the default depth for every other.
+show_depth:
+  exempt_seats: [reviewer]

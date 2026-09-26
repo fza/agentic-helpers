@@ -7,9 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
 // A role is a path segment and a file-name stem.
@@ -26,90 +27,36 @@ type ProcessTable interface {
 	StartTime(ctx context.Context, pid int) string
 }
 
-type lock struct {
-	SessionID  string `json:"session_id"`
-	PID        int    `json:"pid"`
-	Started    string `json:"started"`
-	Claimed    string `json:"claimed,omitempty"`
-	SeizedFrom string `json:"seized_from,omitempty"`
-}
-
 func validRole(role string) bool {
 	return rolePattern.MatchString(role)
 }
 
 func (hook *hook) lockPath(role string) string {
-	return filepath.Join(hook.rolesDir(), role+".json")
+	return seat.Path(hook.rolesDir(), role)
 }
 
-func (hook *hook) readLock(role string) (lock, bool) {
-	var held lock
-
-	data, err := os.ReadFile(hook.lockPath(role))
-	if err != nil {
-		return lock{}, false
-	}
-
-	err = json.Unmarshal(data, &held)
-	if err != nil {
-		return lock{}, false
-	}
-
-	return held, true
+func (hook *hook) readLock(role string) (seat.Claim, bool) {
+	return seat.Read(hook.rolesDir(), role)
 }
 
-func (hook *hook) writeLock(role string, held lock) error {
+func (hook *hook) writeLock(role string, held seat.Claim) error {
 	return writeJSON(hook.lockPath(role), held)
 }
 
 // holders is every seat a lock file claims, whether its holder still runs or not.
-func (hook *hook) holders() map[string]lock {
-	held := map[string]lock{}
-
-	paths, err := filepath.Glob(filepath.Join(hook.rolesDir(), "*.json"))
-	if err != nil {
-		return held
-	}
-
-	for _, path := range paths {
-		role := strings.TrimSuffix(filepath.Base(path), ".json")
-
-		record, found := hook.readLock(role)
-		if found && record.SessionID != "" {
-			held[role] = record
-		}
-	}
-
-	return held
-}
-
-func sortedRoles(held map[string]lock) []string {
-	roles := make([]string, 0, len(held))
-	for role := range held {
-		roles = append(roles, role)
-	}
-
-	slices.Sort(roles)
-
-	return roles
+func (hook *hook) holders() map[string]seat.Claim {
+	return seat.Held(hook.rolesDir())
 }
 
 func (hook *hook) roleOfSession(session string) string {
-	held := hook.holders()
-	for _, role := range sortedRoles(held) {
-		if held[role].SessionID == session {
-			return role
-		}
-	}
-
-	return ""
+	return seat.OfSession(hook.rolesDir(), session)
 }
 
 func (hook *hook) roleOfThisProcess(ctx context.Context) string {
 	pid := hook.ownerPID(ctx)
 
 	held := hook.holders()
-	for _, role := range sortedRoles(held) {
+	for _, role := range seat.Names(held) {
 		if held[role].PID == pid {
 			return role
 		}
@@ -120,7 +67,7 @@ func (hook *hook) roleOfThisProcess(ctx context.Context) string {
 
 // roleUsage lists the seats held now, the ones a release or a refresh can name.
 func (hook *hook) roleUsage() string {
-	roles := sortedRoles(hook.holders())
+	roles := seat.Names(hook.holders())
 	if len(roles) == 0 {
 		return "none held"
 	}

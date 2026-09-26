@@ -1,0 +1,6 @@
+# A deeper show everywhere, and two seats owing no depth at all.
+listing_prefix: area-
+show_depth:
+  down: 3
+  up: 2
+  exempt_seats: [reviewer, scout]

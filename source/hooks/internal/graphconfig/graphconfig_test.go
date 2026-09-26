@@ -1,8 +1,10 @@
 package graphconfig_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
@@ -33,16 +35,24 @@ func TestGraphDir(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
+	defaults := graphconfig.Default()
+
 	cases := []struct {
 		name    string
 		content string
 		want    graphconfig.Config
 		fails   bool
 	}{
-		{name: "no file"},
-		{name: "prefix and lint", content: test.Fixture(t, "grounding/full.yaml"), want: graphconfig.Config{ListingPrefix: "area-", DraftLint: "vale --output=line"}},
-		{name: "empty file", content: "", want: graphconfig.Config{}},
+		{name: "no file", want: defaults},
+		{name: "prefix and lint", content: test.Fixture(t, "grounding/full.yaml"), want: graphconfig.Config{ListingPrefix: "area-", DraftLint: "vale --output=line", ShowDepth: defaults.ShowDepth}},
+		{name: "empty file", content: "", want: defaults},
 		{name: "not yaml", content: "listing_prefix: [unclosed", fails: true},
+		{name: "show depth", content: test.Fixture(t, "grounding/show-depth.yaml"), want: graphconfig.Config{ListingPrefix: "area-", ShowDepth: graphconfig.ShowDepth{Down: 3, Up: 2, ExemptSeats: []string{"reviewer", "scout"}}}},
+		{name: "one direction", content: test.Fixture(t, "grounding/show-depth-down.yaml"), want: graphconfig.Config{ShowDepth: graphconfig.ShowDepth{Down: 3, Up: 1}}},
+		{name: "no depth owed", content: test.Fixture(t, "grounding/show-depth-none.yaml"), want: graphconfig.Config{}},
+		{name: "exempt seats alone", content: test.Fixture(t, "grounding/show-depth-exempt.yaml"), want: graphconfig.Config{ShowDepth: graphconfig.ShowDepth{Down: 2, Up: 1, ExemptSeats: []string{"reviewer"}}}},
+		{name: "empty block", content: test.Fixture(t, "grounding/show-depth-empty.yaml"), want: defaults},
+		{name: "negative depth", content: test.Fixture(t, "grounding/show-depth-negative.yaml"), fails: true},
 	}
 
 	for _, tc := range cases {
@@ -54,12 +64,22 @@ func TestLoad(t *testing.T) {
 
 			got, err := graphconfig.Load(graph)
 			if (err != nil) != tc.fails {
-				t.Fatalf("only an unparsable file should fail, got: %v", err)
+				t.Fatalf("only an unparsable file or a negative depth should fail, got: %v", err)
 			}
 
-			if got != tc.want {
-				t.Errorf("the config should be read as written, got: %+v", got)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("the config should be read as written, defaults filling what it leaves out, got: %+v", got)
 			}
 		})
 	}
+
+	t.Run("a negative depth names itself", func(t *testing.T) {
+		graph := filepath.Join(t.TempDir(), ".sdd")
+		test.WriteFile(t, filepath.Join(graph, "grounding.yaml"), test.Fixture(t, "grounding/show-depth-negative.yaml"))
+
+		_, err := graphconfig.Load(graph)
+		if !errors.Is(err, graphconfig.ErrNegativeDepth) {
+			t.Errorf("the error should say a depth went below 0, got: %v", err)
+		}
+	})
 }

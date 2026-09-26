@@ -17,7 +17,9 @@
 //
 // It also refuses a read discarding a stream (a wrong flag prints usage to
 // stderr, and discarding it turns a refusal into an empty result), and a show
-// stopping short of `--down 2 --up 1`.
+// stopping short of the depth `.sdd/grounding.yaml` sets, `--down 2 --up 1`
+// where it sets none. A seat the file exempts owes no depth; it learns which
+// seat a session holds from the carry-forward's claims.
 //
 // Modes:
 //
@@ -48,6 +50,8 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/project"
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
 //go:embed refusals
@@ -93,11 +97,12 @@ var gatedTools = map[string]bool{"AskUserQuestion": true, "Write": true, "Edit":
 var savingTools = map[string]bool{"Write": true, "Edit": true}
 
 // Env is where a hook invocation runs. ProjectDir is empty when the client set
-// none.
+// none; Checkout finds the main checkout, where the seat claims live.
 type Env struct {
 	ProjectDir string
 	WorkingDir string
 	Home       string
+	Checkout   project.CommonDirLookup
 }
 
 func (env Env) project() string {
@@ -277,7 +282,7 @@ func turn(ctx context.Context, env Env, payload hookio.Payload) {
 // gate returns the refusal this call earns, or nothing.
 func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 	if payload.ToolName == "Bash" {
-		found := readsBadly(env, payload.ToolInput.Command)
+		found := readsBadly(ctx, env, payload)
 		if found != "" || writing(env, payload.ToolInput.Command) == writesNothing {
 			return found
 		}
@@ -287,7 +292,7 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 
 	prefix, err := env.listingPrefix()
 	if err != nil {
-		return fmt.Sprintf("GROUNDING GATE: refused. %v\n\nFix `.sdd/grounding.yaml`, then ask again.\n", err)
+		return configRefusal(err)
 	}
 
 	path, err := ledgerPath(env.ledgerDir(), payload)
@@ -355,7 +360,12 @@ func gated(payload hookio.Payload) bool {
 	return draftPath.MatchString(target)
 }
 
-func readsBadly(env Env, raw string) string {
+func configRefusal(err error) string {
+	return fmt.Sprintf("GROUNDING GATE: refused. %v\n\nFix `.sdd/grounding.yaml`, then ask again.\n", err)
+}
+
+func readsBadly(ctx context.Context, env Env, payload hookio.Payload) string {
+	raw := payload.ToolInput.Command
 	if elsewhere(env, raw) {
 		return ""
 	}
@@ -364,7 +374,7 @@ func readsBadly(env Env, raw string) string {
 
 	for _, check := range []func() string{
 		func() string { return discardsAStream(texts, raw) },
-		func() string { return hidesTheDownstream(texts) },
+		func() string { return hidesTheDownstream(ctx, env, payload.SessionID, texts) },
 	} {
 		found := check()
 		if found != "" {
@@ -498,9 +508,26 @@ func discardsAStream(texts []string, raw string) string {
 	return ""
 }
 
-func hidesTheDownstream(texts []string) string {
+// hidesTheDownstream reads the project's config only once a show turns up, so
+// a broken config never refuses a command reading nothing.
+func hidesTheDownstream(ctx context.Context, env Env, session string, texts []string) string {
+	var owed *graphconfig.ShowDepth
+
 	for _, command := range texts {
-		missing := readsTooShallow(command)
+		if !show.MatchString(command) {
+			continue
+		}
+
+		if owed == nil {
+			config, err := env.config()
+			if err != nil {
+				return configRefusal(err)
+			}
+
+			owed = &config.ShowDepth
+		}
+
+		missing := readsTooShallow(command, *owed)
 		if missing == "" {
 			continue
 		}
@@ -520,7 +547,12 @@ func hidesTheDownstream(texts []string) string {
 			continue
 		}
 
-		return refusal("downstream.txt", "{command}", strings.TrimSpace(command), "{missing}", missing)
+		if env.exempt(ctx, session, owed.ExemptSeats) {
+			return ""
+		}
+
+		return refusal("downstream.txt", "{command}", strings.TrimSpace(command), "{missing}", missing,
+			"{depth}", depthFlags(*owed))
 	}
 
 	return ""
@@ -530,7 +562,7 @@ func hidesTheDownstream(texts []string) string {
 // needs. A body is immutable, so a surface it names keeps that spelling after a
 // later entry renamed it: the rename lives downstream. `--up` shows what the
 // entry answered, which says whether it still applies.
-func readsTooShallow(command string) string {
+func readsTooShallow(command string, owed graphconfig.ShowDepth) string {
 	found := show.FindString(command)
 	if found == "" {
 		return ""
@@ -543,9 +575,13 @@ func readsTooShallow(command string) string {
 		pattern *regexp.Regexp
 		wanted  int
 	}{
-		{flag: "down", pattern: downDepth, wanted: 2},
-		{flag: "up", pattern: upDepth, wanted: 1},
+		{flag: "down", pattern: downDepth, wanted: owed.Down},
+		{flag: "up", pattern: upDepth, wanted: owed.Up},
 	} {
+		if reach.wanted == 0 {
+			continue
+		}
+
 		given := reach.pattern.FindStringSubmatch(found)
 		if given == nil {
 			short = append(short, "no `--"+reach.flag+"`")
@@ -563,7 +599,35 @@ func readsTooShallow(command string) string {
 		return ""
 	}
 
-	return strings.Join(short, " and ") + " reads short of `--down 2 --up 1`."
+	return strings.Join(short, " and ") + " reads short of `" + depthFlags(owed) + "`."
+}
+
+// depthFlags spells the depth owed as the flags a show carries, leaving out a
+// direction owing nothing.
+func depthFlags(owed graphconfig.ShowDepth) string {
+	var flags []string
+
+	if owed.Down > 0 {
+		flags = append(flags, fmt.Sprintf("--down %d", owed.Down))
+	}
+
+	if owed.Up > 0 {
+		flags = append(flags, fmt.Sprintf("--up %d", owed.Up))
+	}
+
+	return strings.Join(flags, " ")
+}
+
+// exempt reports whether the session holds a seat owing no depth. A subagent
+// carries its session's id, so it reads as the seat its session holds.
+func (env Env) exempt(ctx context.Context, session string, seats []string) bool {
+	if len(seats) == 0 {
+		return false
+	}
+
+	root := project.Root(ctx, env.project(), env.Checkout)
+
+	return slices.Contains(seats, seat.OfSession(seat.Dir(root), session))
 }
 
 // elsewhere reports whether the command starts by walking into another
@@ -626,12 +690,21 @@ func refusal(name string, replacements ...string) string {
 // listingPrefix is the topic prefix this project's listing has to carry, or
 // empty where the project names none.
 func (env Env) listingPrefix() (string, error) {
-	config, err := graphconfig.Load(env.graphDir())
+	config, err := env.config()
 	if err != nil {
-		return "", fmt.Errorf("the project's graph config: %w", err)
+		return "", err
 	}
 
 	return config.ListingPrefix, nil
+}
+
+func (env Env) config() (graphconfig.Config, error) {
+	config, err := graphconfig.Load(env.graphDir())
+	if err != nil {
+		return graphconfig.Config{}, fmt.Errorf("the project's graph config: %w", err)
+	}
+
+	return config, nil
 }
 
 // listingsIn names every listing a view command performed: each topic carrying

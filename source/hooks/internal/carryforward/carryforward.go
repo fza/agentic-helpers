@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
 const self = "agentic-carryforward"
@@ -45,7 +46,7 @@ type hook struct {
 }
 
 func (hook *hook) memoryDir() string      { return filepath.Join(hook.env.Root, ".memory") }
-func (hook *hook) rolesDir() string       { return filepath.Join(hook.memoryDir(), "roles") }
+func (hook *hook) rolesDir() string       { return seat.Dir(hook.env.Root) }
 func (hook *hook) transcriptsDir() string { return filepath.Join(hook.memoryDir(), "transcripts") }
 func (hook *hook) carryDir() string       { return filepath.Join(hook.memoryDir(), "carryforward") }
 
@@ -178,7 +179,7 @@ func (hook *hook) sessionStart(ctx context.Context) int {
 		holders := hook.holders()
 
 		var named []string
-		for _, name := range sortedRoles(holders) {
+		for _, name := range seat.Names(holders) {
 			named = append(named, fmt.Sprintf("%s (%s)", name, short(holders[name].SessionID)))
 		}
 
@@ -322,7 +323,7 @@ func (hook *hook) claim(ctx context.Context, args []string, force bool) int {
 	}
 
 	pid := hook.ownerPID(ctx)
-	record := lock{
+	record := seat.Claim{
 		SessionID: session,
 		PID:       pid,
 		Started:   hook.env.Processes.StartTime(ctx, pid),
@@ -365,7 +366,7 @@ func (hook *hook) claim(ctx context.Context, args []string, force bool) int {
 	return 0
 }
 
-func (hook *hook) seatFiles(role string, session string, record lock) error {
+func (hook *hook) seatFiles(role string, session string, record seat.Claim) error {
 	for _, dir := range []string{hook.rolesDir(), hook.carryDir(), hook.transcriptsDir()} {
 		err := os.MkdirAll(dir, 0o755)
 		if err != nil {

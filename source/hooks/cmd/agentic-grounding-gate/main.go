@@ -8,6 +8,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
 func main() {
@@ -25,6 +26,7 @@ func main() {
 		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"),
 		WorkingDir: working,
 		Home:       home,
+		Checkout:   project.GitCommonDir{},
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

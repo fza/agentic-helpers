@@ -85,6 +85,18 @@ refuses a call that would discard the graph tool's own output, since a swallowed
 exactly like an empty graph, and a read that stops at the entry itself, since a body is immutable
 and a later entry may have renamed every surface it names.
 
+A show owes `--down 2 --up 1` unless `.sdd/grounding.yaml` sets another depth, and a project can
+name seats that owe none. A seat is the carry-forward's: the gate matches the session against the
+claims under `.memory/roles/`, so a session holding no claim owes the depth. The exemption lifts the
+depth alone; every other refusal holds for every seat.
+
+```yaml
+show_depth:
+  down: 3                    # a direction left out keeps its default; 0 owes nothing
+  up: 1
+  exempt_seats: [reviewer]
+```
+
 A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as it stands now, in a
 turn carrying every read, while the graph holds the same entries (their count and the newest). The
 turn confirming a playback then need not repeat the reads the draft turn ran. A draft written
