@@ -1,6 +1,6 @@
 GROUNDING GATE: refused. {missing}
 
-Run both + the listing, then ask again:
+{run}
 
   {read} search --term '<literal>'{suffix}
   {read} search --query '<subject>'{suffix}

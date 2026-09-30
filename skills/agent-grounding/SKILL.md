@@ -25,6 +25,9 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 - **Which command → `.sdd/grounding.yaml` too.** `read_command` set → every read runs through it
   in place of `sdd`, and `read_suffix` ends every read: `python3 scripts/graph.py search --term x
   --entry <entry>`. Neither set → bare `sdd`, as spelled here. The refusal prints the project's form.
+- **One call → `gather_command`.** Set → it runs all three: `--query` counts as semantic, `--term`
+  as literal, each `--area <prefix><name>` as that listing, no `--area` as the `--entry` subject's
+  areas. A flag left out → that mode still owed. The refusal prints the call.
 - **Capture turn → the reads again, unless the draft is grounded.** Grounded = saved through
   `Write`/`Edit` under a `drafts/` directory in a turn carrying all three, unchanged since, graph
   holding the same entries. Draft written through `Bash`, edited after, or another capture landed

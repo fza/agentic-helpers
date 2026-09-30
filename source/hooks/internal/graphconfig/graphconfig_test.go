@@ -56,6 +56,7 @@ func TestLoad(t *testing.T) {
 		{name: "read command and suffix", content: test.Fixture(t, "grounding/read-command.yaml"), want: graphconfig.Config{ListingPrefix: "area-", ReadCommand: "python3 scripts/graph.py", ReadSuffix: "--entry <entry>", ShowDepth: defaults.ShowDepth}},
 		{name: "read command spaced out", content: test.Fixture(t, "grounding/read-command-spaced.yaml"), want: graphconfig.Config{ReadCommand: "python3 scripts/graph.py", ShowDepth: defaults.ShowDepth}},
 		{name: "read suffix alone", content: test.Fixture(t, "grounding/read-suffix.yaml"), want: graphconfig.Config{ReadSuffix: "--entry <entry>", ShowDepth: defaults.ShowDepth}},
+		{name: "gather command", content: test.Fixture(t, "grounding/gather-command.yaml"), want: graphconfig.Config{ListingPrefix: "area-", ReadCommand: "pilot graph", GatherCommand: "pilot graph gather", ReadSuffix: "--entry <entry>", ShowDepth: defaults.ShowDepth}},
 		{name: "read command as a list", content: test.Fixture(t, "grounding/read-command-list.yaml"), fails: true},
 	}
 
@@ -86,6 +87,9 @@ func TestLoad(t *testing.T) {
 		{fixture: "read-command-variable.yaml", want: graphconfig.ErrReadCommand},
 		{fixture: "read-command-lines.yaml", want: graphconfig.ErrReadCommand},
 		{fixture: "read-suffix-lines.yaml", want: graphconfig.ErrReadSuffix},
+		{fixture: "gather-command-quoted.yaml", want: graphconfig.ErrGatherCommand},
+		{fixture: "gather-command-operator.yaml", want: graphconfig.ErrGatherCommand},
+		{fixture: "gather-command-lines.yaml", want: graphconfig.ErrGatherCommand},
 	} {
 		t.Run(tc.fixture+" names itself", func(t *testing.T) {
 			graph := filepath.Join(t.TempDir(), ".sdd")

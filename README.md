@@ -102,9 +102,17 @@ accepts. `read_command` replaces `sdd` in every suggested read and counts as a r
 wherever the gate looks for one; `read_suffix` ends every suggested read and is never required. A
 project naming neither gets bare `sdd`. Graph writes stay with `sdd new` and `agentic-capture`.
 
+A project whose tooling runs every read in one call names it as `gather_command`, and the refusal
+offers that call ahead of the separate reads. A successful call through it counts as a semantic
+search when it carries `--query`, a literal one when it carries `--term`, and a listing for each
+`--area <name>` carrying the listing prefix; naming no `--area`, it counts as a listing of every area
+its `--entry` subject carries. A call missing a mode still owes it. A project naming no
+`gather_command` gets nothing credited for a call shaped like one.
+
 ```yaml
-read_command: python3 scripts/graph.py   # plain words: no quotes, variables or operators
-read_suffix: --entry <entry>             # one line, printed only
+read_command: python3 scripts/graph.py      # plain words: no quotes, variables or operators
+gather_command: python3 scripts/gather.py   # plain words too; absent, no call counts as one
+read_suffix: --entry <entry>                # one line, printed only
 ```
 
 A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as it stands now, in a

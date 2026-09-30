@@ -6,8 +6,10 @@
 // as absence. A listing cannot miss that way, because it enumerates rather
 // than matching words. A project naming a listing prefix in
 // `.sdd/grounding.yaml` is held to a listing of one topic carrying it; every
-// other project to a view naming every topic. `sdd show` alone never satisfies the gate: following references
-// reaches only entries something already cited.
+// other project to a view naming every topic. A project naming a
+// `gather_command` may run all three in one call through it, credited for the
+// modes and areas the call names. `sdd show` alone never satisfies the gate:
+// following references reaches only entries something already cited.
 //
 // A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as
 // it stands now, in a turn carrying every read, with the graph holding the same
@@ -221,6 +223,23 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 		}
 	}
 
+	for _, gathered := range reads.gatheringsIn(command) {
+		held.Search++
+		changed = true
+
+		if gathered.query {
+			held.Query++
+		}
+
+		if gathered.term {
+			held.Term++
+		}
+
+		for _, listing := range gathered.listings(config.ListingPrefix) {
+			held.addListing(listing)
+		}
+	}
+
 	if changed {
 		// A ledger that cannot be written holds this turn's reads nowhere, and
 		// the gate then refuses: the safe side.
@@ -344,8 +363,8 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 
 	reads := readsOf(config)
 
-	return refusal("reads.txt", "{read}", reads.command, "{suffix}", reads.suffix, "{listing}", listingCommand(prefix),
-		"{have}", carries, "{missing}", strings.Join(missing, " "))
+	return refusal("reads.txt", "{run}", runLine(reads), "{read}", reads.command, "{suffix}", reads.suffix,
+		"{listing}", listingCommand(prefix), "{have}", carries, "{missing}", strings.Join(missing, " "))
 }
 
 func gated(payload hookio.Payload) bool {
@@ -719,6 +738,39 @@ func (reads reads) listingsIn(prefix string, command string) []string {
 	}
 
 	return found
+}
+
+// listings names every listing a gather call performed: each area it names
+// carrying the prefix, or, naming none, every area its subject carries.
+func (gathered gathering) listings(prefix string) []string {
+	if len(gathered.areas) == 0 {
+		if gathered.subject == "" {
+			return nil
+		}
+
+		return []string{"areas of " + gathered.subject}
+	}
+
+	var found []string
+
+	for _, area := range gathered.areas {
+		if strings.HasPrefix(area, prefix) {
+			found = append(found, area)
+		}
+	}
+
+	return found
+}
+
+// runLine opens the refusal's list of reads, offering the gather call first
+// where the project names one.
+func runLine(reads reads) string {
+	if reads.gather == "" {
+		return "Run both + the listing, then ask again:"
+	}
+
+	return "One call runs all three, then ask again:\n\n  " + reads.gather +
+		" <entry> --query '<subject>' --term '<literal>'" + reads.suffix + "\n\nOr run both + the listing apart:"
 }
 
 func listingCommand(prefix string) string {

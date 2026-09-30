@@ -22,10 +22,11 @@ const (
 var (
 	ErrNegativeDepth = errors.New("a `show_depth` depth below 0")
 	ErrReadCommand   = errors.New("a `read_command` word the shell reads as more than a plain word")
+	ErrGatherCommand = errors.New("a `gather_command` word the shell reads as more than a plain word")
 	ErrReadSuffix    = errors.New("a `read_suffix` spanning lines")
 )
 
-// A read command is matched against a call as the shell reads it, with quoted
+// A read or gather command is matched against a call as the shell reads it, with quoted
 // spans emptied, so a word carrying a quote, a variable or an operator could
 // never match, and the refusals would suggest a read the gate fails to credit.
 var plainWord = regexp.MustCompile(`^[A-Za-z0-9_./:@%+=,~-]+$`)
@@ -33,12 +34,14 @@ var plainWord = regexp.MustCompile(`^[A-Za-z0-9_./:@%+=,~-]+$`)
 // Config is the project's own shape for its graph. ListingPrefix names the
 // topic prefix every entry carries and every grounding listing reads;
 // DraftLint is the command a draft body is linted with; ReadCommand is what
-// the project runs its graph reads through, in place of `sdd`, and ReadSuffix
-// ends every read a refusal suggests. Any may be empty.
+// the project runs its graph reads through, in place of `sdd`; GatherCommand
+// runs every read a turn owes in one call; ReadSuffix ends every read a refusal
+// suggests. Any may be empty.
 type Config struct {
 	ListingPrefix string
 	DraftLint     string
 	ReadCommand   string
+	GatherCommand string
 	ReadSuffix    string
 	ShowDepth     ShowDepth
 }
@@ -57,6 +60,7 @@ type written struct {
 	ListingPrefix string `yaml:"listing_prefix"`
 	DraftLint     string `yaml:"draft_lint"`
 	ReadCommand   string `yaml:"read_command"`
+	GatherCommand string `yaml:"gather_command"`
 	ReadSuffix    string `yaml:"read_suffix"`
 	ShowDepth     struct {
 		Down        *int     `yaml:"down"`
@@ -94,8 +98,8 @@ func GraphDir(start string) string {
 
 // Load reads the project's config. A key the file leaves out, or a project
 // carrying no file, keeps its default; a file that does not parse, sets a
-// negative depth or a read command the gate cannot match, is an error, because
-// a setting the project meant would otherwise go unenforced.
+// negative depth, or names a read or gather command the gate cannot match, is
+// an error, because a setting the project meant would otherwise go unenforced.
 func Load(graphDir string) (Config, error) {
 	config := Default()
 
@@ -117,7 +121,6 @@ func Load(graphDir string) (Config, error) {
 
 	config.ListingPrefix = file.ListingPrefix
 	config.DraftLint = file.DraftLint
-	config.ReadCommand = strings.Join(strings.Fields(file.ReadCommand), " ")
 	config.ReadSuffix = strings.TrimSpace(file.ReadSuffix)
 	config.ShowDepth.ExemptSeats = file.ShowDepth.ExemptSeats
 
@@ -133,14 +136,14 @@ func Load(graphDir string) (Config, error) {
 		return Config{}, fmt.Errorf("parsing %s: %w", fileName, ErrNegativeDepth)
 	}
 
-	if strings.ContainsAny(strings.TrimSpace(file.ReadCommand), "\r\n") {
-		return Config{}, fmt.Errorf("parsing %s: %w", fileName, ErrReadCommand)
+	config.ReadCommand, err = plainCommand(file.ReadCommand, ErrReadCommand)
+	if err != nil {
+		return Config{}, err
 	}
 
-	for _, word := range strings.Fields(config.ReadCommand) {
-		if !plainWord.MatchString(word) {
-			return Config{}, fmt.Errorf("parsing %s: %w", fileName, ErrReadCommand)
-		}
+	config.GatherCommand, err = plainCommand(file.GatherCommand, ErrGatherCommand)
+	if err != nil {
+		return Config{}, err
 	}
 
 	if strings.ContainsAny(config.ReadSuffix, "\r\n") {
@@ -148,6 +151,23 @@ func Load(graphDir string) (Config, error) {
 	}
 
 	return config, nil
+}
+
+// plainCommand is the command as the gate matches it: its words, one space
+// apart, each a plain word, all on one line.
+func plainCommand(written string, invalid error) (string, error) {
+	if strings.ContainsAny(strings.TrimSpace(written), "\r\n") {
+		return "", fmt.Errorf("parsing %s: %w", fileName, invalid)
+	}
+
+	words := strings.Fields(written)
+	for _, word := range words {
+		if !plainWord.MatchString(word) {
+			return "", fmt.Errorf("parsing %s: %w", fileName, invalid)
+		}
+	}
+
+	return strings.Join(words, " "), nil
 }
 
 // RealPath resolves what exists of a path, as far as it exists.
