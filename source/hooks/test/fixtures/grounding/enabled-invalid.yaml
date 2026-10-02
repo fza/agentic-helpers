@@ -1,0 +1,2 @@
+# A switch that is no boolean.
+enabled: maybe

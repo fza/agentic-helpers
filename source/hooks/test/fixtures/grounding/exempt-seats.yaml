@@ -1,0 +1,4 @@
+# One seat the gate never refuses, another owing no depth alone.
+exempt_seats: [reviewer]
+show_depth:
+  exempt_seats: [scout]

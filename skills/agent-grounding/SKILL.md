@@ -11,6 +11,10 @@ holds. Both → wrong answer, written down, confident.
 
 **Only a project carrying `.sdd/`.** No graph → gate silent, nothing here applies.
 
+**Gate on unless `.sdd/grounding.yaml` lifts it.** `enabled: false` → gate silent for every session.
+Top-level `exempt_seats: [reviewer]` → a session holding that seat passes every check. Gate silent
+→ the reads are still how an answer stays right, only nothing enforces them.
+
 ## Three reads, before any question, draft edit, or capture
 
 ```bash
@@ -68,7 +72,7 @@ Two exceptions the gate allows:
 - **Session holding a seat named in `exempt_seats`.** Seat = the carry-forward claim under
   `.memory/roles/` naming the session; its subagents count as it. No claim → the depth is owed.
   Lifts the depth alone: a discarded stream, a question, a draft edit, a capture and a plain
-  `sdd new` owe what they owe every seat.
+  `sdd new` owe what they owe every seat. Top-level `exempt_seats` lifts all of them.
 
 ## Body = lead. Never ground truth.
 

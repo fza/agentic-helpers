@@ -23,6 +23,9 @@
 // where it sets none. A seat the file exempts owes no depth; it learns which
 // seat a session holds from the carry-forward's claims.
 //
+// The file can also lift the gate: `enabled: false` switches it off for the
+// project, and a seat named in top-level `exempt_seats` is never refused.
+//
 // Modes:
 //
 //	record  PostToolUse on Bash: notes which graph reads a command performed;
@@ -119,8 +122,10 @@ func (env Env) graphDir() string {
 	return graphconfig.GraphDir(env.project())
 }
 
-// Main runs one hook invocation. A project carrying no graph gets no answer
-// rather than a refusal it cannot act on.
+// Main runs one hook invocation. A project carrying no graph, or switching the
+// gate off, gets no answer rather than a refusal it cannot act on. A config
+// that does not parse keeps the gate on, since whether the project switched it
+// off is part of what the file says.
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
 	if len(args) != 1 || !slices.Contains([]string{"record", "turn", "gate", "start", "end"}, args[0]) {
 		_, _ = fmt.Fprintln(streams.Err, ErrUsage)
@@ -129,6 +134,11 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	if env.graphDir() == "" {
+		return 0
+	}
+
+	config, err := env.config()
+	if err == nil && config.Disabled {
 		return 0
 	}
 
@@ -296,8 +306,14 @@ func turn(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 }
 
-// gate returns the refusal this call earns, or nothing.
+// gate returns the refusal this call earns, or nothing. A seat the project
+// exempts earns none.
 func gate(ctx context.Context, env Env, payload hookio.Payload) string {
+	config, configErr := env.config()
+	if configErr == nil && env.exempt(ctx, payload.SessionID, config.ExemptSeats) {
+		return ""
+	}
+
 	if payload.ToolName == "Bash" {
 		found := readsBadly(ctx, env, payload)
 		if found != "" || writing(env, payload.ToolInput.Command) == writesNothing {
@@ -307,9 +323,8 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		return ""
 	}
 
-	config, err := env.config()
-	if err != nil {
-		return configRefusal(err)
+	if configErr != nil {
+		return configRefusal(configErr)
 	}
 
 	prefix := config.ListingPrefix

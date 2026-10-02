@@ -36,8 +36,12 @@ var plainWord = regexp.MustCompile(`^[A-Za-z0-9_./:@%+=,~-]+$`)
 // DraftLint is the command a draft body is linted with; ReadCommand is what
 // the project runs its graph reads through, in place of `sdd`; GatherCommand
 // runs every read a turn owes in one call; ReadSuffix ends every read a refusal
-// suggests. Any may be empty.
+// suggests. Any may be empty. Disabled switches the gate off for the project,
+// and ExemptSeats names the seats it never refuses; the zero value keeps the
+// gate on, so a project writing no file stays under it.
 type Config struct {
+	Disabled      bool
+	ExemptSeats   []string
 	ListingPrefix string
 	DraftLint     string
 	ReadCommand   string
@@ -54,14 +58,16 @@ type ShowDepth struct {
 	ExemptSeats []string
 }
 
-// written is the file as the project wrote it. A depth is a pointer so a key
-// left out tells apart from a key set to 0.
+// written is the file as the project wrote it. A depth or a switch is a pointer
+// so a key left out tells apart from a key set to its zero value.
 type written struct {
-	ListingPrefix string `yaml:"listing_prefix"`
-	DraftLint     string `yaml:"draft_lint"`
-	ReadCommand   string `yaml:"read_command"`
-	GatherCommand string `yaml:"gather_command"`
-	ReadSuffix    string `yaml:"read_suffix"`
+	Enabled       *bool    `yaml:"enabled"`
+	ExemptSeats   []string `yaml:"exempt_seats"`
+	ListingPrefix string   `yaml:"listing_prefix"`
+	DraftLint     string   `yaml:"draft_lint"`
+	ReadCommand   string   `yaml:"read_command"`
+	GatherCommand string   `yaml:"gather_command"`
+	ReadSuffix    string   `yaml:"read_suffix"`
 	ShowDepth     struct {
 		Down        *int     `yaml:"down"`
 		Up          *int     `yaml:"up"`
@@ -119,6 +125,8 @@ func Load(graphDir string) (Config, error) {
 		return Config{}, fmt.Errorf("parsing %s: %w", fileName, err)
 	}
 
+	config.Disabled = file.Enabled != nil && !*file.Enabled
+	config.ExemptSeats = file.ExemptSeats
 	config.ListingPrefix = file.ListingPrefix
 	config.DraftLint = file.DraftLint
 	config.ReadSuffix = strings.TrimSpace(file.ReadSuffix)

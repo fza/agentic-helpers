@@ -97,6 +97,16 @@ show_depth:
   exempt_seats: [reviewer]
 ```
 
+A project keeping a graph can still lift the gate. `enabled: false` switches it off for every
+session, as if the project carried no graph; left out, the gate is on. Top-level `exempt_seats`
+names seats the gate never refuses: a session holding one passes every check, the reads, the
+discarded stream and the depth alike. A file that does not parse keeps the gate on and refusing.
+
+```yaml
+enabled: false               # left out or true: the gate runs
+exempt_seats: [reviewer]     # seats the gate never refuses; show_depth's own lifts the depth alone
+```
+
 A project running its reads through a wrapper names it, and the refusals suggest reads the wrapper
 accepts. `read_command` replaces `sdd` in every suggested read and counts as a read beside `sdd`
 wherever the gate looks for one; `read_suffix` ends every suggested read and is never required. A
@@ -168,7 +178,7 @@ nothing is asked, and a project carrying none of the directories never hears fro
 | Hook | Runs when the project carries | Otherwise |
 |---|---|---|
 | Carry-forward | a `.memory/` directory | exits 0, silently |
-| Grounding gate | a `.sdd/` decision graph, at the project root or above it | exits 0, silently |
+| Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
 
 So opting a project in is one command:
