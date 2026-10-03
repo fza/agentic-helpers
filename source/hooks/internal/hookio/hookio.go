@@ -23,6 +23,7 @@ type Payload struct {
 	ToolName       string          `json:"tool_name"`
 	ToolInput      ToolInput       `json:"tool_input"`
 	ToolResponse   json.RawMessage `json:"tool_response"`
+	LastReply      string          `json:"last_assistant_message"`
 }
 
 type ToolInput struct {

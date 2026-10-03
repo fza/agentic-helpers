@@ -266,7 +266,7 @@ func (hook *hook) stop() int {
 	}
 
 	state := hook.loadState(session)
-	_ = hook.appendTurn(session, payload.TranscriptPath, &state)
+	_ = hook.appendTurn(session, payload.TranscriptPath, payload.LastReply, &state)
 	overdue := hook.thresholdCrossed(session, payload.TranscriptPath, state) && state.Nudges >= nudgesBeforeBackstop
 	_ = hook.saveState(session, state)
 

@@ -190,7 +190,11 @@ func (f *fixture) appendTurn(asked string, replied string, tool string) {
 		blocks = append(blocks, map[string]any{"type": "tool_use", "name": tool, "input": map[string]any{"file_path": "/x/y.go"}})
 	}
 
-	text := transcriptLine(f.t, "user", []map[string]any{{"type": "text", "text": asked}}) + transcriptLine(f.t, "assistant", blocks)
+	f.appendLines(transcriptLine(f.t, "user", []map[string]any{{"type": "text", "text": asked}}) + transcriptLine(f.t, "assistant", blocks))
+}
+
+func (f *fixture) appendLines(text string) {
+	f.t.Helper()
 
 	file, err := os.OpenFile(f.transcript, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -723,6 +727,44 @@ func TestDeltaLog(t *testing.T) {
 		body, _ = os.ReadFile(f.log())
 		if strings.Count(string(body), "## turn ") != 2 || !strings.Contains(string(body), "## turn 2") || f.state()["turns"] != float64(2) {
 			t.Errorf("a second stop should add a second block, got: %s", body)
+		}
+	})
+
+	t.Run("a final reply the transcript lacks at stop is logged under its own turn", func(t *testing.T) {
+		f := newFixture(t)
+		f.claim("drive", session)
+		replied := func(text string) string {
+			return transcriptLine(t, "assistant", []map[string]any{{"type": "text", "text": text}})
+		}
+
+		f.appendTurn("first ask", "looking", "Read")
+		f.run(f.payload(map[string]any{"last_assistant_message": "first answer"}), "stop")
+
+		f.appendLines(replied("first answer"))
+		f.appendTurn("second ask", "checking", "")
+		f.run(f.payload(map[string]any{"last_assistant_message": "second answer"}), "stop")
+
+		body, _ := os.ReadFile(f.log())
+		first, second, _ := strings.Cut(string(body), "## turn 2")
+
+		if !strings.Contains(first, "first answer") || strings.Contains(second, "first answer") {
+			t.Errorf("each final reply should sit under its own turn only, got: %s", body)
+		}
+
+		if !strings.Contains(second, "second ask") || !strings.Contains(second, "checking\n\nsecond answer") {
+			t.Errorf("the second turn should carry its prompt, its interim text and its final reply, got: %s", second)
+		}
+	})
+
+	t.Run("a final reply already in the transcript is logged once", func(t *testing.T) {
+		f := newFixture(t)
+		f.claim("drive", session)
+		f.appendTurn("only ask", "the whole answer", "")
+		f.run(f.payload(map[string]any{"last_assistant_message": "the whole answer"}), "stop")
+
+		body, _ := os.ReadFile(f.log())
+		if strings.Count(string(body), "the whole answer") != 1 {
+			t.Errorf("the final reply should appear once, got: %s", body)
 		}
 	})
 

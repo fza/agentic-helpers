@@ -128,8 +128,18 @@ func (hook *hook) summarizeTool(name string, input map[string]json.RawMessage) s
 
 // turnBlock renders one turn of the harness transcript, or nothing where the
 // records held no text and no tool call.
-func (hook *hook) turnBlock(records []transcriptRecord, number int) string {
+//
+// Claude Code may write a turn's final reply to the transcript only after the
+// Stop hook has read it, so the reply comes from the Stop payload instead. Its
+// late copy then opens the next turn's records, ahead of that turn's prompt,
+// and is dropped there: logging it again files one turn's answer under the next
+// turn's question.
+func (hook *hook) turnBlock(records []transcriptRecord, number int, loggedReply string, finalReply string) string {
 	var asked, replied, did []string
+
+	loggedReply = strings.TrimSpace(loggedReply)
+	finalReply = strings.TrimSpace(finalReply)
+	prompted := false
 
 	for _, record := range records {
 		if record.Type != "user" && record.Type != "assistant" {
@@ -139,13 +149,21 @@ func (hook *hook) turnBlock(records []transcriptRecord, number int) string {
 		said := &replied
 		if record.Type == "user" {
 			said = &asked
+			prompted = true
+		}
+
+		lateCopy := func(text string) bool {
+			return !prompted && record.Type == "assistant" && loggedReply != "" && strings.Contains(loggedReply, text)
 		}
 
 		var text string
 
 		err := json.Unmarshal(record.Message.Content, &text)
 		if err == nil {
-			*said = append(*said, text)
+			trimmed := strings.TrimSpace(text)
+			if trimmed != "" && !lateCopy(trimmed) {
+				*said = append(*said, trimmed)
+			}
 
 			continue
 		}
@@ -161,7 +179,7 @@ func (hook *hook) turnBlock(records []transcriptRecord, number int) string {
 			switch block.Type {
 			case "text":
 				trimmed := strings.TrimSpace(block.Text)
-				if trimmed != "" {
+				if trimmed != "" && !lateCopy(trimmed) {
 					*said = append(*said, trimmed)
 				}
 			case "tool_use":
@@ -173,6 +191,14 @@ func (hook *hook) turnBlock(records []transcriptRecord, number int) string {
 				did = append(did, hook.summarizeTool(name, block.Input))
 			}
 		}
+	}
+
+	if finalReply != "" {
+		for len(replied) > 0 && strings.Contains(finalReply, replied[len(replied)-1]) {
+			replied = replied[:len(replied)-1]
+		}
+
+		replied = append(replied, finalReply)
 	}
 
 	if len(asked) == 0 && len(replied) == 0 && len(did) == 0 {
@@ -203,17 +229,19 @@ func (hook *hook) turnBlock(records []transcriptRecord, number int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// appendTurn logs what the harness transcript gained since the last stop.
-func (hook *hook) appendTurn(session string, transcript string, held *state) error {
+// appendTurn logs what the harness transcript gained since the last stop, and
+// the final reply the Stop payload carries.
+func (hook *hook) appendTurn(session string, transcript string, finalReply string, held *state) error {
 	records, end := readNewRecords(transcript, held.LogOffset)
 	held.LogOffset = end
 
-	block := hook.turnBlock(records, held.Turns+1)
+	block := hook.turnBlock(records, held.Turns+1, held.LastReply, finalReply)
 	if block == "" {
 		return nil
 	}
 
 	held.Turns++
+	held.LastReply = finalReply
 
 	err := os.MkdirAll(hook.transcriptsDir(), 0o755)
 	if err != nil {

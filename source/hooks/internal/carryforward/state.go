@@ -18,11 +18,12 @@ const (
 
 // state is one session's nudge ladder and its place in the harness transcript.
 type state struct {
-	TranscriptOffsetAtRefresh int64 `json:"transcript_offset_at_refresh"`
-	LogOffset                 int64 `json:"log_offset"`
-	Nudges                    int   `json:"nudges"`
-	PercentRung               *int  `json:"percent_rung"`
-	Turns                     int   `json:"turns"`
+	TranscriptOffsetAtRefresh int64  `json:"transcript_offset_at_refresh"`
+	LogOffset                 int64  `json:"log_offset"`
+	Nudges                    int    `json:"nudges"`
+	PercentRung               *int   `json:"percent_rung"`
+	Turns                     int    `json:"turns"`
+	LastReply                 string `json:"last_reply"`
 }
 
 type sensor struct {
