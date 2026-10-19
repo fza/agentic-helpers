@@ -415,7 +415,9 @@ func readsBadly(ctx context.Context, env Env, payload hookio.Payload) string {
 
 	for _, check := range []func() string{
 		func() string { return discardsAStream(reads, texts, raw) },
-		func() string { return hidesTheDownstream(ctx, env, payload.SessionID, texts, reads, config.ShowDepth, configErr) },
+		func() string {
+			return hidesTheDownstream(ctx, env, payload.SessionID, texts, reads, config.ShowDepth, configErr)
+		},
 	} {
 		found := check()
 		if found != "" {
