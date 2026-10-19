@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -198,7 +199,11 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 	}
 
 	output := result.Stdout + result.Stderr
-	if result.Code != 0 {
+	found := findings(output)
+
+	// sdd exits non-zero on a high finding, so a failed run carrying one is a
+	// held draft, not a refused one.
+	if result.Code != 0 && !slices.ContainsFunc(found, isHigh) {
 		run.say("pre-flight refused the draft:\n%s", strings.TrimSpace(output))
 
 		return 1
@@ -206,12 +211,12 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 
 	var blocking []string
 
-	for _, found := range findings(output) {
-		switch found.severity {
+	for _, each := range found {
+		switch each.severity {
 		case "medium":
-			run.say("pre-flight notes, not blocking: %s", found.text)
+			run.say("pre-flight notes, not blocking: %s", each.text)
 		case "high":
-			blocking = append(blocking, found.text)
+			blocking = append(blocking, each.text)
 		}
 	}
 
@@ -511,4 +516,8 @@ func findings(output string) []finding {
 	}
 
 	return found
+}
+
+func isHigh(each finding) bool {
+	return each.severity == "high"
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
+const rejected = "  [high] participant-drift: unknown\npre-flight validation blocked: 1 high-severity finding(s)\npre-flight rejected entry\n"
+
 type fixture struct {
 	t      *testing.T
 	root   string
@@ -235,6 +237,8 @@ func TestThePreflight(t *testing.T) {
 		{name: "high blocks", dryRun: process.Result{Stdout: "  [high] participant-drift: unknown\n"}, code: 2, says: "participant-drift"},
 		{name: "high forced", dryRun: process.Result{Stdout: "  [high] participant-drift: unknown\n"}, args: []string{"--force"}, captures: true, says: "capturing despite"},
 		{name: "refused outright", dryRun: process.Result{Code: 1, Stderr: "unknown flag --terms"}, code: 1, says: "pre-flight refused the draft"},
+		{name: "held, as sdd exits on a high finding", dryRun: process.Result{Code: 1, Stderr: rejected}, code: 2, says: "1 finding(s) of high severity"},
+		{name: "held, forced", dryRun: process.Result{Code: 1, Stderr: rejected}, args: []string{"--force"}, captures: true, says: "capturing despite"},
 	}
 
 	for _, tc := range cases {
