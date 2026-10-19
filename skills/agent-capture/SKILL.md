@@ -18,6 +18,7 @@ agentic-capture <draft.md> --force           # capture despite a high finding. O
 agentic-capture <draft.md> --skip-preflight  # entry marked unchecked. Only where the tool advises it
 agentic-capture <draft.md> --preflight-limit 8m   # cut off each pre-flight try after 8m. Default 5m
 CAPTURE_PREFLIGHT_LIMIT=8m agentic-capture <draft.md>  # same, for a caller. The flag wins
+agentic-capture <draft.md> --preflight-route glm-5.3=<layer.yaml>  # fallback for the pre-flight. Repeatable
 ```
 
 ## Draft
@@ -79,6 +80,14 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
   `the pre-flight's provider answered nothing; trying again in 10s`.
 - **Gave up → exit 1:** `... on all 3 tries; the draft did not cause it, so capture it again later`,
   then sdd's output of the last try, where it printed any. Do not edit the draft for it. Run again later.
+- **Fallback routes** (`--preflight-route <model>=<layer>`, in order given): primary gave up → each
+  route one try, no wait. sdd gets `--model <model> --local-config <layer>`. First answering decides,
+  findings as the primary's. Capture step stays on the caller's own config.
+  - Routes named → stdout opens `AGENTIC_CAPTURE_ROUTE <model>` (or `primary`).
+  - Every route failed → `route <name>: <fault>: <last line>` per route, then `... failed on every
+    route; the draft did not cause it, so capture it again later`. Exit 1.
+  - Layer missing, unreadable, not yours, or group/other-readable → `route <model> skipped: <layer>
+    <why>`. Never read, never printed: holds an API key.
 - **Never retried:** a `[high]` finding, `validation failed`, status 400/401/403/404, anything else.
   Refusal checked first: a `[high]` finding quoting "timed out" is still a refusal.
 - **Capture step never retried.** Its one model call (summary) fails soft, before the write. A

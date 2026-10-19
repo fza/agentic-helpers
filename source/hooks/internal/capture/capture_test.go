@@ -288,12 +288,14 @@ func TestThePreflight(t *testing.T) {
 
 func TestUsageAndPlace(t *testing.T) {
 	for _, args := range [][]string{{}, {"--force"}, {"a.md", "b.md"}, {"a.md", "--bogus"},
-		{"a.md", "--preflight-limit"}, {"a.md", "--preflight-limit", "soon"}, {"a.md", "--preflight-limit", "0s"}} {
+		{"a.md", "--preflight-limit"}, {"a.md", "--preflight-limit", "soon"}, {"a.md", "--preflight-limit", "0s"},
+		{"a.md", "--preflight-route"}, {"a.md", "--preflight-route", "glm"}, {"a.md", "--preflight-route", "=a.yaml"},
+		{"a.md", "--preflight-route", "glm="}, {"--help"}} {
 		f := newFixture(t, "")
 
 		got := f.run(args...)
-		if got.code != 1 || !strings.Contains(got.stderr, "usage:") {
-			t.Errorf("%v should be refused with usage", args)
+		if got.code != 1 || !strings.Contains(got.stderr, "usage:") || !strings.Contains(got.stderr, "--preflight-route") {
+			t.Errorf("%v should be refused with usage naming every flag", args)
 		}
 	}
 
@@ -480,5 +482,251 @@ func TestTheCaptureRunsOnce(t *testing.T) {
 	if got.code != 1 || len(f.runner.CallsOf("capture")) != 1 || len(f.pauses.Waited) != 0 {
 		t.Errorf("a failed capture should never run again, since the entry may have landed, got %d after %d captures",
 			got.code, len(f.runner.CallsOf("capture")))
+	}
+}
+
+const emptyAnswer = "gollm openai: ResponseError (failed to parse response): no content or tool calls in response"
+
+// layer writes a route's configuration layer under mode and returns its path.
+func (f *fixture) layer(name string, mode os.FileMode) string {
+	f.t.Helper()
+
+	path := filepath.Join(f.root, ".tmp", "layers", name)
+	test.WriteFile(f.t, path, test.Fixture(f.t, "capture/layer.yaml"))
+
+	err := os.Chmod(path, mode)
+	if err != nil {
+		f.t.Fatalf("setting the mode of %s: %v", path, err)
+	}
+
+	return path
+}
+
+func (f *fixture) routed(routes ...string) result {
+	f.t.Helper()
+
+	args := []string{f.draft("capture/full.md")}
+	for _, each := range routes {
+		args = append(args, "--preflight-route", each)
+	}
+
+	return f.run(args...)
+}
+
+func faults(count int, then ...process.Result) []process.Result {
+	answers := make([]process.Result, count)
+	for index := range answers {
+		answers[index] = fault(emptyAnswer)
+	}
+
+	return append(answers, then...)
+}
+
+func TestAFallbackRouteDecidesThePreflight(t *testing.T) {
+	cases := []struct {
+		name    string
+		answers []process.Result
+		tries   int
+		route   string
+		layer   string
+	}{
+		{name: "the primary answering", answers: []process.Result{{}}, tries: 1, route: "primary"},
+		{name: "the first route after the primary answered nothing", answers: faults(3, process.Result{}), tries: 4, route: "glm-5.3", layer: "glm.yaml"},
+		{name: "the second route after the first answered nothing", answers: faults(4, process.Result{}), tries: 5, route: "kimi-k3", layer: "kimi.yaml"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			f.runner.DryRuns = tc.answers
+
+			got := f.routed("glm-5.3="+f.layer("glm.yaml", 0o600), "kimi-k3="+f.layer("kimi.yaml", 0o600))
+			if got.code != 0 || len(f.runner.CallsOf("capture")) != 1 {
+				t.Fatalf("the route answering should let the capture through, got %d, stderr: %s", got.code, got.stderr)
+			}
+
+			if got.stdout != "AGENTIC_CAPTURE_ROUTE "+tc.route+"\ncaptured\n" {
+				t.Errorf("one line should name the route that answered, ahead of the capture's output, got: %q", got.stdout)
+			}
+
+			dryRuns := f.runner.CallsOf("dry-run")
+			if len(dryRuns) != tc.tries || !slices.Equal(f.pauses.Waited, retryWaits(tc.tries)) {
+				t.Fatalf("the primary should keep its retries and each route get one try with no wait, got %d tries, waits %v",
+					len(dryRuns), f.pauses.Waited)
+			}
+
+			last := dryRuns[len(dryRuns)-1]
+			if tc.layer == "" {
+				if slices.Contains(last, "--model") || slices.Contains(last, "--local-config") {
+					t.Error("the primary should run on the caller's own configuration")
+				}
+			} else if flagValue(last, "--model") != tc.route || filepath.Base(flagValue(last, "--local-config")) != tc.layer {
+				t.Errorf("the route should hand sdd its model and its layer, got: %v", last)
+			}
+
+			capturing := f.runner.CallsOf("capture")[0]
+			if slices.Contains(capturing, "--model") || slices.Contains(capturing, "--local-config") {
+				t.Error("the capture should stay on the caller's own configuration")
+			}
+		})
+	}
+
+	t.Run("a relative layer names a file in the working directory", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.DryRuns = faults(3, process.Result{})
+		f.layer("glm.yaml", 0o600)
+
+		got := f.routed("glm-5.3=.tmp/layers/glm.yaml")
+		dryRuns := f.runner.CallsOf("dry-run")
+
+		if got.code != 0 || flagValue(dryRuns[3], "--local-config") != filepath.Join(f.root, ".tmp", "layers", "glm.yaml") {
+			t.Errorf("the layer should reach sdd as an absolute path, got: %v", dryRuns[3])
+		}
+	})
+}
+
+func retryWaits(tries int) []time.Duration {
+	if tries == 1 {
+		return nil
+	}
+
+	return []time.Duration{10 * time.Second, 30 * time.Second}
+}
+
+func TestARefusalNeverReachesARoute(t *testing.T) {
+	cases := []struct {
+		name    string
+		answers []process.Result
+		tries   int
+		code    int
+	}{
+		{name: "a high finding on the primary", answers: []process.Result{{Code: 1, Stderr: rejected}}, tries: 1, code: 2},
+		{name: "a status no retry changes on the primary", answers: []process.Result{fault("gollm openai: API error: status code 401")}, tries: 1, code: 1},
+		{name: "a high finding on a route", answers: faults(3, process.Result{Code: 1, Stderr: rejected}), tries: 4, code: 2},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			f.runner.DryRuns = tc.answers
+
+			got := f.routed("glm-5.3="+f.layer("glm.yaml", 0o600), "kimi-k3="+f.layer("kimi.yaml", 0o600))
+			if got.code != tc.code || len(f.runner.CallsOf("dry-run")) != tc.tries || len(f.runner.CallsOf("capture")) != 0 {
+				t.Errorf("the route that answered should decide, with no route after it tried, got %d after %d tries, stderr: %s",
+					got.code, len(f.runner.CallsOf("dry-run")), got.stderr)
+			}
+		})
+	}
+}
+
+func TestAWrittenEntryIsNeverRunTwice(t *testing.T) {
+	f := newFixture(t, "")
+	f.runner.DryRuns = faults(3, process.Result{})
+	f.runner.Capture = process.Result{Code: 1, Stdout: "20261020-120000-d-tac-abc.md\n", Stderr: "gollm openai: timed out\n"}
+
+	got := f.routed("glm-5.3=" + f.layer("glm.yaml", 0o600))
+	if got.code != 1 || len(f.runner.CallsOf("capture")) != 1 || len(f.runner.CallsOf("dry-run")) != 4 {
+		t.Errorf("a failed capture should never run again, on any route, got %d after %d captures",
+			got.code, len(f.runner.CallsOf("capture")))
+	}
+}
+
+func TestEveryRouteFailing(t *testing.T) {
+	t.Run("answering nothing", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.DryRun = fault(emptyAnswer)
+
+		got := f.routed("glm-5.3="+f.layer("glm.yaml", 0o600), "kimi-k3="+f.layer("kimi.yaml", 0o600))
+		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 5 || len(f.runner.CallsOf("capture")) != 0 {
+			t.Fatalf("a fault on every route should give up without capturing, got %d, stderr: %s", got.code, got.stderr)
+		}
+
+		for _, name := range []string{"primary", "glm-5.3", "kimi-k3"} {
+			if !strings.Contains(got.stderr, "\nroute "+name+": the pre-flight's provider answered nothing: pre-flight error:") {
+				t.Errorf("each route's last error should stand on its own line, got: %s", got.stderr)
+			}
+		}
+
+		if !strings.HasSuffix(got.stderr, "failed on every route; the draft did not cause it, so capture it again later\n") {
+			t.Errorf("the failure should close the output, got: %s", got.stderr)
+		}
+
+		if got.stdout != "" {
+			t.Errorf("no route answered, so none should be named, got: %q", got.stdout)
+		}
+	})
+
+	t.Run("cut off", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.Hangs = 9
+
+		got := f.run(f.draft("capture/full.md"), "--preflight-limit", "10ms", "--preflight-route", "glm-5.3="+f.layer("glm.yaml", 0o600))
+		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 4 || !strings.Contains(got.stderr, "\nroute glm-5.3: the pre-flight gave no answer within 10ms\n") {
+			t.Errorf("a route cut off should be passed over by its limit, got %d, stderr: %s", got.code, got.stderr)
+		}
+	})
+}
+
+func TestAnUnusableLayerIsSkipped(t *testing.T) {
+	f := newFixture(t, "")
+	f.runner.DryRuns = faults(3, process.Result{})
+
+	missing := filepath.Join(f.root, ".tmp", "layers", "missing.yaml")
+	shared := f.layer("shared.yaml", 0o640)
+	open := f.layer("open.yaml", 0o604)
+
+	got := f.routed("glm-5.3="+missing, "kimi-k3="+shared, "qwen-4="+open, "deepseek-v4="+f.layer("own.yaml", 0o600))
+	if got.code != 0 || got.stdout != "AGENTIC_CAPTURE_ROUTE deepseek-v4\ncaptured\n" || len(f.runner.CallsOf("dry-run")) != 4 {
+		t.Fatalf("the first usable route should answer, every unusable one skipped untried, got %d, %q, stderr: %s",
+			got.code, got.stdout, got.stderr)
+	}
+
+	for _, line := range []string{
+		"route glm-5.3 skipped: " + missing + " is missing\n",
+		"route kimi-k3 skipped: " + shared + " is readable by group or others\n",
+		"route qwen-4 skipped: " + open + " is readable by group or others\n",
+	} {
+		if strings.Count(got.stderr, line) != 1 {
+			t.Errorf("each unusable layer should be named once with why, got: %s", got.stderr)
+		}
+	}
+
+	if strings.Contains(got.stdout+got.stderr, "sk-fixture-never-printed") {
+		t.Error("a layer's contents should never be printed")
+	}
+}
+
+// A file another user owns cannot be made without root, so the system's own
+// account file stands in for one.
+func TestALayerNotTheCallersOwnOrUnreadableIsSkipped(t *testing.T) {
+	foreign := "/etc/passwd"
+
+	_, err := os.Stat(foreign)
+	if err != nil || os.Getuid() == 0 {
+		t.Skip("needs a file another user owns, and a caller other than root")
+	}
+
+	f := newFixture(t, "")
+	f.runner.DryRuns = faults(3, process.Result{})
+	unreadable := f.layer("unreadable.yaml", 0o200)
+
+	got := f.routed("glm-5.3="+foreign, "kimi-k3="+unreadable, "qwen-4="+f.layer("own.yaml", 0o600))
+	if got.code != 0 || got.stdout != "AGENTIC_CAPTURE_ROUTE qwen-4\ncaptured\n" || len(f.runner.CallsOf("dry-run")) != 4 {
+		t.Fatalf("the usable route should answer, the others skipped untried, got %d, %q, stderr: %s", got.code, got.stdout, got.stderr)
+	}
+
+	if !strings.Contains(got.stderr, "route glm-5.3 skipped: "+foreign+" is not the caller's own\n") ||
+		!strings.Contains(got.stderr, "route kimi-k3 skipped: "+unreadable+" is not a readable file\n") {
+		t.Errorf("each skipped layer should be named with why, got: %s", got.stderr)
+	}
+}
+
+func TestNoRouteKeepsTheOutputAsItWas(t *testing.T) {
+	f := newFixture(t, "")
+	f.runner.DryRuns = faults(1, process.Result{})
+
+	got := f.run(f.draft("capture/full.md"))
+	if got.code != 0 || got.stdout != "captured\n" || strings.Contains(got.stderr, "route") {
+		t.Errorf("a caller naming no route should see no route line, got %q, stderr: %s", got.stdout, got.stderr)
 	}
 }

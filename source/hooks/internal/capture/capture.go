@@ -14,7 +14,9 @@
 //
 // A pre-flight the provider failed, rather than the draft, runs again: each try
 // is cut off at a time limit, and a provider fault waits and retries a bounded
-// number of times. The capture itself runs once.
+// number of times. Where the caller names fallback routes, each then gets one
+// try under its own model and configuration layer, and the first one answering
+// decides. The capture itself runs once, on the caller's own configuration.
 package capture
 
 import (
@@ -22,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,7 +41,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
-const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [--preflight-limit <duration>]"
+const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [--preflight-limit <duration>] [--preflight-route <model>=<layer>]..."
 
 const LimitVariable = "CAPTURE_PREFLIGHT_LIMIT"
 
@@ -98,6 +101,32 @@ type request struct {
 	force         bool
 	skipPreflight bool
 	limit         time.Duration
+	routes        []route
+}
+
+// route is where a pre-flight runs: the caller's own sdd configuration where
+// model is empty, else that model under the configuration layer at layer.
+type route struct {
+	model string
+	layer string
+}
+
+func (via route) name() string {
+	if via.model == "" {
+		return "primary"
+	}
+
+	return via.model
+}
+
+func (via route) command(held draft) []string {
+	args := command(held, "--dry-run")
+	if via.model == "" {
+		return args
+	}
+
+	return slices.Concat([]string{"sdd", "--local-config", via.layer}, args[1:len(args)-1],
+		[]string{"--model", via.model, "--dry-run"})
 }
 
 type draft struct {
@@ -131,6 +160,15 @@ func parseArgs(args []string) (request, bool) {
 			}
 
 			held.limit = limit
+		case arg == "--preflight-route" && index+1 < len(args):
+			index++
+
+			model, layer, found := strings.Cut(args[index], "=")
+			if !found || model == "" || layer == "" {
+				return request{}, false
+			}
+
+			held.routes = append(held.routes, route{model: model, layer: layer})
 		case strings.HasPrefix(arg, "-") || held.draft != "":
 			return request{}, false
 		default:
@@ -188,6 +226,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	path := held.draft
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(env.WorkingDir, path)
+	}
+
+	for index, each := range held.routes {
+		if !filepath.IsAbs(each.layer) {
+			held.routes[index].layer = filepath.Join(env.WorkingDir, each.layer)
+		}
 	}
 
 	graph := graphconfig.GraphDir(filepath.Dir(path))
@@ -324,42 +368,149 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 
 var errGaveUp = errors.New("the pre-flight's provider failed every try")
 
-// preflight runs `sdd new --dry-run` until a try ends in something other than
-// a provider fault, waiting out each delay in retryDelays between tries.
+// preflight runs `sdd new --dry-run` on the caller's own configuration, then
+// on each fallback route in turn, until a try ends in something other than a
+// provider fault.
 func (run *capture) preflight(ctx context.Context, held draft) (process.Result, error) {
-	for attempt := 0; ; attempt++ {
-		result, fault, err := run.try(ctx, held)
-		if err != nil || fault == "" {
+	result, fault, err := run.retried(ctx, held)
+	if err != nil {
+		return result, err
+	}
+
+	if fault == "" {
+		run.answered(route{})
+
+		return result, nil
+	}
+
+	tries := len(retryDelays) + 1
+
+	if len(run.request.routes) == 0 {
+		run.say("%s on all %d tries; the draft did not cause it, so capture it again later", fault, tries)
+
+		output := strings.TrimSpace(result.Stdout + result.Stderr)
+		if output != "" {
+			run.say("%s", output)
+		}
+
+		return result, errGaveUp
+	}
+
+	run.say("%s on all %d tries; trying each fallback route once", fault, tries)
+
+	passedOver := []string{lastError(route{}, fault, result)}
+
+	for _, via := range run.request.routes {
+		reason := unusable(via.layer)
+		if reason != "" {
+			run.say("route %s skipped: %s %s", via.model, via.layer, reason)
+
+			continue
+		}
+
+		result, fault, err = run.try(ctx, held, via)
+		if err != nil {
 			return result, err
 		}
 
-		if attempt == len(retryDelays) {
-			run.say("%s on all %d tries; the draft did not cause it, so capture it again later", fault, attempt+1)
+		if fault == "" {
+			run.answered(via)
 
-			output := strings.TrimSpace(result.Stdout + result.Stderr)
-			if output != "" {
-				run.say("%s", output)
-			}
+			return result, nil
+		}
 
-			return result, errGaveUp
+		passedOver = append(passedOver, lastError(via, fault, result))
+	}
+
+	for _, line := range passedOver {
+		run.say("%s", line)
+	}
+
+	run.say("the pre-flight's provider failed on every route; the draft did not cause it, so capture it again later")
+
+	return result, errGaveUp
+}
+
+// retried runs the pre-flight on the caller's own configuration until a try
+// ends in something other than a provider fault, waiting out each delay in
+// retryDelays between tries, and names the fault the last try ended in.
+func (run *capture) retried(ctx context.Context, held draft) (process.Result, string, error) {
+	for attempt := 0; ; attempt++ {
+		result, fault, err := run.try(ctx, held, route{})
+		if err != nil || fault == "" || attempt == len(retryDelays) {
+			return result, fault, err
 		}
 
 		run.say("%s; trying again in %s", fault, retryDelays[attempt])
 
 		err = run.env.Pause(ctx, retryDelays[attempt])
 		if err != nil {
-			return result, err
+			return result, "", err
 		}
 	}
 }
 
+// answered names the route that decided the pre-flight, ahead of the capture's
+// own output. A caller naming no fallback route gets no such line, so its
+// output stays what it was before routes existed.
+func (run *capture) answered(via route) {
+	if len(run.request.routes) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintf(run.streams.Out, "AGENTIC_CAPTURE_ROUTE %s\n", via.name())
+}
+
+// unusable says why a route's layer is passed over, or nothing where it may be
+// used. The layer holds the provider's API key, so one the caller does not own,
+// or one others can read, is refused. It is opened, never read.
+func unusable(layer string) string {
+	info, err := os.Stat(layer)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "is missing"
+	}
+
+	if err != nil || !info.Mode().IsRegular() {
+		return "is not a readable file"
+	}
+
+	owner, known := info.Sys().(*syscall.Stat_t)
+	if !known || int(owner.Uid) != os.Getuid() {
+		return "is not the caller's own"
+	}
+
+	if info.Mode().Perm()&0o044 != 0 {
+		return "is readable by group or others"
+	}
+
+	file, err := os.Open(layer)
+	if err != nil {
+		return "is not a readable file"
+	}
+
+	_ = file.Close()
+
+	return ""
+}
+
+func lastError(via route, fault string, result process.Result) string {
+	lines := strings.Split(strings.TrimSpace(result.Stdout+result.Stderr), "\n")
+
+	last := strings.TrimSpace(lines[len(lines)-1])
+	if last == "" {
+		return fmt.Sprintf("route %s: %s", via.name(), fault)
+	}
+
+	return fmt.Sprintf("route %s: %s: %s", via.name(), fault, last)
+}
+
 // try runs one pre-flight under the limit and names the provider fault that
 // ended it, or nothing where the provider answered.
-func (run *capture) try(ctx context.Context, held draft) (process.Result, string, error) {
+func (run *capture) try(ctx context.Context, held draft, via route) (process.Result, string, error) {
 	bounded, cancel := context.WithTimeout(ctx, run.request.limit)
 	defer cancel()
 
-	result, err := run.env.Runner.Run(bounded, run.root, command(held, "--dry-run"))
+	result, err := run.env.Runner.Run(bounded, run.root, via.command(held))
 
 	if ctx.Err() != nil {
 		return result, "", fmt.Errorf("the pre-flight was interrupted: %w", ctx.Err())

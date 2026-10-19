@@ -1,0 +1,3 @@
+llm:
+  provider: openai
+  api_key: sk-fixture-never-printed

@@ -158,6 +158,19 @@ draft never retries: a high finding, a shape error, or any other status. The wri
 because the summary is its only model call and sdd writes the entry without one when it fails; a
 failure there comes from the file or git, after the entry may already be on disk.
 
+A caller with more than one provider names fallback routes for the pre-flight, each with
+`--preflight-route <model>=<layer>`: the model sdd gets as `--model`, and a configuration layer it
+gets as `--local-config`, as many as needed, tried in the order given. Once the caller's own
+configuration has failed all three tries on a provider fault, each route gets one try, with no wait,
+and the first one answering without a fault decides the pre-flight: its findings hold the draft back
+or let it through just as the primary's would. A refusal never moves on to a route, and the write
+itself always runs on the caller's own configuration. With routes named, stdout opens with
+`AGENTIC_CAPTURE_ROUTE <model>` (or `primary`) for the route that answered; where none did, each
+route's last error stands on its own line before the failure. A layer holds an API key, so one that
+is missing, unreadable, owned by someone else, or readable by group or others is skipped with a line
+saying so, and its contents are never read. A caller naming no route sees none of this, and
+`--help` lists the flag for a caller detecting support.
+
 Exit 0 is captured, 2 is a high finding holding the draft back, 1 everything else.
 
 ## The skills
