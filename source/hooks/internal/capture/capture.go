@@ -11,6 +11,10 @@
 // reports nothing of high severity. A medium finding reaches the caller and
 // captures anyway, the rule the tool itself applies; a low one never reaches
 // the caller, since nobody acts on one.
+//
+// A pre-flight the provider failed, rather than the draft, runs again: each try
+// is cut off at a time limit, and a provider fault waits and retries a bounded
+// number of times. The capture itself runs once.
 package capture
 
 import (
@@ -25,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/goccy/go-yaml"
 
@@ -33,11 +38,36 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
-const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight]"
+const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [--preflight-limit <duration>]"
+
+const LimitVariable = "CAPTURE_PREFLIGHT_LIMIT"
+
+// sdd bounds a pre-flight call by `llm.timeout` (2m by default) and the
+// extraction it falls back to by `llm.extract_timeout` (1m): twice the first
+// plus the second leaves sdd's own limits to fire first.
+const defaultLimit = 5 * time.Minute
 
 var ErrDraft = errors.New("draft refused")
 
 var severity = regexp.MustCompile(`^\s*\[(low|medium|high)\]`)
+
+var retryDelays = []time.Duration{10 * time.Second, 30 * time.Second}
+
+// A shape error, like a high finding, is a refusal of the draft and never
+// retries, whatever else its output says.
+var refusal = regexp.MustCompile(`validation failed`)
+
+// What a provider fault reads as in sdd's output, and how the retry line names
+// it. Statuses a retry cannot change (400, 401, 403, 404) are not faults.
+var faults = []struct {
+	pattern *regexp.Regexp
+	names   string
+}{
+	{regexp.MustCompile(`no content or tool calls in response`), "answered nothing"},
+	{regexp.MustCompile(`RateLimitError|status code 429|status 429`), "rate-limited the call"},
+	{regexp.MustCompile(`API error(?:: status code| \[provider \S+ status) (408|409|5\d\d)`), "failed with status %s"},
+	{regexp.MustCompile(`timed out`), "timed out"},
+}
 
 // Draft keys and the `sdd new` flag each becomes, in the order they are passed.
 var (
@@ -53,17 +83,21 @@ type Runner interface {
 	Run(ctx context.Context, dir string, argv []string) (process.Result, error)
 }
 
-// Env is where a capture runs: the caller's working directory, and what runs
-// `sdd` and the project's lint.
+// Env is where a capture runs: the caller's working directory, what runs `sdd`
+// and the project's lint, the value of LimitVariable (empty where unset), and
+// what waits out a retry delay.
 type Env struct {
 	WorkingDir string
 	Runner     Runner
+	Limit      string
+	Pause      func(ctx context.Context, delay time.Duration) error
 }
 
 type request struct {
 	draft         string
 	force         bool
 	skipPreflight bool
+	limit         time.Duration
 }
 
 type draft struct {
@@ -80,12 +114,23 @@ type finding struct {
 func parseArgs(args []string) (request, bool) {
 	var held request
 
-	for _, arg := range args {
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+
 		switch {
 		case arg == "--force":
 			held.force = true
 		case arg == "--skip-preflight":
 			held.skipPreflight = true
+		case arg == "--preflight-limit" && index+1 < len(args):
+			index++
+
+			limit, valid := positiveDuration(args[index])
+			if !valid {
+				return request{}, false
+			}
+
+			held.limit = limit
 		case strings.HasPrefix(arg, "-") || held.draft != "":
 			return request{}, false
 		default:
@@ -96,6 +141,25 @@ func parseArgs(args []string) (request, bool) {
 	return held, held.draft != ""
 }
 
+func positiveDuration(text string) (time.Duration, bool) {
+	duration, err := time.ParseDuration(text)
+
+	return duration, err == nil && duration > 0
+}
+
+// Sleep waits out delay, or less where ctx ends first.
+func Sleep(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("waiting to retry the pre-flight: %w", ctx.Err())
+	}
+}
+
 // Main captures one draft. Exit 2 is a pre-flight holding the draft back, 1
 // every other refusal.
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
@@ -104,6 +168,21 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		_, _ = fmt.Fprintln(streams.Err, usage)
 
 		return 1
+	}
+
+	if held.limit == 0 && env.Limit != "" {
+		limit, valid := positiveDuration(env.Limit)
+		if !valid {
+			_, _ = fmt.Fprintf(streams.Err, "%s is %q, not a duration above zero such as 5m\n", LimitVariable, env.Limit)
+
+			return 1
+		}
+
+		held.limit = limit
+	}
+
+	if held.limit == 0 {
+		held.limit = defaultLimit
 	}
 
 	path := held.draft
@@ -191,7 +270,11 @@ func (run *capture) do(ctx context.Context) int {
 }
 
 func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
-	result, err := run.env.Runner.Run(ctx, run.root, command(held, "--dry-run"))
+	result, err := run.preflight(ctx, held)
+	if errors.Is(err, errGaveUp) {
+		return 1
+	}
+
 	if err != nil {
 		run.say("%v", err)
 
@@ -239,9 +322,94 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 	return run.capture(ctx, held, "--preflight-verified")
 }
 
-// capture writes the entry. `sdd new` writes and commits in one step, so two
-// captures at once race for the git index and one dies leaving an entry
-// uncommitted; the lock covers that step alone.
+var errGaveUp = errors.New("the pre-flight's provider failed every try")
+
+// preflight runs `sdd new --dry-run` until a try ends in something other than
+// a provider fault, waiting out each delay in retryDelays between tries.
+func (run *capture) preflight(ctx context.Context, held draft) (process.Result, error) {
+	for attempt := 0; ; attempt++ {
+		result, fault, err := run.try(ctx, held)
+		if err != nil || fault == "" {
+			return result, err
+		}
+
+		if attempt == len(retryDelays) {
+			run.say("%s on all %d tries; the draft did not cause it, so capture it again later", fault, attempt+1)
+
+			output := strings.TrimSpace(result.Stdout + result.Stderr)
+			if output != "" {
+				run.say("%s", output)
+			}
+
+			return result, errGaveUp
+		}
+
+		run.say("%s; trying again in %s", fault, retryDelays[attempt])
+
+		err = run.env.Pause(ctx, retryDelays[attempt])
+		if err != nil {
+			return result, err
+		}
+	}
+}
+
+// try runs one pre-flight under the limit and names the provider fault that
+// ended it, or nothing where the provider answered.
+func (run *capture) try(ctx context.Context, held draft) (process.Result, string, error) {
+	bounded, cancel := context.WithTimeout(ctx, run.request.limit)
+	defer cancel()
+
+	result, err := run.env.Runner.Run(bounded, run.root, command(held, "--dry-run"))
+
+	if ctx.Err() != nil {
+		return result, "", fmt.Errorf("the pre-flight was interrupted: %w", ctx.Err())
+	}
+
+	if errors.Is(bounded.Err(), context.DeadlineExceeded) {
+		return result, fmt.Sprintf("the pre-flight gave no answer within %s", run.request.limit), nil
+	}
+
+	if err != nil || result.Code == 0 {
+		return result, "", err
+	}
+
+	fault := providerFault(result.Stdout + result.Stderr)
+	if fault == "" {
+		return result, "", nil
+	}
+
+	return result, "the pre-flight's provider " + fault, nil
+}
+
+func providerFault(output string) string {
+	if refusal.MatchString(output) || slices.ContainsFunc(findings(output), isHigh) {
+		return ""
+	}
+
+	for _, fault := range faults {
+		match := fault.pattern.FindStringSubmatch(output)
+		if match == nil {
+			continue
+		}
+
+		if len(match) > 1 {
+			return fmt.Sprintf(fault.names, match[1])
+		}
+
+		return fault.names
+	}
+
+	return ""
+}
+
+// capture writes the entry. It runs once and never retries: the one model call
+// in it, the summary, ends in a warning rather than a failure and comes before
+// the write, so a failure here is a file or git one, after which the entry may
+// already be on disk.
+//
+// `sdd new` writes and commits in one step, so two captures at once race for
+// the git index and one dies leaving an entry uncommitted; the lock covers
+// that step alone.
 func (run *capture) capture(ctx context.Context, held draft, preflight string) int {
 	unlock, err := run.lock()
 	if err != nil {

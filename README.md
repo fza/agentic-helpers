@@ -149,6 +149,17 @@ the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --
 and a project naming none gets no lint. The gate refuses a capture whose turn carries neither the
 reads nor a grounded draft.
 
+The pre-flight is a model call, so a provider can fail it without the draft being at fault. A try
+that answers nothing, is rate-limited, fails with status 408, 409 or 5xx, times out within sdd, or
+runs past `--preflight-limit` (default `5m`, or `CAPTURE_PREFLIGHT_LIMIT` for a caller; the flag
+wins) runs again after 10 seconds, then after 30, and gives up with exit 1 after the third. A cut-off
+try kills sdd's whole process group, so a `claude -p` it started dies with it. A refusal of the
+draft never retries: a high finding, a shape error, or any other status. The write itself runs once,
+because the summary is its only model call and sdd writes the entry without one when it fails; a
+failure there comes from the file or git, after the entry may already be on disk.
+
+Exit 0 is captured, 2 is a high finding holding the draft back, 1 everything else.
+
 ## The skills
 
 A hook fires and an agent that has never met it has to work out what just happened. Each hook has a

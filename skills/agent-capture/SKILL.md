@@ -16,6 +16,8 @@ never `sdd new` by hand.
 agentic-capture <draft.md>                   # lint, pre-flight, capture
 agentic-capture <draft.md> --force           # capture despite a high finding. Owner's call only
 agentic-capture <draft.md> --skip-preflight  # entry marked unchecked. Only where the tool advises it
+agentic-capture <draft.md> --preflight-limit 8m   # cut off each pre-flight try after 8m. Default 5m
+CAPTURE_PREFLIGHT_LIMIT=8m agentic-capture <draft.md>  # same, for a caller. The flag wins
 ```
 
 ## Draft
@@ -50,8 +52,8 @@ Body. Markdown, unfenced.
 | grounding gate | turn lacks the three reads and the draft is not grounded (`agent-grounding`) |
 | header | no `type`/`layer`; `listing_prefix` set and no topic carries it |
 | project lint | `draft_lint` set and it reports; or it fails and says nothing |
-| pre-flight | `sdd new --dry-run` refuses; any `[high]` finding |
-| capture | `sdd new --preflight-verified`, under `.sdd/tmp/capture.lock` |
+| pre-flight | `sdd new --dry-run` refuses; any `[high]` finding. Provider fault → retried, see below |
+| capture | `sdd new --preflight-verified`, under `.sdd/tmp/capture.lock`. Runs once, never retried |
 
 - **Project config → `.sdd/grounding.yaml`.** `listing_prefix: area-` → topic rule.
   `draft_lint: <command>` → run from the repo root on `.<draft>.body.md` beside the draft, findings
@@ -60,6 +62,27 @@ Body. Markdown, unfenced.
 - **`[low]` → never shown.**
 - **Exit 2 = pre-flight held it.** Fix the draft, run again. `--force` → owner decides, never you.
 - **Exit 1 = anything else.** The message names it.
+
+## Provider fault
+
+Pre-flight is a model call. Provider failing → not the draft's fault → retried, not refused.
+
+| Fault | sdd output carries |
+|---|---|
+| answered nothing | `no content or tool calls in response` |
+| rate-limited | `RateLimitError`, status 429 |
+| failed with status | `API error: status code` 408, 409, 5xx |
+| timed out | `timed out` (sdd's own `llm.timeout`) |
+| no answer within the limit | try ran past `--preflight-limit`; sdd and its children killed |
+
+- **Waits 10s, then 30s, then gives up.** Three tries. One stderr line per retry:
+  `the pre-flight's provider answered nothing; trying again in 10s`.
+- **Gave up → exit 1:** `... on all 3 tries; the draft did not cause it, so capture it again later`,
+  then sdd's output of the last try, where it printed any. Do not edit the draft for it. Run again later.
+- **Never retried:** a `[high]` finding, `validation failed`, status 400/401/403/404, anything else.
+  Refusal checked first: a `[high]` finding quoting "timed out" is still a refusal.
+- **Capture step never retried.** Its one model call (summary) fails soft, before the write. A
+  failure there = file or git, entry may be on disk. Check `git log` before running again.
 
 ## After
 

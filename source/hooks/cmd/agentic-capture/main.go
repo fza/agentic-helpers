@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/capture"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
@@ -18,8 +20,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	env := capture.Env{WorkingDir: working, Runner: process.Runner{}}
+	// Every command runs in a process group of its own, out of reach of the
+	// terminal's interrupt, so the signal cancels the run and the runner kills
+	// the group.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
+	env := capture.Env{
+		WorkingDir: working,
+		Runner:     process.Runner{},
+		Limit:      os.Getenv(capture.LimitVariable),
+		Pause:      capture.Sleep,
+	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
-	os.Exit(capture.Main(context.Background(), os.Args[1:], env, streams))
+	code := capture.Main(ctx, os.Args[1:], env, streams)
+
+	stop()
+	os.Exit(code)
 }

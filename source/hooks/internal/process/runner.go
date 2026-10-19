@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"syscall"
+	"time"
 )
 
 type Result struct {
@@ -18,9 +20,18 @@ type Runner struct{}
 
 // Run runs argv in dir and reports how it ended. A command that exits non-zero
 // is a result, not an error; only one that never started is an error.
+//
+// The command leads its own process group, and a cancelled ctx kills the whole
+// group: `sdd` starts `claude -p` sharing its output pipes, so killing `sdd`
+// alone leaves the child running and Run reading its pipes until it exits.
 func (Runner) Run(ctx context.Context, dir string, argv []string) (Result, error) {
 	command := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	command.Dir = dir
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.Cancel = func() error {
+		return syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+	}
+	command.WaitDelay = 5 * time.Second
 
 	var stdout, stderr bytes.Buffer
 

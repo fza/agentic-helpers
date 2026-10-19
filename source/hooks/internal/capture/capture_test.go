@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/capture"
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
@@ -20,6 +21,8 @@ type fixture struct {
 	t      *testing.T
 	root   string
 	runner *test.Runner
+	pauses *test.Pauses
+	limit  string
 }
 
 type result struct {
@@ -38,7 +41,7 @@ func newFixture(t *testing.T, config string) *fixture {
 		test.WriteFile(t, filepath.Join(root, ".sdd", "grounding.yaml"), test.Fixture(t, config))
 	}
 
-	return &fixture{t: t, root: root, runner: &test.Runner{Capture: process.Result{Stdout: "captured\n"}}}
+	return &fixture{t: t, root: root, runner: &test.Runner{Capture: process.Result{Stdout: "captured\n"}}, pauses: &test.Pauses{}}
 }
 
 func (f *fixture) draft(fixture string) string {
@@ -53,9 +56,15 @@ func (f *fixture) draft(fixture string) string {
 func (f *fixture) run(args ...string) result {
 	f.t.Helper()
 
+	return f.runIn(context.Background(), args...)
+}
+
+func (f *fixture) runIn(ctx context.Context, args ...string) result {
+	f.t.Helper()
+
 	captured := &test.Captured{}
-	env := capture.Env{WorkingDir: f.root, Runner: f.runner}
-	code := capture.Main(context.Background(), args, env, captured.Streams(""))
+	env := capture.Env{WorkingDir: f.root, Runner: f.runner, Limit: f.limit, Pause: f.pauses.Pause}
+	code := capture.Main(ctx, args, env, captured.Streams(""))
 
 	return result{code: code, stdout: captured.Out.String(), stderr: captured.Err.String()}
 }
@@ -278,7 +287,8 @@ func TestThePreflight(t *testing.T) {
 }
 
 func TestUsageAndPlace(t *testing.T) {
-	for _, args := range [][]string{{}, {"--force"}, {"a.md", "b.md"}, {"a.md", "--bogus"}} {
+	for _, args := range [][]string{{}, {"--force"}, {"a.md", "b.md"}, {"a.md", "--bogus"},
+		{"a.md", "--preflight-limit"}, {"a.md", "--preflight-limit", "soon"}, {"a.md", "--preflight-limit", "0s"}} {
 		f := newFixture(t, "")
 
 		got := f.run(args...)
@@ -291,7 +301,7 @@ func TestUsageAndPlace(t *testing.T) {
 	test.WriteFile(t, filepath.Join(outside, "entry.md"), test.Fixture(t, "capture/full.md"))
 
 	captured := &test.Captured{}
-	code := capture.Main(context.Background(), []string{"entry.md"}, capture.Env{WorkingDir: outside, Runner: &test.Runner{}}, captured.Streams(""))
+	code := capture.Main(context.Background(), []string{"entry.md"}, capture.Env{WorkingDir: outside, Runner: &test.Runner{}, Pause: (&test.Pauses{}).Pause}, captured.Streams(""))
 
 	if code != 1 || !strings.Contains(captured.Err.String(), "no .sdd graph") {
 		t.Error("a draft no graph governs should be refused")
@@ -299,5 +309,176 @@ func TestUsageAndPlace(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(outside, ".sdd")); err == nil {
 		t.Error("nothing should be created")
+	}
+}
+
+func fault(text string) process.Result {
+	return process.Result{Code: 1, Stderr: "pre-flight error: running pre-flight validator: " + text + " (use --skip-preflight to bypass)\n"}
+}
+
+func TestAProviderFaultRetriesThePreflight(t *testing.T) {
+	cases := []struct {
+		name   string
+		answer process.Result
+		says   string
+	}{
+		{name: "an empty answer", answer: fault("gollm openai: no content or tool calls in response"), says: "provider answered nothing"},
+		{name: "a rate limit", answer: fault("gollm openai: RateLimitError: API error: status code 429"), says: "provider rate-limited the call"},
+		{name: "a server error", answer: fault("gollm openai: API error: status code 503"), says: "provider failed with status 503"},
+		{name: "a server error, provider spelling", answer: fault("API error [provider openrouter status 502]"), says: "provider failed with status 502"},
+		{name: "a request timeout", answer: fault("gollm openai: API error: status code 408"), says: "provider failed with status 408"},
+		{name: "sdd's own time limit", answer: fault("gollm openai: timed out"), says: "provider timed out"},
+		{name: "the claude provider's time limit", answer: fault("claude -p timed out (increase with --preflight-timeout)"), says: "provider timed out"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name+", once", func(t *testing.T) {
+			f := newFixture(t, "")
+			f.runner.DryRuns = []process.Result{tc.answer, {}}
+
+			got := f.run(f.draft("capture/full.md"))
+			if got.code != 0 || len(f.runner.CallsOf("dry-run")) != 2 || len(f.runner.CallsOf("capture")) != 1 {
+				t.Fatalf("one fault should cost one retry and still capture, got %d, stderr: %s", got.code, got.stderr)
+			}
+
+			if !slices.Equal(f.pauses.Waited, []time.Duration{10 * time.Second}) || !strings.Contains(got.stderr, tc.says+"; trying again in 10s") {
+				t.Errorf("the retry should wait the first delay and say why, got %v, stderr: %s", f.pauses.Waited, got.stderr)
+			}
+		})
+	}
+
+	t.Run("every try", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.DryRun = fault("gollm openai: no content or tool calls in response")
+
+		got := f.run(f.draft("capture/full.md"))
+		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 3 || len(f.runner.CallsOf("capture")) != 0 {
+			t.Fatalf("a fault on every try should give up without capturing, got %d, stderr: %s", got.code, got.stderr)
+		}
+
+		if !slices.Equal(f.pauses.Waited, []time.Duration{10 * time.Second, 30 * time.Second}) {
+			t.Errorf("the retries should wait out each delay in turn, got: %v", f.pauses.Waited)
+		}
+
+		if !strings.Contains(got.stderr, "provider answered nothing on all 3 tries; the draft did not cause it") ||
+			!strings.Contains(got.stderr, "no content or tool calls") {
+			t.Errorf("giving up should name the fault and show sdd's output, got: %s", got.stderr)
+		}
+	})
+}
+
+func TestADraftRefusalNeverRetries(t *testing.T) {
+	cases := []struct {
+		name   string
+		answer process.Result
+		code   int
+	}{
+		{name: "a status no retry changes", answer: fault("gollm openai: API error: status code 401"), code: 1},
+		{name: "a high finding naming a fault", answer: process.Result{Code: 1, Stderr: "  [high] scope: the body says the provider timed out\n" + rejected}, code: 2},
+		{name: "a shape error naming a fault", answer: process.Result{Code: 1, Stderr: "error: summary says timed out twice\nvalidation failed: 1 issue(s)\n"}, code: 1},
+		{name: "an unknown failure", answer: process.Result{Code: 1, Stderr: "unknown flag --terms"}, code: 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			f.runner.DryRun = tc.answer
+
+			got := f.run(f.draft("capture/full.md"))
+			if got.code != tc.code || len(f.runner.CallsOf("dry-run")) != 1 || len(f.pauses.Waited) != 0 {
+				t.Errorf("the pre-flight should run once and end the capture, got %d after %d tries, stderr: %s",
+					got.code, len(f.runner.CallsOf("dry-run")), got.stderr)
+			}
+		})
+	}
+}
+
+func TestTheLimitCutsOffATry(t *testing.T) {
+	t.Run("once", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.Hangs = 1
+
+		got := f.run(f.draft("capture/full.md"), "--preflight-limit", "20ms")
+		if got.code != 0 || len(f.runner.CallsOf("dry-run")) != 2 || len(f.runner.CallsOf("capture")) != 1 {
+			t.Fatalf("a try cut off should retry and still capture, got %d, stderr: %s", got.code, got.stderr)
+		}
+
+		if !strings.Contains(got.stderr, "the pre-flight gave no answer within 20ms; trying again in 10s") {
+			t.Errorf("the retry should name the limit, got: %s", got.stderr)
+		}
+	})
+
+	t.Run("every try", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.Hangs = 9
+
+		got := f.run(f.draft("capture/full.md"), "--preflight-limit", "10ms")
+		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 3 || !strings.Contains(got.stderr, "within 10ms on all 3 tries") {
+			t.Errorf("a try cut off every time should give up, got %d, stderr: %s", got.code, got.stderr)
+		}
+
+		if !strings.HasSuffix(got.stderr, "capture it again later\n") {
+			t.Errorf("a try that printed nothing should leave nothing to show, got: %q", got.stderr)
+		}
+	})
+
+	t.Run("an interrupt ends the run", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.Hangs = 9
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+
+		got := f.runIn(ctx, f.draft("capture/full.md"))
+		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 1 || len(f.pauses.Waited) != 0 || !strings.Contains(got.stderr, "interrupted") {
+			t.Errorf("an interrupted try should end the run, not retry, got %d, stderr: %s", got.code, got.stderr)
+		}
+	})
+}
+
+func TestWhereTheLimitComesFrom(t *testing.T) {
+	cases := []struct {
+		name     string
+		variable string
+		args     []string
+		limit    time.Duration
+	}{
+		{name: "default", limit: 5 * time.Minute},
+		{name: "the variable", variable: "7m", limit: 7 * time.Minute},
+		{name: "the flag over the variable", variable: "7m", args: []string{"--preflight-limit", "2m"}, limit: 2 * time.Minute},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			f.limit = tc.variable
+
+			f.run(append([]string{f.draft("capture/full.md")}, tc.args...)...)
+
+			if len(f.runner.Limits) != 1 || f.runner.Limits[0] > tc.limit || f.runner.Limits[0] < tc.limit-time.Second {
+				t.Errorf("the pre-flight should run under the limit that applies, got: %v", f.runner.Limits)
+			}
+		})
+	}
+
+	t.Run("a variable that is no duration", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.limit = "soon"
+
+		got := f.run(f.draft("capture/full.md"))
+		if got.code != 1 || !strings.Contains(got.stderr, capture.LimitVariable) || len(f.runner.Calls) != 0 {
+			t.Errorf("a bad variable should be refused by name before anything runs, got %d, stderr: %s", got.code, got.stderr)
+		}
+	})
+}
+
+func TestTheCaptureRunsOnce(t *testing.T) {
+	f := newFixture(t, "")
+	f.runner.Capture = process.Result{Code: 1, Stdout: "20261019-120000-d-tac-abc.md\n", Stderr: "gollm openai: timed out\n"}
+
+	got := f.run(f.draft("capture/full.md"))
+	if got.code != 1 || len(f.runner.CallsOf("capture")) != 1 || len(f.pauses.Waited) != 0 {
+		t.Errorf("a failed capture should never run again, since the entry may have landed, got %d after %d captures",
+			got.code, len(f.runner.CallsOf("capture")))
 	}
 }
