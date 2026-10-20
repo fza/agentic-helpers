@@ -12,6 +12,10 @@
 // captures anyway, the rule the tool itself applies; a low one never reaches
 // the caller, since nobody acts on one.
 //
+// A caller that already ran the pre-flight on the draft's exact bytes names
+// their sha256, and the pre-flight is skipped while the entry still records it
+// as verified.
+//
 // A pre-flight the provider failed, rather than the draft, runs again: each try
 // is cut off at a time limit, and a provider fault waits and retries a bounded
 // number of times. Where the caller names fallback routes, each then gets one
@@ -21,6 +25,8 @@ package capture
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +47,17 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
-const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [--preflight-limit <duration>] [--preflight-route <model>=<layer>]..."
+const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [--preflight-limit <duration>] [--preflight-route <model>=<layer>]... [--preflight-done <sha256>]"
+
+// A caller computes the --preflight-done value itself, so the help names the
+// bytes the hash covers exactly.
+const help = usage + `
+  --force                            capture despite a high-severity pre-flight finding
+  --skip-preflight                   capture with no pre-flight; the entry records that nothing checked it
+  --preflight-limit <duration>       cut off each pre-flight try after <duration>; default 5m, or ` + LimitVariable + `
+  --preflight-route <model>=<layer>  once the caller's own configuration fails on a provider fault, try <model> under the sdd configuration layer <layer>, once; repeatable
+  --preflight-done <sha256>          the sha256 of the draft file's bytes as read from disk, front matter included, as sha256sum <draft.md> prints it; on a match the pre-flight is skipped and the entry recorded as verified
+`
 
 const LimitVariable = "CAPTURE_PREFLIGHT_LIMIT"
 
@@ -53,6 +69,8 @@ const defaultLimit = 5 * time.Minute
 var ErrDraft = errors.New("draft refused")
 
 var severity = regexp.MustCompile(`^\s*\[(low|medium|high)\]`)
+
+var digest = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 
 var retryDelays = []time.Duration{10 * time.Second, 30 * time.Second}
 
@@ -100,8 +118,10 @@ type request struct {
 	draft         string
 	force         bool
 	skipPreflight bool
+	preflightDone string
 	limit         time.Duration
 	routes        []route
+	help          bool
 }
 
 // route is where a pre-flight runs: the caller's own sdd configuration where
@@ -133,6 +153,7 @@ type draft struct {
 	front  map[string]any
 	body   string
 	offset int
+	digest string
 }
 
 type finding struct {
@@ -147,10 +168,20 @@ func parseArgs(args []string) (request, bool) {
 		arg := args[index]
 
 		switch {
+		case arg == "--help":
+			return request{help: true}, true
 		case arg == "--force":
 			held.force = true
 		case arg == "--skip-preflight":
 			held.skipPreflight = true
+		case arg == "--preflight-done" && index+1 < len(args):
+			index++
+
+			if !digest.MatchString(args[index]) {
+				return request{}, false
+			}
+
+			held.preflightDone = strings.ToLower(args[index])
 		case arg == "--preflight-limit" && index+1 < len(args):
 			index++
 
@@ -174,6 +205,10 @@ func parseArgs(args []string) (request, bool) {
 		default:
 			held.draft = arg
 		}
+	}
+
+	if held.skipPreflight && held.preflightDone != "" {
+		return request{}, false
 	}
 
 	return held, held.draft != ""
@@ -206,6 +241,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		_, _ = fmt.Fprintln(streams.Err, usage)
 
 		return 1
+	}
+
+	if held.help {
+		_, _ = fmt.Fprint(streams.Out, help)
+
+		return 0
 	}
 
 	if held.limit == 0 && env.Limit != "" {
@@ -308,6 +349,18 @@ func (run *capture) do(ctx context.Context) int {
 		run.say("capturing with no pre-flight, so the entry records that nothing checked it")
 
 		return run.capture(ctx, held, "--skip-preflight")
+	}
+
+	// The caller's pre-flight is the same `sdd new --dry-run`, so a match is a
+	// verified entry, never an unchecked one.
+	if run.request.preflightDone != "" && run.request.preflightDone == held.digest {
+		run.say("pre-flight skipped: the caller ran it on these exact bytes")
+
+		return run.capture(ctx, held, "--preflight-verified")
+	}
+
+	if run.request.preflightDone != "" {
+		run.say("--preflight-done names %s, but the draft hashes to %s; running the pre-flight", run.request.preflightDone, held.digest)
 	}
 
 	return run.preflightThenCapture(ctx, held)
@@ -709,7 +762,11 @@ func parseDraft(path string) (draft, error) {
 	// the draft.
 	offset := strings.Count(text[:end+5], "\n") + strings.Count(raw[:len(raw)-len(strings.TrimLeft(raw, "\n"))], "\n")
 
-	return draft{front: front, body: body, offset: offset}, nil
+	// Hashing the read the draft is parsed from leaves no window for the file
+	// to change between the hash and the capture.
+	sum := sha256.Sum256(data)
+
+	return draft{front: front, body: body, offset: offset, digest: hex.EncodeToString(sum[:])}, nil
 }
 
 // validate refuses what `sdd new` cannot judge: the fields this call needs,

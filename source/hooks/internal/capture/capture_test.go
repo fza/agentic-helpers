@@ -2,6 +2,8 @@ package capture_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"slices"
@@ -290,11 +292,13 @@ func TestUsageAndPlace(t *testing.T) {
 	for _, args := range [][]string{{}, {"--force"}, {"a.md", "b.md"}, {"a.md", "--bogus"},
 		{"a.md", "--preflight-limit"}, {"a.md", "--preflight-limit", "soon"}, {"a.md", "--preflight-limit", "0s"},
 		{"a.md", "--preflight-route"}, {"a.md", "--preflight-route", "glm"}, {"a.md", "--preflight-route", "=a.yaml"},
-		{"a.md", "--preflight-route", "glm="}, {"--help"}} {
+		{"a.md", "--preflight-route", "glm="}, {"a.md", "--preflight-done"}, {"a.md", "--preflight-done", "abc"},
+		{"a.md", "--preflight-done", strings.Repeat("g", 64)}, {"a.md", "--preflight-done", strings.Repeat("a", 64), "--skip-preflight"}} {
 		f := newFixture(t, "")
 
 		got := f.run(args...)
-		if got.code != 1 || !strings.Contains(got.stderr, "usage:") || !strings.Contains(got.stderr, "--preflight-route") {
+		if got.code != 1 || !strings.Contains(got.stderr, "usage:") || !strings.Contains(got.stderr, "--preflight-route") ||
+			!strings.Contains(got.stderr, "--preflight-done") {
 			t.Errorf("%v should be refused with usage naming every flag", args)
 		}
 	}
@@ -729,4 +733,95 @@ func TestNoRouteKeepsTheOutputAsItWas(t *testing.T) {
 	if got.code != 0 || got.stdout != "captured\n" || strings.Contains(got.stderr, "route") {
 		t.Errorf("a caller naming no route should see no route line, got %q, stderr: %s", got.stdout, got.stderr)
 	}
+}
+
+func TestHelpNamesTheBytesTheHashCovers(t *testing.T) {
+	f := newFixture(t, "")
+
+	got := f.run("--help")
+	if got.code != 0 || got.stderr != "" || !strings.HasPrefix(got.stdout, "usage: agentic-capture <draft.md>") {
+		t.Fatalf("help should print the usage on stdout and exit cleanly, got: %+v", got)
+	}
+
+	if !strings.Contains(got.stdout, "--preflight-done <sha256>          the sha256 of the draft file's bytes as read from disk, front matter included") {
+		t.Errorf("help should name the bytes the hash covers, got: %s", got.stdout)
+	}
+
+	if len(f.runner.Calls) != 0 {
+		t.Error("help should run nothing")
+	}
+}
+
+func digestOf(t *testing.T, path string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+
+	sum := sha256.Sum256(data)
+
+	return hex.EncodeToString(sum[:])
+}
+
+func TestAPreflightTheCallerRan(t *testing.T) {
+	cases := []struct {
+		name    string
+		hash    func(own string) string
+		dryRuns int
+		says    string
+	}{
+		{name: "matching", hash: func(own string) string { return own }, says: "pre-flight skipped: the caller ran it on these exact bytes\n"},
+		{name: "matching in upper case", hash: strings.ToUpper, says: "pre-flight skipped: the caller ran it on these exact bytes\n"},
+		{name: "differing", hash: func(string) string { return strings.Repeat("0", 64) }, dryRuns: 1,
+			says: "--preflight-done names " + strings.Repeat("0", 64) + ", but the draft hashes to "},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			path := f.draft("capture/full.md")
+
+			got := f.run(path, "--preflight-done", tc.hash(digestOf(t, path)), "--preflight-route", "glm-5.3="+f.layer("glm.yaml", 0o600))
+			captures := f.runner.CallsOf("capture")
+
+			if got.code != 0 || len(captures) != 1 || captures[0][len(captures[0])-1] != "--preflight-verified" {
+				t.Fatalf("the capture should run once, recorded as verified, got %d, stderr: %s", got.code, got.stderr)
+			}
+
+			if len(f.runner.CallsOf("dry-run")) != tc.dryRuns {
+				t.Errorf("the pre-flight should run only where the hash differs, got: %v", f.runner.Calls)
+			}
+
+			if !strings.Contains(got.stderr, tc.says) {
+				t.Errorf("the caller should learn whether its pre-flight stood, got: %s", got.stderr)
+			}
+
+			if tc.dryRuns == 0 && strings.Contains(got.stdout, "AGENTIC_CAPTURE_ROUTE") {
+				t.Errorf("no route answered, so none should be named, got: %q", got.stdout)
+			}
+		})
+	}
+
+	t.Run("a mismatch names the draft's own hash", func(t *testing.T) {
+		f := newFixture(t, "")
+		path := f.draft("capture/full.md")
+
+		got := f.run(path, "--preflight-done", strings.Repeat("0", 64))
+		if !strings.Contains(got.stderr, "the draft hashes to "+digestOf(t, path)+"; running the pre-flight\n") {
+			t.Errorf("the line should name the hash the caller should have sent, got: %s", got.stderr)
+		}
+	})
+
+	t.Run("the draft lint still blocks a match", func(t *testing.T) {
+		f := newFixture(t, "grounding/full.yaml")
+		path := f.draft("capture/full.md")
+		f.runner.Lint = process.Result{Code: 1, Stdout: "x:1:1:House.Passive:passive voice\n"}
+
+		got := f.run(path, "--preflight-done", digestOf(t, path))
+		if got.code != 1 || len(f.runner.CallsOf("capture")) != 0 || len(f.runner.CallsOf("dry-run")) != 0 {
+			t.Errorf("a lint finding should stop the run, a caller's pre-flight notwithstanding, got %d, stderr: %s", got.code, got.stderr)
+		}
+	})
 }

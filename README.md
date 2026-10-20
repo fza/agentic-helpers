@@ -171,6 +171,15 @@ is missing, unreadable, owned by someone else, or readable by group or others is
 saying so, and its contents are never read. A caller naming no route sees none of this, and
 `--help` lists the flag for a caller detecting support.
 
+A caller that already ran the pre-flight on a draft passes `--preflight-done <sha256>`: the sha256
+of the draft file's bytes as read from disk, front matter included, as `sha256sum <draft.md>` prints
+it. Where the draft hashes to that value, the header check and the lint still run, the pre-flight is
+skipped with `pre-flight skipped: the caller ran it on these exact bytes`, and the entry is recorded
+as verified, never as unchecked. Where it hashes to anything else, one line names both values and the
+pre-flight runs as usual, so the caller learns its key differs. The flag is refused beside
+`--skip-preflight`. `--help` prints the usage line and one line per flag on stdout, the
+`--preflight-done` line naming the bytes the hash covers.
+
 Exit 0 is captured, 2 is a high finding holding the draft back, 1 everything else.
 
 ## The skills

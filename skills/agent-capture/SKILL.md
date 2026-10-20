@@ -19,7 +19,15 @@ agentic-capture <draft.md> --skip-preflight  # entry marked unchecked. Only wher
 agentic-capture <draft.md> --preflight-limit 8m   # cut off each pre-flight try after 8m. Default 5m
 CAPTURE_PREFLIGHT_LIMIT=8m agentic-capture <draft.md>  # same, for a caller. The flag wins
 agentic-capture <draft.md> --preflight-route glm-5.3=<layer.yaml>  # fallback for the pre-flight. Repeatable
+agentic-capture <draft.md> --preflight-done <sha256>  # caller ran the pre-flight on these bytes already
+agentic-capture --help                       # usage + one line per flag, stdout, exit 0
 ```
+
+- **`--preflight-done <sha256>`** = sha256 of the draft file's bytes as read from disk, front matter
+  included. Match → header + lint still run, pre-flight skipped, stderr
+  `pre-flight skipped: the caller ran it on these exact bytes`, entry recorded verified. Never
+  unchecked. Mismatch → `--preflight-done names <given>, but the draft hashes to <actual>; running
+  the pre-flight`, then pre-flight as usual. Beside `--skip-preflight` → usage, exit 1.
 
 ## Draft
 
@@ -53,7 +61,7 @@ Body. Markdown, unfenced.
 | grounding gate | turn lacks the three reads and the draft is not grounded (`agent-grounding`) |
 | header | no `type`/`layer`; `listing_prefix` set and no topic carries it |
 | project lint | `draft_lint` set and it reports; or it fails and says nothing |
-| pre-flight | `sdd new --dry-run` refuses; any `[high]` finding. Provider fault → retried, see below |
+| pre-flight | `sdd new --dry-run` refuses; any `[high]` finding. Provider fault → retried, see below. Skipped on a `--preflight-done` match |
 | capture | `sdd new --preflight-verified`, under `.sdd/tmp/capture.lock`. Runs once, never retried |
 
 - **Project config → `.sdd/grounding.yaml`.** `listing_prefix: area-` → topic rule.
