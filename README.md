@@ -233,7 +233,9 @@ claude plugin marketplace add fza/agentic-helpers
 claude plugin install agentic-helpers@agentic-helpers
 ```
 
-Both work inside a session as `/plugin ...` too. Installed at user scope, the plugin is enabled in
+Inside a session, `/plugin install agentic-helpers --marketplace fza/agentic-helpers` does both in
+one step (Claude Code 2.1.275 or later), and `fza/agentic-helpers#v<version>` pins the marketplace to
+one release. Installed at user scope, the plugin is enabled in
 every project on the machine, and Claude Code itself records that in its settings: no installer of
 ours edits `~/.claude/settings.json`. `claude plugin update agentic-helpers@agentic-helpers` moves to
 the latest release; it takes effect in the next session or after `/reload-plugins`. Auto-update is
@@ -303,14 +305,18 @@ pushing after a release: `main` carries the release commit.
 
 ```bash
 cd source/hooks && go vet ./... && go test -race ./...   # every suite
+claude plugin validate .                                 # the plugin and marketplace manifests
 ```
 
 The rules for this code live in [`source/AGENTS.md`](source/AGENTS.md). Each suite drives its
-binary's `Main` against a tree built in a temporary directory, with processes and the settings
-directory faked, never the real ones. Every guard is asserted from both
-sides: the same call is driven once with the evidence present and once with it missing, and the two
-outcomes have to differ.
-A guard that cannot fail is worthless.
+binary's `Main` against a tree built in a temporary directory, with processes faked, never the real
+ones. The plugin's suite runs the real `hooks/run` and `bin/` shims against a fake `curl` and a
+temporary data directory, and checks that every hook in `hooks/hooks.json` goes through the launcher
+and that the release builds every binary under `source/hooks/cmd/`. Every guard is asserted from
+both sides: the same call is driven once with the evidence present and once with it missing, and
+the two outcomes have to differ. A guard that cannot fail is worthless.
+
+Pushes and pull requests run the same suites on Linux and macOS (`.github/workflows/test.yml`).
 
 ## Licence
 
