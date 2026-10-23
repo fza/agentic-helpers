@@ -151,6 +151,11 @@ the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --
 and a project naming none gets no lint. The gate refuses a capture whose turn carries neither the
 reads nor a grounded draft.
 
+A graph on an older schema than the installed sdd refuses every write, the pre-flight included. The
+capture then says ``the graph needs `sdd migrate` before sdd writes to it; the draft did not cause
+this``, prints sdd's reason and exits 1, since no edit to the draft helps; `sdd migrate` is the
+graph owner's to run.
+
 The pre-flight is a model call, so a provider can fail it without the draft being at fault. A try
 that answers nothing, is rate-limited, fails with status 408, 409 or 5xx, times out within sdd, or
 runs past `--preflight-limit` (default `5m`, or `CAPTURE_PREFLIGHT_LIMIT` for a caller; the flag

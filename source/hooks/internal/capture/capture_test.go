@@ -144,6 +144,8 @@ func TestEveryHeaderKeyReachesItsFlag(t *testing.T) {
 	}{
 		{name: "an actor's kind", fixture: "capture/actor.md", flag: "--actor-kind",
 			want: func(value string) bool { return value == "human" }},
+		{name: "an entry's title", fixture: "capture/titled.md", flag: "--title",
+			want: func(value string) bool { return value == "Plugin ships from plugin/" }},
 		{name: "a fact's index", fixture: "capture/fact.md", flag: "--index",
 			want: func(value string) bool {
 				return strings.Contains(value, `"title":"The hooks ship as a plugin"`) &&
@@ -858,6 +860,55 @@ func TestAPreflightTheCallerRan(t *testing.T) {
 		got := f.run(path, "--preflight-done", digestOf(t, path))
 		if got.code != 1 || len(f.runner.CallsOf("capture")) != 0 || len(f.runner.CallsOf("dry-run")) != 0 {
 			t.Errorf("a lint finding should stop the run, a caller's pre-flight notwithstanding, got %d, stderr: %s", got.code, got.stderr)
+		}
+	})
+}
+
+const schemaRefused = "sdd: refusing to write — graph incompatible with this binary\n" +
+	"  graph schema version 1 is older than this binary's schema version 2; run `sdd migrate` to upgrade the graph\n"
+
+func TestAGraphOnAnOlderSchemaNeedsMigrateNotADraftEdit(t *testing.T) {
+	t.Run("at the pre-flight, with a route named", func(t *testing.T) {
+		f := newFixture(t, "grounding/area-prefix.yaml")
+		f.runner.DryRuns = []process.Result{{Code: 1, Stderr: schemaRefused}}
+
+		got := f.routed("glm-5.3=" + f.layer("glm.yaml", 0o600))
+		if got.code != 1 || !strings.Contains(got.stderr, "the graph needs `sdd migrate` before sdd writes to it; the draft did not cause this") {
+			t.Errorf("the refusal should name the migration, not the draft, got: %+v", got)
+		}
+
+		if !strings.Contains(got.stderr, "graph schema version 1 is older") {
+			t.Errorf("sdd's own reason should follow, got: %+v", got)
+		}
+
+		if strings.Contains(got.stderr, "pre-flight refused the draft") {
+			t.Errorf("the draft should not be blamed, got: %+v", got)
+		}
+
+		if len(f.runner.CallsOf("dry-run")) != 1 || len(f.runner.CallsOf("capture")) != 0 {
+			t.Errorf("nothing should be retried, routed or captured, got: %v", f.runner.Calls)
+		}
+
+		if len(f.pauses.Waited) != 0 {
+			t.Errorf("a schema refusal should never wait for a retry, got: %v", f.pauses.Waited)
+		}
+	})
+
+	t.Run("at the capture step", func(t *testing.T) {
+		f := newFixture(t, "grounding/area-prefix.yaml")
+		f.runner.Capture = process.Result{Code: 1, Stderr: schemaRefused}
+
+		got := f.run(f.draft("capture/full.md"))
+		if got.code != 1 || !strings.Contains(got.stderr, "the graph needs `sdd migrate` before sdd writes to it; the draft did not cause this") {
+			t.Errorf("the refusal should name the migration, not the draft, got: %+v", got)
+		}
+
+		if strings.Count(got.stderr, "graph schema version 1 is older") != 1 {
+			t.Errorf("sdd's own reason should be printed once, got: %+v", got)
+		}
+
+		if len(f.runner.CallsOf("capture")) != 1 {
+			t.Errorf("the capture should run once, got: %v", f.runner.Calls)
 		}
 	})
 }

@@ -48,7 +48,7 @@ Body. Markdown, unfenced.
 ```
 
 - **Header = `sdd new` flags.** `type` + `layer` required. `kind`, `confidence`, `intent`,
-  `canonical`, `actor`, `actor_kind`, `class`, `summary` → one value. `topics`, `closes`,
+  `canonical`, `actor`, `actor_kind`, `class`, `summary`, `title` → one value. `topics`, `closes`,
   `supersedes`, `participants`, `aliases`, `actors` → list. `refs`, `involvement`, `topic` → one
   object per item. `when`, `index` → one object. `attach` → list of paths. Every value check →
   `sdd new` itself.
@@ -101,6 +101,10 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
     <why>`. Never read, never printed: holds an API key.
 - **Never retried:** a `[high]` finding, `validation failed`, status 400/401/403/404, anything else.
   Refusal checked first: a `[high]` finding quoting "timed out" is still a refusal.
+- **Graph on an older schema** → stderr ``the graph needs `sdd migrate` before sdd writes to it; the
+  draft did not cause this``, then sdd's reason, exit 1. Pre-flight or capture step; never retried,
+  never routed. Fix = `sdd migrate`: owner's call, rewrites the whole graph, asks y/N. Never edit the
+  draft for it.
 - **Capture step never retried.** Its one model call (summary) fails soft, before the write. A
   failure there = file or git, entry may be on disk. Check `git log` before running again.
 

@@ -94,7 +94,7 @@ var faults = []struct {
 var (
 	valueFlags = [][2]string{{"kind", "--kind"}, {"confidence", "--confidence"}, {"intent", "--intent"},
 		{"canonical", "--canonical"}, {"actor", "--actor"}, {"actor_kind", "--actor-kind"}, {"class", "--class"},
-		{"summary", "--summary"}}
+		{"summary", "--summary"}, {"title", "--title"}}
 	listFlags = [][2]string{{"topics", "--topics"}, {"closes", "--closes"}, {"supersedes", "--supersedes"},
 		{"participants", "--participants"}, {"aliases", "--aliases"}, {"actors", "--actors"}}
 	jsonListFlags = [][2]string{{"refs", "--refs"}, {"involvement", "--involvement"}, {"topic", "--topic"}}
@@ -397,6 +397,10 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 	output := result.Stdout + result.Stderr
 	found := findings(output)
 
+	if result.Code != 0 && run.refusedForSchema(output) {
+		return 1
+	}
+
 	// sdd exits non-zero on a high finding, so a failed run carrying one is a
 	// held draft, not a refused one.
 	if result.Code != 0 && !slices.ContainsFunc(found, isHigh) {
@@ -436,6 +440,22 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 }
 
 var errGaveUp = errors.New("the pre-flight's provider failed every try")
+
+// sdd refuses every write, `--dry-run` included, to a graph whose schema is
+// older than its own, and names `sdd migrate` as the fix. The draft has no
+// part in it, so the refusal is told apart from one the draft caused.
+const schemaRefusal = "refusing to write — graph incompatible with this binary"
+
+func (run *capture) refusedForSchema(output string) bool {
+	if !strings.Contains(output, schemaRefusal) {
+		return false
+	}
+
+	run.say("the graph needs `sdd migrate` before sdd writes to it; the draft did not cause this, so run `sdd migrate` and capture again:\n%s",
+		strings.TrimSpace(output))
+
+	return true
+}
 
 // preflight runs `sdd new --dry-run` on the caller's own configuration, then
 // on each fallback route in turn, until a try ends in something other than a
@@ -644,6 +664,10 @@ func (run *capture) capture(ctx context.Context, held draft, preflight string) i
 	if err != nil {
 		run.say("%v", err)
 
+		return 1
+	}
+
+	if result.Code != 0 && run.refusedForSchema(result.Stdout+result.Stderr) {
 		return 1
 	}
 
