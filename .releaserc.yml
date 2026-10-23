@@ -1,6 +1,11 @@
 # A release is cut by hand (release.yml) from main. The commit types decide its
 # number; the commit carrying the new plugin.json version is the one tagged, so
 # the plugin names exactly the release its launcher fetches.
+#
+# The release notes never pass through a shell: @semantic-release/github
+# creates the release carrying them, and GoReleaser uploads the archives into
+# it, keeping its notes. Interpolating them into a command would let a commit
+# subject run as shell under a token that writes to the repository.
 branches:
   - main
 tagFormat: v${version}
@@ -12,14 +17,13 @@ plugins:
   - - "@semantic-release/exec"
     - prepareCmd: >-
         sed -i 's/"version": "[^"]*"/"version": "${nextRelease.version}"/' .claude-plugin/plugin.json
-      # The notes reach a quoted heredoc, so nothing in a commit subject is
-      # expanded by the shell.
-      publishCmd: |
-        cat > "$RUNNER_TEMP/release-notes.md" <<'AGENTIC_HELPERS_RELEASE_NOTES'
-        ${nextRelease.notes}
-        AGENTIC_HELPERS_RELEASE_NOTES
-        goreleaser release --clean --release-notes "$RUNNER_TEMP/release-notes.md"
   - - "@semantic-release/git"
     - assets:
         - .claude-plugin/plugin.json
       message: "chore(release): v${nextRelease.version} [skip ci]"
+  - - "@semantic-release/github"
+    - successComment: false
+      failComment: false
+      releasedLabels: false
+  - - "@semantic-release/exec"
+    - publishCmd: goreleaser release --clean

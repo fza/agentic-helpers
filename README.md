@@ -294,10 +294,10 @@ A release is cut by starting the `release` workflow by hand (`gh workflow run re
 Actions tab). It runs the tests, then semantic-release reads the commits since the last tag: `fix:`
 cuts a patch, `feat:` a minor, a `!` after the type a major, and every other type, `sdd:` included,
 cuts nothing. A releasable run writes the new version into `.claude-plugin/plugin.json`, commits it
-to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and GoReleaser publishes an
-archive per platform (darwin and linux, arm64 and amd64) with `checksums.txt` and the generated
-notes. A breaking change marked without `!` ships as a minor. Pull before pushing after a release:
-`main` carries the release commit.
+to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and creates the GitHub release
+with the generated notes; GoReleaser adds an archive per platform (darwin and linux, arm64 and amd64)
+and `checksums.txt` to it. A breaking change marked without `!` ships as a minor. Pull before
+pushing after a release: `main` carries the release commit.
 
 ## Working on this
 

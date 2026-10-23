@@ -42,3 +42,8 @@ checksum:
 
 changelog:
   disable: true
+
+# @semantic-release/github creates the release with its notes; GoReleaser adds
+# the archives and checksums.txt to it and leaves the notes as they are.
+release:
+  mode: keep-existing
