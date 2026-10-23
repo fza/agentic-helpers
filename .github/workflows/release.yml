@@ -34,13 +34,16 @@ jobs:
           version: v2.19.0
           install-only: true
 
+      # The notes generator semantic-release bundles renders with
+      # conventional-changelog-writer 8; the conventionalcommits preset needs
+      # writer 9 from its major 10 on, so it stays on major 9.
       - run: >-
           npx --yes
           -p semantic-release@25.0.9
           -p @semantic-release/exec@7.1.0
           -p @semantic-release/git@11.0.1
           -p @semantic-release/github@12.0.10
-          -p conventional-changelog-conventionalcommits@10.4.1
+          -p conventional-changelog-conventionalcommits@9.3.1
           semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
