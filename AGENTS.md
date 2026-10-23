@@ -44,8 +44,8 @@ session on the next hook event after `go install` runs again. A release is cut o
 - **Never build to check that code compiles - run the tests.** `go vet ./...` inside `source/hooks`
   is the quick compile check.
 - **A commit message is one line**: a Conventional Commits prefix (`feat:`, `fix:`, `docs:`,
-  `chore:`, `refactor:`, `test:`, `build:`), then the description, 100 characters at most. Nothing
-  follows the subject line.
+  `chore:`, `refactor:`, `test:`, `build:`, `style:`), then the description, 100 characters at most.
+  Nothing follows the subject line.
 - **The `sdd:` prefix belongs to that tool.** Never write it, never amend a commit carrying it.
 - **One commit per coherent change.** Never fold an unrelated change into a commit whose message
   does not describe it.
