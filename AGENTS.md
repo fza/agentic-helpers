@@ -16,7 +16,8 @@ hook's behaviour and how a project opts in.
 | Path | Holds |
 |---|---|
 | `source/hooks/` | one Go module: a binary per hook and `agentic-capture` under `cmd/`, everything else under `internal/` |
-| `skills/` | one skill per hook, linked into the global skills directory |
+| `.claude-plugin/`, `hooks/`, `bin/` | the plugin: its manifests, the hook wiring and launcher, and the commands the Bash tool finds |
+| `skills/` | one skill per hook, shipped in the plugin as `agentic-helpers:<skill>` |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 
 ## Setup and commands
@@ -24,15 +25,16 @@ hook's behaviour and how a project opts in.
 Go 1.27 or newer.
 
 ```bash
-go install -C source/hooks ./cmd/...   # build every hook into ~/go/bin (or GOBIN)
-agentic-install                        # wire them into settings.json, link the skills
-agentic-install --print                # show what would land, write nothing
+go install -C source/hooks ./cmd/...   # build every binary into ~/go/bin (or GOBIN)
 cd source/hooks && go vet ./... && go test -race ./...   # every suite
+claude plugin validate .               # the plugin and marketplace manifests
 ```
 
-**A hook runs from `~/go/bin`, not from this checkout.** A change reaches a session only after
-`go install` runs again. Claude Code reloads its settings, so a running session picks up rewiring
-at once.
+**The hooks ship as a Claude Code plugin** (`.claude-plugin/`, `hooks/`, `bin/`, `skills/`), and
+`hooks/run` runs the binaries of the release named in `.claude-plugin/plugin.json`. A machine
+working on them sets `AGENTIC_HELPERS_BIN_DIR` to the `go install` directory, so a change reaches a
+session on the next hook event after `go install` runs again. A release is cut only by the
+`release` workflow; `README.md` describes both.
 
 ## Working agreements
 

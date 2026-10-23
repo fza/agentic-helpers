@@ -20,8 +20,9 @@ the gate counts real `sdd search` and `sdd view` reads, and capture writes throu
 
 Every piece installs once for the whole machine and stays silent in a project that does not carry
 the directory it works on: `.memory/`, `.tmp/` or `.sdd/`. Each comes with a skill, a Markdown file
-the agent loads to learn what the piece expects and what its refusals mean. The hooks and the
-command are Go binaries built from `source/hooks` into `~/go/bin`.
+the agent loads to learn what the piece expects and what its refusals mean. Everything ships as one
+Claude Code plugin; the hooks and the command are Go binaries built from `source/hooks`, published
+with each release and fetched by the plugin.
 
 ## What each one does
 
@@ -190,10 +191,10 @@ skill carrying what it cannot say in a one-line refusal.
 
 | Skill | Carries |
 |---|---|
-| `agent-carryforward` | what a seat is, how to claim one, what belongs in a carry-forward against what belongs in the graph, and the handoff procedure |
-| `agent-grounding` | the three sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
-| `agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
-| `agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
+| `agentic-helpers:agent-carryforward` | what a seat is, how to claim one, what belongs in a carry-forward against what belongs in the graph, and the handoff procedure |
+| `agentic-helpers:agent-grounding` | the three sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
+| `agentic-helpers:agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
+| `agentic-helpers:agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
 
 Each skill is the whole of its rules. A global instruction file names the skill and says to load it;
 it never restates what the skill holds, because two copies drift and a reader obeys whichever they
@@ -202,7 +203,8 @@ opened.
 Each says in its own description that it applies only to a project carrying the directory its hook
 needs, so an agent in an unrelated project has no reason to open any of them.
 
-Skills are linked rather than copied, so an edit here reaches every project at once.
+The plugin carries the skills, so Claude Code names each after it (`agentic-helpers:agent-capture`), and
+a plugin update brings every skill's new text with it.
 
 ## How a project opts in
 
@@ -227,35 +229,75 @@ allowlist entry and no marker file, and installing these hooks costs it nothing.
 ## Installing
 
 ```bash
-git clone git@github.com:fza/agentic-helpers.git
-cd agentic-helpers
-go install -C source/hooks ./cmd/...  # build every binary into ~/go/bin
-agentic-install               # wire the hooks in, link the skills
-agentic-install --print       # write nothing, show what would land
-agentic-install --remove      # take both back out
+claude plugin marketplace add fza/agentic-helpers
+claude plugin install agentic-helpers@agentic-helpers
 ```
 
-`agentic-install` runs from inside this checkout, which it finds by walking up from the working
-directory, and wires the hook binaries sitting beside it.
+Both work inside a session as `/plugin ...` too. Installed at user scope, the plugin is enabled in
+every project on the machine, and Claude Code itself records that in its settings: no installer of
+ours edits `~/.claude/settings.json`. `claude plugin update agentic-helpers@agentic-helpers` moves to
+the latest release; it takes effect in the next session or after `/reload-plugins`. Auto-update is
+off by default for a marketplace like this one, and can be turned on under `/plugin`, Marketplaces.
 
-It edits only the hook entries running these binaries and leaves every other key where it found it,
-in the order it found it, which matters because that file also carries credentials. A timestamped
-copy goes beside it before anything is written. Running it twice changes nothing the second time,
-and binaries that moved leave nothing stale behind, because entries are matched by the name they
-run rather than by the directory they name.
+### Where the binaries come from
 
-Claude Code reloads its settings while a session runs, so a running session picks up the new
-wiring.
+The plugin holds no binaries. Every hook runs through `hooks/run`, which runs the binary of the
+release named by the plugin's own `version`, kept under the plugin's data directory
+(`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
 
-A Go hook runs from `~/go/bin` (or wherever `GOBIN` points), not from this checkout, so a pull
-changes nothing until `go install -C source/hooks ./cmd/...` runs again. The installer warns about a
-binary it wires that is not there yet.
+1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched.
+2. The plugin's version is there: it runs.
+3. At SessionStart, and only then, the release archive for this machine and the release's
+   `checksums.txt` are downloaded; the archive is unpacked only where its sha256 matches.
+4. Otherwise the newest version already there runs. A session that cannot write the data directory,
+   such as a sandboxed job, runs what an earlier session fetched.
+5. No binary at all: the grounding gate refuses every call it guards, with a message naming the fix,
+   rather than letting work run ungrounded, and every other hook does nothing. The SessionStart that
+   failed to fetch says why, once.
 
-A skill link naming a directory that moved is replaced. A directory somebody else put there under
-one of these names is left alone and reported, rather than overwritten.
+Claude Code's Bash tool finds `agentic-capture` and `agentic-carryforward` through the plugin's
+`bin/`, which hands each call to the same launcher, so `agentic-capture --help` is answered by the
+real binary. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
+`go install -C source/hooks ./cmd/...` from a checkout.
 
-`CLAUDE_CONFIG_DIR` moves both the settings file it edits and the skills directory it links into,
-for anyone whose Claude Code configuration does not sit at `~/.claude`.
+### Coming from `agentic-install`
+
+A machine wired by the former `agentic-install` runs every hook twice once the plugin is enabled.
+Before installing the plugin, run `agentic-install --remove` from the checkout it was built in; it
+takes its hook entries out of the settings file and its skill links out of the skills directory, and
+leaves everything else as it was.
+
+### Working on the plugin
+
+Add this checkout as the marketplace, so the plugin loads from it in place and an edit to a skill or
+to `hooks/` reaches the next session or `/reload-plugins`:
+
+```bash
+claude plugin marketplace add /path/to/agentic-helpers
+claude plugin install agentic-helpers@agentic-helpers
+```
+
+The binaries the checkout builds reach the hooks through `AGENTIC_HELPERS_BIN_DIR`, set once in the
+`env` block of the settings file to the directory `go install` writes to:
+
+```json
+{ "env": { "AGENTIC_HELPERS_BIN_DIR": "/Users/you/go/bin" } }
+```
+
+A change to a binary then reaches the hooks on the next event after
+`go install -C source/hooks ./cmd/...`. While the variable is set, no release is fetched or run on
+that machine.
+
+### Releasing
+
+A release is cut by starting the `release` workflow by hand (`gh workflow run release.yml`, or the
+Actions tab). It runs the tests, then semantic-release reads the commits since the last tag: `fix:`
+cuts a patch, `feat:` a minor, a `!` after the type a major, and every other type, `sdd:` included,
+cuts nothing. A releasable run writes the new version into `.claude-plugin/plugin.json`, commits it
+to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and GoReleaser publishes an
+archive per platform (darwin and linux, arm64 and amd64) with `checksums.txt` and the generated
+notes. A breaking change marked without `!` ships as a minor. Pull before pushing after a release:
+`main` carries the release commit.
 
 ## Working on this
 

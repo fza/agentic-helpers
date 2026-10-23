@@ -4,9 +4,11 @@ Go rules, loaded when a session touches code under `source/`.
 
 ## Layout
 
-- **One module, `source/hooks`.** Every hook is a binary under `cmd/agentic-<hook>/`, installed with
-  `go install -C source/hooks ./cmd/...` into `~/go/bin`. The `agentic-` prefix is not optional: a bare
-  name there can shadow a system tool.
+- **One module, `source/hooks`.** Every hook is a binary under `cmd/agentic-<hook>/`, published by
+  each release and built for development with `go install -C source/hooks ./cmd/...`. The `agentic-`
+  prefix is not optional: a bare name on a PATH can shadow a system tool.
+- **`.goreleaser.yaml` lists every binary the release builds.** A new `cmd/` directory is added
+  there, or the plugin's launcher finds no binary for it.
 - **`main.go` resolves the environment and calls the hook's `Main`, nothing else.** Every decision
   lives under `internal/`, where a test can drive it.
 - **No CGO. No `/pkg`.** Every non-`cmd` package lives under `internal/`, except the module's own

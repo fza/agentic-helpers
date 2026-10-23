@@ -1,0 +1,44 @@
+version: 2
+
+project_name: agentic-helpers
+
+builds:
+  - &binary
+    id: agentic-capture
+    dir: source/hooks
+    main: ./cmd/agentic-capture
+    binary: agentic-capture
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+  - <<: *binary
+    id: agentic-carryforward
+    main: ./cmd/agentic-carryforward
+    binary: agentic-carryforward
+  - <<: *binary
+    id: agentic-grounding-gate
+    main: ./cmd/agentic-grounding-gate
+    binary: agentic-grounding-gate
+  - <<: *binary
+    id: agentic-scratch
+    main: ./cmd/agentic-scratch
+    binary: agentic-scratch
+
+# hooks/run fetches agentic-helpers_<version>_<os>_<arch>.tar.gz and checks it
+# against checksums.txt; both names are part of its contract.
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true

@@ -125,7 +125,7 @@ Immutable. Get it right before capture.
 - **A listing is enormous.** Another capture mid-pass invalidates it. Read the first run whole,
   then only what changed.
 - **Capture through `agentic-capture`.** It lints the draft first; nothing lints an entry after.
-  The `agent-capture` skill carries the rest.
+  The `agentic-helpers:agent-capture` skill carries the rest.
 
 ## Capturing
 

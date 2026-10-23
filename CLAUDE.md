@@ -10,15 +10,16 @@ What follows is Claude-Code-specific and applies on top.
 
 ## The hooks run in this very session
 
-These hooks are wired into the global settings file, so the session editing them is also running
+The plugin's hooks run in every session on the machine, so the session editing them is also running
 them.
 
-- **A running session picks up rewiring at once.** Claude Code reloads its settings, so after
-  `agentic-install` rewires an entry, this session runs the new command from its next hook event.
-- **Never delete a file the wiring still runs.** A missing hook command exits non-zero, and exit 2
-  from a `UserPromptSubmit` hook blocks every prompt that follows. Rewire first, delete after.
-- **Rewiring edits `~/.claude/settings.json`, which also holds credentials.** Ask before running
-  `agentic-install` without `--print`.
+- **A hook change reaches this session through `AGENTIC_HELPERS_BIN_DIR`.** With it pointing at the
+  `go install` directory, the next hook event runs what `go install -C source/hooks ./cmd/...` just
+  built; without it, the session runs the release the plugin names.
+- **Never delete a binary a hook still runs.** A missing one leaves its hook doing nothing, and the
+  grounding gate refusing every call it guards.
+- **Setting `AGENTIC_HELPERS_BIN_DIR` edits `~/.claude/settings.json`, which also holds
+  credentials.** Ask before writing to it.
 
 ## The decision graph
 

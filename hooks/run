@@ -1,0 +1,167 @@
+#!/bin/sh
+# Runs one agentic-helpers binary of the release this plugin names.
+#
+#   run [--session-start] <binary> [argument...]
+#
+# The binaries are not part of the plugin: each release publishes them, and
+# this launcher fetches the one named by the plugin's version into the plugin's
+# data directory. Only a SessionStart event fetches, so a prompt or a tool call
+# never waits on the network. A session that cannot write the data directory
+# (a sandboxed job) runs the newest version already there instead.
+#
+# With no binary at all, the grounding gate refuses (exit 2) rather than let
+# work run ungrounded, and every other hook does nothing (exit 0). One notice
+# says why, at the SessionStart that failed to fetch.
+
+set -u
+
+releases=https://github.com/fza/agentic-helpers/releases/download
+
+session_start=false
+if [ "${1:-}" = --session-start ]; then
+	session_start=true
+	shift
+fi
+
+if [ $# -lt 1 ]; then
+	echo 'usage: run [--session-start] <binary> [argument...]' >&2
+	exit 1
+fi
+
+binary=$1
+shift
+
+if [ -n "${AGENTIC_HELPERS_BIN_DIR:-}" ]; then
+	exec "$AGENTIC_HELPERS_BIN_DIR/$binary" "$@"
+fi
+
+# A hook gets both plugin variables; a command from the plugin's bin/, run by
+# the Bash tool, gets neither, so it finds the plugin from its own path and the
+# data directory where Claude Code keeps it for agentic-helpers@agentic-helpers.
+root=${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}
+data=${CLAUDE_PLUGIN_DATA:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/data/agentic-helpers-agentic-helpers}
+version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$root/.claude-plugin/plugin.json" | head -n 1)
+
+if [ -n "$data" ] && [ -n "$version" ] && [ -x "$data/$version/$binary" ]; then
+	exec "$data/$version/$binary" "$@"
+fi
+
+platform() {
+	case $(uname -s) in
+	Darwin) os=darwin ;;
+	Linux) os=linux ;;
+	*) return 1 ;;
+	esac
+
+	case $(uname -m) in
+	arm64 | aarch64) arch=arm64 ;;
+	x86_64 | amd64) arch=amd64 ;;
+	*) return 1 ;;
+	esac
+
+	echo "${os}_${arch}"
+}
+
+sha256() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | cut -d ' ' -f 1
+	else
+		shasum -a 256 "$1" | cut -d ' ' -f 1
+	fi
+}
+
+# fetch downloads, checks and unpacks the release into $data/$version. The
+# SessionStart hooks run in parallel, so a lock directory lets one of them
+# fetch while the rest wait for it; a lock older than five minutes belonged to
+# a fetch that died and is taken over. The archive is unpacked inside the lock
+# and renamed into place, so the version directory is complete or absent.
+fetch() {
+	lock="$data/.fetch-$version"
+
+	mkdir -p "$data" 2>/dev/null || {
+		reason="cannot write $data"
+		return 1
+	}
+
+	if [ -n "$(find "$lock" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then
+		rm -rf "$lock"
+	fi
+
+	if ! mkdir "$lock" 2>/dev/null; then
+		if [ ! -d "$lock" ]; then
+			reason="cannot write $data"
+			return 1
+		fi
+
+		waited=0
+		while [ -d "$lock" ] && [ "$waited" -lt 100 ]; do
+			sleep 1
+			waited=$((waited + 1))
+		done
+		fetched_elsewhere=true
+		[ -x "$data/$version/$binary" ]
+		return
+	fi
+
+	target=$(platform) || {
+		rm -rf "$lock"
+		reason="no release for $(uname -s) $(uname -m)"
+		return 1
+	}
+
+	archive="agentic-helpers_${version}_${target}.tar.gz"
+
+	if ! curl -fsSL --max-time 60 -o "$lock/checksums.txt" "$releases/v$version/checksums.txt" ||
+		! curl -fsSL --max-time 60 -o "$lock/$archive" "$releases/v$version/$archive"; then
+		rm -rf "$lock"
+		reason="downloading release v$version failed"
+		return 1
+	fi
+
+	expected=$(awk -v name="$archive" '$2 == name { print $1 }' "$lock/checksums.txt")
+	actual=$(sha256 "$lock/$archive")
+
+	if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+		rm -rf "$lock"
+		reason="$archive does not match the release's checksums.txt"
+		return 1
+	fi
+
+	mkdir "$lock/unpacked" && tar -xzf "$lock/$archive" -C "$lock/unpacked" || {
+		rm -rf "$lock"
+		reason="unpacking $archive failed"
+		return 1
+	}
+
+	mv "$lock/unpacked" "$data/$version"
+	rm -rf "$lock"
+}
+
+reason=''
+fetched_elsewhere=false
+tried=false
+
+if $session_start && [ -n "$data" ] && [ -n "$version" ]; then
+	tried=true
+	if fetch && [ -x "$data/$version/$binary" ]; then
+		exec "$data/$version/$binary" "$@"
+	fi
+fi
+
+if [ -n "$data" ] && [ -d "$data" ]; then
+	newest=$(ls -1 "$data" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+	if [ -n "$newest" ] && [ -x "$data/$newest/$binary" ]; then
+		exec "$data/$newest/$binary" "$@"
+	fi
+fi
+
+if [ "$binary" = agentic-grounding-gate ] && [ "${1:-}" = gate ]; then
+	echo "agentic-helpers: no agentic-grounding-gate binary is installed, so the grounding gate refuses every call; start a session with network so release v$version can be fetched, or set AGENTIC_HELPERS_BIN_DIR" >&2
+	exit 2
+fi
+
+if $tried && ! $fetched_elsewhere; then
+	echo "agentic-helpers: no binary for v$version (${reason:-not in the release}); its hooks are inactive and the grounding gate refuses every call until a session with network fetches it"
+fi
+
+exit 0

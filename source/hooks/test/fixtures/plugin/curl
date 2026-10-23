@@ -1,0 +1,18 @@
+#!/bin/sh
+# Stands in for curl: serves a release asset from $FAKE_RELEASES by the path
+# after /releases/download/, and logs every URL asked for to $FAKE_CURL_LOG.
+out=''
+url=''
+while [ $# -gt 0 ]; do
+	case $1 in
+	-o) out=$2; shift 2 ;;
+	--max-time) shift 2 ;;
+	-*) shift ;;
+	*) url=$1; shift ;;
+	esac
+done
+echo "$url" >>"$FAKE_CURL_LOG"
+sleep "${FAKE_CURL_DELAY:-0}"
+asset="$FAKE_RELEASES/${url#*/releases/download/}"
+[ -f "$asset" ] || exit 22
+cp "$asset" "$out"

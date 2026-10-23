@@ -1,0 +1,25 @@
+# A release is cut by hand (release.yml) from main. The commit types decide its
+# number; the commit carrying the new plugin.json version is the one tagged, so
+# the plugin names exactly the release its launcher fetches.
+branches:
+  - main
+tagFormat: v${version}
+plugins:
+  - - "@semantic-release/commit-analyzer"
+    - preset: conventionalcommits
+  - - "@semantic-release/release-notes-generator"
+    - preset: conventionalcommits
+  - - "@semantic-release/exec"
+    - prepareCmd: >-
+        sed -i 's/"version": "[^"]*"/"version": "${nextRelease.version}"/' .claude-plugin/plugin.json
+      # The notes reach a quoted heredoc, so nothing in a commit subject is
+      # expanded by the shell.
+      publishCmd: |
+        cat > "$RUNNER_TEMP/release-notes.md" <<'AGENTIC_HELPERS_RELEASE_NOTES'
+        ${nextRelease.notes}
+        AGENTIC_HELPERS_RELEASE_NOTES
+        goreleaser release --clean --release-notes "$RUNNER_TEMP/release-notes.md"
+  - - "@semantic-release/git"
+    - assets:
+        - .claude-plugin/plugin.json
+      message: "chore(release): v${nextRelease.version} [skip ci]"
