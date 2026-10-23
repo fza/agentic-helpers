@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -21,6 +22,11 @@ type Runner struct {
 	Hangs   int
 	Capture process.Result
 
+	// Version answers `sdd --version`, the fork's release build where it is
+	// left empty; VersionFails stands for an sdd that cannot be started.
+	Version      process.Result
+	VersionFails bool
+
 	mutex  sync.Mutex
 	Calls  [][]string
 	Dirs   []string
@@ -35,11 +41,15 @@ func (fake *Runner) Run(ctx context.Context, dir string, argv []string) (process
 	fake.Dirs = append(fake.Dirs, dir)
 
 	deadline, bounded := ctx.Deadline()
-	if bounded {
+	if bounded && !slices.Equal(argv, []string{"sdd", "--version"}) {
 		fake.Limits = append(fake.Limits, time.Until(deadline))
 	}
 
 	switch {
+	case slices.Equal(argv, []string{"sdd", "--version"}):
+		fake.mutex.Unlock()
+
+		return fake.version()
 	case argv[0] == "sh":
 		fake.mutex.Unlock()
 
@@ -77,8 +87,10 @@ func (fake *Runner) CallsOf(kind string) [][]string {
 	for _, call := range fake.Calls {
 		lint := call[0] == "sh"
 		dry := slices.Contains(call, "--dry-run")
+		version := slices.Equal(call, []string{"sdd", "--version"})
+		capture := !lint && !dry && !version
 
-		if kind == "lint" && lint || kind == "dry-run" && dry || kind == "capture" && !lint && !dry {
+		if kind == "lint" && lint || kind == "dry-run" && dry || kind == "version" && version || kind == "capture" && capture {
 			found = append(found, call)
 		}
 	}
@@ -100,4 +112,16 @@ func (fake *Pauses) Pause(ctx context.Context, delay time.Duration) error {
 	fake.Waited = append(fake.Waited, delay)
 
 	return ctx.Err()
+}
+
+func (fake *Runner) version() (process.Result, error) {
+	if fake.VersionFails {
+		return process.Result{}, errors.New("running sdd: executable file not found in $PATH")
+	}
+
+	if fake.Version == (process.Result{}) {
+		return process.Result{Stdout: "sdd version 0.18.0-alpha.2.fza.22\n"}, nil
+	}
+
+	return fake.Version, nil
 }

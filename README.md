@@ -14,7 +14,7 @@ and a command the agent calls itself:
 | grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing |
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
 
-**The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd)**, the
+**The grounding gate and capture exist for [sdd](https://github.com/fza/sdd)**, the
 Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd motivates them and drives them:
 the gate counts real `sdd search` and `sdd view` reads, and capture writes through `sdd new`.
 
@@ -23,6 +23,110 @@ the directory it works on: `.memory/`, `.tmp/` or `.sdd/`. Each comes with a ski
 the agent loads to learn what the piece expects and what its refusals mean. Everything ships as one
 Claude Code plugin; the hooks and the command are Go binaries built from `source/hooks`, published
 with each release and fetched by the plugin.
+
+## Installing
+
+**agentic-helpers works only with sdd built from the fork [github.com/fza/sdd](https://github.com/fza/sdd)**,
+not from networkteam/sdd: `agentic-capture` and the grounding gate follow the fork's `sdd`. Install
+it first:
+
+```bash
+brew install fza/tap/sdd
+sdd --version   # sdd version 0.18.0-alpha.2.fza.22, or any version carrying "fza"
+```
+
+Without Homebrew, the fork's install script from a pinned release does the same (every fork release
+is a prerelease, so `releases/latest` finds none):
+
+```bash
+curl -sL https://github.com/fza/sdd/releases/download/v0.18.0-alpha.2.fza.22/install.sh | sh
+```
+
+A build is the fork when `sdd --version` carries `fza`. With any other sdd, `agentic-capture` refuses
+to run and says how to install the fork, and the grounding gate says the same once as a session
+starts, then stays off for that session.
+
+Then the plugin:
+
+```bash
+claude plugin marketplace add fza/agentic-helpers
+claude plugin install agentic-helpers@agentic-helpers
+```
+
+Inside a session, `/plugin install agentic-helpers --marketplace fza/agentic-helpers` does both in
+one step (Claude Code 2.1.275 or later), and `fza/agentic-helpers#v<version>` pins the marketplace to
+one release. Installed at user scope, the plugin is enabled in
+every project on the machine, and Claude Code itself records that in its settings: no installer of
+ours edits `~/.claude/settings.json`. `claude plugin update agentic-helpers@agentic-helpers` moves to
+the latest release; it takes effect in the next session or after `/reload-plugins`. Auto-update is
+off by default for a marketplace like this one, and can be turned on under `/plugin`, Marketplaces.
+
+### Where the binaries come from
+
+The plugin holds no binaries. Every hook runs through `plugin/hooks/run`, which runs the binary of the
+release named by the plugin's own `version`, kept under the plugin's data directory
+(`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
+
+1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched.
+2. The plugin's version is there: it runs.
+3. At SessionStart, and only then, the release archive for this machine and the release's
+   `checksums.txt` are downloaded; the archive is unpacked only where its sha256 matches.
+4. Otherwise the newest version already there runs. A session that cannot write the data directory,
+   such as a sandboxed job, runs what an earlier session fetched.
+5. No binary at all: the grounding gate refuses every call it guards, with a message naming the fix,
+   rather than letting work run ungrounded, and every other hook does nothing. The SessionStart that
+   failed to fetch says why, once.
+
+Claude Code's Bash tool finds `agentic-capture` and `agentic-carryforward` through the plugin's
+`bin/`, which hands each call to the same launcher, so `agentic-capture --help` is answered by the
+real binary. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
+`go install -C source/hooks ./cmd/...` from a checkout.
+
+### Coming from `agentic-install`
+
+A machine wired by the former `agentic-install` runs every hook twice once the plugin is enabled.
+Before installing the plugin, run `agentic-install --remove`; it takes its hook entries out of the
+settings file and its skill links out of the skills directory, and leaves everything else as it was.
+It finds its checkout by a `skills/` directory at the root, which only `v1.0.0` and earlier carry,
+so it runs from a checkout of `v1.0.0`:
+
+```bash
+git worktree add /tmp/agentic-helpers-v1.0.0 v1.0.0
+cd /tmp/agentic-helpers-v1.0.0 && agentic-install --remove
+git worktree remove /tmp/agentic-helpers-v1.0.0
+```
+
+### Working on the plugin
+
+Add this checkout as the marketplace, so the plugin loads from it in place and an edit to a skill or
+to `plugin/` reaches the next session or `/reload-plugins`:
+
+```bash
+claude plugin marketplace add /path/to/agentic-helpers
+claude plugin install agentic-helpers@agentic-helpers
+```
+
+The binaries the checkout builds reach the hooks through `AGENTIC_HELPERS_BIN_DIR`, set once in the
+`env` block of the settings file to the directory `go install` writes to:
+
+```json
+{ "env": { "AGENTIC_HELPERS_BIN_DIR": "/Users/you/go/bin" } }
+```
+
+A change to a binary then reaches the hooks on the next event after
+`go install -C source/hooks ./cmd/...`. While the variable is set, no release is fetched or run on
+that machine.
+
+### Releasing
+
+A release is cut by starting the `release` workflow by hand (`gh workflow run release.yml`, or the
+Actions tab). It runs the tests, then semantic-release reads the commits since the last tag: `fix:`
+cuts a patch, `feat:` a minor, a `!` after the type a major, and every other type, `sdd:` included,
+cuts nothing. A releasable run writes the new version into `plugin/.claude-plugin/plugin.json`, commits it
+to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and creates the GitHub release
+with the generated notes; GoReleaser adds an archive per platform (darwin and linux, arm64 and amd64)
+and `checksums.txt` to it. A breaking change marked without `!` ships as a minor. Pull before
+pushing after a release: `main` carries the release commit.
 
 ## What each one does
 
@@ -230,88 +334,6 @@ mkdir .memory          # start keeping a carry-forward here
 
 and opting out is removing the directory. A project using none needs no configuration, no
 allowlist entry and no marker file, and installing these hooks costs it nothing.
-
-## Installing
-
-```bash
-claude plugin marketplace add fza/agentic-helpers
-claude plugin install agentic-helpers@agentic-helpers
-```
-
-Inside a session, `/plugin install agentic-helpers --marketplace fza/agentic-helpers` does both in
-one step (Claude Code 2.1.275 or later), and `fza/agentic-helpers#v<version>` pins the marketplace to
-one release. Installed at user scope, the plugin is enabled in
-every project on the machine, and Claude Code itself records that in its settings: no installer of
-ours edits `~/.claude/settings.json`. `claude plugin update agentic-helpers@agentic-helpers` moves to
-the latest release; it takes effect in the next session or after `/reload-plugins`. Auto-update is
-off by default for a marketplace like this one, and can be turned on under `/plugin`, Marketplaces.
-
-### Where the binaries come from
-
-The plugin holds no binaries. Every hook runs through `plugin/hooks/run`, which runs the binary of the
-release named by the plugin's own `version`, kept under the plugin's data directory
-(`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
-
-1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched.
-2. The plugin's version is there: it runs.
-3. At SessionStart, and only then, the release archive for this machine and the release's
-   `checksums.txt` are downloaded; the archive is unpacked only where its sha256 matches.
-4. Otherwise the newest version already there runs. A session that cannot write the data directory,
-   such as a sandboxed job, runs what an earlier session fetched.
-5. No binary at all: the grounding gate refuses every call it guards, with a message naming the fix,
-   rather than letting work run ungrounded, and every other hook does nothing. The SessionStart that
-   failed to fetch says why, once.
-
-Claude Code's Bash tool finds `agentic-capture` and `agentic-carryforward` through the plugin's
-`bin/`, which hands each call to the same launcher, so `agentic-capture --help` is answered by the
-real binary. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
-`go install -C source/hooks ./cmd/...` from a checkout.
-
-### Coming from `agentic-install`
-
-A machine wired by the former `agentic-install` runs every hook twice once the plugin is enabled.
-Before installing the plugin, run `agentic-install --remove`; it takes its hook entries out of the
-settings file and its skill links out of the skills directory, and leaves everything else as it was.
-It finds its checkout by a `skills/` directory at the root, which only `v1.0.0` and earlier carry,
-so it runs from a checkout of `v1.0.0`:
-
-```bash
-git worktree add /tmp/agentic-helpers-v1.0.0 v1.0.0
-cd /tmp/agentic-helpers-v1.0.0 && agentic-install --remove
-git worktree remove /tmp/agentic-helpers-v1.0.0
-```
-
-### Working on the plugin
-
-Add this checkout as the marketplace, so the plugin loads from it in place and an edit to a skill or
-to `plugin/` reaches the next session or `/reload-plugins`:
-
-```bash
-claude plugin marketplace add /path/to/agentic-helpers
-claude plugin install agentic-helpers@agentic-helpers
-```
-
-The binaries the checkout builds reach the hooks through `AGENTIC_HELPERS_BIN_DIR`, set once in the
-`env` block of the settings file to the directory `go install` writes to:
-
-```json
-{ "env": { "AGENTIC_HELPERS_BIN_DIR": "/Users/you/go/bin" } }
-```
-
-A change to a binary then reaches the hooks on the next event after
-`go install -C source/hooks ./cmd/...`. While the variable is set, no release is fetched or run on
-that machine.
-
-### Releasing
-
-A release is cut by starting the `release` workflow by hand (`gh workflow run release.yml`, or the
-Actions tab). It runs the tests, then semantic-release reads the commits since the last tag: `fix:`
-cuts a patch, `feat:` a minor, a `!` after the type a major, and every other type, `sdd:` included,
-cuts nothing. A releasable run writes the new version into `plugin/.claude-plugin/plugin.json`, commits it
-to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and creates the GitHub release
-with the generated notes; GoReleaser adds an archive per platform (darwin and linux, arm64 and amd64)
-and `checksums.txt` to it. A breaking change marked without `!` ships as a minor. Pull before
-pushing after a release: `main` carries the release commit.
 
 ## Working on this
 

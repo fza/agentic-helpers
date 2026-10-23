@@ -56,6 +56,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddfork"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -102,6 +103,7 @@ type Env struct {
 	WorkingDir string
 	Home       string
 	Checkout   project.CommonDirLookup
+	Runner     sddfork.Runner
 }
 
 func (env Env) project() string {
@@ -160,6 +162,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return 0
 	case "start":
 		reap(ctx, env.ledgerDir(), time.Now())
+		stepAsideWithoutFork(ctx, env, payload, streams)
 
 		return 0
 	case "end":
@@ -167,6 +170,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		return 0
 	default:
+		if steppedAside(env, payload) {
+			return 0
+		}
+
 		refusal := gate(ctx, env, payload)
 		if refusal == "" {
 			return 0

@@ -22,6 +22,7 @@ const (
 
 type result struct {
 	code   int
+	stdout string
 	stderr string
 }
 
@@ -42,7 +43,7 @@ func bare(t *testing.T) grounding.Env {
 	root := t.TempDir()
 	mkdir(t, filepath.Join(root, ".sdd"))
 
-	return grounding.Env{ProjectDir: root, WorkingDir: root, Home: t.TempDir()}
+	return grounding.Env{ProjectDir: root, WorkingDir: root, Home: t.TempDir(), Runner: &test.Runner{}}
 }
 
 func mkdir(t *testing.T, path string) {
@@ -71,7 +72,7 @@ func runRaw(t *testing.T, env grounding.Env, mode string, stdin string) result {
 	captured := &test.Captured{}
 	code := grounding.Main(context.Background(), []string{mode}, env, captured.Streams(stdin))
 
-	return result{code: code, stderr: captured.Err.String()}
+	return result{code: code, stdout: captured.Out.String(), stderr: captured.Err.String()}
 }
 
 func bash(command string) map[string]any {
@@ -566,7 +567,7 @@ func TestOptIn(t *testing.T) {
 		root := filepath.Join(t.TempDir(), "project")
 		mkdir(t, root)
 
-		got := run(t, grounding.Env{ProjectDir: root, WorkingDir: root}, "gate", ask("opt-in"))
+		got := run(t, grounding.Env{ProjectDir: root, WorkingDir: root, Runner: &test.Runner{}}, "gate", ask("opt-in"))
 
 		passes(t, got)
 
@@ -580,7 +581,7 @@ func TestOptIn(t *testing.T) {
 		below := filepath.Join(env.ProjectDir, "source", "internal")
 		mkdir(t, below)
 
-		refuses(t, run(t, grounding.Env{ProjectDir: below, WorkingDir: below}, "gate", ask("opt-in")), "search")
+		refuses(t, run(t, grounding.Env{ProjectDir: below, WorkingDir: below, Runner: &test.Runner{}}, "gate", ask("opt-in")), "search")
 	})
 
 	t.Run("an unknown mode is refused", func(t *testing.T) {
@@ -932,7 +933,7 @@ func TestLedgerCleanup(t *testing.T) {
 		t.Run(mode+" leaves a project without a graph alone", func(t *testing.T) {
 			root := t.TempDir()
 
-			got := run(t, grounding.Env{ProjectDir: root, WorkingDir: root}, mode, map[string]any{"session_id": test.Session})
+			got := run(t, grounding.Env{ProjectDir: root, WorkingDir: root, Runner: &test.Runner{}}, mode, map[string]any{"session_id": test.Session})
 
 			passes(t, got)
 

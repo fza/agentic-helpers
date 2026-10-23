@@ -8,7 +8,7 @@ loads [`source/AGENTS.md`](source/AGENTS.md) too** whenever a session touches `s
 
 `agentic-helpers` is a set of machine-wide Claude Code hooks and the `agentic-capture` command, each
 paired with a skill that tells the agent what it is doing. The grounding gate and `agentic-capture`
-exist for [sdd](https://github.com/networkteam/sdd): sdd's decision graph under `.sdd/` motivates
+exist for [sdd](https://github.com/fza/sdd): sdd's decision graph under `.sdd/` motivates
 them and drives what they check. They install once for every project on the machine and stay silent in
 a project that does not carry the directory a hook works on. [`README.md`](README.md) describes each
 hook's behaviour and how a project opts in.

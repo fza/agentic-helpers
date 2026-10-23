@@ -63,6 +63,7 @@ Body. Markdown, unfenced.
 |---|---|
 | grounding gate | turn lacks the three reads and the draft is not grounded (`agentic-helpers:agent-grounding`) |
 | header | no `type`/`layer`; `listing_prefix` set and no topic carries it |
+| sdd fork | `sdd --version` carries no `fza` → `agentic-capture needs sdd built from github.com/fza/sdd`, exit 1, nothing runs. Fix = `brew install fza/tap/sdd`, owner's call |
 | project lint | `draft_lint` set and it reports; or it fails and says nothing |
 | pre-flight | `sdd new --dry-run` refuses; any `[high]` finding. Provider fault → retried, see below. Skipped on a `--preflight-done` match |
 | capture | `sdd new --preflight-verified`, under `.sdd/tmp/capture.lock`. Runs once, never retried |

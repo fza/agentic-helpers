@@ -45,6 +45,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddfork"
 )
 
 const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [--preflight-limit <duration>] [--preflight-route <model>=<layer>]... [--preflight-done <sha256>]"
@@ -338,6 +339,14 @@ func (run *capture) do(ctx context.Context) int {
 	err = validate(held.front, config.ListingPrefix)
 	if err != nil {
 		run.say("%v", err)
+
+		return 1
+	}
+
+	printed, fork := sddfork.Check(ctx, run.env.Runner, run.root)
+	if !fork {
+		run.say("agentic-capture needs sdd built from %s; `sdd --version` printed %s. Install it with `%s`",
+			sddfork.Source, printed, sddfork.Install)
 
 		return 1
 	}
