@@ -16,8 +16,8 @@ hook's behaviour and how a project opts in.
 | Path | Holds |
 |---|---|
 | `source/hooks/` | one Go module: a binary per hook and `agentic-capture` under `cmd/`, everything else under `internal/` |
-| `.claude-plugin/`, `hooks/`, `bin/` | the plugin: its manifests, the hook wiring and launcher, and the commands the Bash tool finds |
-| `skills/` | one skill per hook, shipped in the plugin as `agentic-helpers:<skill>` |
+| `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
+| `plugin/` | the plugin and nothing else: its manifest, `hooks/` (wiring and launcher), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 
 ## Setup and commands
@@ -30,8 +30,10 @@ cd source/hooks && go vet ./... && go test -race ./...   # every suite
 claude plugin validate .               # the plugin and marketplace manifests
 ```
 
-**The hooks ship as a Claude Code plugin** (`.claude-plugin/`, `hooks/`, `bin/`, `skills/`), and
-`hooks/run` runs the binaries of the release named in `.claude-plugin/plugin.json`. A machine
+**The hooks ship as a Claude Code plugin** from `plugin/`, and `plugin/hooks/run` runs the binaries
+of the release named in `plugin/.claude-plugin/plugin.json`. Claude Code loads every component it
+finds at a plugin's root, so nothing but the plugin's own files goes into `plugin/`; the repository's
+`.mcp.json` and instruction files stay at the root. A machine
 working on them sets `AGENTIC_HELPERS_BIN_DIR` to the `go install` directory, so a change reaches a
 session on the next hook event after `go install` runs again. A release is cut only by the
 `release` workflow; `README.md` describes both.

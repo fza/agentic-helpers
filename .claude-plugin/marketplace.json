@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "agentic-helpers",
-      "source": ".",
+      "source": "./plugin",
       "description": "The carry-forward, scratch sweep and grounding gate hooks, agentic-capture, and a skill for each"
     }
   ]

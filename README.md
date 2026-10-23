@@ -243,7 +243,7 @@ off by default for a marketplace like this one, and can be turned on under `/plu
 
 ### Where the binaries come from
 
-The plugin holds no binaries. Every hook runs through `hooks/run`, which runs the binary of the
+The plugin holds no binaries. Every hook runs through `plugin/hooks/run`, which runs the binary of the
 release named by the plugin's own `version`, kept under the plugin's data directory
 (`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
 
@@ -272,7 +272,7 @@ leaves everything else as it was.
 ### Working on the plugin
 
 Add this checkout as the marketplace, so the plugin loads from it in place and an edit to a skill or
-to `hooks/` reaches the next session or `/reload-plugins`:
+to `plugin/` reaches the next session or `/reload-plugins`:
 
 ```bash
 claude plugin marketplace add /path/to/agentic-helpers
@@ -295,7 +295,7 @@ that machine.
 A release is cut by starting the `release` workflow by hand (`gh workflow run release.yml`, or the
 Actions tab). It runs the tests, then semantic-release reads the commits since the last tag: `fix:`
 cuts a patch, `feat:` a minor, a `!` after the type a major, and every other type, `sdd:` included,
-cuts nothing. A releasable run writes the new version into `.claude-plugin/plugin.json`, commits it
+cuts nothing. A releasable run writes the new version into `plugin/.claude-plugin/plugin.json`, commits it
 to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and creates the GitHub release
 with the generated notes; GoReleaser adds an archive per platform (darwin and linux, arm64 and amd64)
 and `checksums.txt` to it. A breaking change marked without `!` ships as a minor. Pull before
@@ -310,8 +310,8 @@ claude plugin validate .                                 # the plugin and market
 
 The rules for this code live in [`source/AGENTS.md`](source/AGENTS.md). Each suite drives its
 binary's `Main` against a tree built in a temporary directory, with processes faked, never the real
-ones. The plugin's suite runs the real `hooks/run` and `bin/` shims against a fake `curl` and a
-temporary data directory, and checks that every hook in `hooks/hooks.json` goes through the launcher
+ones. The plugin's suite runs the real `plugin/hooks/run` and `plugin/bin/` shims against a fake `curl` and a
+temporary data directory, and checks that every hook in `plugin/hooks/hooks.json` goes through the launcher
 and that the release builds every binary under `source/hooks/cmd/`. Every guard is asserted from
 both sides: the same call is driven once with the evidence present and once with it missing, and
 the two outcomes have to differ. A guard that cannot fail is worthless.

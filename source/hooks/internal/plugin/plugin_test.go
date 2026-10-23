@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,10 +16,13 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-const repository = "../../../.."
+const (
+	repository = "../../../.."
+	pluginRoot = repository + "/plugin"
+)
 
 func TestTheOverrideRunsItsOwnDirectory(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	built := filepath.Join(t.TempDir(), "bin")
 	plugin.Binaries(t, built, "agentic-scratch")
 	plugin.Installed(t, "1.4.0", "agentic-scratch")
@@ -34,7 +38,7 @@ func TestTheOverrideRunsItsOwnDirectory(t *testing.T) {
 }
 
 func TestThePluginsVersionRunsWhenPresent(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Installed(t, "1.3.0", "agentic-carryforward")
 	plugin.Installed(t, "1.4.0", "agentic-carryforward")
 
@@ -49,7 +53,7 @@ func TestThePluginsVersionRunsWhenPresent(t *testing.T) {
 }
 
 func TestSessionStartFetchesTheRelease(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Release(t, "1.4.0", "", "agentic-scratch", "agentic-grounding-gate")
 
 	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
@@ -71,7 +75,7 @@ func TestSessionStartFetchesTheRelease(t *testing.T) {
 }
 
 func TestParallelSessionStartsFetchOnce(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Release(t, "1.4.0", "", "agentic-scratch")
 
 	var group sync.WaitGroup
@@ -97,7 +101,7 @@ func TestParallelSessionStartsFetchOnce(t *testing.T) {
 }
 
 func TestAStaleLockIsTakenOver(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Release(t, "1.4.0", "", "agentic-scratch")
 
 	lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
@@ -111,7 +115,7 @@ func TestAStaleLockIsTakenOver(t *testing.T) {
 }
 
 func TestAMismatchingChecksumUnpacksNothing(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Release(t, "1.4.0", strings.Repeat("0", 64), "agentic-scratch")
 
 	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
@@ -146,7 +150,7 @@ func TestAMissingVersionFallsBackToTheNewestPresent(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			plugin := test.NewPlugin(t, repository, "1.10.1")
+			plugin := test.NewPlugin(t, pluginRoot, "1.10.1")
 			plugin.Installed(t, "1.9.0", "agentic-grounding-gate")
 			plugin.Installed(t, "1.10.0", "agentic-grounding-gate")
 			plugin.Installed(t, "1.2.0", "agentic-grounding-gate")
@@ -163,7 +167,7 @@ func TestAMissingVersionFallsBackToTheNewestPresent(t *testing.T) {
 	}
 
 	t.Run("a prompt asks for no download", func(t *testing.T) {
-		plugin := test.NewPlugin(t, repository, "1.10.1")
+		plugin := test.NewPlugin(t, pluginRoot, "1.10.1")
 		plugin.Release(t, "1.10.1", "", "agentic-grounding-gate")
 		plugin.Installed(t, "1.9.0", "agentic-grounding-gate")
 
@@ -176,7 +180,7 @@ func TestAMissingVersionFallsBackToTheNewestPresent(t *testing.T) {
 }
 
 func TestADataDirectoryItCannotWriteStillRunsWhatIsThere(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Installed(t, "1.3.0", "agentic-scratch")
 
 	err := os.Chmod(plugin.Data, 0o555)
@@ -196,7 +200,7 @@ func TestADataDirectoryItCannotWriteStillRunsWhatIsThere(t *testing.T) {
 	}
 
 	t.Run("with nothing there, the notice says why", func(t *testing.T) {
-		plugin := test.NewPlugin(t, repository, "1.4.0")
+		plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 		test.WriteFile(t, filepath.Join(plugin.Data, "README"), "kept by Claude Code\n")
 
 		err := os.Chmod(plugin.Data, 0o555)
@@ -228,7 +232,7 @@ func TestNoBinaryAtAll(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			plugin := test.NewPlugin(t, repository, "1.4.0")
+			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 
 			got := plugin.Run(t, "hooks/run", nil, tc.args...)
 			if got.Code != tc.code {
@@ -252,7 +256,7 @@ func TestNoBinaryAtAll(t *testing.T) {
 }
 
 func TestTheShimsRunTheRealBinary(t *testing.T) {
-	plugin := test.NewPlugin(t, repository, "1.4.0")
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	data := filepath.Join(plugin.Config, "plugins", "data", "agentic-helpers-agentic-helpers")
 	plugin.Binaries(t, filepath.Join(data, "1.4.0"), "agentic-capture", "agentic-carryforward")
 
@@ -278,6 +282,36 @@ func TestTheShimsRunTheRealBinary(t *testing.T) {
 	}
 }
 
+// Claude Code loads every component it finds at a plugin's root, an MCP
+// server from a .mcp.json among them, so the plugin's directory holds its own
+// components and nothing else.
+func TestThePluginShipsOnlyItsOwnComponents(t *testing.T) {
+	entries, err := os.ReadDir(pluginRoot)
+	if err != nil {
+		t.Fatalf("reading the plugin directory: %v", err)
+	}
+
+	own := []string{".claude-plugin", "bin", "hooks", "skills"}
+
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	if !slices.Equal(names, own) {
+		t.Errorf("the plugin directory should hold its manifest, shims, hooks and skills alone, got: %v", names)
+	}
+
+	manifests, err := os.ReadDir(filepath.Join(pluginRoot, ".claude-plugin"))
+	if err != nil {
+		t.Fatalf("reading the plugin manifest directory: %v", err)
+	}
+
+	if len(manifests) != 1 || manifests[0].Name() != "plugin.json" {
+		t.Errorf("the plugin manifest directory should hold plugin.json alone, got: %v", manifests)
+	}
+}
+
 func TestTheReleaseBuildsEveryBinary(t *testing.T) {
 	config, err := os.ReadFile(filepath.Join(repository, ".goreleaser.yaml"))
 	if err != nil {
@@ -298,7 +332,7 @@ func TestTheReleaseBuildsEveryBinary(t *testing.T) {
 }
 
 func TestEveryHookRunsThroughTheLauncher(t *testing.T) {
-	content, err := os.ReadFile(filepath.Join(repository, "hooks", "hooks.json"))
+	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
 	if err != nil {
 		t.Fatalf("reading hooks.json: %v", err)
 	}

@@ -2,6 +2,9 @@
   "name": "agentic-helpers",
   "version": "1.0.0",
   "description": "The carry-forward, scratch sweep and grounding gate hooks, agentic-capture, and a skill for each",
+  "author": {
+    "name": "Felix Zandanel"
+  },
   "homepage": "https://github.com/fza/agentic-helpers",
   "license": "MIT"
 }

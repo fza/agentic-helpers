@@ -33,7 +33,7 @@ func platform() string {
 	return runtime.GOOS + "_" + runtime.GOARCH
 }
 
-func NewPlugin(t *testing.T, repository string, version string) *Plugin {
+func NewPlugin(t *testing.T, source string, version string) *Plugin {
 	t.Helper()
 
 	base := t.TempDir()
@@ -48,7 +48,7 @@ func NewPlugin(t *testing.T, repository string, version string) *Plugin {
 	}
 
 	for _, script := range []string{"hooks/run", "bin/agentic-capture", "bin/agentic-carryforward"} {
-		content, err := os.ReadFile(filepath.Join(repository, script))
+		content, err := os.ReadFile(filepath.Join(source, script))
 		if err != nil {
 			t.Fatalf("reading %s: %v", script, err)
 		}
