@@ -265,9 +265,16 @@ real binary. A script outside Claude Code has no plugin on its PATH and builds t
 ### Coming from `agentic-install`
 
 A machine wired by the former `agentic-install` runs every hook twice once the plugin is enabled.
-Before installing the plugin, run `agentic-install --remove` from the checkout it was built in; it
-takes its hook entries out of the settings file and its skill links out of the skills directory, and
-leaves everything else as it was.
+Before installing the plugin, run `agentic-install --remove`; it takes its hook entries out of the
+settings file and its skill links out of the skills directory, and leaves everything else as it was.
+It finds its checkout by a `skills/` directory at the root, which only `v1.0.0` and earlier carry,
+so it runs from a checkout of `v1.0.0`:
+
+```bash
+git worktree add /tmp/agentic-helpers-v1.0.0 v1.0.0
+cd /tmp/agentic-helpers-v1.0.0 && agentic-install --remove
+git worktree remove /tmp/agentic-helpers-v1.0.0
+```
 
 ### Working on the plugin
 
