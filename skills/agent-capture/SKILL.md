@@ -48,9 +48,12 @@ Body. Markdown, unfenced.
 ```
 
 - **Header = `sdd new` flags.** `type` + `layer` required. `kind`, `confidence`, `intent`,
-  `canonical`, `actor`, `class`, `summary` → one value. `topics`, `closes`, `supersedes`,
-  `participants`, `aliases`, `actors` → list. `refs`, `involvement`, `topic` → one object per item.
-  `when` → one object. `attach` → list of paths. Every value check → `sdd new` itself.
+  `canonical`, `actor`, `actor_kind`, `class`, `summary` → one value. `topics`, `closes`,
+  `supersedes`, `participants`, `aliases`, `actors` → list. `refs`, `involvement`, `topic` → one
+  object per item. `when`, `index` → one object. `attach` → list of paths. Every value check →
+  `sdd new` itself.
+- **Any other header key → refused, exit 1**, naming it and listing the accepted ones. Nothing runs.
+  Never a silent drop: an entry written without the field stays without it.
 - **Draft lives where the project keeps drafts.** `.tmp/drafts/` where `.tmp/` exists.
 - **Never fence the body.** A lint reads a fenced body as code and reports nothing.
 

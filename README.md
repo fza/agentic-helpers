@@ -143,7 +143,8 @@ through a shell, because a second shell runs backticks in a body as commands and
 identifier vanishes from an entry that can never be edited.
 
 Before it writes, the draft clears three gates in turn: its header names what the call needs (and a
-topic carrying the project's `listing_prefix`, where one is set), the project's own lint reports
+topic carrying the project's `listing_prefix`, where one is set) and carries no key that reaches no
+`sdd new` flag, since an entry written without a field never gains it; the project's own lint reports
 nothing on the body, and `sdd new --dry-run` reports nothing of high severity. The lint is whatever
 the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --output=line` alike,
 and a project naming none gets no lint. The gate refuses a capture whose turn carries neither the

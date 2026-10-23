@@ -135,6 +135,41 @@ func TestTheDraftBecomesOneSddNewCall(t *testing.T) {
 	}
 }
 
+func TestEveryHeaderKeyReachesItsFlag(t *testing.T) {
+	cases := []struct {
+		name    string
+		fixture string
+		flag    string
+		want    func(string) bool
+	}{
+		{name: "an actor's kind", fixture: "capture/actor.md", flag: "--actor-kind",
+			want: func(value string) bool { return value == "human" }},
+		{name: "a fact's index", fixture: "capture/fact.md", flag: "--index",
+			want: func(value string) bool {
+				return strings.Contains(value, `"title":"The hooks ship as a plugin"`) &&
+					strings.Contains(value, `"topic":"hooks/toolchain"`)
+			}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+
+			got := f.run(f.draft(tc.fixture))
+			if got.code != 0 {
+				t.Fatalf("the draft should capture, got: %+v", got)
+			}
+
+			for _, call := range append(f.runner.CallsOf("dry-run"), f.runner.CallsOf("capture")...) {
+				if !tc.want(flagValue(call, tc.flag)) {
+					t.Errorf("%s should carry the header's value to the pre-flight and the capture, got: %q",
+						tc.flag, flagValue(call, tc.flag))
+				}
+			}
+		})
+	}
+}
+
 func TestADraftTheCallCannotTakeIsRefused(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -146,6 +181,7 @@ func TestADraftTheCallCannotTakeIsRefused(t *testing.T) {
 		{name: "no body", fixture: "capture/no-body.md", says: "carries no body"},
 		{name: "no type", fixture: "capture/no-type.md", says: "needs a type"},
 		{name: "no topic carrying the prefix", config: "grounding/area-prefix.yaml", fixture: "capture/no-area.md", says: "opening with area-"},
+		{name: "a key reaching no flag", fixture: "capture/unknown-key.md", says: "carries actorkind, reviewer, which reaches no `sdd new` flag; it takes type, layer, attach, kind"},
 	}
 
 	for _, tc := range cases {

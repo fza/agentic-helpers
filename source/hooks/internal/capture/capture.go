@@ -93,12 +93,28 @@ var faults = []struct {
 // Draft keys and the `sdd new` flag each becomes, in the order they are passed.
 var (
 	valueFlags = [][2]string{{"kind", "--kind"}, {"confidence", "--confidence"}, {"intent", "--intent"},
-		{"canonical", "--canonical"}, {"actor", "--actor"}, {"class", "--class"}, {"summary", "--summary"}}
+		{"canonical", "--canonical"}, {"actor", "--actor"}, {"actor_kind", "--actor-kind"}, {"class", "--class"},
+		{"summary", "--summary"}}
 	listFlags = [][2]string{{"topics", "--topics"}, {"closes", "--closes"}, {"supersedes", "--supersedes"},
 		{"participants", "--participants"}, {"aliases", "--aliases"}, {"actors", "--actors"}}
 	jsonListFlags = [][2]string{{"refs", "--refs"}, {"involvement", "--involvement"}, {"topic", "--topic"}}
-	jsonFlags     = [][2]string{{"when", "--when"}}
+	jsonFlags     = [][2]string{{"when", "--when"}, {"index", "--index"}}
 )
+
+// acceptedKeys is every header key a draft may carry. A key outside it would
+// be dropped on the way to `sdd new`, and the entry, immutable once written,
+// would lack the field for good, so a draft carrying one is refused instead.
+func acceptedKeys() []string {
+	keys := []string{"type", "layer", "attach"}
+
+	for _, table := range [][][2]string{valueFlags, listFlags, jsonListFlags, jsonFlags} {
+		for _, pair := range table {
+			keys = append(keys, pair[0])
+		}
+	}
+
+	return keys
+}
 
 type Runner interface {
 	Run(ctx context.Context, dir string, argv []string) (process.Result, error)
@@ -776,6 +792,23 @@ func validate(front map[string]any, prefix string) error {
 		if _, found := front[key]; !found {
 			return fmt.Errorf("%w: the leading block needs a %s", ErrDraft, key)
 		}
+	}
+
+	accepted := acceptedKeys()
+
+	var unknown []string
+
+	for key := range front {
+		if !slices.Contains(accepted, key) {
+			unknown = append(unknown, key)
+		}
+	}
+
+	if unknown != nil {
+		slices.Sort(unknown)
+
+		return fmt.Errorf("%w: the leading block carries %s, which reaches no `sdd new` flag; it takes %s",
+			ErrDraft, strings.Join(unknown, ", "), strings.Join(accepted, ", "))
 	}
 
 	if prefix == "" {
