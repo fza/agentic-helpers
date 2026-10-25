@@ -13,7 +13,14 @@
 └── backup/format-1-<UTC stamp>/                        the log and seats as they were before a migration
 ~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
+~/.claude/agentic-helpers/<project>/writers.json        the checkouts that may use the store, shared with agentic-tools
 ```
+
+Admission runs before anything else a call does, the format migration included: `internal/writers`
+reads the project's list through checked folder descriptors and claims an unlisted project for the
+calling checkout under the list's own `.lock`. A hook of a checkout not listed exits silently; the
+MCP server checks each call, and starts without migrating where its checkout is not listed. A call
+on a project with no store yet, other than `claim` and `trust`, makes no list.
 
 ## Seat ids
 

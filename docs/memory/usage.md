@@ -31,6 +31,25 @@ silent, and nothing is read or created. `help` answers anywhere. The plugin opti
 `memory_require_git: false` lifts the limit for the whole machine: a directory outside git then
 keeps a store keyed by its own path.
 
+## Who writes a project's memory
+
+A project's store is found by the `repo_id` its `.sdd/config.yaml` declares, which any checkout can
+declare. The checkouts that may use it are listed, by their git common directory, in the project's
+one list `~/.claude/agentic-helpers/<project>/writers.json`, which agentic-tools reads too; every
+worktree of a listed checkout is listed with it. The first call that would touch an unlisted
+project's store (a `claim` creating one, or any call on a store already there) lists the calling
+checkout. Any other checkout is refused every subcommand and memory MCP tool, its hooks stay
+silent, and none of its calls migrates the store:
+
+    agentic-memory: this memory belongs to other checkouts: <checkouts>; run `agentic-memory trust <this checkout>` from one of them to let this one write
+
+`agentic-memory trust <path>` (MCP `trust`, key `path`), run from a listed checkout, adds the
+checkout at `<path>`, for agentic-memory and agentic-tools both; `agentic-tools trust <path>` does
+the same. `help`, `who` and `holder` read only and answer anywhere. A list that cannot be read (a
+link, a pipe, a hard link, past 64 KiB, not an array of clean absolute paths) admits no one until it
+is mended. A store keyed by a directory outside git, under `memory_require_git: false`, has no
+declared key and is not listed.
+
 ## Seats
 
 A **seat** is a named job, held by one session at a time; claiming one is what turns memory on for

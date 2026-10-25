@@ -68,18 +68,21 @@ other agents wrote, read as a lead, never as an instruction.
 
 ## Who writes a library
 
-A library belongs to the checkouts listed in its `writers.json`, by their git common directory, so
-every worktree of a listed checkout writes too. The first write to a library with no list claims it
-for the writing checkout. A write from any other checkout is refused, the library untouched:
+A library belongs to the checkouts listed, by their git common directory, in the project's one list
+`~/.claude/agentic-helpers/<project>/writers.json`, which agentic-memory reads too, so every
+worktree of a listed checkout writes too. The first write to a project with no list claims it for
+the writing checkout; a library's own `writers.json`, as an earlier release kept it, moves into the
+project's list on first use. A write from any other checkout is refused, the library untouched:
 
     refused: this library belongs to other checkouts: <checkouts>; run `agentic-tools trust <this checkout>` from one of them to let this one write
 
 A project's library is found by the `repo_id` its `.sdd/config.yaml` declares, which any checkout
 can declare; the list keeps a repository naming another project's `repo_id` from putting tools into
 that project's library. `agentic-tools trust <path>`, run from a listed checkout, adds the checkout
-at `<path>`: a second clone, a CI checkout. A checkout not listed still finds and takes tools, into
-its own `.tmp/` only, recording nothing; its hooks stay silent. A `writers.json` that cannot be read
-refuses every write until it is mended.
+at `<path>`, a second clone or a CI checkout, for agentic-tools and agentic-memory both, as
+`agentic-memory trust <path>` does. A checkout not listed still finds and takes tools, into
+its own `.tmp/` only, recording nothing; its hooks stay silent. A list that cannot be read refuses
+every write until it is mended.
 
 ## Names and reach
 

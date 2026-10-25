@@ -266,11 +266,6 @@ func (lib *library) locked(ctx context.Context, write func() error) error {
 		return err
 	}
 
-	err = lib.claim(ctx, store)
-	if err != nil {
-		return err
-	}
-
 	return write()
 }
 

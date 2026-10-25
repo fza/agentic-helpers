@@ -22,7 +22,9 @@ Memory works in the background. The user hears about it only when something goes
   other lead, without citing memory as the source.
 - **Speak up only for:**
   - a refusal or failure: seat held by a live session, no seat claimed, embedder down (`--query`
-    exits 1), a write refused;
+    exits 1), a write refused, `this memory belongs to other checkouts` (this checkout is not
+    listed for the project: tell the owner; `agentic-memory trust <this checkout>` from a listed
+    checkout is theirs to run; never edit the list);
   - a miss that matters: the user expects something remembered and no search finds it;
   - a conflict: an entry contradicts the repo or the graph, and which holds changes what happens
     next;

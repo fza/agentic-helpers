@@ -50,6 +50,7 @@ type request struct {
 	Links          []string `json:"link,omitempty"`
 	Absorbs        []string `json:"absorbs,omitempty"`
 	Target         string   `json:"target,omitempty"`
+	Path           string   `json:"path,omitempty"`
 	By             string   `json:"by,omitempty"`
 	Because        string   `json:"because,omitempty"`
 	Level          string   `json:"level,omitempty"`
@@ -425,6 +426,11 @@ func commands() []command {
 			name: "unlink", usage: "unlink <id> <target>", description: "drop a link made by --link or link",
 			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).unlink,
 			schema: `{"type":"object","properties":{"id":` + idSchema + `,"target":{"type":"string"}},"required":["id","target"]}`,
+		},
+		{
+			name: "trust", usage: "trust <path>", description: "let the checkout at path write this project's memory and tool library",
+			positional: func(req *request) error { return exactly(1, &req.Path)(req) }, run: (*memory).trust,
+			schema: `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`,
 		},
 		{
 			name: "who", usage: "who", description: "every live seated session on the machine, in every project",

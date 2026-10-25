@@ -9,12 +9,28 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
+// writersFile is the project's one list, which agentic-memory reads too.
+func (h *harness) writersFile() string {
+	return filepath.Join(h.home, ".claude", "agentic-helpers", filepath.FromSlash(h.repoID), "writers.json")
+}
+
+func (h *harness) writersList() string {
+	h.t.Helper()
+
+	data, err := os.ReadFile(h.writersFile())
+	if err != nil {
+		h.t.Fatalf("reading the writers list: %v", err)
+	}
+
+	return strings.TrimSpace(string(data))
+}
+
 func TestTheFirstWriteClaimsTheStore(t *testing.T) {
 	h := newHarness(t)
 	h.tool("word-count", "Count the words of standard input")
 
-	if strings.TrimSpace(h.read("writers.json")) != `["`+filepath.Join(h.repo, ".git")+`"]` {
-		t.Errorf("the first write should list its checkout, got %s", h.read("writers.json"))
+	if h.writersList() != `["`+filepath.Join(h.repo, ".git")+`"]` {
+		t.Errorf("the first write should list its checkout, got %s", h.writersList())
 	}
 
 	worktree := *h
@@ -103,7 +119,7 @@ func TestTrustLetsAnotherCheckoutWrite(t *testing.T) {
 	h.refused("is no git checkout", "trust", h.home)
 
 	out := h.must("trust", clone.repo)
-	if !strings.Contains(out, "trusted "+clone.repo+": that checkout writes this library now") {
+	if !strings.Contains(out, "trusted "+clone.repo+": that checkout writes this project's tool library and memory now") {
 		t.Errorf("trust should say which checkout writes now, got %q", out)
 	}
 
@@ -114,10 +130,10 @@ func TestAnUnreadableWritersListLetsNoOneWrite(t *testing.T) {
 	h := newHarness(t)
 	h.tool("word-count", "Count the words of standard input")
 
-	writers := filepath.Join(h.store(), "writers.json")
+	writers := h.writersFile()
 	test.WriteFile(t, writers, "not a list\n")
 
-	h.refused("no write lands until writers.json is mended", "update", "word-count", "--summary", "Count words again",
+	h.refused("no write lands until "+writers+" is mended", "update", "word-count", "--summary", "Count words again",
 		"--why", "x")
 
 	data, _ := os.ReadFile(writers)
@@ -136,13 +152,42 @@ func TestARenamedLibraryIsClaimedByItsProject(t *testing.T) {
 
 	h.must("find", "--term", "markdown")
 
-	if test.Exists(t, filepath.Join(fdbox.store(), "writers.json")) {
+	if test.Exists(t, fdbox.writersFile()) {
 		t.Error("another project's read should never claim the library")
 	}
 
 	fdbox.tool("line-count", "Count the lines of a file quickly")
 
-	if !strings.Contains(fdbox.read("writers.json"), filepath.Join(fdbox.repo, ".git")) {
+	if !strings.Contains(fdbox.writersList(), filepath.Join(fdbox.repo, ".git")) {
 		t.Error("the library's first write from its own project should claim it")
 	}
+}
+
+func TestALibrarysOwnListMovesIntoTheProjectsList(t *testing.T) {
+	h := newHarness(t)
+	h.tool("word-count", "Count the words of standard input")
+
+	clone := h.elsewhere(ownRepo)
+	legacy := filepath.Join(h.store(), "writers.json")
+	test.WriteFile(t, legacy, `["`+filepath.Join(clone.repo, ".git")+`"]`+"\n")
+	_ = os.Remove(h.writersFile())
+
+	clone.tool("word-split", "Put each word on its own line")
+
+	if test.Exists(t, legacy) || h.writersList() != `["`+filepath.Join(clone.repo, ".git")+`"]` {
+		t.Error("a library's own list should move into the project's list and be removed")
+	}
+
+	h.refused("this library belongs to other checkouts", "update", "word-count", "--summary", "Count words again", "--why", "x")
+
+	t.Run("a damaged own list keeps writes refused", func(t *testing.T) {
+		_ = os.Remove(h.writersFile())
+		test.WriteFile(t, legacy, "not a list\n")
+
+		clone.refused("cannot be read", "update", "word-split", "--summary", "Split words again", "--why", "x")
+
+		if !test.Exists(t, legacy) || test.Exists(t, h.writersFile()) {
+			t.Error("a damaged own list should stay where it is and claim nothing")
+		}
+	})
 }

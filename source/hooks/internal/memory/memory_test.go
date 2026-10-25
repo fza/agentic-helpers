@@ -50,6 +50,7 @@ func newHarness(t *testing.T) *harness {
 	test.WriteFile(t, filepath.Join(repo, ".sdd", "config.yaml"), "repo_id: "+repoID+"\n")
 	test.WriteFile(t, filepath.Join(repo, "internal", "gate", "gate.go"), "package gate\n")
 	test.WriteFile(t, filepath.Join(repo, "README.md"), "# app\n")
+	test.WriteFile(t, filepath.Join(repo, ".git", "HEAD"), "ref: refs/heads/main\n")
 
 	return &harness{
 		t: t, repo: repo, home: filepath.Join(root, "home"), cache: filepath.Join(root, "cache"),
@@ -94,7 +95,7 @@ func (h *harness) env() memory.Env {
 	return memory.Env{
 		Base: h.repo, Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now,
-		Random: test.Random(), Processes: h.processes, Checkout: test.CommonDir{Dir: filepath.Join(h.repo, ".git")},
+		Random: test.Random(), Processes: h.processes, Checkout: test.GitDirOf{},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph,
 	}

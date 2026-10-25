@@ -46,8 +46,9 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
 - **Near-duplicates already in the own project** → `merge <survivor> <member>... --from <path> --why
   '...'`. Members become tombstones; their takes fold into the survivor.
 - **`this library belongs to other checkouts`** → this checkout may not write the project's library.
-  Never edit `writers.json`. Tell the owner; trusting is `agentic-tools trust <this checkout>` run
-  from a listed checkout, the owner's call. Finding and taking still work, into `.tmp/` only.
+  Never edit the project's list (`~/.claude/agentic-helpers/<project>/writers.json`). Tell the owner;
+  trusting is `agentic-tools trust <this checkout>` run from a listed checkout, the owner's call, and
+  covers agentic-memory too. Finding and taking still work, into `.tmp/` only.
 
 ## Lines you will see
 

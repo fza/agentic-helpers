@@ -89,6 +89,10 @@ type memory struct {
 	// is set once a read said they are unavailable.
 	graphKnown  map[string]graphState
 	graphWarned bool
+
+	// gitKeyed is set where the store is keyed by the project's git identity,
+	// which a checkout can declare, and not by a directory's own path.
+	gitKeyed bool
 }
 
 func (mem *memory) root() string      { return seat.StoreRoot(mem.env.Home) }
@@ -111,7 +115,7 @@ func (mem *memory) storeExists() bool {
 func (mem *memory) locate(ctx context.Context) {
 	key, err := projectkey.Key(ctx, mem.env.Base, mem.env.Checkout)
 	if err == nil && mem.insideWorkTree(ctx) {
-		mem.key = key
+		mem.key, mem.gitKeyed = key, true
 
 		return
 	}
@@ -330,6 +334,24 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return 0
 	}
 
+	name := args[0]
+	_, isHook := hookEvents[name]
+
+	// A checkout not admitted neither migrates the store nor uses it: a hook
+	// stays silent, a command is refused, and the MCP server, which checks
+	// each call, starts without migrating.
+	admitted := mem.admission(ctx, name)
+	if admitted != nil {
+		switch {
+		case isHook:
+			return 0
+		case name == "mcp":
+			return mem.serveMCP(ctx)
+		}
+
+		return mem.refuse(admitted)
+	}
+
 	err := mem.prepare(ctx)
 	if errors.Is(err, ErrNewerStore) {
 		mem.unreadable = strings.TrimPrefix(err.Error(), ErrNewerStore.Error()+": ")
@@ -337,9 +359,9 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		mem.reportFailedMigration(err)
 	}
 
-	name, rest := args[0], args[1:]
+	rest := args[1:]
 
-	hookEvent, isHook := hookEvents[name]
+	hookEvent := hookEvents[name]
 	if isHook {
 		if mem.outsideGit || mem.unreadable != "" {
 			return 0

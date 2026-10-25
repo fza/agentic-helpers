@@ -43,6 +43,11 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 		return mcpserver.Result{Text: self + ": " + refusal, IsError: true}
 	}
 
+	admitted := mem.admission(ctx, held.name)
+	if admitted != nil {
+		return mcpserver.Result{Text: self + ": " + admitted.Error(), IsError: true}
+	}
+
 	err := exactKeys(held, arguments)
 	if err != nil {
 		return mcpserver.Result{Text: self + ": " + err.Error(), IsError: true}
