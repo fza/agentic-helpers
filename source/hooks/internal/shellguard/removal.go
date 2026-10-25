@@ -28,9 +28,6 @@ func judgeRemoval(_ context.Context, args []*syntax.Word, workingDir string, env
 
 	home := physical(env.Home)
 	root := physical(env.ProjectDir)
-	if root == "" {
-		root = physical(workingDir)
-	}
 
 	if root == "/" || root == home {
 		root = ""
@@ -94,7 +91,7 @@ func judgeRemoval(_ context.Context, args []*syntax.Word, workingDir string, env
 // be known before the shell expands it.
 func resolve(target string, base string, home string) string {
 	switch {
-	case strings.ContainsAny(target, "{}"):
+	case strings.ContainsAny(target, "{}") || dotGlob(target):
 		return ""
 	case target == "~":
 		target = home
@@ -110,6 +107,18 @@ func resolve(target string, base string, home string) string {
 	}
 
 	return physical(filepath.Clean(target))
+}
+
+// dotGlob is whether a component of the target is a glob that can match a
+// name starting with a dot, `..` among them where the shell does not skip it.
+func dotGlob(target string) bool {
+	for _, component := range strings.Split(target, "/") {
+		if strings.HasPrefix(component, ".") && strings.ContainsAny(component, "*?[") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // physical resolves the deepest existing directory of an absolute path through

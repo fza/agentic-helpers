@@ -114,12 +114,15 @@ var launchers = []string{
 
 var interpreters = []string{
 	"perl", "ruby", "node", "deno", "bun", "php", "osascript", "awk", "gawk", "mawk", "nawk",
-	"ssh", "lua", "tclsh", "Rscript", "jshell", "swift", "watch", "su", "script",
+	"ssh", "lua", "tclsh", "rscript", "jshell", "swift", "watch", "su", "script",
 }
 
+// namesRemoval matches the removal calls of the shell and of the interpreters'
+// own libraries, as a word.
 var (
-	namesRemoval = regexp.MustCompile(`(^|[^A-Za-z0-9_-])(rm|rmdir|unlink)([^A-Za-z0-9_-]|$)`)
-	namesMktemp  = regexp.MustCompile(`(^|[^A-Za-z0-9_-])mktemp([^A-Za-z0-9_-]|$)`)
+	namesRemoval = regexp.MustCompile(`(^|[^A-Za-z0-9_-])(rm|rmdir|unlink|rmtree|rmSync|rmdirSync|unlinkSync|` +
+		`removeSync|remove_dir_all|rm_rf|rm_r)([^A-Za-z0-9_-]|$)`)
+	namesMktemp = regexp.MustCompile(`(^|[^A-Za-z0-9_-])mktemp([^A-Za-z0-9_-]|$)`)
 )
 
 type payload struct {
@@ -295,13 +298,81 @@ type inspector struct {
 
 func (inspection *inspector) walk(node syntax.Node) {
 	syntax.Walk(node, func(visited syntax.Node) bool {
-		call, isCall := visited.(*syntax.CallExpr)
-		if isCall && len(call.Args) > 0 {
-			inspection.command(call.Args)
+		switch typed := visited.(type) {
+		case *syntax.CallExpr:
+			if len(typed.Args) > 0 {
+				inspection.command(typed.Args)
+			}
+		case *syntax.Stmt:
+			inspection.fed(typed)
+		case *syntax.BinaryCmd:
+			inspection.piped(typed)
 		}
 
 		return true
 	})
+}
+
+// fed judges the code a here-document or here-string hands a shell or an
+// interpreter on its standard input, as code handed to it with -c.
+func (inspection *inspector) fed(statement *syntax.Stmt) {
+	call, isCall := statement.Cmd.(*syntax.CallExpr)
+	if !isCall || len(call.Args) == 0 {
+		return
+	}
+
+	name := commandName(call.Args[0])
+
+	for _, redirect := range statement.Redirs {
+		if redirect.Op != syntax.Hdoc && redirect.Op != syntax.DashHdoc && redirect.Op != syntax.WordHdoc {
+			continue
+		}
+
+		body := redirect.Hdoc
+		if body == nil {
+			body = redirect.Word
+		}
+
+		switch {
+		case body == nil:
+		case slices.Contains(shells, name):
+			inspection.nested(name+" stdin", []*syntax.Word{body})
+		case isInterpreter(name):
+			inspection.inline(name, []*syntax.Word{body})
+		}
+	}
+}
+
+// piped judges a shell reading its code from a pipe: code the guard cannot
+// read.
+func (inspection *inspector) piped(binary *syntax.BinaryCmd) {
+	if binary.Op != syntax.Pipe && binary.Op != syntax.PipeAll || binary.Y == nil {
+		return
+	}
+
+	call, isCall := binary.Y.Cmd.(*syntax.CallExpr)
+	if !isCall || len(call.Args) == 0 {
+		return
+	}
+
+	name := commandName(call.Args[0])
+	if !slices.Contains(shells, name) || shellCode(call.Args[1:]) != nil || hasOperand(call.Args[1:]) {
+		return
+	}
+
+	inspection.unreadable(name+" stdin", fmt.Sprintf("cannot read the code piped to %s; refusing", name))
+}
+
+// hasOperand is whether a shell is named a script to run.
+func hasOperand(args []*syntax.Word) bool {
+	for _, arg := range args {
+		value, isLiteral := literal(arg)
+		if !isLiteral || (value != "-" && value != "-s" && !strings.HasPrefix(value, "-")) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // removal is a removal that is not the whole command, its targets from
@@ -340,6 +411,8 @@ func (inspection *inspector) command(args []*syntax.Word) {
 		}
 	case name == "eval":
 		inspection.nested("eval", args[1:])
+	case name == "trap" && len(args) > 1:
+		inspection.nested("trap", args[1:2])
 	case slices.Contains(shells, name):
 		code := shellCode(args[1:])
 		if code != nil {
@@ -480,13 +553,15 @@ func isInterpreter(name string) bool {
 	return slices.Contains(interpreters, name) || strings.HasPrefix(name, "python")
 }
 
+// commandName is the base name of the word naming a command, lower-cased: a
+// case-insensitive filesystem, as macOS keeps by default, runs `RM` as `rm`.
 func commandName(word *syntax.Word) string {
 	value, isLiteral := literal(word)
 	if !isLiteral {
 		return ""
 	}
 
-	return path.Base(value)
+	return strings.ToLower(path.Base(value))
 }
 
 // literal returns the word's value when it carries no expansion: plain text,

@@ -32,9 +32,9 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 | `refusing rm with a shell variable or command substitution` | spell each target out |
 | `mktemp is banned; write scratch files under the project's .tmp/ instead` | `.tmp/claude/<session-id>/` (agentic-helpers:agent-scratch) |
 | `mktemp is banned; create the project's .tmp/ (gitignored) and write scratch files under it` | ask the user before creating `.tmp/` |
-| `code handed to <runner> holds a removal or mktemp; refusing` | no removal inside `eval` or `bash -c`; run it directly |
+| `code handed to <runner> holds a removal or mktemp; refusing` | no removal inside `eval`, `trap`, `bash -c` or a heredoc fed to a shell; run it directly |
 | `inline code for <interpreter> names a removal or mktemp; refusing` | no removal in `python -c`, `perl -e`, `awk`, `ssh` code; a lone `rm` instead |
-| `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing` | literal code, or none |
+| `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | literal code, or none; no code piped into a shell |
 | `cannot parse the command; refusing` | fix the quoting |
 
 ## Questions → the user decides

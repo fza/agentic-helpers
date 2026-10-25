@@ -107,6 +107,9 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"relative target inside tmp", "{tmp}", "rm x", "allow"},
 		{"tmp target with no project", "{project}", "rm {tmp}/x", "allow"},
 		{"shell code without removal", "{project}", `bash -c 'echo hi'`, "allow"},
+		{"heredoc to bash without removal", "{project}", "bash <<'EOF'\necho hi\nEOF", "allow"},
+		{"input piped to a bash script", "{project}", "echo x | bash script.sh", "allow"},
+		{"glob in a project directory", "{project}", "rm -rf sub/*", "allow"},
 
 		{"mktemp", "{project}", "mktemp", "deny"},
 		{"mktemp in a substitution", "{project}", "dir=$(mktemp -d)", "deny"},
@@ -157,6 +160,13 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"inline code naming mktemp", "{project}", `python3 -c 'import os; os.system("mktemp")'`, "deny"},
 		{"unparsable command", "{project}", "echo 'unterminated", "deny"},
 		{"a denial outranks a later question", "{project}", "mktemp && find . -delete", "deny"},
+		{"heredoc to bash with a removal", "{project}", "bash <<'EOF'\nrm -rf x\nEOF", "deny"},
+		{"here-string to sh with a removal", "{project}", "sh <<< 'rm x'", "deny"},
+		{"heredoc to python naming rmtree", "{project}", "python3 - <<'EOF'\nimport shutil; shutil.rmtree('x')\nEOF", "deny"},
+		{"code piped to sh", "{project}", "echo 'rm x' | sh", "deny"},
+		{"trap running a removal", "{project}", "trap 'rm -f x' EXIT", "deny"},
+		{"python code naming rmtree", "{project}", `python3 -c 'import shutil; shutil.rmtree("x")'`, "deny"},
+		{"node code naming rmSync", "{project}", `node -e 'require("fs").rmSync("x")'`, "deny"},
 
 		{"parent directory", "{project}", "rm -rf ../other", "ask"},
 		{"home target", "{project}", "rm ~/x", "ask"},
@@ -177,6 +187,9 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"no target", "{project}", "rm -f", "ask"},
 		{"brace target", "{project}", "rm sub/{a,b}", "ask"},
 		{"other user's home", "{project}", "rm ~root/x", "ask"},
+		{"upper-case rm outside", "{project}", "RM -rf ~/x", "ask"},
+		{"dot glob", "{project}", "rm -rf .*", "ask"},
+		{"dot glob in a subdirectory", "{project}", "rm -rf sub/.[!.]*", "ask"},
 	}
 
 	g := newGuard(t, true, "")
@@ -318,10 +331,10 @@ func TestTheGuardNamesWhatItAsksAbout(t *testing.T) {
 }
 
 func TestAProjectAtHomeOrRootIsNone(t *testing.T) {
-	for name, at := range map[string]string{"home": "home", "root": "root"} {
+	for name, at := range map[string]string{"home": "home", "root": "root", "unset": "unset"} {
 		t.Run(name, func(t *testing.T) {
 			g := newGuard(t, true, "")
-			g.env.ProjectDir = map[string]string{"home": g.tree.Home, "root": "/"}[at]
+			g.env.ProjectDir = map[string]string{"home": g.tree.Home, "root": "/", "unset": ""}[at]
 
 			if decision, _ := g.judge("rm foo", "{project}"); decision != "ask" {
 				t.Errorf("every removal should ask without a project, got %s", decision)

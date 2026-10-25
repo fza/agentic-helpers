@@ -19,6 +19,7 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		"code handed to <runner> holds a removal or mktemp; refusing",
 		"inline code for <interpreter> names a removal or mktemp; refusing",
 		"cannot read the code handed to <runner>; refusing", "cannot parse the code handed to <runner>; refusing",
+		"cannot read the code piped to <shell>; refusing",
 		self + ": could not read the command; refusing", self + ": internal failure; refusing",
 		self + ": could not answer; refusing",
 	}

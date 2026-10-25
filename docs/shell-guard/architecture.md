@@ -12,7 +12,7 @@ would let it run.
 The command is parsed with `mvdan.cc/sh/v3/syntax` as bash: a parse error denies. Words are judged
 by their literal value: plain text, single quotes, and double quotes around plain text read as their
 value; anything with an expansion (`$x`, `$(...)`, `` `...` ``, `$'...'`) has none. A command's name
-is the base name of its first word, so `/bin/rm` and `\rm` are `rm`.
+is the base name of its first word, lower-cased, so `/bin/rm`, `\rm` and `RM` are `rm`.
 
 ## Lone removals
 
@@ -21,9 +21,10 @@ redirections or assignments, whose name is `rm`, `rmdir` or `unlink`, or `git` w
 argument. Its arguments after `--`, or not starting with `-`, are its targets. Each resolves to a
 physical absolute path: `~` and `~/` against the home directory, a relative one against `cwd`; `~user`
 and a brace leave it unresolvable. The deepest existing directory of a path resolves through its
-symlinks. A target passes when it lies strictly below the project or `/tmp`: the directory itself is
-never a target. The project is `$CLAUDE_PROJECT_DIR`, else `cwd`, and none where it is `/` or the
-home directory. Any target that fails, or no target, takes `shell_guard_outside_project`'s verdict
+symlinks. A component starting with a dot and holding a glob character (`*?[`) leaves the target
+unresolvable, as bash without `globskipdots` matches `..` with `.*`. A target passes when it lies strictly below the project or `/tmp`: the directory itself is
+never a target. The project is `$CLAUDE_PROJECT_DIR`, and none where it is unset, `/` or the home
+directory. Any target that fails, or no target, takes `shell_guard_outside_project`'s verdict
 naming each kind; a non-literal target denies under `shell_guard_expansion`, else takes that verdict
 as `cannot place`.
 
@@ -36,14 +37,17 @@ carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A 
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
 stood alone.
 
-Code another program runs as shell, `eval`'s arguments and the word after a shell's `-c`-carrying
-option, is joined and parsed again, and walked with removals and `mktemp` only noted. Under
+Code another program runs as shell, `eval`'s arguments, `trap`'s first, the word after a shell's
+`-c`-carrying option, and the body of a here-document or here-string a shell reads, is joined and
+parsed again, and walked with removals and `mktemp` only noted. Under
 `shell_guard_nested_code` a noted one denies, and so does code that is no literal or does not parse;
 with it off, a noted removal and unreadable code take the outside-project verdict as `cannot place:
 code handed to <runner> (nested code)`, and a noted `mktemp` passes. Inline code for another
 interpreter cannot be parsed: an argument whose text names `rm`, `rmdir`, `unlink` or `mktemp` as a
 word denies under the nested-code guard, and with it off a removal takes the same `cannot place`
-verdict. Any other guard's verdict found inside nested code counts as found outside it.
+verdict. A shell at the end of a pipe that is named no `-c` code and no script reads its code from the pipe:
+code it cannot read. A here-document or here-string fed to another interpreter is judged as its
+inline code. Any other guard's verdict found inside nested code counts as found outside it.
 
 Every guard adds a verdict; `deny` outranks `ask`, which outranks letting the call run, and the first
 reason given for the strongest stands.
