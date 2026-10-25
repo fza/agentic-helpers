@@ -54,6 +54,19 @@ computed against the tree right then, and `confirm` re-anchors a verified entry.
 search's top three hits add heat, which orders the brief; `--no-heat` (MCP `"no_heat": true`) reads
 without it, for a sweep or a script no person is behind.
 
+`--status live|retired|superseded` (MCP `status`, an array), repeatable, keeps only entries in the
+named statuses; `--status superseded` includes superseded entries as `--with-superseded` does. Given
+a status, search runs without `--term` or `--query` and lists: the most recently ended first for
+retired and superseded entries, the most recently filed first for live ones. A listing matches
+nothing, so it warms nothing.
+
+A search returns `--limit` results, 10 unless set, and `--skip <n>` (MCP `skip`) drops the first
+`n` before the limit cuts the page. A page with results past it ends with the next page's flag:
+`14 more: --skip 10` where the remainder is exact (a `--term` search, a listing), `more: --skip 10`
+where a `--query` takes part, since every candidate carries a score. A hybrid search's arms each keep
+`skip + limit` candidates before fusion, so a later page is the fused ranking's next slice. Only the
+first page warms its top hits.
+
 ## What comes back
 
 A brief at every claim and compaction (standing entries, the seat's live entries by heat, what other

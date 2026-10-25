@@ -490,8 +490,18 @@ func (mem *memory) topics(ctx context.Context, _ request) result {
 }
 
 func (mem *memory) search(ctx context.Context, req request) result {
-	if len(req.Terms) == 0 && req.Query == "" {
-		return refused("search needs --term <regex> or --query <phrase>")
+	if len(req.Terms) == 0 && req.Query == "" && len(req.Statuses) == 0 {
+		return refused("search needs --term <regex>, --query <phrase> or --status <status>")
+	}
+
+	for _, status := range req.Statuses {
+		if !slices.Contains(searchStatuses, status) {
+			return refused("--status takes %s, not %q", strings.Join(searchStatuses, ", "), status)
+		}
+	}
+
+	if req.Skip < 0 {
+		return refused("--skip takes a number of 0 or more, not %d", req.Skip)
 	}
 
 	own, _ := mem.seated(ctx)
@@ -530,6 +540,8 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		wanted = append(wanted, folded.resolve(topic))
 	}
 
+	withSuperseded := req.WithSuperseded || slices.Contains(req.Statuses, statusSuperseded)
+
 	var candidates []*entry
 
 	for _, held := range folded.entryList() {
@@ -537,7 +549,11 @@ func (mem *memory) search(ctx context.Context, req request) result {
 			continue
 		}
 
-		if held.shadowed() || (held.status == statusSuperseded && !req.WithSuperseded) {
+		if held.shadowed() || (held.status == statusSuperseded && !withSuperseded) {
+			continue
+		}
+
+		if len(req.Statuses) > 0 && !slices.Contains(req.Statuses, held.status) {
 			continue
 		}
 
@@ -551,11 +567,25 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	}
 
 	limit := cmp.Or(req.Limit, defaultLimit)
+	window := req.Skip + limit
+	listing := len(patterns) == 0 && req.Query == ""
 
+	// Each arm keeps the whole window before fusion, so a later page is the fused
+	// ranking's next slice; total counts every result where it is exact, and is
+	// -1 where a query scores every candidate.
 	var arms [][]string
 
+	total := 0
+
+	if listing {
+		arms = append(arms, listingArm(candidates))
+		total = len(arms[0])
+	}
+
 	if len(patterns) > 0 {
-		arms = append(arms, keywordArm(candidates, patterns, limit))
+		matched := keywordArm(candidates, patterns, len(candidates))
+		total = len(matched)
+		arms = append(arms, matched[:min(window, len(matched))])
 	}
 
 	if req.Query != "" {
@@ -564,26 +594,84 @@ func (mem *memory) search(ctx context.Context, req request) result {
 			return refused("%v", err)
 		}
 
-		arms = append(arms, semanticArm(candidates, scores, limit))
+		arms = append(arms, semanticArm(candidates, scores, window))
+		total = -1
+
+		if len(scoredCandidates(candidates, scores)) <= window && len(patterns) == 0 {
+			total = len(scoredCandidates(candidates, scores))
+		}
 	}
 
-	ranked := fuse(arms, limit)
-	if len(ranked) == 0 {
+	ranked := fuse(arms, window)
+	page := ranked[min(req.Skip, len(ranked)):]
+
+	if len(page) == 0 {
 		return done("no entry matches")
 	}
 
 	here := mem.checkout(ctx)
 
-	lines := make([]string, 0, len(ranked))
-	for _, id := range ranked {
+	lines := make([]string, 0, len(page)+1)
+	for _, id := range page {
 		lines = append(lines, line(here, folded.entries[id]))
 	}
 
-	if !req.NoHeat {
-		mem.warm(folded, heatSearchHit, ranked[:min(searchWarmed, len(ranked))]...)
+	next := req.Skip + len(page)
+
+	switch {
+	case total < 0 && len(ranked) == window:
+		lines = append(lines, fmt.Sprintf("more: --skip %d", next))
+	case total > next:
+		lines = append(lines, fmt.Sprintf("%d more: --skip %d", total-next, next))
+	}
+
+	// The top three a search warms are the top of its ranking, which only the
+	// first page shows; a listing matches nothing, so it warms nothing.
+	if !req.NoHeat && req.Skip == 0 && !listing {
+		mem.warm(folded, heatSearchHit, page[:min(searchWarmed, len(page))]...)
 	}
 
 	return done(strings.Join(lines, "\n"))
+}
+
+var searchStatuses = []string{statusLive, statusRetired, statusSuperseded}
+
+// listingArm orders entries by when they last changed status: the most
+// recently ended first for a retired or superseded entry, the most recently
+// filed first for a live one.
+func listingArm(candidates []*entry) []string {
+	since := func(held *entry) time.Time {
+		last, found := held.latest()
+		if found && held.status != statusLive {
+			return last.at
+		}
+
+		return held.filed
+	}
+
+	ordered := slices.Clone(candidates)
+	slices.SortStableFunc(ordered, func(a, b *entry) int {
+		return cmp.Or(since(b).Compare(since(a)), strings.Compare(a.id, b.id))
+	})
+
+	ids := make([]string, 0, len(ordered))
+	for _, held := range ordered {
+		ids = append(ids, held.id)
+	}
+
+	return ids
+}
+
+func scoredCandidates(candidates []*entry, scores map[string]float32) []*entry {
+	var found []*entry
+
+	for _, held := range candidates {
+		if _, has := scores[held.id]; has {
+			found = append(found, held)
+		}
+	}
+
+	return found
 }
 
 func keywordArm(candidates []*entry, patterns []*regexp.Regexp, limit int) []string {

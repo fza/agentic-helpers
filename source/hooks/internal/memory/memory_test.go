@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -618,6 +619,8 @@ func TestMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 			refusal: `show takes no key \"force\"`},
 		{name: "every offending key", tool: "search", arguments: `{"limt":3,"Term":["Gate"]}`,
 			refusal: `search takes no key \"Term\", \"limt\"`},
+		{name: "a negative skip", tool: "search", arguments: `{"term":["Gate"],"skip":-1}`,
+			refusal: `--skip takes a number of 0 or more, not -1`},
 		{name: "claim's removed force", tool: "claim", arguments: `{"name":"main","force":true}`,
 			refusal: `claim takes no key \"force\"; it takes name`},
 		{name: "a key for a tool taking none", tool: "topics", arguments: `{"all":true}`,
@@ -1162,5 +1165,148 @@ func TestARetireFromAnEarlierReleaseReadsWithoutAReason(t *testing.T) {
 	out := h.must("", "show", id)
 	if !strings.Contains(out, "retired ") || strings.Contains(out, "retired: ") {
 		t.Errorf("a retire with no payload should read as retired without a reason, got:\n%s", out)
+	}
+}
+
+func (h *harness) heat() string {
+	h.t.Helper()
+
+	held, err := os.ReadFile(filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "heat.json"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		h.t.Fatalf("reading the heat: %v", err)
+	}
+
+	return string(held)
+}
+
+func listed(out string) []string {
+	return regexp.MustCompile(`(?m)^m-[a-z0-9]+`).FindAllString(out, -1)
+}
+
+func TestSearchByStatus(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	var retired []string
+
+	for index := range 12 {
+		id := h.file(fmt.Sprintf("Lock finding number %02d recorded", index), "a finding about the lock")
+		h.clock.Advance(time.Minute)
+
+		if index%3 != 2 {
+			retired = append(retired, id)
+		}
+	}
+
+	// Retired newest-filed first, so the most recently retired is the oldest
+	// filed and an order by filing time reads backwards.
+	for _, id := range slices.Backward(retired) {
+		h.must("", "retire", id, "--because", "fixed")
+		h.clock.Advance(time.Minute)
+	}
+
+	live := h.file("A live entry about the gate", "still open")
+	wrong := h.file("A wrong entry about the gate", "turned out false")
+	h.must("", "supersede", wrong, "--because", "false")
+
+	other := newHarnessSharing(h)
+	other.must("", "claim", "drive")
+	other.file("Another seat's retired lock note", "elsewhere")
+
+	before := h.heat()
+
+	out := h.must("", "search", "--status", "retired")
+	got := listed(out)
+
+	if len(got) != 8 || got[0] != retired[0] || got[7] != retired[len(retired)-1] {
+		t.Errorf("a retired listing should hold the own seat's retired entries, the most recently retired first, at most 10, got:\n%s", out)
+	}
+
+	if h.heat() != before {
+		t.Error("a status-only listing should warm nothing")
+	}
+
+	if got := listed(h.must("", "search", "--status", "live")); slices.Contains(got, retired[0]) || slices.Contains(got, wrong) || !slices.Contains(got, live) {
+		t.Errorf("a live listing should exclude retired and superseded entries, got %v", got)
+	}
+
+	if got := listed(h.must("", "search", "--status", "superseded")); len(got) != 1 || got[0] != wrong {
+		t.Errorf("a superseded listing should find the superseded entry without --with-superseded, got %v", got)
+	}
+
+	if got := listed(h.must("", "search", "--status", "retired", "--status", "superseded", "--term", "wrong|number 00")); len(got) != 2 {
+		t.Errorf("--status should repeat and narrow a term search to its statuses, got %v", got)
+	}
+
+	if got := h.run("", "search", "--status", "done"); got.code != 1 || !strings.Contains(got.err, "--status takes live, retired, superseded") {
+		t.Errorf("an unknown status should be refused naming the accepted words, got %d %q", got.code, got.err)
+	}
+
+	if got := h.run("", "search"); got.code != 1 || !strings.Contains(got.err, "search needs --term <regex>, --query <phrase> or --status <status>") {
+		t.Errorf("a search naming nothing to find should be refused, got %d %q", got.code, got.err)
+	}
+}
+
+func TestSearchPages(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	for index := range 25 {
+		h.file(fmt.Sprintf("Paging finding number %02d recorded", index), "paging finding")
+		h.clock.Advance(time.Minute)
+	}
+
+	var seen []string
+
+	for _, page := range []struct {
+		skip   string
+		footer string
+	}{
+		{skip: "0", footer: "15 more: --skip 10"},
+		{skip: "10", footer: "5 more: --skip 20"},
+		{skip: "20"},
+	} {
+		out := h.must("", "search", "--term", "paging", "--skip", page.skip, "--no-heat")
+		got := listed(out)
+
+		if len(seen) > 0 && slices.ContainsFunc(got, func(id string) bool { return slices.Contains(seen, id) }) {
+			t.Errorf("pages should hold disjoint results, page --skip %s repeats one of %v", page.skip, seen)
+		}
+
+		seen = append(seen, got...)
+
+		if page.footer == "" && strings.Contains(out, "more: --skip") {
+			t.Errorf("the last page should end without a footer, got:\n%s", out)
+		}
+
+		if page.footer != "" && !strings.HasSuffix(strings.TrimSpace(out), page.footer) {
+			t.Errorf("a page with results past it should end naming how many and the next flag, got:\n%s", out)
+		}
+	}
+
+	if len(seen) != 25 {
+		t.Errorf("the pages together should cover every match, got %d", len(seen))
+	}
+
+	whole := listed(h.must("", "search", "--term", "paging", "--query", "paging finding", "--limit", "20", "--no-heat"))
+	second := listed(h.must("", "search", "--term", "paging", "--query", "paging finding", "--skip", "10", "--no-heat"))
+
+	if !slices.Equal(second, whole[10:20]) {
+		t.Errorf("a hybrid search's second page should be results 11 to 20 of the same search with --limit 20, got %v against %v", second, whole[10:20])
+	}
+
+	if out := h.must("", "search", "--query", "paging finding", "--no-heat"); !regexp.MustCompile(`\nmore: --skip 10$`).MatchString(strings.TrimSpace(out)) {
+		t.Errorf("a search by meaning should end a non-final page with the next flag alone, got:\n%s", out)
+	}
+
+	before := h.heat()
+	h.must("", "search", "--term", "paging", "--skip", "10")
+
+	if h.heat() != before {
+		t.Error("a page past the first should warm nothing")
+	}
+
+	if got := h.run("", "search", "--term", "paging", "--skip", "-1"); got.code != 1 || !strings.Contains(got.err, "--skip takes a number of 0 or more") {
+		t.Errorf("a negative --skip should be refused naming the flag, got %d %q", got.code, got.err)
 	}
 }

@@ -101,7 +101,8 @@ Graph holds the decision → never a second copy: memory points at its id. **No 
 
 ```bash
 agentic-memory search --term <regex>... --query '<phrase>' [--topic <t>]... \
-  [--seat <s>]... [--all-seats] [--with-superseded] [--limit n] [--no-heat]
+  [--seat <s>]... [--all-seats] [--with-superseded] [--status <s>]... [--limit n] [--skip n] [--no-heat]
+agentic-memory search --status retired          # a listing: what ended, newest first, with its reason
 agentic-memory show <id>... [--no-heat]
 agentic-memory brief [--topic <t>]
 ```
@@ -109,6 +110,10 @@ agentic-memory brief [--topic <t>]
 - **Own seat by default.** `--all-seats` → see what other seats hold: take over work, never do it
   twice.
 - `--term` = sdd's: case-insensitive RE2, every term required. `--query` = by meaning. Both → fused.
+- **`--status live|retired|superseded`**, repeatable: only entries in those statuses. Alone → a
+  listing by time, no term needed, warms nothing.
+- **Long result → page.** Last line `14 more: --skip 10` (or `more: --skip 10` with `--query`) names
+  the next page's flag. No line → last page.
 - **No embedder → `--query` exits 1.** Not "nothing found". Fall back to `--term`, say so.
 - **Every line carries flags computed now:** `drifted: <path>`, `gone: <path>`, `other branch: <b>`.
   Body = lead, never ground truth. Verified it still holds → `agentic-memory confirm <id>`.

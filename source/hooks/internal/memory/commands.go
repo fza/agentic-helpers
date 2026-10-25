@@ -17,6 +17,7 @@ const (
 	flagList
 	flagSwitch
 	flagNumber
+	flagCount
 )
 
 type flagSpec struct {
@@ -42,6 +43,8 @@ type request struct {
 	AllSeats       bool     `json:"all_seats,omitempty"`
 	WithSuperseded bool     `json:"with_superseded,omitempty"`
 	Limit          int      `json:"limit,omitempty"`
+	Skip           int      `json:"skip,omitempty"`
+	Statuses       []string `json:"status,omitempty"`
 	By             string   `json:"by,omitempty"`
 	Because        string   `json:"because,omitempty"`
 	Level          string   `json:"level,omitempty"`
@@ -176,7 +179,9 @@ func (req *request) set(spec flagSpec, value string) error {
 		"title": &req.Title, "retention": &req.Retention, "from": &req.From, "query": &req.Query,
 		"by": &req.By, "because": &req.Because, "session": &req.Session,
 	}
-	lists := map[string]*[]string{"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats}
+	lists := map[string]*[]string{
+		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
+	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat,
@@ -196,6 +201,13 @@ func (req *request) set(spec flagSpec, value string) error {
 		}
 
 		req.Limit = number
+	case flagCount:
+		number, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("--%s takes a number of 0 or more, not %q", spec.name, value)
+		}
+
+		req.Skip = number
 	}
 
 	return nil
@@ -277,17 +289,19 @@ func commands() []command {
 		},
 		{
 			name:        "search",
-			usage:       "search [--term <regex>]... [--query <phrase>] [options]",
-			description: "keyword, semantic or hybrid search",
+			usage:       "search [--term <regex>]... [--query <phrase>] [--status live|retired|superseded]... [--skip <n>] [options]",
+			description: "keyword, semantic or hybrid search; with --status alone, a listing",
 			flags: []flagSpec{
 				{"term", flagList}, {"query", flagText}, {"topic", flagList}, {"seat", flagList},
 				{"all-seats", flagSwitch}, {"with-superseded", flagSwitch}, {"limit", flagNumber},
-				{"no-heat", flagSwitch},
+				{"no-heat", flagSwitch}, {"status", flagList}, {"skip", flagCount},
 			},
 			schema: `{"type":"object","properties":{` +
 				`"term":{"type":"array","items":{"type":"string"}},"query":{"type":"string"},` +
 				`"topic":{"type":"array","items":{"type":"string"}},"seat":{"type":"array","items":{"type":"string"}},` +
 				`"all_seats":{"type":"boolean"},"with_superseded":{"type":"boolean"},"limit":{"type":"integer","minimum":1},` +
+				`"status":{"type":"array","items":{"type":"string","enum":["live","retired","superseded"]}},` +
+				`"skip":{"type":"integer","minimum":0},` +
 				`"no_heat":{"type":"boolean","description":"answer without adding heat"}}}`,
 			run: (*memory).search,
 		},
