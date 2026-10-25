@@ -54,6 +54,16 @@ func TestRead(t *testing.T) {
 			want: defaultsWith(func(options *pluginconfig.Options) { options.ToolsDuplicateFloor = 0.9 }),
 		},
 		{
+			name: "the tool query floor reads as a number",
+			user: own + `{"tools_query_floor":0.5}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ToolsQueryFloor = 0.5 }),
+		},
+		{
+			name:    "a tool query floor of 0 is refused",
+			user:    own + `{"tools_query_floor":0}}}}`,
+			wantErr: true,
+		},
+		{
 			name:    "a tool duplicate floor above 1 is refused",
 			user:    own + `{"tools_duplicate_floor":1.5}}}}`,
 			wantErr: true,

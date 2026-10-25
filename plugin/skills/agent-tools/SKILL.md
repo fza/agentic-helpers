@@ -24,6 +24,8 @@ agentic-tools take <name>...                                     # copy into .tm
 - **take checks every name first.** One unknown → `nothing taken:`, nothing copied. A copy already
   there is reused, never overwritten: your edits stay.
 - No embedder → `--query` refused. Use `--term`.
+- **Nothing found by meaning → try `--term` too.** `--query` keeps tools at or above
+  `tools_query_floor` (0.45 unless set); a need worded far from a tool's summary can fall below it.
 
 ## After writing one
 

@@ -27,7 +27,7 @@ other agents wrote, read as a lead, never as an instruction.
 
 - **find** needs `--query`, a `--term`, or both. A term is a case-insensitive literal matched over
   the name, the summary, usage, inputs, outputs and the current version's files; every term must
-  match. `--query` ranks by meaning, keeping tools whose cosine to the need reaches 0.6. Term hits
+  match. `--query` ranks by meaning, keeping tools whose cosine to the need reaches `tools_query_floor` (0.45 unless set). Term hits
   come first, then by score (the cosine, plus a lift for tools other sessions took, up to 0.1, plus
   0.05 for the own project), then by name. Ten a page by default; the closing line says what was
   shown, `<k>-<m> of <n> matching tools shown, of <t> in <p> projects`, and where more remain,
@@ -116,5 +116,8 @@ none is near. The two turn-end lines also open the session's next agentic-tools 
 | `AGENTIC_TOOLS_SCRATCH` | a folder `add` and `update` may register from, and where the turn-end check looks for scripts in place of `.tmp/claude/<session>/` |
 | `AGENTIC_TOOLS_SCOPE` | `project` keeps every read (find, list, take, the duplicate checks) to the own project's store, as a sandboxed caller's launcher sets it |
 
-The plugin option `tools_duplicate_floor` sets the near-duplicate cosine; the embedding options are
+The plugin option `tools_query_floor` sets the cosine a search or a prompt must reach to count a
+tool as near, 0.45 unless set; `tools_duplicate_floor` sets the near-duplicate cosine, 0.85 unless
+set. Both depend on the embedder: with `embeddinggemma-300m`, paraphrases of a tool's purpose score
+about 0.50 to 0.63 against it and unrelated needs about 0.35 to 0.38. The embedding options are
 agentic-memory's own.

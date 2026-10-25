@@ -14,13 +14,13 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 )
 
-// Ranking. The floor applies to the cosine alone, before either lift.
+// Ranking. The floor, `tools_query_floor`, applies to the cosine alone, before
+// either lift.
 const (
-	scoreFloor = 0.6
-	takeStep   = 0.05
-	takeCap    = 0.1
-	ownLift    = 0.05
-	pageSize   = 10
+	takeStep = 0.05
+	takeCap  = 0.1
+	ownLift  = 0.05
+	pageSize = 10
 )
 
 type ranked struct {
@@ -71,7 +71,7 @@ func (lib *library) find(ctx context.Context, req request) result {
 			comparable := held.index.Fingerprint == "" || held.index.Fingerprint == queried
 			if query != nil && comparable && len(tool.Vector) > 0 {
 				cosine := float64(embed.Cosine(query, tool.Vector))
-				if cosine >= scoreFloor {
+				if cosine >= lib.options.ToolsQueryFloor {
 					lifted := cosine + takeLift(len(tool.Takers))
 					if held.own {
 						lifted += ownLift

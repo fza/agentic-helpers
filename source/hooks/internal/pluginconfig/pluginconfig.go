@@ -22,6 +22,12 @@ const DefaultEntryMaxWords = 500
 // holds a new tool's description to be another tool's.
 const DefaultToolsDuplicateFloor = 0.85
 
+// DefaultToolsQueryFloor is the cosine at or above which agentic-tools counts
+// a tool's description as near a need: a search's or a prompt's. Its right
+// value depends on the embedder; this one sits between the unrelated needs and
+// the weakest paraphrase measured with embeddinggemma-300m.
+const DefaultToolsQueryFloor = 0.45
+
 // DefaultRetiredBodyDays / MinRetiredBodyDays bound how long a retired entry
 // keeps its body. The floor is the revive window: a body never goes before a
 // revive could still want it.
@@ -51,6 +57,7 @@ type Options struct {
 	MemoryLanguage      string
 	MemoryRequireGit    bool
 	ToolsDuplicateFloor float64
+	ToolsQueryFloor     float64
 }
 
 type settings struct {
@@ -113,6 +120,7 @@ func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
 		MemoryRequireGit: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
+		ToolsQueryFloor: DefaultToolsQueryFloor,
 	}
 }
 
@@ -158,14 +166,23 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
-	raw, found := values["tools_duplicate_floor"]
-	if found {
-		value, err := fraction(raw)
-		if err != nil {
-			return fmt.Errorf("tools_duplicate_floor: %w", err)
+	fractions := map[string]*float64{
+		"tools_duplicate_floor": &options.ToolsDuplicateFloor,
+		"tools_query_floor":     &options.ToolsQueryFloor,
+	}
+
+	for key, target := range fractions {
+		raw, found := values[key]
+		if !found {
+			continue
 		}
 
-		options.ToolsDuplicateFloor = value
+		value, err := fraction(raw, *target)
+		if err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+
+		*target = value
 	}
 
 	switches := map[string]*bool{"memory_require_git": &options.MemoryRequireGit}
@@ -209,8 +226,8 @@ func boolean(raw json.RawMessage) (bool, error) {
 // number accepts a JSON number or a numeric string: the dialog stores what the
 // user typed, and a hand-edited settings file may quote it.
 // fraction accepts a number above 0 and at most 1, or the string the dialog
-// may store for one; an empty string keeps the default.
-func fraction(raw json.RawMessage) (float64, error) {
+// may store for one; an empty string keeps fallback.
+func fraction(raw json.RawMessage, fallback float64) (float64, error) {
 	var value float64
 
 	err := json.Unmarshal(raw, &value)
@@ -223,7 +240,7 @@ func fraction(raw json.RawMessage) (float64, error) {
 		}
 
 		if text == "" {
-			return DefaultToolsDuplicateFloor, nil
+			return fallback, nil
 		}
 
 		value, err = strconv.ParseFloat(text, 64)

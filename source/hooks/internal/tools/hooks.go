@@ -124,7 +124,7 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 		tool := own.index.Tools[name]
 
 		score := embed.Cosine(vector, tool.Vector)
-		if score >= scoreFloor {
+		if float64(score) >= lib.options.ToolsQueryFloor {
 			near = append(near, scored{name: name, score: score, sameRole: role != "" && slices.Contains(tool.Roles, role)})
 		}
 	}

@@ -81,7 +81,7 @@ project key, grown by a leading segment while two keys share one.
 
 | Event | Verb | Does |
 |---|---|---|
-| `UserPromptSubmit` | `prompt` | delivers the nudges `stop` recorded, then offers up to three own tools whose vector lies at or above 0.6 to the prompt's, not yet shown this session, same-role first |
+| `UserPromptSubmit` | `prompt` | delivers the nudges `stop` recorded, then offers up to three own tools whose vector lies at or above `tools_query_floor` (0.45 unless set) to the prompt's, not yet shown this session, same-role first |
 | `PostToolUse` | `notice` | for each holding older than its tool's current version, and each held fork whose origin moved on, adds a line once; it compares the stats of the indexes involved with what it saw last, and reads nothing more when none moved |
 | `Stop` | `stop` | records, without blocking or printing, scripts (`.py .sh .go .awk`) in the session's scratch whose content and name no version of any tool in reach holds, and taken copies whose files changed |
 | `SessionEnd` | `end` | removes the session's file and its prompt vector slot |

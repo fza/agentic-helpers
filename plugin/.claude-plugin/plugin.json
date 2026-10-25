@@ -72,6 +72,13 @@
       "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; empty means en",
       "required": false
     },
+    "tools_query_floor": {
+      "type": "number",
+      "title": "Tool query floor",
+      "description": "Cosine at or above which agentic-tools counts a tool as near a search or a prompt; depends on the embedder",
+      "default": 0.45,
+      "required": false
+    },
     "tools_duplicate_floor": {
       "type": "number",
       "title": "Tool duplicate floor",

@@ -34,7 +34,7 @@ PATH and builds the binaries itself: `go install -C source/hooks ./cmd/...` from
 ## Options
 
 The plugin's configuration dialog (`/plugin`, or `pluginConfigs` in the user or managed settings)
-carries agentic-memory's options and agentic-tools' `tools_duplicate_floor`; no project overrides
+carries agentic-memory's options and agentic-tools' `tools_query_floor` and `tools_duplicate_floor`; no project overrides
 them. [`../memory/usage.md`](../memory/usage.md) and [`../tools/usage.md`](../tools/usage.md) list each.
 
 ## The skills
