@@ -111,3 +111,12 @@ func TestAnExemptSeatIsNamedInAnySpelling(t *testing.T) {
 
 	passes(t, run(t, env, "gate", ask(test.Session)))
 }
+
+func TestAnExemptSeatIsFoundByItsIDsName(t *testing.T) {
+	env := configured(t, "exempt-seats.yaml")
+	processes := test.NewProcesses()
+	env.Processes, env.OwnerName = processes, "claude"
+	test.ClaimSeatByID(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "s-4kq9td", "reviewer", test.Session)
+
+	passes(t, run(t, env, "gate", ask(test.Session)))
+}

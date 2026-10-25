@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -74,4 +75,14 @@ func writeClaim(t *testing.T, store string, seat string, claim map[string]any) {
 	}
 
 	WriteFile(t, filepath.Join(store, "seats", seat+".json"), string(data))
+}
+
+// ClaimSeatByID writes a store of the current format: a registry naming the
+// seat id, and the claim filed under that id, held by the fake owner process.
+func ClaimSeatByID(t *testing.T, store string, id string, name string, session string) {
+	t.Helper()
+
+	WriteFile(t, filepath.Join(store, "seats.json"), fmt.Sprintf(`{%q: {"name": %q}}`, id, name))
+	WriteFile(t, filepath.Join(store, "format.json"), `{"format": 2}`)
+	writeClaim(t, store, id, map[string]any{"session_id": session, "pid": OwnerPID, "started": OwnerStarted})
 }

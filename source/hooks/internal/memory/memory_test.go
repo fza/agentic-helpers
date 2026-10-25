@@ -17,6 +17,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -52,6 +53,31 @@ func newHarness(t *testing.T) *harness {
 		git:      &test.Git{Top: repo, Commit: "15af1a8c", Branch: "main"},
 		embedder: &test.Embedder{}, embedding: true, processes: test.NewProcesses(), session: test.Session,
 	}
+}
+
+// seatID is the id the store files the seat named name under.
+func seatID(t *testing.T, store string, name string) string {
+	t.Helper()
+
+	registry, found, err := seat.LoadRegistry(store)
+	if err != nil || !found {
+		t.Fatalf("the store should carry a seat registry: %v", err)
+	}
+
+	id, known := registry.IDOf(name)
+	if !known {
+		t.Fatalf("the registry should name the seat %s", name)
+	}
+
+	return id
+}
+
+// seatFile is the path of the seat's file with the given suffix, `.json` for
+// its claim.
+func (h *harness) seatFile(name string, suffix string) string {
+	h.t.Helper()
+
+	return filepath.Join(h.store(), "seats", seatID(h.t, h.store(), name)+suffix)
 }
 
 func (h *harness) store() string {
@@ -853,7 +879,7 @@ func TestClaimRules(t *testing.T) {
 		t.Error("a seat whose holder is gone should be claimed without any flag")
 	}
 
-	held, err := os.ReadFile(filepath.Join(h.store(), "seats", "main.json"))
+	held, err := os.ReadFile(h.seatFile("main", ".json"))
 	if err != nil || strings.Contains(string(held), "seized_from") {
 		t.Errorf("a claim should record no seized_from, got %s %v", held, err)
 	}
@@ -974,7 +1000,7 @@ func TestKilledSessionTurnsReadFromTranscript(t *testing.T) {
 
 	path := h.transcript()
 	h.must(hookPayload("", path, "a prompt"), "prompt")
-	test.WriteFile(t, filepath.Join(h.store(), "seats", "main.slice"), "session an-older-session\nstale turns of another session")
+	test.WriteFile(t, h.seatFile("main", ".slice"), "session an-older-session\nstale turns of another session")
 
 	h.processes.Kill(test.OwnerPID)
 
@@ -1084,7 +1110,7 @@ func TestAClaimRecordsItsHolderStartInRFC3339(t *testing.T) {
 	started := func() string {
 		var held map[string]any
 
-		raw, err := os.ReadFile(filepath.Join(h.store(), "seats", "main.json"))
+		raw, err := os.ReadFile(h.seatFile("main", ".json"))
 		if err == nil {
 			err = json.Unmarshal(raw, &held)
 		}
@@ -1417,7 +1443,7 @@ func TestTheGitLimitLiftsThroughTheOption(t *testing.T) {
 	}
 
 	store := filepath.Join(h.home, ".claude", "agentic-memory", filepath.FromSlash(projectkey.DirectoryKey(h.repo)))
-	if !test.Exists(t, filepath.Join(store, "seats", "main.json")) {
+	if !test.Exists(t, filepath.Join(store, "seats", seatID(t, store, "main")+".json")) {
 		t.Errorf("the store should be keyed by the directory's own hash, nothing under %s", store)
 	}
 }
@@ -1428,7 +1454,7 @@ func TestInsideGitTheOptionChangesNothing(t *testing.T) {
 
 	h.must("", "claim", "main")
 
-	if !test.Exists(t, filepath.Join(h.store(), "seats", "main.json")) {
+	if !test.Exists(t, h.seatFile("main", ".json")) {
 		t.Error("inside a work tree the store should keep the project's key whatever the option says")
 	}
 }
@@ -1482,10 +1508,10 @@ func TestStoredTimesAreUTC(t *testing.T) {
 	offset := regexp.MustCompile(`\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}:\d{2}`)
 
 	for _, path := range []string{
-		filepath.Join(h.store(), "seats", "main.json"),
+		h.seatFile("main", ".json"),
 		filepath.Join(h.store(), "log", "tail.jsonl"),
 		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "heat.json"),
-		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "briefs", "main.json"),
+		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "briefs", seatID(t, h.store(), "main")+".json"),
 		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "ladder", h.session+".json"),
 	} {
 		raw, err := os.ReadFile(path)
@@ -1498,7 +1524,7 @@ func TestStoredTimesAreUTC(t *testing.T) {
 		}
 	}
 
-	claim, _ := os.ReadFile(filepath.Join(h.store(), "seats", "main.json"))
+	claim, _ := os.ReadFile(h.seatFile("main", ".json"))
 	if !regexp.MustCompile(`"claimed": ?"2026-10-25T15:00:\d{2}(?:\.\d+)?Z"`).Match(claim) {
 		t.Errorf("a claim should record when it was claimed in RFC 3339 UTC, got %s", claim)
 	}
@@ -1533,8 +1559,8 @@ func TestASeatNameInAnyScriptIsOneSeat(t *testing.T) {
 	}
 
 	files, err := filepath.Glob(filepath.Join(h.store(), "seats", "*.json"))
-	if err != nil || len(files) != 1 || filepath.Base(files[0]) != "café.json" {
-		t.Errorf("one seat should keep one file, under its normal spelling, got %v %v", files, err)
+	if err != nil || len(files) != 1 || filepath.Base(files[0]) != seatID(t, h.store(), "café")+".json" {
+		t.Errorf("one seat should keep one file, under the id of its normal spelling, got %v %v", files, err)
 	}
 }
 

@@ -198,10 +198,14 @@ func (folded *state) entryList() []*entry {
 	return list
 }
 
-func fold(snapshot *memorylog.Snapshot) (*state, error) {
+// fold reads the log into entries, each row's seat key turned into the name
+// the seat has now.
+func fold(snapshot *memorylog.Snapshot, seatName func(key string) string) (*state, error) {
 	folded := &state{entries: map[string]*entry{}}
 
 	for index, row := range snapshot.Rows() {
+		row.Seat = seatName(row.Seat)
+
 		payload, err := snapshot.Payload(index)
 		if err != nil {
 			return nil, fmt.Errorf("reading the payload of %s %s: %w", row.Kind, row.Entry, err)

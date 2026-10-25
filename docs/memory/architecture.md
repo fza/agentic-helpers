@@ -4,12 +4,46 @@
 
 ```
 ~/.claude/agentic-memory/<project>/
+├── format.json                                         the store's one format version
+├── seats.json                                          seat id → its current name and follows
 ├── log/tail.jsonl, log/<hash>.seg, log/manifest.json   the append-only log: the truth
-├── seats/<seat>.json                                   who holds the seat, which process, which transcript
-└── seats/<seat>.slice                                  the last turns of the seat's last session
+├── seats/<id>.json                                     who holds the seat, which process, which transcript
+├── seats/<id>.last.json                                the claim of the seat's last holder
+├── seats/<id>.slice                                    the last turns of the seat's last session
+└── backup/format-1-<UTC stamp>/                        the log and seats as they were before a migration
 ~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ```
+
+## Seat ids
+
+A seat has an id, `s-` and 6 random characters from `0-9a-z`, minted the first time its name is
+claimed and never changed. Events, claim files, slices and the cache's brief marks carry the id;
+`seats.json` maps each id to the seat's one current name, and no two seats share a name. A name
+reaches the store only through the registry: the log folds with every id turned into the name the
+seat has now, so a `rename` shows everywhere at once. No seat may be named in an id's shape.
+`seats.json` is written under the store's lock (`.lock` in the store root), through a temporary
+file renamed into place.
+
+## The format and its migration
+
+`format.json` holds the store's format, `{"format": 2}`; a store without one is format 1, where
+events and seat files name the seat. The first call that meets a format-1 store migrates it, holding
+the store lock from the first step to the last, so another call waits and then reads the migrated
+store:
+
+1. copy `log/` and `seats/` to `backup/format-1-<UTC stamp>/`;
+2. mint an id for every seat name an event or a seat file mentions;
+3. write a new log beside the old one, every event's seat replaced by its id;
+4. rename every seat file to its id, swap the new log in, write `seats.json`;
+5. write `format.json` last: its presence marks the migration done.
+
+A failure before `format.json` undoes every step, says
+`agentic-memory: migrating the store failed: <cause>; the store is unchanged and the next call tries again`
+once per session, and the call runs on the format-1 store. A store of a newer format than the release
+knows is refused: `agentic-memory: this store has format <n>; this release reads up to <m>`, with
+hooks silent and nothing written. A store created by this release starts at the current format. The
+log's manifest no longer carries a format number; one that does still reads.
 
 `<project>` is the `repo_id` the project's `.sdd/config.yaml` declares, else `local/` and a hash of
 its git common directory, the key sdd gives its own search index, so every worktree of a repository
@@ -42,7 +76,7 @@ stays in search, flagged, and `revive` refuses it.
 
 ## Seats and liveness
 
-A claim file names the holding session, the pid of its `claude` process, that process's start time
+A claim file, under the seat's id, names the holding session, the pid of its `claude` process, that process's start time
 (`started`, RFC 3339 in UTC), when it was claimed, and the session's transcript. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.
 

@@ -38,8 +38,9 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 }
 
 func (mem *memory) callTool(ctx context.Context, held command, arguments json.RawMessage) mcpserver.Result {
-	if mem.outsideGit {
-		return mcpserver.Result{Text: self + ": " + mem.outsideGitRefusal(), IsError: true}
+	refusal := mem.storeRefusal()
+	if refusal != "" {
+		return mcpserver.Result{Text: self + ": " + refusal, IsError: true}
 	}
 
 	err := exactKeys(held, arguments)

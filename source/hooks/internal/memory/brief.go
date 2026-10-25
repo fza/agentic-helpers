@@ -39,7 +39,7 @@ type briefMark struct {
 }
 
 func (mem *memory) briefMarkPath(seatName string) string {
-	return filepath.Join(mem.cacheDir(), "briefs", seatName+".json")
+	return filepath.Join(mem.cacheDir(), "briefs", mem.seatKey(seatName)+".json")
 }
 
 func (mem *memory) previousBrief(seatName string) time.Time {

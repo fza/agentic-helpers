@@ -143,6 +143,40 @@ func (l *Log) AppendWith(ctx context.Context, policy Policy, events ...Event) er
 	})
 }
 
+// Build writes events as a whole new log into dir, which must hold no log yet:
+// one segment carrying every event, listed by a manifest, and an empty tail.
+func Build(ctx context.Context, dir string, events []Event) error {
+	entries, err := os.ReadDir(dir)
+	if err == nil && len(entries) > 0 {
+		return fmt.Errorf("building a log into %s, which already holds one", dir)
+	}
+
+	l, err := Open(dir)
+	if err != nil {
+		return err
+	}
+
+	return l.locked(ctx, func(current manifest) error {
+		next := manifest{Segments: []string{}}
+
+		if len(events) > 0 {
+			name, err := l.writeSegment(events)
+			if err != nil {
+				return err
+			}
+
+			next.Segments = []string{name}
+		}
+
+		err := l.writeManifest(next)
+		if err != nil {
+			return fmt.Errorf("listing the built segment: %w", err)
+		}
+
+		return l.replaceFile(tailName, nil)
+	})
+}
+
 func (l *Log) Merge(ctx context.Context, policy Policy) error {
 	return l.locked(ctx, func(current manifest) error {
 		return l.merge(current, policy)

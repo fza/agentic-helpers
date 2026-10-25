@@ -36,6 +36,7 @@ Seat = named job, one session at a time. Entries carry the seat that filed them.
 ```bash
 agentic-memory claim <seat>             # free seat; prints brief + last turns of the previous session
 agentic-memory release [<seat>]
+agentic-memory rename '<new name>'      # the seat this session holds; id and entries stay
 agentic-memory holder <seat> [--json]   # exit 0 held, 1 free
 agentic-memory holder --session <id> --json
 agentic-memory sweep                    # list seats, free dead holders
@@ -52,6 +53,8 @@ agentic-memory sweep                    # list seats, free dead holders
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
 - **Only inside a git work tree.** Outside: every call refuses, `<dir> is not inside a git work
   tree; memory works only in one`. Plugin option `memory_require_git: false` lifts it, machine-wide.
+- **A seat has an id** (`s-` + 6), its name a label: `rename` changes only the name, the old name
+  frees. A name in an id's shape is refused.
 - Store → `~/.claude/agentic-memory/<project>/`, outside the repo. Project = `.sdd/config.yaml`
   `repo_id`, else a hash of the main checkout. Worktrees share it.
 

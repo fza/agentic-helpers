@@ -37,6 +37,11 @@ reads (`claim`, `release`, `holder`, `--seat`, the MCP keys carrying a seat, `ex
 `.sdd/grounding.yaml`) is normalised to Unicode NFC and lower-cased first, so `Café` typed
 precomposed or decomposed names one seat with one file.
 
+`rename '<new name>'` (MCP `rename`, key `name`) gives the seat the calling session holds a new
+name; its id, its entries and its files stay. A name in use, an invalid one, or one in a seat id's
+shape (`s-` and 6 letters or digits) is refused. The old name is free afterwards, and claiming it
+starts a new seat.
+
 An agent asked for a seat in words that are not its exact name ("Haupt-Session") lists the seats
 with `sweep`, maps the words onto the seat meaning the same, and asks when none or several fit.
 

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +34,12 @@ func (mem *memory) alive(ctx context.Context, held seat.Claim) bool {
 
 func (mem *memory) holder(ctx context.Context, req request) result {
 	if req.Session != "" {
-		name, held := seat.OfSession(mem.seatsDir(), req.Session)
+		key, held := seat.OfSession(mem.seatsDir(), req.Session)
+		name := ""
+		if key != "" {
+			name = mem.seatName(key)
+		}
+
 		view := holderView{Seat: name, SessionID: req.Session}
 
 		if name != "" {
@@ -54,7 +60,7 @@ func (mem *memory) holder(ctx context.Context, req request) result {
 		return refused("%v, %q is not one", seat.ErrBadName, req.Name)
 	}
 
-	held, found := seat.Read(mem.seatsDir(), req.Name)
+	held, found := seat.Read(mem.seatsDir(), mem.seatKey(req.Name))
 	view := holderView{Seat: req.Name}
 
 	if found {
@@ -89,9 +95,23 @@ func (mem *memory) holderAnswer(view holderView, asJSON bool) result {
 	return result{text: view.Seat + " is free", code: 1}
 }
 
+// newSeatName says why name cannot name a seat, or nothing where it can. An id's
+// shape is taken: a name in it would read as another seat's id.
+func newSeatName(name string) string {
+	switch {
+	case !seat.ValidName(name):
+		return fmt.Sprintf("%v, %q is not one", seat.ErrBadName, name)
+	case seat.IsID(name):
+		return fmt.Sprintf("%q has the shape of a seat id, s- and 6 letters or digits; name the seat otherwise", name)
+	}
+
+	return ""
+}
+
 func (mem *memory) claim(ctx context.Context, req request) result {
-	if !seat.ValidName(req.Name) {
-		return refused("%v, %q is not one", seat.ErrBadName, req.Name)
+	why := newSeatName(req.Name)
+	if why != "" {
+		return refused("%s", why)
 	}
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
@@ -101,12 +121,20 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		return refused("this session already holds %s; release that seat before claiming %s", current, req.Name)
 	}
 
+	if !mem.storeExists() {
+		err := mem.initStore()
+		if err != nil {
+			return refused("%v", err)
+		}
+	}
+
 	dir := mem.seatsDir()
-	existing, found := seat.Read(dir, req.Name)
+	key := mem.seatKey(req.Name)
+	existing, found := seat.Read(dir, key)
 	previous, hadPrevious := existing, found
 
 	if !hadPrevious {
-		previous, hadPrevious = seat.ReadLast(dir, req.Name)
+		previous, hadPrevious = seat.ReadLast(dir, key)
 	}
 
 	// A running holder may be mid-work, and nothing tells a stuck one from a busy
@@ -117,9 +145,9 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	if current == req.Name {
-		previous, hadPrevious = seat.ReadLast(dir, req.Name)
+		previous, hadPrevious = seat.ReadLast(dir, key)
 	} else if found {
-		err := seat.Remove(dir, req.Name)
+		err := seat.Remove(dir, key)
 		if err != nil {
 			return refused("%v", err)
 		}
@@ -140,7 +168,12 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		held.Started = seat.FormatStarted(started)
 	}
 
-	err := seat.Write(dir, req.Name, held)
+	key, err := mem.ensureSeat(ctx, req.Name)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	err = seat.Write(dir, key, held)
 	if err != nil {
 		return refused("%v", err)
 	}
@@ -204,7 +237,7 @@ func (mem *memory) newestOwn(folded *state, seatName string) time.Time {
 }
 
 func (mem *memory) slicePath(seatName string) string {
-	return filepath.Join(mem.seatsDir(), seatName+".slice")
+	return filepath.Join(mem.seatsDir(), mem.seatKey(seatName)+".slice")
 }
 
 // previousTurns is what the seat's previous session did after its newest
@@ -247,7 +280,9 @@ func (mem *memory) release(ctx context.Context, req request) result {
 		return refused("%v, %q is not one", seat.ErrBadName, name)
 	}
 
-	held, found := seat.Read(mem.seatsDir(), name)
+	key := mem.seatKey(name)
+
+	held, found := seat.Read(mem.seatsDir(), key)
 	if !found {
 		return done(name + " is free")
 	}
@@ -257,7 +292,7 @@ func (mem *memory) release(ctx context.Context, req request) result {
 			held.PID)
 	}
 
-	err := seat.Remove(mem.seatsDir(), name)
+	err := seat.Remove(mem.seatsDir(), key)
 	if err != nil {
 		return refused("%v", err)
 	}
@@ -270,8 +305,9 @@ func (mem *memory) sweep(ctx context.Context) []string {
 
 	held := seat.Held(mem.seatsDir())
 
-	for _, name := range seat.Known(mem.seatsDir()) {
-		claim, found := held[name]
+	for _, key := range seat.Known(mem.seatsDir()) {
+		claim, found := held[key]
+		name := mem.seatName(key)
 
 		switch {
 		case !found:
@@ -279,7 +315,7 @@ func (mem *memory) sweep(ctx context.Context) []string {
 		case mem.alive(ctx, claim):
 			rows = append(rows, fmt.Sprintf("%s  %s  pid %d", name, short(claim.SessionID), claim.PID))
 		default:
-			_ = seat.Remove(mem.seatsDir(), name)
+			_ = seat.Remove(mem.seatsDir(), key)
 			rows = append(rows, fmt.Sprintf("%s  free (holder %s gone, freed)", name, short(claim.SessionID)))
 		}
 	}
@@ -294,4 +330,56 @@ func (mem *memory) sweepCommand(ctx context.Context, _ request) result {
 	}
 
 	return done(strings.Join(rows, "\n"))
+}
+
+// rename gives the seat the calling session holds a new name. Entries, claims
+// and slices name the seat's id, so the registry is the only thing it changes.
+func (mem *memory) rename(ctx context.Context, req request) result {
+	own, _ := mem.ownSeat(ctx)
+	if own == "" {
+		return refused("this session holds no seat; a rename renames the seat it holds")
+	}
+
+	why := newSeatName(req.Name)
+	if why != "" {
+		return refused("%s", why)
+	}
+
+	if req.Name == own {
+		return done(own + " keeps its name")
+	}
+
+	unlock, err := mem.lockStore(ctx)
+	if err != nil {
+		return refused("%v", err)
+	}
+	defer unlock()
+
+	registry, found, err := seat.LoadRegistry(mem.store())
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	id, known := registry.IDOf(own)
+	if !found || !known {
+		return refused("this store keeps no seat ids yet, so %s cannot be renamed", own)
+	}
+
+	err = registry.Rename(id, req.Name)
+	if errors.Is(err, seat.ErrNameTaken) {
+		return refused("%s already names another seat", req.Name)
+	}
+
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	err = registry.Save()
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	mem.forgetRegistry()
+
+	return done(fmt.Sprintf("%s is now %s", own, req.Name))
 }

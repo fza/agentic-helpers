@@ -737,8 +737,21 @@ func (env Env) exempt(ctx context.Context, seats []string) bool {
 		return false
 	}
 
-	dir := seat.Dir(projectkey.Dir(seat.StoreRoot(env.Home), key))
-	name, _ := seat.Of(ctx, dir, env.Processes, env.OwnerName)
+	store := projectkey.Dir(seat.StoreRoot(env.Home), key)
+
+	held, _ := seat.Of(ctx, seat.Dir(store), env.Processes, env.OwnerName)
+	if held == "" {
+		return false
+	}
+
+	// A store of the current format files a claim under the seat's id; its
+	// registry says the name an exemption is written in.
+	name := held
+
+	registry, found, err := seat.LoadRegistry(store)
+	if err == nil && found {
+		name = registry.NameOf(held)
+	}
 
 	return name != "" && slices.ContainsFunc(seats, func(exempt string) bool { return seat.Normal(exempt) == name })
 }

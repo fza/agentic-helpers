@@ -9,6 +9,7 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -70,6 +71,13 @@ type memory struct {
 	// outsideGit is set where the session works outside a git work tree and
 	// the plugin keeps memory to git: nothing is read and nothing is created.
 	outsideGit bool
+
+	seatRegistry  *seat.Registry
+	registryFound bool
+
+	// unreadable says why the store is of a format newer than this release
+	// reads: nothing is read or written then.
+	unreadable string
 }
 
 func (mem *memory) root() string      { return seat.StoreRoot(mem.env.Home) }
@@ -112,6 +120,31 @@ func (mem *memory) insideWorkTree(ctx context.Context) bool {
 	return err == nil && strings.TrimSpace(answer) == "true"
 }
 
+// storeRefusal is why no call may touch the store, or empty where one may.
+func (mem *memory) storeRefusal() string {
+	switch {
+	case mem.outsideGit:
+		return mem.outsideGitRefusal()
+	case mem.unreadable != "":
+		return mem.unreadable
+	}
+
+	return ""
+}
+
+// reportFailedMigration says once per session that the store stayed at its
+// earlier format; every call then runs on it as it is.
+func (mem *memory) reportFailedMigration(err error) {
+	marker := filepath.Join(mem.cacheDir(), "migration-failed", cmp.Or(mem.env.SessionID, "no-session"))
+	if _, statErr := os.Stat(marker); statErr == nil {
+		return
+	}
+
+	_, _ = fmt.Fprintln(mem.streams.Err, self+": "+err.Error())
+	_ = os.MkdirAll(filepath.Dir(marker), 0o700)
+	_ = os.WriteFile(marker, nil, 0o600)
+}
+
 func (mem *memory) outsideGitRefusal() string {
 	return fmt.Sprintf("%s is not inside a git work tree; memory works only in one", mem.env.Base)
 }
@@ -147,9 +180,14 @@ func (mem *memory) retiredKeep() time.Duration {
 	return time.Duration(mem.options().RetiredBodyDays) * 24 * time.Hour
 }
 
-// ownSeat is the seat the calling process holds, or empty.
+// ownSeat is the name of the seat the calling process holds, or empty.
 func (mem *memory) ownSeat(ctx context.Context) (string, seat.Claim) {
-	return seat.Of(ctx, mem.seatsDir(), mem.env.Processes, mem.env.OwnerName)
+	key, held := seat.Of(ctx, mem.seatsDir(), mem.env.Processes, mem.env.OwnerName)
+	if key == "" {
+		return "", held
+	}
+
+	return mem.seatName(key), held
 }
 
 func (mem *memory) openLog() (*memorylog.Log, error) {
@@ -180,7 +218,7 @@ func (mem *memory) load(ctx context.Context) (*state, error) {
 
 	defer func() { _ = snapshot.Close() }()
 
-	return fold(snapshot)
+	return fold(snapshot, mem.seatName)
 }
 
 func (mem *memory) appendEvents(ctx context.Context, events ...memorylog.Event) error {
@@ -189,7 +227,15 @@ func (mem *memory) appendEvents(ctx context.Context, events ...memorylog.Event) 
 		return err
 	}
 
-	err = log.AppendWith(ctx, mergePolicy(mem.now(), mem.retiredKeep()), events...)
+	stored := make([]memorylog.Event, len(events))
+	for index, event := range events {
+		stored[index] = event
+		if event.Seat != "" {
+			stored[index].Seat = cmp.Or(mem.seatKey(event.Seat), event.Seat)
+		}
+	}
+
+	err = log.AppendWith(ctx, mergePolicy(mem.now(), mem.retiredKeep()), stored...)
 	if err != nil {
 		return fmt.Errorf("writing to the log: %w", err)
 	}
@@ -257,11 +303,18 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	mem := &memory{env: env, streams: streams}
 	mem.locate(ctx)
 
+	err := mem.prepare(ctx)
+	if errors.Is(err, ErrNewerStore) {
+		mem.unreadable = strings.TrimPrefix(err.Error(), ErrNewerStore.Error()+": ")
+	} else if err != nil {
+		mem.reportFailedMigration(err)
+	}
+
 	name, rest := args[0], args[1:]
 
 	hookEvent, isHook := hookEvents[name]
 	if isHook {
-		if mem.outsideGit {
+		if mem.outsideGit || mem.unreadable != "" {
 			return 0
 		}
 
@@ -272,8 +325,9 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return mem.serveMCP(ctx)
 	}
 
-	if mem.outsideGit && name != "help" && name != "--help" && name != "-h" {
-		_, _ = fmt.Fprintln(streams.Err, self+": "+mem.outsideGitRefusal())
+	refusal := mem.storeRefusal()
+	if refusal != "" && name != "help" && name != "--help" && name != "-h" {
+		_, _ = fmt.Fprintln(streams.Err, self+": "+refusal)
 
 		return 1
 	}

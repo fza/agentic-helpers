@@ -82,7 +82,7 @@ func (mem *memory) track(seatName string, held seat.Claim, payload hookio.Payloa
 	}
 
 	if changed {
-		_ = seat.Write(mem.seatsDir(), seatName, held)
+		_ = seat.Write(mem.seatsDir(), mem.seatKey(seatName), held)
 	}
 
 	return held
@@ -123,7 +123,8 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 
 	var named []string
 
-	for _, seatName := range seat.Known(mem.seatsDir()) {
+	for _, key := range seat.Known(mem.seatsDir()) {
+		seatName := mem.seatName(key)
 		live := 0
 
 		for _, entry := range folded.entryList() {
@@ -132,7 +133,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 			}
 		}
 
-		claim, found := claims[seatName]
+		claim, found := claims[key]
 		if found && mem.alive(ctx, claim) {
 			named = append(named, fmt.Sprintf("%s (%s, %d live)", seatName, short(claim.SessionID), live))
 		} else {

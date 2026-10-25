@@ -11,12 +11,15 @@ import (
 	"regexp"
 )
 
-const manifestFormat = 1
+// formerFormat is the version the manifest carried while it had one. The
+// store's format lives in the store's own format.json now; a manifest holding
+// this number still reads.
+const formerFormat = 1
 
 var segmentName = regexp.MustCompile(`^[0-9a-f]{8}\.seg$`)
 
 type manifest struct {
-	Format   int      `json:"format"`
+	Format   int      `json:"format,omitempty"`
 	Segments []string `json:"segments"`
 	Sealing  *sealing `json:"sealing,omitempty"`
 }
@@ -54,7 +57,7 @@ func (s *sealing) strip(tail []byte) ([]byte, bool) {
 func readManifest(path string) (manifest, os.FileInfo, error) {
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return manifest{Format: manifestFormat}, nil, nil
+		return manifest{}, nil, nil
 	}
 
 	if err != nil {
@@ -90,7 +93,7 @@ func decodeManifest(content []byte) (manifest, error) {
 		return manifest{}, fmt.Errorf("%w: decoding the manifest: %w", ErrCorrupt, err)
 	}
 
-	if current.Format != manifestFormat {
+	if current.Format != 0 && current.Format != formerFormat {
 		return manifest{}, fmt.Errorf("%w: manifest format %d", ErrCorrupt, current.Format)
 	}
 
@@ -104,7 +107,7 @@ func decodeManifest(content []byte) (manifest, error) {
 }
 
 func (l *Log) writeManifest(next manifest) error {
-	next.Format = manifestFormat
+	next.Format = 0
 	if next.Segments == nil {
 		next.Segments = []string{}
 	}

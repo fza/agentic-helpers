@@ -408,6 +408,12 @@ func commands() []command {
 				`"required":["name"]}`,
 		},
 		{
+			name: "rename", usage: "rename '<new name>'", description: "give the seat this session holds a new name; its id and entries stay",
+			positional: func(req *request) error { return exactly(1, &req.Name)(req) },
+			run:        (*memory).rename,
+			schema:     `{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}`,
+		},
+		{
 			name: "release", usage: "release [<seat>]", description: "give a seat up",
 			positional: optionalName, run: (*memory).release,
 			schema: `{"type":"object","properties":{"name":{"type":"string"}}}`,
