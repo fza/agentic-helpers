@@ -209,6 +209,8 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"other user's home", "{project}", "rm ~root/x", "ask"},
 		{"upper-case rm outside", "{project}", "RM -rf ~/x", "ask"},
 		{"dot glob", "{project}", "rm -rf .*", "ask"},
+		{"a link followed by a parent step", "{project}", "rm -rf link/../x", "ask"},
+		{"a parent step back into the project", "{project}/sub", "rm -rf ../sub/x", "ask"},
 		{"dot glob in a subdirectory", "{project}", "rm -rf sub/.[!.]*", "ask"},
 	}
 

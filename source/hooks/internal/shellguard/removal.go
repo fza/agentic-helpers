@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -91,7 +92,7 @@ func judgeRemoval(_ context.Context, args []*syntax.Word, workingDir string, env
 // be known before the shell expands it.
 func resolve(target string, base string, home string) string {
 	switch {
-	case strings.ContainsAny(target, "{}") || dotGlob(target):
+	case strings.ContainsAny(target, "{}") || dotGlob(target) || slices.Contains(strings.Split(target, "/"), ".."):
 		return ""
 	case target == "~":
 		target = home

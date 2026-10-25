@@ -22,7 +22,8 @@ argument. Its arguments after `--`, or not starting with `-`, are its targets. E
 physical absolute path: `~` and `~/` against the home directory, a relative one against `cwd`; `~user`
 and a brace leave it unresolvable. The deepest existing directory of a path resolves through its
 symlinks. A component starting with a dot and holding a glob character (`*?[`) leaves the target
-unresolvable, as bash without `globskipdots` matches `..` with `.*`. A target passes when it lies strictly below the project or `/tmp`: the directory itself is
+unresolvable, as bash without `globskipdots` matches `..` with `.*`; so does a `..` component, which
+the kernel takes after any symlink before it, where a lexical clean would not. A target passes when it lies strictly below the project or `/tmp`: the directory itself is
 never a target. The project is `$CLAUDE_PROJECT_DIR`, and none where it is unset, `/` or the home
 directory. Any target that fails, or no target, takes `shell_guard_outside_project`'s verdict
 naming each kind; a non-literal target denies under `shell_guard_expansion`, else takes that verdict

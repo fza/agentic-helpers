@@ -30,7 +30,7 @@ user or managed settings):
 
 | Option | Values | Default | Judges |
 |---|---|---|---|
-| `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a glob that can match a name starting with a dot, `..` among them), or that names no target |
+| `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a `..` step, which a symlink before it would carry elsewhere, a glob that can match a name starting with a dot, `..` among them), or that names no target |
 | `shell_guard_find_delete` | `ask`, `deny`, `off` | `ask` | `find ... -delete` |
 | `shell_guard_lone_removal` | boolean | `true` | a removal that is not the whole command |
 | `shell_guard_expansion` | boolean | `true` | a removal target built from a variable or command substitution |
