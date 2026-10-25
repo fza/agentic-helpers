@@ -154,7 +154,7 @@ agentic-memory new --title 'Gate ignores MCP reads' --topic gate --retention nor
 reads are recorded only for Bash, so a search through MCP never counts
 BODY
 agentic-memory search --term mcp --query 'gate blind to tool calls'
-agentic-memory supersede m-7q2k --by m-9xq0
+agentic-memory supersede m-7q2k4f --by m-9xq0b1
 ```
 
 - **An entry** has a 3-10 word title, a free body, topics the agent chooses (one namespace per
@@ -176,7 +176,9 @@ agentic-memory supersede m-7q2k --by m-9xq0
 
 The embedder is one per machine, set in the plugin's configuration dialog (`embedding_provider`,
 `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, with
-`entry_max_words` and `retired_body_days` beside them). No project overrides it. Without one, a search by meaning exits 1 naming the
+`entry_max_words`, `retired_body_days` and `entry_id_length` beside them). No project overrides it.
+An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
+most 16; an id filed at another length keeps working. Without one, a search by meaning exits 1 naming the
 cause, a keyword search still answers, and filing never waits: the next call that reaches the
 endpoint embeds what is pending.
 

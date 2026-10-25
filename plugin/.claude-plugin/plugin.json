@@ -51,6 +51,13 @@
       "description": "Days a retired entry keeps its body before a log merge drops it; at least 14",
       "default": 90,
       "required": false
+    },
+    "entry_id_length": {
+      "type": "number",
+      "title": "Entry id length",
+      "description": "Characters after m- in a new entry id, 6 to 16; ids already filed keep working",
+      "default": 6,
+      "required": false
     }
   }
 }

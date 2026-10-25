@@ -8,7 +8,16 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
+func defaultsWith(change func(options *pluginconfig.Options)) pluginconfig.Options {
+	options := pluginconfig.Defaults()
+	change(&options)
+
+	return options
+}
+
 func TestRead(t *testing.T) {
+	const own = `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":`
+
 	cases := []struct {
 		name    string
 		user    string
@@ -22,23 +31,22 @@ func TestRead(t *testing.T) {
 		},
 		{
 			name: "user settings configure the embedder",
-			user: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{
+			user: own + `{
 				"embedding_provider":"openai","embedding_model":"gemma","embedding_endpoint":"http://127.0.0.1:1235",
 				"embedding_dimensions":256,"embedding_api_key_env":"OPENAI_API_KEY","entry_max_words":"700"}}}}`,
-			want: pluginconfig.Options{
-				EmbeddingProvider: "openai", EmbeddingModel: "gemma", EmbeddingEndpoint: "http://127.0.0.1:1235",
-				EmbeddingDimensions: 256, EmbeddingAPIKeyEnv: "OPENAI_API_KEY", EntryMaxWords: 700,
-				RetiredBodyDays: pluginconfig.DefaultRetiredBodyDays,
-			},
+			want: defaultsWith(func(options *pluginconfig.Options) {
+				options.EmbeddingProvider, options.EmbeddingModel = "openai", "gemma"
+				options.EmbeddingEndpoint, options.EmbeddingDimensions = "http://127.0.0.1:1235", 256
+				options.EmbeddingAPIKeyEnv, options.EntryMaxWords = "OPENAI_API_KEY", 700
+			}),
 		},
 		{
 			name:    "managed settings win per key",
-			user:    `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"embedding_provider":"openai","embedding_model":"a"}}}}`,
-			managed: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"embedding_model":"b"}}}}`,
-			want: pluginconfig.Options{
-				EmbeddingProvider: "openai", EmbeddingModel: "b", EntryMaxWords: pluginconfig.DefaultEntryMaxWords,
-				RetiredBodyDays: pluginconfig.DefaultRetiredBodyDays,
-			},
+			user:    own + `{"embedding_provider":"openai","embedding_model":"a"}}}}`,
+			managed: own + `{"embedding_model":"b"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) {
+				options.EmbeddingProvider, options.EmbeddingModel = "openai", "b"
+			}),
 		},
 		{
 			name: "another plugin's options are ignored",
@@ -47,15 +55,28 @@ func TestRead(t *testing.T) {
 		},
 		{
 			name: "a retired body keeps the days set",
-			user: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120}}}}`,
-			want: pluginconfig.Options{EntryMaxWords: pluginconfig.DefaultEntryMaxWords, RetiredBodyDays: 120},
+			user: own + `{"retired_body_days":120}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.RetiredBodyDays = 120 }),
 		},
 		{
 			name: "a retired body is kept at least the revive window",
-			user: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":"7"}}}}`,
-			want: pluginconfig.Options{
-				EntryMaxWords: pluginconfig.DefaultEntryMaxWords, RetiredBodyDays: pluginconfig.MinRetiredBodyDays,
-			},
+			user: own + `{"retired_body_days":"7"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.RetiredBodyDays = pluginconfig.MinRetiredBodyDays }),
+		},
+		{
+			name: "an entry id takes the length set",
+			user: own + `{"entry_id_length":8}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.EntryIDLength = 8 }),
+		},
+		{
+			name: "an entry id is never shorter than the minimum",
+			user: own + `{"entry_id_length":3}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.EntryIDLength = pluginconfig.MinEntryIDLength }),
+		},
+		{
+			name: "an entry id is never longer than the maximum",
+			user: own + `{"entry_id_length":"40"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.EntryIDLength = pluginconfig.MaxEntryIDLength }),
 		},
 		{
 			name:    "a malformed settings file is an error",
@@ -64,7 +85,7 @@ func TestRead(t *testing.T) {
 		},
 		{
 			name:    "a non-numeric word limit is an error",
-			user:    `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"entry_max_words":"many"}}}}`,
+			user:    own + `{"entry_max_words":"many"}}}}`,
 			wantErr: true,
 		},
 	}

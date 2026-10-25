@@ -250,7 +250,9 @@ func validRetention(level string) bool {
 	return slices.Contains(retentionLevels, level)
 }
 
-const idSchema = `{"type":"string","pattern":"^m-[a-z0-9]{4}$"}`
+// idSchema takes every length a store can hold: the four characters ids were
+// once minted with, up to the longest entry_id_length allows.
+const idSchema = `{"type":"string","pattern":"^m-[a-z0-9]{4,16}$"}`
 
 func commands() []command {
 	return []command{

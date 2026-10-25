@@ -166,26 +166,45 @@ func (mem *memory) appendEvents(ctx context.Context, events ...memorylog.Event) 
 const idAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 func (mem *memory) newID(folded *state) (string, error) {
+	length := mem.options().EntryIDLength
+
 	for range 64 {
-		raw := make([]byte, 4)
-
-		_, err := io.ReadFull(mem.env.Random, raw)
+		id, err := drawID(mem.env.Random, length)
 		if err != nil {
-			return "", fmt.Errorf("drawing an entry id: %w", err)
+			return "", err
 		}
 
-		id := []byte("m-")
-		for _, value := range raw {
-			id = append(id, idAlphabet[int(value)%len(idAlphabet)])
-		}
-
-		_, taken := folded.entries[string(id)]
+		_, taken := folded.entries[id]
 		if !taken {
-			return string(id), nil
+			return id, nil
 		}
 	}
 
 	return "", errors.New("no free entry id after 64 draws")
+}
+
+// drawID takes each character from a random byte below 252, the largest
+// multiple of the alphabet's 36 a byte holds, so every character is equally
+// likely; a byte above it is drawn again.
+func drawID(random io.Reader, length int) (string, error) {
+	unbiased := 256 / len(idAlphabet) * len(idAlphabet)
+	id := []byte("m-")
+	drawn := make([]byte, 1)
+
+	for len(id) < len("m-")+length {
+		_, err := io.ReadFull(random, drawn)
+		if err != nil {
+			return "", fmt.Errorf("drawing an entry id: %w", err)
+		}
+
+		if int(drawn[0]) >= unbiased {
+			continue
+		}
+
+		id = append(id, idAlphabet[int(drawn[0])%len(idAlphabet)])
+	}
+
+	return string(id), nil
 }
 
 // Main runs one subcommand. A hook event in a project without a store stays

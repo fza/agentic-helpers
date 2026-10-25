@@ -26,6 +26,15 @@ const (
 	MinRetiredBodyDays     = 14
 )
 
+// DefaultEntryIDLength / MinEntryIDLength / MaxEntryIDLength bound the
+// characters after `m-` in a new entry id. Six give 36^6, about 2.2 billion
+// ids; past sixteen an id is one nobody types.
+const (
+	DefaultEntryIDLength = 6
+	MinEntryIDLength     = 6
+	MaxEntryIDLength     = 16
+)
+
 type Options struct {
 	EmbeddingProvider   string
 	EmbeddingModel      string
@@ -34,6 +43,7 @@ type Options struct {
 	EmbeddingAPIKeyEnv  string
 	EntryMaxWords       int
 	RetiredBodyDays     int
+	EntryIDLength       int
 }
 
 type settings struct {
@@ -87,12 +97,15 @@ func Read(paths []string) (Options, error) {
 	}
 
 	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
+	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
 
 	return options, nil
 }
 
 func Defaults() Options {
-	return Options{EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays}
+	return Options{
+		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
+	}
 }
 
 func (options *Options) apply(values map[string]json.RawMessage) error {
@@ -119,6 +132,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		"embedding_dimensions": &options.EmbeddingDimensions,
 		"entry_max_words":      &options.EntryMaxWords,
 		"retired_body_days":    &options.RetiredBodyDays,
+		"entry_id_length":      &options.EntryIDLength,
 	}
 
 	for key, target := range numbers {

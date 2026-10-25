@@ -15,7 +15,7 @@ line says which: `agentic-memory claim <seat>`.
 
 Memory works in the background. The user hears about it only when something goes wrong.
 
-- **Never narrate it.** No "filing this", "filed m-xxxx", "superseded", "retired", "checking memory",
+- **Never narrate it.** No "filing this", "filed m-xxxxxx", "superseded", "retired", "checking memory",
   no ids, no titles, no recap of the brief or the claim output. Claimed a seat → say nothing beyond
   what the user asked for.
 - **Use what it returns, silently.** A brief, a recalled entry, a search hit → act on it as on any
@@ -162,4 +162,5 @@ arguments as JSON (`body` for the body, arrays for repeatable flags). Same seat,
 
 - `new` reads the body from stdin. Heredoc, never `echo` with backticks in it.
 - `holder --json` exit 1 still prints JSON. Read the code, not the output.
-- Entry ids `m-xxxx` are per project. An id from another project names something else.
+- Entry ids `m-xxxxxx` (`entry_id_length`, 6 unless set; older ones 4) are per project. An id from
+  another project names something else.

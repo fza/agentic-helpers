@@ -92,7 +92,7 @@ func (h *harness) must(stdin string, args ...string) string {
 	return got.out
 }
 
-var idPattern = regexp.MustCompile(`m-[a-z0-9]{4}`)
+var idPattern = regexp.MustCompile(`m-[a-z0-9]{4,16}`)
 
 func (h *harness) file(title string, body string, extra ...string) string {
 	h.t.Helper()
@@ -136,7 +136,7 @@ func TestNewStampsAndAnchors(t *testing.T) {
 	out := h.must("the gate reads internal/gate/gate.go:12 only for Bash",
 		"new", "--title", "Gate ignores MCP reads", "--topic", "Gate", "--about", "README.md")
 
-	if !regexp.MustCompile(`^filed m-[a-z0-9]{4} Gate ignores MCP reads  \[main, normal, from agent, ` +
+	if !regexp.MustCompile(`^filed m-[a-z0-9]{6} Gate ignores MCP reads  \[main, normal, from agent, ` +
 		`2026-10-25 \d\d:\d\d [A-Z0-9+-]+, 15af1a8c\]`).MatchString(out) {
 		t.Errorf("filing should print the stamped line: %s", out)
 	}
@@ -479,6 +479,59 @@ func TestARetiredBodyDroppedByAMerge(t *testing.T) {
 	got := h.run("", "revive", "m-r3t1")
 	if got.code != 1 || !strings.Contains(got.err, "m-r3t1 body dropped; file it again") {
 		t.Errorf("a revive of a retired entry without its body should be refused, got %d %q", got.code, got.err)
+	}
+}
+
+func TestEntryIDLength(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	if id := h.file("Gate finding at the default length", "finding"); len(id) != len("m-")+6 {
+		t.Errorf("an entry id should take six characters unless set, got %s", id)
+	}
+
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"entry_id_length":8}}}}`)
+
+	if id := h.file("Gate finding at the length set", "finding"); len(id) != len("m-")+8 {
+		t.Errorf("an entry id should take the length the setting gives, got %s", id)
+	}
+}
+
+func TestAnIDFromAShorterLengthStillServes(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = log.Append(context.Background(), memorylog.Event{
+		Kind: memorylog.KindNew, Entry: "m-r3t1", Time: h.clock.Now().Add(-time.Hour), Seat: "main",
+		Payload: []byte(`{"title":"Gate finding minted with four characters","body":"finding","topics":["gate"],"retention":"normal"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, args := range [][]string{
+		{"show", "m-r3t1"},
+		{"retitle", "m-r3t1", "Gate finding still served by its id"},
+		{"tag", "m-r3t1", "ids"},
+		{"retain", "m-r3t1", "long"},
+		{"confirm", "m-r3t1"},
+		{"retire", "m-r3t1"},
+		{"revive", "m-r3t1"},
+		{"supersede", "m-r3t1", "--because", "wrong"},
+	} {
+		h.must("", args...)
+	}
+
+	requests := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"show","arguments":{"ids":["m-r3t1"]}}}` + "\n"
+
+	if !strings.Contains(h.must(requests, "mcp"), "Gate finding still served by its id") {
+		t.Error("an MCP tool should serve an id minted at an earlier length")
 	}
 }
 
