@@ -52,10 +52,10 @@ feature resting on an off piece goes off with it, and the rest of its piece runs
 line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`;
 run as a command it lists every piece on or off, with its features off under it.
 
-Hooks read the options Claude Code hands them as `CLAUDE_PLUGIN_OPTION_<KEY>`, which win; commands
-and the MCP servers read the settings files: `settings.json` under `CLAUDE_CONFIG_DIR` (else
-`~/.claude`), then the managed settings and their `managed-settings.d/` drop-ins in name order, as
-Claude Code merges them.
+Every binary reads `settings.json` under `CLAUDE_CONFIG_DIR` (else `~/.claude`), then, in a hook,
+the options Claude Code hands it as `CLAUDE_PLUGIN_OPTION_<KEY>`, then the managed settings and their
+`managed-settings.d/` drop-ins in name order, as Claude Code merges them. The managed settings come
+last, so no environment overrides what a machine locks.
 
 ## The skills
 

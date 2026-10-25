@@ -142,13 +142,21 @@ func pathsUnder(config string, managed string) []string {
 	return paths
 }
 
-// ReadWith folds the settings files as Read does, then the hook environment's
-// CLAUDE_PLUGIN_OPTION_<KEY> variables over them: Claude Code hands a hook the
-// options it resolved, which win.
+// ReadWith folds the user's settings, paths[0] as Paths orders them, then the
+// hook environment's CLAUDE_PLUGIN_OPTION_<KEY> variables, then the managed
+// settings, paths[1:], which no environment overrides: they are how a machine
+// locks a piece on.
 func ReadWith(paths []string, getenv func(string) string) (Options, error) {
-	options, err := Read(paths)
-	if err != nil || getenv == nil {
-		return options, err
+	if getenv == nil {
+		return Read(paths)
+	}
+
+	user, managed := paths[:min(1, len(paths))], paths[min(1, len(paths)):]
+	options := Defaults()
+
+	err := options.fold(user)
+	if err != nil {
+		return Options{}, err
 	}
 
 	values := map[string]json.RawMessage{}
@@ -172,6 +180,11 @@ func ReadWith(paths []string, getenv func(string) string) (Options, error) {
 		return Options{}, fmt.Errorf("reading the hook environment's options: %w", err)
 	}
 
+	err = options.fold(managed)
+	if err != nil {
+		return Options{}, err
+	}
+
 	options.clamp()
 
 	return options, nil
@@ -182,6 +195,17 @@ func ReadWith(paths []string, getenv func(string) string) (Options, error) {
 func Read(paths []string) (Options, error) {
 	options := Defaults()
 
+	err := options.fold(paths)
+	if err != nil {
+		return Options{}, err
+	}
+
+	options.clamp()
+
+	return options, nil
+}
+
+func (options *Options) fold(paths []string) error {
 	for _, path := range paths {
 		raw, err := os.ReadFile(path)
 		if errors.Is(err, fs.ErrNotExist) {
@@ -189,25 +213,23 @@ func Read(paths []string) (Options, error) {
 		}
 
 		if err != nil {
-			return Options{}, fmt.Errorf("reading %s: %w", path, err)
+			return fmt.Errorf("reading %s: %w", path, err)
 		}
 
 		var parsed settings
 
 		err = json.Unmarshal(raw, &parsed)
 		if err != nil {
-			return Options{}, fmt.Errorf("parsing %s: %w", path, err)
+			return fmt.Errorf("parsing %s: %w", path, err)
 		}
 
 		err = options.apply(parsed.PluginConfigs[PluginID].Options)
 		if err != nil {
-			return Options{}, fmt.Errorf("reading the %s options in %s: %w", PluginID, path, err)
+			return fmt.Errorf("reading the %s options in %s: %w", PluginID, path, err)
 		}
 	}
 
-	options.clamp()
-
-	return options, nil
+	return nil
 }
 
 func (options *Options) clamp() {

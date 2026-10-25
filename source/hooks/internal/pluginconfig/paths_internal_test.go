@@ -47,7 +47,14 @@ func TestADropInAndTheHookEnvironmentWin(t *testing.T) {
 	}
 
 	if options.MemoryEnabled || options.ToolsEnabled || options.EntryMaxWords != 300 || !options.ScratchEnabled {
-		t.Errorf("a drop-in should win over the user's settings and the hook environment over both, got %+v", options)
+		t.Errorf("the hook environment should win over the user's settings, a drop-in over both, got %+v", options)
+	}
+
+	locked, err := ReadWith([]string{user, dropIn}, func(name string) string {
+		return map[string]string{"CLAUDE_PLUGIN_OPTION_MEMORY_ENABLED": "true"}[name]
+	})
+	if err != nil || locked.MemoryEnabled {
+		t.Errorf("no hook environment should override what the managed settings set, got %+v %v", locked, err)
 	}
 
 	_, err = ReadWith(nil, func(name string) string {
