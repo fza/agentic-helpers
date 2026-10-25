@@ -200,6 +200,12 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
+	if strings.HasPrefix(payload.ToolName, "mcp__sdd__") {
+		recordMCP(ctx, env, payload)
+
+		return
+	}
+
 	command := payload.ToolInput.Command
 	if command == "" || payload.Failed() {
 		return
@@ -325,6 +331,14 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		return ""
 	}
 
+	if payload.ToolName == mcpShow {
+		if configErr != nil {
+			return configRefusal(configErr)
+		}
+
+		return mcpShowTooShallow(ctx, env, payload, config.ShowDepth)
+	}
+
 	if payload.ToolName == "Bash" {
 		found := readsBadly(ctx, env, payload)
 		if found != "" || writing(env, payload.ToolInput.Command) == writesNothing {
@@ -394,7 +408,7 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 }
 
 func gated(payload hookio.Payload) bool {
-	if payload.ToolName == "AskUserQuestion" {
+	if payload.ToolName == "AskUserQuestion" || gatesCapture(payload) {
 		return true
 	}
 

@@ -32,7 +32,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "AskUserQuestion|Write|Edit|NotebookEdit|Bash",
+        "matcher": "AskUserQuestion|Write|Edit|NotebookEdit|Bash|mcp__sdd__show|mcp__sdd__start_procedure",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate gate", "timeout": 15 }
         ]
@@ -40,7 +40,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|mcp__sdd__search|mcp__sdd__view",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate record", "timeout": 15 }
         ]

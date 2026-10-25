@@ -89,6 +89,53 @@ func TestACommandFetchesAMissingRelease(t *testing.T) {
 	}
 }
 
+func TestTheGateSeesSddsMCPTools(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
+	if err != nil {
+		t.Fatalf("reading hooks.json: %v", err)
+	}
+
+	var wiring struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+
+	err = json.Unmarshal(content, &wiring)
+	if err != nil {
+		t.Fatalf("parsing hooks.json: %v", err)
+	}
+
+	matched := func(event string, mode string) []string {
+		var tools []string
+
+		for _, group := range wiring.Hooks[event] {
+			for _, hook := range group.Hooks {
+				if strings.HasSuffix(hook.Command, "agentic-grounding-gate "+mode) {
+					tools = append(tools, strings.Split(group.Matcher, "|")...)
+				}
+			}
+		}
+
+		return tools
+	}
+
+	for _, tool := range []string{"mcp__sdd__show", "mcp__sdd__start_procedure"} {
+		if !slices.Contains(matched("PreToolUse", "gate"), tool) {
+			t.Errorf("the gate should judge %s before it runs", tool)
+		}
+	}
+
+	for _, tool := range []string{"mcp__sdd__search", "mcp__sdd__view"} {
+		if !slices.Contains(matched("PostToolUse", "record"), tool) {
+			t.Errorf("the gate should record %s as a read", tool)
+		}
+	}
+}
+
 func TestTheMCPServerRunsThroughTheCommandLauncher(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(pluginRoot, ".mcp.json"))
 	if err != nil {

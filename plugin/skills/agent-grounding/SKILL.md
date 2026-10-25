@@ -43,6 +43,9 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
   in between → run the three before `agentic-capture`.
 - **Plain `sdd new` → the three reads, always.** No draft, nothing grounded. `--dry-run` exempt.
   Wrapping it (`bash -c`, subshell, `xargs`, full path) changes nothing.
+- **sdd's MCP tools count the same.** `mcp__sdd__search` `query` = semantic, `terms` = literal;
+  `mcp__sdd__view` `layout` = the listing, same prefix rule. Only a call that succeeded counts.
+  `mcp__sdd__start_procedure` with `canonical: capture` → the three reads, like `agentic-capture`.
 
 - **Both modes. Always.** Semantic matches phrasing → misses other wording. Literal matches the
   token → misses everything phrased differently. Live decision already owning your subject → exactly
@@ -56,7 +59,8 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 
 **Every grounding read → `sdd show <id> --down 2 --up 1`.** Depths are part of the command, not a
 default to weigh. A project may owe another depth: `show_depth` in `.sdd/grounding.yaml` sets it,
-and the refusal names the depth owed.
+and the refusal names the depth owed. Through MCP → `mcp__sdd__show` with `"down": 2, "up": 1`
+spelled out: an omitted `down` reads as 1 and is refused.
 
 ```yaml
 show_depth:

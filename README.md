@@ -16,7 +16,8 @@ and a command the agent calls itself:
 
 **The grounding gate and capture exist for [sdd](https://github.com/fza/sdd)**, the
 Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd motivates them and drives them:
-the gate counts real `sdd search` and `sdd view` reads, and capture writes through `sdd new`.
+the gate counts real `sdd search` and `sdd view` reads, through the shell or sdd's MCP tools, and
+capture writes through `sdd new`.
 
 Every piece installs once for the whole machine and stays silent where it has nothing to work on: a
 project with no `.tmp/` or `.sdd/` directory, and a session that claimed no memory seat. Each comes with a skill, a Markdown file
@@ -230,6 +231,12 @@ every other project owes the view of every topic, `sdd view --layout "active:as-
 refuses a call that would discard the graph tool's own output, since a swallowed refusal reads
 exactly like an empty graph, and a read that stops at the entry itself, since a body is immutable
 and a later entry may have renamed every surface it names.
+
+sdd's MCP tools count and owe the same. `mcp__sdd__search` counts as the semantic read with
+`query` and the literal read with `terms`, `mcp__sdd__view` as a listing by its `layout`, and only
+a call that succeeded counts. `mcp__sdd__show` owes the same depth as `sdd show`, an omitted `down`
+or `up` counting as the server's default (1 and 2), and `mcp__sdd__start_procedure` starting
+`capture` owes the reads `agentic-capture` owes. Every other MCP tool passes.
 
 A show owes `--down 2 --up 1` unless `.sdd/grounding.yaml` sets another depth, and a project can
 name seats that owe none. A seat is agentic-memory's: the gate looks up the seat the claude process

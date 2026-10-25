@@ -29,8 +29,27 @@ type Payload struct {
 }
 
 type ToolInput struct {
-	Command  string `json:"command"`
-	FilePath string `json:"file_path"`
+	Command  string          `json:"command"`
+	FilePath string          `json:"file_path"`
+	Raw      json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON keeps the whole input beside the fields every tool shares,
+// since an MCP tool's arguments are its own.
+func (input *ToolInput) UnmarshalJSON(data []byte) error {
+	type plain ToolInput
+
+	var decoded plain
+
+	err := json.Unmarshal(data, &decoded)
+	if err != nil {
+		return fmt.Errorf("reading the tool input: %w", err)
+	}
+
+	*input = ToolInput(decoded)
+	input.Raw = append(json.RawMessage(nil), data...)
+
+	return nil
 }
 
 type ToolResponse struct {
