@@ -5,7 +5,7 @@ nothing. Asked about a project's decisions, it answers from whatever it happened
 probes and half-finished drafts pile up where nobody reviews them.
 
 agentic-helpers gives Claude Code the habits that counter this, as hooks that run on every session
-and a command the agent calls itself:
+and commands the agent calls itself:
 
 | Piece | Binary | What it keeps the agent doing |
 |---|---|---|
@@ -15,15 +15,11 @@ and a command the agent calls itself:
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
 
 **The grounding gate and capture exist for [sdd](https://github.com/fza/sdd)**, the
-Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd motivates them and drives them:
-the gate counts real `sdd search` and `sdd view` reads, through the shell or sdd's MCP tools, and
-capture writes through `sdd new`.
+Signal-Dialogue-Decision graph a project keeps under `.sdd/`.
 
-Every piece installs once for the whole machine and stays silent where it has nothing to work on: a
-project with no `.tmp/` or `.sdd/` directory, and a session that claimed no memory seat. Each comes with a skill, a Markdown file
-the agent loads to learn what the piece expects and what its refusals mean. Everything ships as one
-Claude Code plugin; the hooks and the command are Go binaries built from `source/hooks`, published
-with each release and fetched by the plugin.
+Every piece installs once for the whole machine and stays silent where it has nothing to work on.
+Everything ships as one Claude Code plugin; the hooks and commands are Go binaries built from
+`source/hooks`, published with each release and fetched by the plugin.
 
 **Every piece is built and tested with Claude Code only.** The hooks read Claude Code's payloads,
 settings and transcripts, and answer in its hook protocol; no other agent harness is tested, and
@@ -47,10 +43,6 @@ is a prerelease, so `releases/latest` finds none):
 curl -sL https://github.com/fza/sdd/releases/download/v0.18.0-alpha.2.fza.22/install.sh | sh
 ```
 
-A build is the fork when `sdd --version` carries `fza`. With any other sdd, `agentic-capture` refuses
-to run and says how to install the fork, and the grounding gate says the same once as a session
-starts, then stays off for that session.
-
 Then the plugin:
 
 ```bash
@@ -60,369 +52,14 @@ claude plugin install agentic-helpers@agentic-helpers
 
 Inside a session, `/plugin install agentic-helpers --marketplace fza/agentic-helpers` does both in
 one step (Claude Code 2.1.275 or later), and `fza/agentic-helpers#v<version>` pins the marketplace to
-one release. Installed at user scope, the plugin is enabled in
-every project on the machine, and Claude Code itself records that in its settings: no installer of
-ours edits `~/.claude/settings.json`. `claude plugin update agentic-helpers@agentic-helpers` moves to
-the latest release; it takes effect in the next session or after `/reload-plugins`. Auto-update is
-off by default for a marketplace like this one, and can be turned on under `/plugin`, Marketplaces.
+one release. Installed at user scope, the plugin is enabled in every project on the machine.
+`claude plugin update agentic-helpers@agentic-helpers` moves to the latest release; it takes effect
+in the next session or after `/reload-plugins`. Auto-update is off by default for a marketplace like
+this one, and can be turned on under `/plugin`, Marketplaces.
 
-### Where the binaries come from
+## Documentation
 
-The plugin holds no binaries. Every hook runs through `plugin/hooks/run`, which runs the binary of the
-release named by the plugin's own `version`, kept under the plugin's data directory
-(`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
-
-1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched.
-2. The plugin's version is there: it runs.
-3. At SessionStart, or for a command an agent runs (a `bin/` shim, the `memory` MCP server), the
-   release archive for this machine and the release's `checksums.txt` are downloaded; the archive
-   is unpacked only where its sha256 matches. A prompt or a tool-call hook never downloads. Claude
-   Code starts the MCP server alongside the SessionStart hooks, so the first to fetch holds a lock
-   (`.fetch-<version>/` in the data directory, its pid in `owner`) and the rest wait for it, up to
-   100 seconds. A fetch that is signalled removes its lock as it goes: Claude Code kills an MCP
-   server that has not connected within 30 seconds, and the server fetches first. A waiter finding
-   the owner's process gone, as after `SIGKILL`, takes the lock over at once; a lock with no
-   `owner` file is taken over once older than five minutes.
-4. Otherwise the newest version already there runs. A session that cannot write the data directory,
-   such as a sandboxed job, runs what an earlier session fetched.
-5. No binary at all: the grounding gate refuses every call it guards, with a message naming the fix,
-   rather than letting work run ungrounded, and every other hook does nothing. The SessionStart that
-   failed to fetch says why, once.
-
-Claude Code's Bash tool finds `agentic-capture` and `agentic-memory` through the plugin's `bin/`,
-which hands each call to the same launcher, so `agentic-capture --help` is answered by the real
-binary; with no binary installed and none fetchable, a command from `bin/` or the MCP server exits 1
-and says why on stderr, where a hook would stay silent. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
-`go install -C source/hooks ./cmd/...` from a checkout.
-
-### Coming from `agentic-install`
-
-A machine wired by the former `agentic-install` runs every hook twice once the plugin is enabled.
-Before installing the plugin, run `agentic-install --remove`; it takes its hook entries out of the
-settings file and its skill links out of the skills directory, and leaves everything else as it was.
-It finds its checkout by a `skills/` directory at the root, which only `v1.0.0` and earlier carry,
-so it runs from a checkout of `v1.0.0`:
-
-```bash
-git worktree add /tmp/agentic-helpers-v1.0.0 v1.0.0
-cd /tmp/agentic-helpers-v1.0.0 && agentic-install --remove
-git worktree remove /tmp/agentic-helpers-v1.0.0
-```
-
-### Working on the plugin
-
-Add this checkout as the marketplace, so the plugin loads from it in place and an edit to a skill or
-to `plugin/` reaches the next session or `/reload-plugins`:
-
-```bash
-claude plugin marketplace add /path/to/agentic-helpers
-claude plugin install agentic-helpers@agentic-helpers
-```
-
-The binaries the checkout builds reach the hooks through `AGENTIC_HELPERS_BIN_DIR`, set once in the
-`env` block of the settings file to the directory `go install` writes to:
-
-```json
-{ "env": { "AGENTIC_HELPERS_BIN_DIR": "/Users/you/go/bin" } }
-```
-
-A change to a binary then reaches the hooks on the next event after
-`go install -C source/hooks ./cmd/...`. While the variable is set, no release is fetched or run on
-that machine.
-
-### Releasing
-
-A release is cut by starting the `release` workflow by hand (`gh workflow run release.yml`, or the
-Actions tab). It runs the tests, then semantic-release reads the commits since the last tag: `fix:`
-cuts a patch, `feat:` a minor, a `!` after the type a major, and every other type, `sdd:` included,
-cuts nothing. A releasable run writes the new version into `plugin/.claude-plugin/plugin.json`, commits it
-to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and creates the GitHub release
-with the generated notes; GoReleaser adds an archive per platform (darwin and linux, arm64 and amd64)
-and `checksums.txt` to it. A breaking change marked without `!` ships as a minor. Pull before
-pushing after a release: `main` carries the release commit.
-
-## What each one does
-
-### Memory
-
-A session runs out of context and the next one starts knowing nothing. With agentic-memory a session
-files what it learns as it works, one entry per finding, and the tool stamps, indexes and replays
-it. Nothing is ever rewritten: an entry is retired or superseded, and the tool chooses what returns
-to a fresh context.
-
-A **seat** is a named job, held by one session at a time; claiming one is what turns memory on for
-a session, by a prompt or an instruction line. Every entry carries the seat that filed it, and a
-search covers the own seat unless it names others, so one seat sees what another holds and nothing
-is done twice. A call finds its seat through the `claude` process that owns it, so a command run
-from the Bash tool, a tool call to the plugin's MCP server and a hook all agree, also after `/clear`.
-
-```bash
-agentic-memory claim main
-agentic-memory new --title 'Gate ignores MCP reads' --topic gate --retention normal <<'BODY'
-reads are recorded only for Bash, so a search through MCP never counts
-BODY
-agentic-memory search --term mcp --query 'gate blind to tool calls'
-agentic-memory supersede m-7q2k4f --by m-9xq0b1
-```
-
-- **An entry** has a 3-10 word title, a free body, topics the agent chooses (one namespace per
-  project, merged with `merge`), a retention level setting how long it stays in view (`standing`,
-  `long`, `normal`, `short`, `scratch`) and a source (`--from user|agent|tool`). The tool stamps time,
-  seat, session, branch and commit, and anchors the entry to every file it names by content hash.
-- **Search** is sdd's: `--term` is a case-insensitive regex, every term required; `--query` searches
-  by meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or `other branch`
-  as computed against the tree right then, and `confirm` re-anchors a verified entry. A `show` and a
-  search's top three hits add heat, which orders the brief; `--no-heat` (MCP `"no_heat": true`) reads
-  without it, for a sweep or a script no person is behind.
-- **What comes back:** a brief at every claim and compaction (standing entries, the seat's live
-  entries by heat, what other seats changed and filed, the topics), the turns since the seat's newest
-  entry, and up to three entries a prompt touches that stand out from the rest. Near compaction a
-  nudge asks the seat to file what the summary would lose; a session's last turns survive its end
-  for the next claim. There is no handoff to write.
-- **Every subcommand is also a tool** of the plugin's `memory` MCP server,
-  `mcp__plugin_agentic-helpers_memory__<subcommand>`, and `agentic-memory help` lists them. A tool
-  takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_SEATS`), and its
-  schema says so with `additionalProperties: false`; any other key refuses the call with
-  `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
-- **Other tools read seats** through `agentic-memory holder <seat> --json` and
-  `agentic-memory holder --session <id> --json`.
-
-The embedder is one per machine, set in the plugin's configuration dialog (`embedding_provider`,
-`embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, with
-`entry_max_words`, `retired_body_days` and `entry_id_length` beside them). No project overrides it.
-An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
-most 16; an id filed at another length keeps working. Without one, a search by meaning exits 1 naming the
-cause, a keyword search still answers, and filing never waits: the next call that reaches the
-endpoint embeds what is pending.
-
-```
-~/.claude/agentic-memory/<project>/
-├── log/tail.jsonl, log/<hash>.seg, log/manifest.json   the append-only log: the truth
-├── seats/<seat>.json                                   who holds the seat, which process, which transcript
-└── seats/<seat>.slice                                  the last turns of the seat's last session
-~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
-~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
-```
-
-The tail seals past 64 KiB into an immutable segment, and eight segments merge into one. A merge
-bounds what history it keeps: every event older than 14 days, the revive window, folds into the
-shortest run of existing event kinds that rebuilds its entry (one `new` row carrying the title,
-topics and retention as they stood, the latest `confirm`, and the `retire` or `supersede` still
-standing), so the log grows with the entries it holds rather than with every change ever made, and
-a binary of an earlier release still reads it. Topic merges and every younger event stay as they
-are. The same merge drops the body of an entry superseded more than 14 days earlier, or retired more
-than `retired_body_days` earlier (90 unless set, never under 14); the entry stays in search, flagged,
-and `revive` refuses it.
-
-`<project>` is the `repo_id` the project's `.sdd/config.yaml` declares, else a hash of its git
-directory, the key sdd gives its own search index. agentic-memory never reads or writes a project's
-`.memory/` directory; a seat whose `.memory/carryforward/<seat>-memory.md` still exists is told at
-claim to file its findings and delete that one file.
-
-The nudge reads how full the context is from `~/.claude/agentic-memory/sessions/<session>.ctx`,
-`{"used_percentage": <n>, "size": <window>, "at": <unix seconds>}`. Claude Code hands that figure to
-a status line and to a mod, never to a command hook, so the plugin carries a hooks module,
-`plugin/hooks/register.ts`, which writes the file on `session.measure` after every turn wherever
-`~/.claude/agentic-memory` exists; no status line has to. A Claude Code too old to load mods writes
-no reading, and the nudge falls back to transcript growth.
-
-### The scratch sweep
-
-An agent writes probes, one-off scripts and captured output. Sent to the system temporary directory
-they are invisible to whoever reviews the work; left at the root of the project's own `.tmp/` they
-pile up, and nothing tells a throwaway apart from a draft that still matters.
-
-So a session writes its throwaway under a directory named for itself, and that directory goes when
-the session ends. A directory abandoned by a session that crashed is reaped a week later.
-
-**Only a directory named for a session is ever removed.** A name the sweep cannot parse as a session
-identifier is somebody's deliberate keep, and survives whatever its age.
-
-```
-.tmp/
-├── claude/<session-id>/   throwaway. Swept.
-├── claude/<name>/         kept. Never swept.
-├── drafts/                awaiting capture. Never swept.
-└── <the project's own>    never touched
-```
-
-### The grounding gate
-
-An agent asked to reason about a decision graph will answer from the entry it already read, or from
-what it believes the graph holds. Both are how a wrong answer gets written down with confidence.
-
-The gate refuses a question, a draft edit or an `agentic-capture` call until the turn carries real
-reads: a literal search and a semantic one, because each misses what the other finds, and a
-listing, because an empty search result is never evidence of absence. A project naming a topic
-prefix in `.sdd/grounding.yaml` (`listing_prefix: area-`) owes a listing of one topic carrying it;
-every other project owes the view of every topic, `sdd view --layout "active:as-counts"`. It also
-refuses a call that would discard the graph tool's own output, since a swallowed refusal reads
-exactly like an empty graph, and a read that stops at the entry itself, since a body is immutable
-and a later entry may have renamed every surface it names.
-
-sdd's MCP tools count and owe the same. `mcp__sdd__search` counts as the semantic read with
-`query` and the literal read with `terms`, `mcp__sdd__view` as a listing by its `layout`, and only
-a call that succeeded counts. `mcp__sdd__show` owes the same depth as `sdd show`, an omitted `down`
-or `up` counting as the server's default (1 and 2), and `mcp__sdd__start_procedure` starting
-`capture` owes the reads `agentic-capture` owes. Every other MCP tool passes.
-
-A show owes `--down 2 --up 1` unless `.sdd/grounding.yaml` sets another depth, and a project can
-name seats that owe none. A seat is agentic-memory's: the gate looks up the seat the claude process
-running the hook claimed, so a session holding no claim owes the depth. The exemption lifts the
-depth alone; every other refusal holds for every seat.
-
-```yaml
-show_depth:
-  down: 3                    # a direction left out keeps its default; 0 owes nothing
-  up: 1
-  exempt_seats: [reviewer]
-```
-
-A project keeping a graph can still lift the gate. `enabled: false` switches it off for every
-session, as if the project carried no graph; left out, the gate is on. Top-level `exempt_seats`
-names seats the gate never refuses: a session holding one passes every check, the reads, the
-discarded stream and the depth alike. A file that does not parse keeps the gate on and refusing.
-
-```yaml
-enabled: false               # left out or true: the gate runs
-exempt_seats: [reviewer]     # seats the gate never refuses; show_depth's own lifts the depth alone
-```
-
-A project running its reads through a wrapper names it, and the refusals suggest reads the wrapper
-accepts. `read_command` replaces `sdd` in every suggested read and counts as a read beside `sdd`
-wherever the gate looks for one; `read_suffix` ends every suggested read and is never required. A
-project naming neither gets bare `sdd`. Graph writes stay with `sdd new` and `agentic-capture`.
-
-A project whose tooling runs every read in one call names it as `gather_command`, and the refusal
-offers that call ahead of the separate reads. A successful call through it counts as a semantic
-search when it carries `--query`, a literal one when it carries `--term`, and a listing for each
-`--area <name>` carrying the listing prefix; naming no `--area`, it counts as a listing of every area
-its `--entry` subject carries. A call missing a mode still owes it. A project naming no
-`gather_command` gets nothing credited for a call shaped like one.
-
-```yaml
-read_command: python3 scripts/graph.py      # plain words: no quotes, variables or operators
-gather_command: python3 scripts/gather.py   # plain words too; absent, no call counts as one
-read_suffix: --entry <entry>                # one line, printed only
-```
-
-A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as it stands now, in a
-turn carrying every read, while the graph holds the same entries (their count and the newest). The
-turn confirming a playback then need not repeat the reads the draft turn ran. A draft written
-through the shell, changed since, or captured after the graph moved owes the reads in the capture
-turn. A capture counts however the shell spells it: after a runner, in a subshell, inside
-`bash -c`, under any path. A plain `sdd new` without `--dry-run` owes the reads too, and since it
-names no draft, nothing grounded stands in for them. The gate keeps each session's reads and
-grounded drafts under `.sdd/tmp/grounding-gate/`, removes a session's files when it ends, and at a
-session start removes those a session left a week ago without ending cleanly.
-
-### Capturing an entry
-
-`agentic-capture <draft.md>` writes one sdd entry from a draft file: a YAML block carrying the
-fields `sdd new` takes, and the body below it. The body reaches `sdd new` as one argument, never
-through a shell, because a second shell runs backticks in a body as commands and every code
-identifier vanishes from an entry that can never be edited.
-
-Before it writes, the draft clears three gates in turn: its header names what the call needs (and a
-topic carrying the project's `listing_prefix`, where one is set) and carries no key that reaches no
-`sdd new` flag, since an entry written without a field never gains it; the project's own lint reports
-nothing on the body, and `sdd new --dry-run` reports nothing of high severity. The lint is whatever
-the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --output=line` alike,
-and a project naming none gets no lint. The gate refuses a capture whose turn carries neither the
-reads nor a grounded draft.
-
-A graph on an older schema than the installed sdd refuses every write, the pre-flight included. The
-capture then says ``the graph needs `sdd migrate` before sdd writes to it; the draft did not cause
-this``, prints sdd's reason and exits 1, since no edit to the draft helps; `sdd migrate` is the
-graph owner's to run.
-
-The pre-flight is a model call, so a provider can fail it without the draft being at fault. A try
-that answers nothing, is rate-limited, fails with status 408, 409 or 5xx, times out within sdd, or
-runs past `--preflight-limit` (default `5m`, or `CAPTURE_PREFLIGHT_LIMIT` for a caller; the flag
-wins) runs again after 10 seconds, then after 30, and gives up with exit 1 after the third. A cut-off
-try kills sdd's whole process group, so a `claude -p` it started dies with it. A refusal of the
-draft never retries: a high finding, a shape error, or any other status. The write itself runs once,
-because the summary is its only model call and sdd writes the entry without one when it fails; a
-failure there comes from the file or git, after the entry may already be on disk.
-
-A caller with more than one provider names fallback routes for the pre-flight, each with
-`--preflight-route <model>=<layer>`: the model sdd gets as `--model`, and a configuration layer it
-gets as `--local-config`, as many as needed, tried in the order given. Once the caller's own
-configuration has failed all three tries on a provider fault, each route gets one try, with no wait,
-and the first one answering without a fault decides the pre-flight: its findings hold the draft back
-or let it through just as the primary's would. A refusal never moves on to a route, and the write
-itself always runs on the caller's own configuration. With routes named, stdout opens with
-`AGENTIC_CAPTURE_ROUTE <model>` (or `primary`) for the route that answered; where none did, each
-route's last error stands on its own line before the failure. A layer holds an API key, so one that
-is missing, unreadable, owned by someone else, or readable by group or others is skipped with a line
-saying so, and its contents are never read. A caller naming no route sees none of this, and
-`--help` lists the flag for a caller detecting support.
-
-A caller that already ran the pre-flight on a draft passes `--preflight-done <sha256>`: the sha256
-of the draft file's bytes as read from disk, front matter included, as `sha256sum <draft.md>` prints
-it. Where the draft hashes to that value, the header check and the lint still run, the pre-flight is
-skipped with `pre-flight skipped: the caller ran it on these exact bytes`, and the entry is recorded
-as verified, never as unchecked. Where it hashes to anything else, one line names both values and the
-pre-flight runs as usual, so the caller learns its key differs. The flag is refused beside
-`--skip-preflight`. `--help` prints the usage line and one line per flag on stdout, the
-`--preflight-done` line naming the bytes the hash covers.
-
-Exit 0 is captured, 2 is a high finding holding the draft back, 1 everything else.
-
-## The skills
-
-A hook fires and an agent that has never met it has to work out what just happened. Each hook has a
-skill carrying what it cannot say in a one-line refusal.
-
-| Skill | Carries |
-|---|---|
-| `agentic-helpers:agent-memory` | what a seat is, how to claim one, how to file, find, retire and supersede, what belongs in memory against what belongs in the graph (and that a project without a graph files its decisions and defects in memory), and what comes back after a compaction |
-| `agentic-helpers:agent-grounding` | the three sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
-| `agentic-helpers:agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
-| `agentic-helpers:agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
-
-Each skill is the whole of its rules. A global instruction file names the skill and says to load it;
-it never restates what the skill holds, because two copies drift and a reader obeys whichever they
-opened.
-
-Each says in its own description when it applies, so an agent in an unrelated project has no reason
-to open any of them.
-
-The plugin carries the skills, so Claude Code names each after it (`agentic-helpers:agent-capture`), and
-a plugin update brings every skill's new text with it.
-
-## How a project opts in
-
-**No hook does anything until the project carries what it operates on.** Nothing is created,
-nothing is asked, and a project carrying none of it never hears from any hook.
-
-| Hook | Runs when the project carries | Otherwise |
-|---|---|---|
-| Memory | a seat claimed with `agentic-memory claim <seat>`; where a project has memory but this session holds no seat, one line names the seats | exits 0, silently |
-| Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
-| Scratch sweep | a `.tmp/` directory | exits 0, silently |
-
-So opting a project in is one command, `mkdir .tmp` or `agentic-memory claim <seat>`, and opting
-out is removing the directory or releasing the seat. A project using none needs no configuration, no
-allowlist entry and no marker file, and installing these hooks costs it nothing.
-
-## Working on this
-
-```bash
-cd source/hooks && go vet ./... && go test -race ./...   # every Go suite
-claude plugin validate .                                 # the plugin and marketplace manifests
-claude plugin test plugin                                # the plugin's hooks module, register.ts
-```
-
-The rules for this code live in [`source/AGENTS.md`](source/AGENTS.md). Each suite drives its
-binary's `Main` against a tree built in a temporary directory, with processes faked, never the real
-ones. The plugin's suite runs the real `plugin/hooks/run` and `plugin/bin/` shims against a fake `curl` and a
-temporary data directory, and checks that every hook in `plugin/hooks/hooks.json` goes through the launcher
-and that the release builds every binary under `source/hooks/cmd/`. Every guard is asserted from
-both sides: the same call is driven once with the evidence present and once with it missing, and
-the two outcomes have to differ. A guard that cannot fail is worthless.
-
-Pushes and pull requests run the same suites on Linux and macOS (`.github/workflows/test.yml`).
+How to use each piece and how each works inside: [`docs/index.md`](docs/index.md).
 
 ## Licence
 

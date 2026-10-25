@@ -11,14 +11,15 @@ loads [`source/AGENTS.md`](source/AGENTS.md) too** whenever a session touches `s
 and `agentic-capture` exist for [sdd](https://github.com/fza/sdd): sdd's decision graph under
 `.sdd/` motivates them and drives what they check. They install once for every project on the
 machine and stay silent where a hook has nothing to work on: a project without the directory it
-needs, a session holding no memory seat. [`README.md`](README.md) describes each hook's behaviour
-and how a project opts in.
+needs, a session holding no memory seat. [`README.md`](README.md) says what the repository is and
+how to install it; [`docs/`](docs/index.md) says how each piece is used and how it works.
 
 | Path | Holds |
 |---|---|
 | `source/hooks/` | one Go module: a binary per hook, `agentic-capture` and `agentic-memory` under `cmd/`, everything else under `internal/` |
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
 | `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` MCP server), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
+| `docs/` | one folder per piece, each with `usage.md` and `architecture.md` |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 
 ## Setup and commands
@@ -38,7 +39,7 @@ finds at a plugin's root, so nothing but the plugin's own files goes into `plugi
 `.mcp.json` and instruction files stay at the root. A machine
 working on them sets `AGENTIC_HELPERS_BIN_DIR` to the `go install` directory, so a change reaches a
 session on the next hook event after `go install` runs again. A release is cut only by the
-`release` workflow; `README.md` describes both.
+`release` workflow; `docs/plugin/` describes both.
 
 ## Working agreements
 
@@ -53,7 +54,8 @@ session on the next hook event after `go install` runs again. A release is cut o
   does not describe it.
 - **A hook's output wording is part of its contract.** Skills and agents quote it. Change it on
   purpose, in the same change as every skill quoting it.
-- **A change to what a hook does updates its skill and the README in the same change.**
+- **A change that lands updates the `docs/` pages it makes untrue, in the same change.** A skill
+  changes with it wherever the skill describes what changed.
 - **Break every new guard, watch its test fail, and restore the file byte-identically.** A guard no
   test can fail is removed rather than kept.
 
@@ -70,7 +72,7 @@ session on the next hook event after `go install` runs again. A release is cut o
 
 ## The graph
 
-`.sdd/` answers why the hooks are the way they are. `README.md` answers what they do.
+`.sdd/` answers why the hooks are the way they are. `docs/` answers what they do.
 
 - **A body is never edited, and no entry deleted.** Supersede a decision, close a signal.
   `sdd summarize` replaces a summary that misleads.
