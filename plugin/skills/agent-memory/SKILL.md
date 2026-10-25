@@ -75,7 +75,10 @@ What goes in:
 | measured fact nothing else records | how work is done → `AGENTS.md` |
 | trap that already cost time | code structure, git history → nowhere |
 
-Never a second copy of a decision: memory points at its id. **No credential, ever.**
+**No `.sdd/` graph → decision and defect, gap, blocker go into memory**, `--retention long`. Fixed
+one → `retire`. Overturned decision → `supersede <old> --by <new>`. Other rows stand.
+
+Graph holds the decision → never a second copy: memory points at its id. **No credential, ever.**
 
 ## Retention = how long it stays in view
 

@@ -348,7 +348,7 @@ skill carrying what it cannot say in a one-line refusal.
 
 | Skill | Carries |
 |---|---|
-| `agentic-helpers:agent-memory` | what a seat is, how to claim one, how to file, find, retire and supersede, what belongs in memory against what belongs in the graph, and what comes back after a compaction |
+| `agentic-helpers:agent-memory` | what a seat is, how to claim one, how to file, find, retire and supersede, what belongs in memory against what belongs in the graph (and that a project without a graph files its decisions and defects in memory), and what comes back after a compaction |
 | `agentic-helpers:agent-grounding` | the three sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
 | `agentic-helpers:agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
 | `agentic-helpers:agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
