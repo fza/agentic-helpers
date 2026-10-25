@@ -40,6 +40,7 @@ agentic-memory rename '<new name>'      # the seat this session holds; id and en
 agentic-memory holder <seat> [--json]   # exit 0 held, 1 free
 agentic-memory holder --session <id> --json
 agentic-memory sweep                    # list seats, free dead holders
+agentic-memory who                      # every live seated session, every project; changes nothing
 ```
 
 - Name → any script: a letter, then up to 23 letters, marks, digits or dashes. Normalised (NFC,

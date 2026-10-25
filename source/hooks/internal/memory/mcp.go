@@ -39,7 +39,7 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 
 func (mem *memory) callTool(ctx context.Context, held command, arguments json.RawMessage) mcpserver.Result {
 	refusal := mem.storeRefusal()
-	if refusal != "" {
+	if refusal != "" && held.name != "who" {
 		return mcpserver.Result{Text: self + ": " + refusal, IsError: true}
 	}
 

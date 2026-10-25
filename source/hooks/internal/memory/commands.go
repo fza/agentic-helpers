@@ -404,6 +404,10 @@ func commands() []command {
 				`,"topic":{"type":"array","items":{"type":"string"}}},"required":["id","topic"]}`,
 		},
 		{
+			name: "who", usage: "who", description: "every live seated session on the machine, in every project",
+			run: (*memory).who, schema: `{"type":"object","properties":{}}`,
+		},
+		{
 			name: "follow", usage: "follow <topic>...", description: "receive every entry filed under these topics",
 			positional: topicsOnly, run: (*memory).follow,
 			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"}}},"required":["topic"]}`,

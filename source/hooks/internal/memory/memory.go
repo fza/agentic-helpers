@@ -314,6 +314,14 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	mem := &memory{env: env, streams: streams}
 	mem.locate(ctx)
 
+	// who reads every store on the machine and changes none, so it neither
+	// needs a git work tree nor migrates the caller's store.
+	if args[0] == "who" {
+		mem.say(mem.who(ctx, request{}).text)
+
+		return 0
+	}
+
 	err := mem.prepare(ctx)
 	if errors.Is(err, ErrNewerStore) {
 		mem.unreadable = strings.TrimPrefix(err.Error(), ErrNewerStore.Error()+": ")

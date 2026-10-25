@@ -143,6 +143,15 @@ takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_
 schema says so with `additionalProperties: false`; any other key refuses the call with
 `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
 
+## Every seated session on the machine
+
+`agentic-memory who` (MCP `who`, no keys) lists every live seated session in every project's store
+under `~/.claude/agentic-memory/`, one line each, sorted by project, then seat: the project key, the
+seat's name, the session id's first 8 characters, the pid, and since when it holds the seat. It only
+reads: it frees no seat whose holder is gone, warms nothing and migrates no store, and it runs
+anywhere, inside a git work tree or not. With nobody seated it says
+`no live seated session on this machine`.
+
 ## Other tools
 
 Other tools read seats through `agentic-memory holder <seat> --json` and
