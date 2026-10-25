@@ -1,0 +1,55 @@
+# Shell-guard: architecture
+
+`agentic-shell-guard` is the plugin's `PreToolUse` hook on `Bash` (`plugin/hooks/hooks.json`, through
+`plugin/hooks/run`). `cmd/agentic-shell-guard` resolves `$CLAUDE_PROJECT_DIR`, the home directory,
+`/tmp` and the settings files, and `internal/shellguard` decides. It reads the call's `cwd` and
+`tool_input.command`, and answers `permissionDecision` `deny` or `ask` with a reason, or nothing to
+let the call run. A call it cannot read, and a panic, exit 2, which blocks the call; any other exit
+would let it run.
+
+## Parsing
+
+The command is parsed with `mvdan.cc/sh/v3/syntax` as bash: a parse error denies. Words are judged
+by their literal value: plain text, single quotes, and double quotes around plain text read as their
+value; anything with an expansion (`$x`, `$(...)`, `` `...` ``, `$'...'`) has none. A command's name
+is the base name of its first word, so `/bin/rm` and `\rm` are `rm`.
+
+## Lone removals
+
+A command is a lone removal when it is one statement, not negated, not in the background, without
+redirections or assignments, whose name is `rm`, `rmdir` or `unlink`, or `git` with `rm` as its first
+argument. Its arguments after `--`, or not starting with `-`, are its targets. Each resolves to a
+physical absolute path: `~` and `~/` against the home directory, a relative one against `cwd`; `~user`
+and a brace leave it unresolvable. The deepest existing directory of a path resolves through its
+symlinks. A target passes when it lies strictly below the project or `/tmp`: the directory itself is
+never a target. The project is `$CLAUDE_PROJECT_DIR`, else `cwd`, and none where it is `/` or the
+home directory. Any target that fails, or no target, takes `shell_guard_outside_project`'s verdict
+naming each kind; a non-literal target denies under `shell_guard_expansion`, else takes that verdict
+as `cannot place`.
+
+## Everything else
+
+Any other command is walked call by call. A removal (or `git ... rm`) denies under
+`shell_guard_lone_removal`, else takes the outside-project verdict as `cannot place: <targets> (not
+alone)`. `mktemp` denies under `shell_guard_mktemp`, its reason naming `.tmp/` by whether the project
+carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A launcher (`sudo`,
+`env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
+stood alone.
+
+Code another program runs as shell, `eval`'s arguments and the word after a shell's `-c`-carrying
+option, is joined and parsed again, and walked with removals and `mktemp` only noted. Under
+`shell_guard_nested_code` a noted one denies, and so does code that is no literal or does not parse;
+with it off, a noted removal and unreadable code take the outside-project verdict as `cannot place:
+code handed to <runner> (nested code)`, and a noted `mktemp` passes. Inline code for another
+interpreter cannot be parsed: an argument whose text names `rm`, `rmdir`, `unlink` or `mktemp` as a
+word denies under the nested-code guard, and with it off a removal takes the same `cannot place`
+verdict. Any other guard's verdict found inside nested code counts as found outside it.
+
+Every guard adds a verdict; `deny` outranks `ask`, which outranks letting the call run, and the first
+reason given for the strongest stands.
+
+## Options
+
+`internal/pluginconfig` reads the six `shell_guard_*` options from the user and managed settings
+files, as every other piece does. A mode other than `ask`, `deny` or `off`, or a file it cannot read,
+leaves every option at its default, so a typo never switches a guard off.

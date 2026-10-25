@@ -16,12 +16,14 @@ Go rules, loaded when a session touches code under `source/`.
 - **Standard library first.** A dependency earns its place by removing a mechanism the hooks would
   otherwise carry and test themselves. `github.com/goccy/go-yaml` reads a draft's header and
   `.sdd/grounding.yaml`, since the standard library parses no YAML; `golang.org/x/text` normalises
-  seat names to NFC, which the standard library cannot.
+  seat names to NFC, which the standard library cannot; `mvdan.cc/sh/v3` parses bash for
+  shell-guard, the only way to tell a removal from text that names one.
 
 ## Hooks
 
 - **A hook stays silent in a project without its directory.** It reads nothing, creates nothing and
-  exits 0 before it touches stdin.
+  exits 0 before it touches stdin. Shell-guard has no directory to wait for: its work is every Bash
+  call.
 - **Output wording is part of the contract.** Skills and agents quote it. Change it on purpose, never
   in passing.
 

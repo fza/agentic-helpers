@@ -85,6 +85,46 @@
       "default": 0.45,
       "required": false
     },
+    "shell_guard_outside_project": {
+      "type": "string",
+      "title": "Shell-guard: removals outside the project",
+      "description": "ask, deny or off for an rm, rmdir, unlink or git rm reaching outside the project and /tmp; empty means ask",
+      "required": false
+    },
+    "shell_guard_find_delete": {
+      "type": "string",
+      "title": "Shell-guard: find -delete",
+      "description": "ask, deny or off for find ... -delete; empty means ask",
+      "required": false
+    },
+    "shell_guard_lone_removal": {
+      "type": "boolean",
+      "title": "Shell-guard: removals run alone",
+      "description": "Deny a removal that is not the whole Bash command: no other statement, pipe, redirection, subshell or wrapper",
+      "default": true,
+      "required": false
+    },
+    "shell_guard_expansion": {
+      "type": "boolean",
+      "title": "Shell-guard: literal removal targets",
+      "description": "Deny a removal whose target is built from a variable or command substitution",
+      "default": true,
+      "required": false
+    },
+    "shell_guard_nested_code": {
+      "type": "boolean",
+      "title": "Shell-guard: nested code",
+      "description": "Deny a removal or mktemp inside eval, a shell's -c, or inline code for another interpreter",
+      "default": true,
+      "required": false
+    },
+    "shell_guard_mktemp": {
+      "type": "boolean",
+      "title": "Shell-guard: mktemp",
+      "description": "Deny mktemp anywhere in a Bash command; scratch files go under the project's .tmp/",
+      "default": true,
+      "required": false
+    },
     "tools_duplicate_floor": {
       "type": "number",
       "title": "Tool duplicate floor",

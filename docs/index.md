@@ -14,3 +14,4 @@ Each piece has a folder with two pages: `usage.md`, what an agent or a person do
 | [`scratch/`](scratch/usage.md) | `agentic-scratch`: where throwaway goes and what the sweep removes ([architecture](scratch/architecture.md)) |
 | [`grounding-gate/`](grounding-gate/usage.md) | `agentic-grounding-gate`: the reads a turn owes before a question, a draft or a capture ([architecture](grounding-gate/architecture.md)) |
 | [`capture/`](capture/usage.md) | `agentic-capture`: writing one sdd entry from a draft ([architecture](capture/architecture.md)) |
+| [`shell-guard/`](shell-guard/usage.md) | `agentic-shell-guard`: the removals and `mktemp` calls every Bash call is held to ([architecture](shell-guard/architecture.md)) |

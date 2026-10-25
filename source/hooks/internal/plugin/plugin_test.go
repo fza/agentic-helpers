@@ -505,6 +505,7 @@ func TestNoBinaryAtAll(t *testing.T) {
 		notice bool
 	}{
 		{name: "the gate refuses", args: []string{"agentic-grounding-gate", "gate"}, code: 2},
+		{name: "shell-guard refuses", args: []string{"agentic-shell-guard"}, code: 2},
 		{name: "a session start says why once", args: []string{"--session-start", "agentic-scratch", "start"}, notice: true},
 		{name: "any other hook stays quiet", args: []string{"agentic-memory", "prompt"}},
 		{name: "the gate's own record stays quiet", args: []string{"agentic-grounding-gate", "record"}},

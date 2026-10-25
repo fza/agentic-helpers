@@ -32,6 +32,10 @@ builds:
     id: agentic-tools
     main: ./cmd/agentic-tools
     binary: agentic-tools
+  - <<: *binary
+    id: agentic-shell-guard
+    main: ./cmd/agentic-shell-guard
+    binary: agentic-shell-guard
 
 # hooks/run fetches agentic-helpers_<version>_<os>_<arch>.tar.gz and checks it
 # against checksums.txt; both names are part of its contract.

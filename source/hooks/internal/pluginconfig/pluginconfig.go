@@ -18,6 +18,13 @@ const PluginID = "agentic-helpers@agentic-helpers"
 
 const DefaultEntryMaxWords = 500
 
+// The verdicts shell-guard's outside-project and find -delete guards take.
+const (
+	ShellGuardAsk  = "ask"
+	ShellGuardDeny = "deny"
+	ShellGuardOff  = "off"
+)
+
 // DefaultToolsDuplicateFloor is the cosine at or above which agentic-tools
 // holds a new tool's description to be another tool's.
 const DefaultToolsDuplicateFloor = 0.85
@@ -59,8 +66,16 @@ type Options struct {
 	// TemporarySeatLifetime is how long a closed temporary shelf keeps its
 	// entries, as `lifetime` spells a span; empty takes agentic-memory's default.
 	TemporarySeatLifetime string
-	ToolsDuplicateFloor   float64
-	ToolsQueryFloor       float64
+	// ShellGuardOutsideProject / ShellGuardFindDelete are `ask`, `deny` or
+	// `off`; the other shell-guard options switch a guard that denies when on.
+	ShellGuardOutsideProject string
+	ShellGuardFindDelete     string
+	ShellGuardLoneRemoval    bool
+	ShellGuardExpansion      bool
+	ShellGuardNestedCode     bool
+	ShellGuardMktemp         bool
+	ToolsDuplicateFloor      float64
+	ToolsQueryFloor          float64
 }
 
 type settings struct {
@@ -123,7 +138,9 @@ func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
 		MemoryRequireGit: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
-		ToolsQueryFloor: DefaultToolsQueryFloor,
+		ToolsQueryFloor:          DefaultToolsQueryFloor,
+		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk,
+		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
 	}
 }
 
@@ -189,7 +206,32 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
-	switches := map[string]*bool{"memory_require_git": &options.MemoryRequireGit}
+	modes := map[string]*string{
+		"shell_guard_outside_project": &options.ShellGuardOutsideProject,
+		"shell_guard_find_delete":     &options.ShellGuardFindDelete,
+	}
+
+	for key, target := range modes {
+		raw, found := values[key]
+		if !found {
+			continue
+		}
+
+		value, err := mode(raw, *target)
+		if err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+
+		*target = value
+	}
+
+	switches := map[string]*bool{
+		"memory_require_git":       &options.MemoryRequireGit,
+		"shell_guard_lone_removal": &options.ShellGuardLoneRemoval,
+		"shell_guard_expansion":    &options.ShellGuardExpansion,
+		"shell_guard_nested_code":  &options.ShellGuardNestedCode,
+		"shell_guard_mktemp":       &options.ShellGuardMktemp,
+	}
 
 	for key, target := range switches {
 		raw, found := values[key]
@@ -206,6 +248,25 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 	}
 
 	return nil
+}
+
+// mode accepts `ask`, `deny` or `off`; an empty string keeps fallback.
+func mode(raw json.RawMessage, fallback string) (string, error) {
+	var value string
+
+	err := json.Unmarshal(raw, &value)
+	if err != nil {
+		return "", fmt.Errorf("%s is not a string", raw)
+	}
+
+	switch value {
+	case "":
+		return fallback, nil
+	case ShellGuardAsk, ShellGuardDeny, ShellGuardOff:
+		return value, nil
+	}
+
+	return "", fmt.Errorf("%q is none of ask, deny, off", value)
 }
 
 // boolean accepts a JSON boolean or the string the dialog may store for one.

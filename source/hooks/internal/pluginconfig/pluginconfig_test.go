@@ -118,6 +118,23 @@ func TestRead(t *testing.T) {
 			want: defaultsWith(func(options *pluginconfig.Options) { options.MemoryLanguage = "de" }),
 		},
 		{
+			name: "shell-guard settings",
+			user: own + `{"shell_guard_outside_project":"deny","shell_guard_find_delete":"off","shell_guard_mktemp":false}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) {
+				options.ShellGuardOutsideProject, options.ShellGuardFindDelete, options.ShellGuardMktemp = "deny", "off", false
+			}),
+		},
+		{
+			name: "an empty shell-guard mode keeps ask",
+			user: own + `{"shell_guard_outside_project":""}}}}`,
+			want: defaultsWith(func(*pluginconfig.Options) {}),
+		},
+		{
+			name:    "a shell-guard mode of another word is an error",
+			user:    own + `{"shell_guard_find_delete":"sometimes"}}}}`,
+			wantErr: true,
+		},
+		{
 			name: "a temporary seat lifetime",
 			user: own + `{"temporary_seat_lifetime":"12h"}}}}`,
 			want: defaultsWith(func(options *pluginconfig.Options) { options.TemporarySeatLifetime = "12h" }),

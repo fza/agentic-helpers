@@ -14,6 +14,7 @@ and commands the agent calls itself:
 | scratch sweep | `agentic-scratch` | keeping throwaway work in one place per session, and clearing it when the session ends |
 | grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing |
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
+| shell-guard | `agentic-shell-guard` | keeping every removal inside the project and `/tmp`, and scratch files out of `mktemp`, on every Bash call |
 
 **The grounding gate and capture exist for [sdd](https://github.com/fza/sdd)**, the
 Signal-Dialogue-Decision graph a project keeps under `.sdd/`.
@@ -27,6 +28,7 @@ machine outside the repository, fades by each entry's retention, and survives a 
 session. A memory entry points at a graph entry by id; it never copies a decision.
 
 Every piece installs once for the whole machine and stays silent where it has nothing to work on.
+Shell-guard's work is every Bash call, so it judges every project; its options turn it off.
 Everything ships as one Claude Code plugin; the hooks and commands are Go binaries built from
 `source/hooks`, published with each release and fetched by the plugin.
 

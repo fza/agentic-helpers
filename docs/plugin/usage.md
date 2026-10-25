@@ -2,7 +2,7 @@
 
 ## How a project opts in
 
-**No hook does anything until the project carries what it operates on.** Nothing is created,
+**No hook but shell-guard does anything until the project carries what it operates on.** Nothing is created,
 nothing is asked, and a project carrying none of it never hears from any hook.
 
 | Hook | Runs when the project carries | Otherwise |
@@ -11,6 +11,7 @@ nothing is asked, and a project carrying none of it never hears from any hook.
 | Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
 | Tool library | a git work tree, on a machine whose library `~/.claude/agentic-tools/` the first `agentic-tools add` created | exits 0, silently |
+| Shell-guard | nothing: it judges every Bash call of every project | its `shell_guard_*` options turn each guard off |
 
 So opting a project in is one command, `mkdir .tmp`, `agentic-memory claim <seat>` or a first
 `agentic-tools add`, and opting out is removing the directory or releasing the seat. A project using none needs no configuration, no
@@ -34,8 +35,10 @@ PATH and builds the binaries itself: `go install -C source/hooks ./cmd/...` from
 ## Options
 
 The plugin's configuration dialog (`/plugin`, or `pluginConfigs` in the user or managed settings)
-carries agentic-memory's options and agentic-tools' `tools_query_floor` and `tools_duplicate_floor`; no project overrides
-them. [`../memory/usage.md`](../memory/usage.md) and [`../tools/usage.md`](../tools/usage.md) list each.
+carries agentic-memory's options, agentic-tools' `tools_query_floor` and `tools_duplicate_floor`, and
+shell-guard's six `shell_guard_*` options; no project overrides them.
+[`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md) and
+[`../shell-guard/usage.md`](../shell-guard/usage.md) list each.
 
 ## The skills
 
@@ -49,6 +52,7 @@ skill carrying what it cannot say in a one-line refusal.
 | `agentic-helpers:agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
 | `agentic-helpers:agent-tools` | looking for a tool before writing one, taking and registering tools, what each duplicate refusal means, and what each `tool library:` line asks |
 | `agentic-helpers:agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
+| `agentic-helpers:agent-shell-guard` | what passes a Bash call, what each shell-guard refusal and question means, and what to do about it |
 
 Each skill is the whole of its rules. A global instruction file names the skill and says to load it;
 it never restates what the skill holds, because two copies drift and a reader obeys whichever they
