@@ -43,7 +43,7 @@ session on the next hook event after `go install` runs again. A release is cut o
 
 ## Working agreements
 
-- **Never push.** Commit only when asked.
+- **Never push.** Commit every change that lands, without asking, as soon as its tests pass.
 - **Never build to check that code compiles - run the tests.** `go vet ./...` inside `source/hooks`
   is the quick compile check.
 - **A commit message is one line**: a Conventional Commits prefix (`feat:`, `fix:`, `docs:`,
