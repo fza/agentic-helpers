@@ -9,6 +9,10 @@ const (
 	ShellPID = 150
 	OwnerPID = 200
 	DeadPID  = 999_999
+
+	OtherHookPID  = 110
+	OtherShellPID = 350
+	OtherOwnerPID = 300
 )
 
 type Process struct {
@@ -19,18 +23,39 @@ type Process struct {
 
 type Processes struct {
 	Table map[int]Process
+	self  int
 }
 
 func NewProcesses() *Processes {
-	return &Processes{Table: map[int]Process{
-		HookPID:  {Parent: ShellPID, Name: "agentic-carryforward", Started: "hook"},
+	return &Processes{self: HookPID, Table: map[int]Process{
+		HookPID:  {Parent: ShellPID, Name: "agentic-memory", Started: "hook"},
 		ShellPID: {Parent: OwnerPID, Name: "zsh", Started: "shell"},
-		OwnerPID: {Parent: 1, Name: "claude", Started: "Thu Sep 25 14:00:00 2026"},
+		OwnerPID: {Parent: 1, Name: "claude", Started: OwnerStarted},
 	}}
 }
 
+// Other is a second live session on the same machine: another hook process
+// under another claude process, sharing this process table, so two seats can
+// act in one test and a kill in either is seen by both.
+func (fake *Processes) Other() *Processes {
+	fake.Table[OtherHookPID] = Process{Parent: OtherShellPID, Name: "agentic-memory", Started: "hook"}
+	fake.Table[OtherShellPID] = Process{Parent: OtherOwnerPID, Name: "zsh", Started: "shell"}
+	fake.Table[OtherOwnerPID] = Process{Parent: 1, Name: "claude", Started: OtherOwnerStarted}
+
+	return &Processes{Table: fake.Table, self: OtherHookPID}
+}
+
+// Kill takes a process out of the table, as if it exited.
+func (fake *Processes) Kill(pid int) {
+	delete(fake.Table, pid)
+}
+
 func (fake *Processes) Self() int {
-	return HookPID
+	if fake.self == 0 {
+		return HookPID
+	}
+
+	return fake.self
 }
 
 func (fake *Processes) Parent() int {

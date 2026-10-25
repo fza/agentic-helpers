@@ -75,8 +75,10 @@ func TestANegativeDepthIsAConfigError(t *testing.T) {
 
 func TestAnExemptSeat(t *testing.T) {
 	env := configured(t, "show-depth-exempt.yaml")
-	test.ClaimSeat(t, env.ProjectDir, "reviewer", test.Session)
-	test.ClaimSeat(t, env.ProjectDir, "scout", test.OtherSession)
+	processes := test.NewProcesses()
+	env.Processes, env.OwnerName = processes, "claude"
+	store := test.MemoryStore(env.ProjectDir, env.Home, env.Checkout)
+	test.ClaimSeat(t, store, "reviewer", test.Session)
 
 	t.Run("reads at any depth", func(t *testing.T) {
 		passes(t, run(t, env, "gate", as(test.Session, bash(shownEntry))))
@@ -99,24 +101,32 @@ func TestAnExemptSeat(t *testing.T) {
 		refuses(t, run(t, env, "gate", as(test.Session, bash("agentic-capture .sdd/tmp/drafts/d.md"))), "search")
 	})
 
-	t.Run("a seat not named owes the depth", func(t *testing.T) {
-		refuses(t, run(t, env, "gate", as(test.OtherSession, bash(shownEntry))), "reads short of `--down 2 --up 1`")
-	})
+	other := env
+	other.Processes = processes.Other()
 
 	t.Run("a session holding no seat owes the depth", func(t *testing.T) {
-		refuses(t, run(t, env, "gate", bash(shownEntry)), "reads short of `--down 2 --up 1`")
+		refuses(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))), "reads short of `--down 2 --up 1`")
+	})
+
+	t.Run("a seat not named owes the depth", func(t *testing.T) {
+		test.ClaimOtherSeat(t, store, "scout", test.OtherSession)
+		refuses(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))), "reads short of `--down 2 --up 1`")
+	})
+
+	t.Run("a claim whose holder is gone exempts nobody", func(t *testing.T) {
+		processes.Kill(test.OwnerPID)
+		refuses(t, run(t, env, "gate", as(test.Session, bash(shownEntry))), "reads short of `--down 2 --up 1`")
 	})
 }
 
 func TestSeatsLiveInTheMainCheckout(t *testing.T) {
 	main := t.TempDir()
-	test.ClaimSeat(t, main, "reviewer", test.Session)
 
 	env := configured(t, "show-depth-exempt.yaml")
 	env.Checkout = test.CommonDir{Dir: filepath.Join(main, ".git")}
+	env.Processes, env.OwnerName = test.NewProcesses(), "claude"
+
+	test.ClaimSeat(t, test.MemoryStore(main, env.Home, env.Checkout), "reviewer", test.Session)
 
 	passes(t, run(t, env, "gate", as(test.Session, bash(shownEntry))))
-
-	test.ClaimSeat(t, env.ProjectDir, "reviewer", test.OtherSession)
-	refuses(t, run(t, env, "gate", as(test.OtherSession, bash(shownEntry))), "reads short")
 }

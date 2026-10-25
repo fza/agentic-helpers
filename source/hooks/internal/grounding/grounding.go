@@ -21,7 +21,8 @@
 // stderr, and discarding it turns a refusal into an empty result), and a show
 // stopping short of the depth `.sdd/grounding.yaml` sets, `--down 2 --up 1`
 // where it sets none. A seat the file exempts owes no depth; it learns which
-// seat a session holds from the carry-forward's claims.
+// seat a session holds from agentic-memory's claims, through the claude process
+// owning the hook.
 //
 // The file can also lift the gate: `enabled: false` switches it off for the
 // project, and a seat named in top-level `exempt_seats` is never refused.
@@ -56,6 +57,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
+	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddfork"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
@@ -104,6 +106,8 @@ type Env struct {
 	Home       string
 	Checkout   project.CommonDirLookup
 	Runner     sddfork.Runner
+	Processes  seat.Processes
+	OwnerName  string
 }
 
 func (env Env) project() string {
@@ -317,7 +321,7 @@ func turn(ctx context.Context, env Env, payload hookio.Payload) {
 // exempts earns none.
 func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 	config, configErr := env.config()
-	if configErr == nil && env.exempt(ctx, payload.SessionID, config.ExemptSeats) {
+	if configErr == nil && env.exempt(ctx, config.ExemptSeats) {
 		return ""
 	}
 
@@ -592,7 +596,7 @@ func hidesTheDownstream(ctx context.Context, env Env, session string, texts []st
 			continue
 		}
 
-		if env.exempt(ctx, session, owed.ExemptSeats) {
+		if env.exempt(ctx, owed.ExemptSeats) {
 			return ""
 		}
 
@@ -663,16 +667,19 @@ func depthFlags(owed graphconfig.ShowDepth) string {
 	return strings.Join(flags, " ")
 }
 
-// exempt reports whether the session holds a seat owing no depth. A subagent
-// carries its session's id, so it reads as the seat its session holds.
-func (env Env) exempt(ctx context.Context, session string, seats []string) bool {
-	if len(seats) == 0 {
+// exempt reports whether the calling session holds a seat owing no depth: the
+// agentic-memory seat its owning claude process claimed. A subagent runs in
+// its session's process, so it reads as the seat its session holds.
+func (env Env) exempt(ctx context.Context, seats []string) bool {
+	if len(seats) == 0 || env.Processes == nil {
 		return false
 	}
 
-	root := project.Root(ctx, env.project(), env.Checkout)
+	key := projectkey.Key(ctx, env.project(), env.Checkout)
+	dir := seat.Dir(projectkey.Dir(seat.StoreRoot(env.Home), key))
+	name, _ := seat.Of(ctx, dir, env.Processes, env.OwnerName)
 
-	return slices.Contains(seats, seat.OfSession(seat.Dir(root), session))
+	return name != "" && slices.Contains(seats, name)
 }
 
 // elsewhere reports whether the command starts by walking into another

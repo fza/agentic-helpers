@@ -1,10 +1,49 @@
 {
   "name": "agentic-helpers",
   "version": "1.2.0",
-  "description": "The carry-forward, scratch sweep and grounding gate hooks, agentic-capture, and a skill for each",
+  "description": "agentic-memory, the scratch sweep and grounding gate hooks, agentic-capture, and a skill for each",
   "author": {
     "name": "Felix Zandanel"
   },
   "homepage": "https://github.com/fza/agentic-helpers",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "embedding_provider": {
+      "type": "string",
+      "title": "Embedding provider",
+      "description": "openai (any OpenAI-compatible endpoint) or ollama; empty turns semantic search off",
+      "required": false
+    },
+    "embedding_model": {
+      "type": "string",
+      "title": "Embedding model",
+      "description": "The model the endpoint serves, e.g. embeddinggemma-300m-6bit",
+      "required": false
+    },
+    "embedding_endpoint": {
+      "type": "string",
+      "title": "Embedding endpoint",
+      "description": "Base URL, e.g. http://127.0.0.1:1235; empty takes the provider's default",
+      "required": false
+    },
+    "embedding_dimensions": {
+      "type": "number",
+      "title": "Embedding dimensions",
+      "description": "0 keeps the model's own",
+      "required": false
+    },
+    "embedding_api_key_env": {
+      "type": "string",
+      "title": "API key variable",
+      "description": "Name of the environment variable holding a hosted embedder's key; the key itself is never stored",
+      "required": false
+    },
+    "entry_max_words": {
+      "type": "number",
+      "title": "Entry word limit",
+      "description": "Words an entry should stay within; longer entries still land, with a note",
+      "default": 500,
+      "required": false
+    }
+  }
 }

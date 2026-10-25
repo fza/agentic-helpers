@@ -17,9 +17,9 @@ builds:
       - amd64
       - arm64
   - <<: *binary
-    id: agentic-carryforward
-    main: ./cmd/agentic-carryforward
-    binary: agentic-carryforward
+    id: agentic-memory
+    main: ./cmd/agentic-memory
+    binary: agentic-memory
   - <<: *binary
     id: agentic-grounding-gate
     main: ./cmd/agentic-grounding-gate

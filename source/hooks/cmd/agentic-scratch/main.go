@@ -1,6 +1,6 @@
 // Command agentic-scratch is the Claude Code hook sweeping a project's
 // `.tmp/claude/<session-id>/` directories: `end` removes the ending session's
-// own, `start` reaps abandoned ones and reports what `.memory/` has let slip.
+// own, and `start` reaps abandoned ones.
 package main
 
 import (

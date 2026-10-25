@@ -27,16 +27,10 @@ import (
 // Matching this shape is the whole safety of the sweep.
 var sessionPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-var memoryLink = regexp.MustCompile(`\]\(([^)]+)\)`)
-
 var ErrUsage = errors.New("usage: agentic-scratch end|start")
 
 // Long enough that a session resumed the next morning still finds its work.
 const orphanAge = 7 * 24 * time.Hour
-
-// Past this a carry-forward has stopped being a handover and become a
-// knowledge store, which goes stale and then gets believed.
-const carryLimit = 20 * 1024
 
 func isSession(name string) bool {
 	return sessionPattern.MatchString(name)
@@ -106,7 +100,6 @@ func start(ctx context.Context, root string, out io.Writer) error {
 		said = append(said, fmt.Sprintf("Scratch: reaped %d session directory(s) nobody came back to.", gone))
 	}
 
-	said = append(said, slipped(filepath.Join(root, ".memory"))...)
 	if len(said) == 0 {
 		return nil
 	}
@@ -148,50 +141,6 @@ func reap(ctx context.Context, root string, now time.Time) int {
 	}
 
 	return gone
-}
-
-// slipped reports what the memory directory has let slip, in the words a
-// reader acts on.
-func slipped(memory string) []string {
-	if !isDir(memory) {
-		return nil
-	}
-
-	var found []string
-
-	carries, _ := filepath.Glob(filepath.Join(memory, "carryforward", "*-memory.md"))
-	for _, carry := range carries {
-		info, err := os.Stat(carry)
-		if err != nil || info.Size() <= carryLimit {
-			continue
-		}
-
-		found = append(found, fmt.Sprintf(
-			"%s is %d KB, past the %d KB a carry-forward holds. Anything the repository can rebuild goes.",
-			filepath.Base(carry), info.Size()/1024, carryLimit/1024,
-		))
-	}
-
-	index, err := os.ReadFile(filepath.Join(memory, "MEMORY.md"))
-	if err != nil {
-		return found
-	}
-
-	for _, line := range strings.Split(string(index), "\n") {
-		for _, match := range memoryLink.FindAllStringSubmatch(line, -1) {
-			target := match[1]
-			if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
-				continue
-			}
-
-			_, err := os.Stat(filepath.Join(memory, target))
-			if err != nil {
-				found = append(found, fmt.Sprintf("MEMORY.md points at %s, which is not there.", target))
-			}
-		}
-	}
-
-	return found
 }
 
 // remove reports only whether the directory went. A failure leaves nothing a

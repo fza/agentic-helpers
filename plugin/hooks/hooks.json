@@ -4,12 +4,12 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-carryforward session-start", "timeout": 120 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-carryforward session-log 1", "timeout": 120 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-carryforward session-log 2", "timeout": 120 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-carryforward session-log 3", "timeout": 120 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-carryforward session-log 4", "timeout": 120 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-carryforward session-log 5", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-start", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 1", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 2", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 3", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 4", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 5", "timeout": 120 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-scratch start", "timeout": 120 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-grounding-gate start", "timeout": 120 }
         ]
@@ -18,7 +18,7 @@
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-carryforward prompt", "timeout": 15 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory prompt", "timeout": 30 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate turn", "timeout": 15 }
         ]
       }
@@ -26,7 +26,7 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-carryforward stop", "timeout": 15 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory stop", "timeout": 15 }
         ]
       }
     ],
@@ -55,6 +55,7 @@
     "SessionEnd": [
       {
         "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory session-end", "timeout": 15 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-scratch end", "timeout": 15 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate end", "timeout": 15 }
         ]

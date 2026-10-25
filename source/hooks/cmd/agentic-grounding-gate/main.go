@@ -23,12 +23,19 @@ func main() {
 		home = ""
 	}
 
+	owner := os.Getenv("AGENTIC_MEMORY_PROCESS_NAME")
+	if owner == "" {
+		owner = "claude"
+	}
+
 	env := grounding.Env{
 		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"),
 		WorkingDir: working,
 		Home:       home,
 		Checkout:   project.GitCommonDir{},
 		Runner:     process.Runner{},
+		Processes:  process.Table{},
+		OwnerName:  owner,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

@@ -1,6 +1,6 @@
 {
   "name": "agentic-helpers",
-  "description": "Claude Code hooks and skills for sdd decision graphs, seats and scratch space",
+  "description": "Claude Code hooks and skills for sdd decision graphs, agent memory and scratch space",
   "owner": {
     "name": "Felix Zandanel"
   },
@@ -8,7 +8,7 @@
     {
       "name": "agentic-helpers",
       "source": "./plugin",
-      "description": "The carry-forward, scratch sweep and grounding gate hooks, agentic-capture, and a skill for each"
+      "description": "agentic-memory, the scratch sweep and grounding gate hooks, agentic-capture, and a skill for each"
     }
   ]
 }

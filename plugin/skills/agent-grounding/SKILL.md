@@ -62,7 +62,7 @@ and the refusal names the depth owed.
 show_depth:
   down: 3                    # left out → 2; 0 → nothing owed that way
   up: 1                      # left out → 1
-  exempt_seats: [reviewer]   # carry-forward seats owing no depth
+  exempt_seats: [reviewer]   # agentic-memory seats owing no depth
 ```
 
 - Body immutable → surface it names keeps that spelling forever, including after a rename. Rename
@@ -74,8 +74,8 @@ show_depth:
 Two exceptions the gate allows:
 
 - **`prc`-layer rules entry.** Downstream chain = every entry ever captured under it.
-- **Session holding a seat named in `exempt_seats`.** Seat = the carry-forward claim under
-  `.memory/roles/` naming the session; its subagents count as it. No claim → the depth is owed.
+- **Session holding a seat named in `exempt_seats`.** Seat = the `agentic-memory claim` of the
+  `claude` process running the session; its subagents count as it. No claim → the depth is owed.
   Lifts the depth alone: a discarded stream, a question, a draft edit, a capture and a plain
   `sdd new` owe what they owe every seat. Top-level `exempt_seats` lifts all of them.
 

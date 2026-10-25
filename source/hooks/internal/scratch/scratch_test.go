@@ -183,7 +183,6 @@ func TestAProjectWithoutScratchIsLeftAlone(t *testing.T) {
 	for _, mode := range []string{"start", "end"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
-			test.WriteFile(t, filepath.Join(root, ".memory", "MEMORY.md"), test.Fixture(t, "memory-index/dead-pointer.md"))
 
 			code, captured := run(t, root, mode, payload(test.Session))
 
@@ -206,51 +205,5 @@ func TestAnUnknownModeIsRefused(t *testing.T) {
 		if code != 1 || !strings.Contains(captured.Err.String(), "usage") {
 			t.Errorf("%v should be refused with usage", args)
 		}
-	}
-}
-
-func TestStartReportsWhatMemoryLetSlip(t *testing.T) {
-	cases := []struct {
-		name     string
-		carry    int
-		index    string
-		reported string
-	}{
-		{name: "oversized carry-forward", carry: 21 * 1024, reported: "main-memory.md is 21 KB"},
-		{name: "carry-forward within the limit", carry: 1024},
-		{name: "pointer at nothing", index: "memory-index/dead-pointer.md", reported: "points at carryforward/gone-memory.md"},
-		{name: "pointer that resolves", carry: 1024, index: "memory-index/live-pointer.md"},
-		{name: "link to the web", index: "memory-index/web-link.md"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			root := project(t)
-			memory := filepath.Join(root, ".memory")
-
-			err := os.MkdirAll(filepath.Join(memory, "carryforward"), 0o755)
-			if err != nil {
-				t.Fatalf("creating the memory directory: %v", err)
-			}
-
-			if tc.carry > 0 {
-				test.WriteFile(t, filepath.Join(memory, "carryforward", "main-memory.md"), strings.Repeat("x", tc.carry))
-			}
-
-			if tc.index != "" {
-				test.WriteFile(t, filepath.Join(memory, "MEMORY.md"), test.Fixture(t, tc.index))
-			}
-
-			_, captured := run(t, root, "start", payload(test.Session))
-			said := captured.Out.String()
-
-			if tc.reported == "" && said != "" {
-				t.Errorf("nothing should be reported, got: %q", said)
-			}
-
-			if tc.reported != "" && !strings.Contains(said, tc.reported) {
-				t.Errorf("the slip should be reported, got: %q", said)
-			}
-		})
 	}
 }

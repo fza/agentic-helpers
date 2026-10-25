@@ -1,6 +1,6 @@
 ---
 name: agent-scratch
-description: 'Where throwaway work goes. Use before writing any probe, one-off script, captured output, draft or handoff file, and whenever reaching for /tmp. Says what the session sweep removes and what it can never touch. Only projects carrying a .tmp/ directory use this.'
+description: 'Where throwaway work goes. Use before writing any probe, one-off script, captured output or draft, and whenever reaching for /tmp. Says what the session sweep removes and what it can never touch. Only projects carrying a .tmp/ directory use this.'
 license: MIT
 ---
 
@@ -30,7 +30,7 @@ so before reaching for `/tmp`.
   next turn will not read.
 - **Never throwaway at the root of `.tmp/`.** Nothing sweeps it there.
 - **Anything a later session reads → a named directory.** `.tmp/claude/<name>/` or `.tmp/<name>/`.
-  Same for anything `.memory/` or a graph entry points at.
+  Same for anything a memory entry or a graph entry points at.
 - **Delete your own throwaway when the turn that made it ends.** Sweep is the backstop, not the plan.
 - **`.tmp/` must be gitignored.** Not ignored → say so rather than creating it.
 - **Never a credential, in any of it.**
@@ -41,15 +41,9 @@ so before reaching for `/tmp`.
 |---|---|
 | session ends | removes `.tmp/claude/<that session's id>/` |
 | session starts | reaps a session directory nobody came back to after 7 days |
-| session starts | reports a carry-forward past 20 KB, and a dead `MEMORY.md` pointer |
 
 **Only a directory named for a session is ever removed.** A name the sweep cannot parse as a session
 identifier is a deliberate keep and survives whatever its age. That is the whole safety of it: to
 keep something, give it a name.
 
 Reaping is by directory mtime. A keep whose name looks like a session id is not a keep.
-
-## Handoff files
-
-Handoff over 300 chars → `.tmp/claude/handoff/<unique>.md`. Named directory, never swept. Courier
-only: the receiving session reads it, acts, deletes it.

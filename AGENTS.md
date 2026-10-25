@@ -6,18 +6,19 @@ loads [`source/AGENTS.md`](source/AGENTS.md) too** whenever a session touches `s
 
 ## Project overview
 
-`agentic-helpers` is a set of machine-wide Claude Code hooks and the `agentic-capture` command, each
-paired with a skill that tells the agent what it is doing. The grounding gate and `agentic-capture`
-exist for [sdd](https://github.com/fza/sdd): sdd's decision graph under `.sdd/` motivates
-them and drives what they check. They install once for every project on the machine and stay silent in
-a project that does not carry the directory a hook works on. [`README.md`](README.md) describes each
-hook's behaviour and how a project opts in.
+`agentic-helpers` is a set of machine-wide Claude Code hooks and the commands `agentic-capture` and
+`agentic-memory`, each paired with a skill that tells the agent what it is doing. The grounding gate
+and `agentic-capture` exist for [sdd](https://github.com/fza/sdd): sdd's decision graph under
+`.sdd/` motivates them and drives what they check. They install once for every project on the
+machine and stay silent where a hook has nothing to work on: a project without the directory it
+needs, a session holding no memory seat. [`README.md`](README.md) describes each hook's behaviour
+and how a project opts in.
 
 | Path | Holds |
 |---|---|
-| `source/hooks/` | one Go module: a binary per hook and `agentic-capture` under `cmd/`, everything else under `internal/` |
+| `source/hooks/` | one Go module: a binary per hook, `agentic-capture` and `agentic-memory` under `cmd/`, everything else under `internal/` |
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
-| `plugin/` | the plugin and nothing else: its manifest, `hooks/` (wiring and launcher), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
+| `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` MCP server), `hooks/` (wiring and launcher), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 
 ## Setup and commands

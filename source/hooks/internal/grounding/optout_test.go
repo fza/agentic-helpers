@@ -63,8 +63,10 @@ func TestASwitchThatIsNoBooleanIsAConfigError(t *testing.T) {
 
 func TestASeatExemptFromTheWholeGate(t *testing.T) {
 	env := configured(t, "exempt-seats.yaml")
-	test.ClaimSeat(t, env.ProjectDir, "reviewer", test.Session)
-	test.ClaimSeat(t, env.ProjectDir, "scout", test.OtherSession)
+	processes := test.NewProcesses()
+	env.Processes, env.OwnerName = processes, "claude"
+	store := test.MemoryStore(env.ProjectDir, env.Home, env.Checkout)
+	test.ClaimSeat(t, store, "reviewer", test.Session)
 
 	for name, payload := range unread(env, test.Session) {
 		t.Run(name+" passes", func(t *testing.T) {
@@ -76,12 +78,16 @@ func TestASeatExemptFromTheWholeGate(t *testing.T) {
 		passes(t, run(t, env, "gate", with(ask(test.Session), "agent_id", "a1")))
 	})
 
-	t.Run("a seat exempt from the depth alone still owes the reads", func(t *testing.T) {
-		passes(t, run(t, env, "gate", as(test.OtherSession, bash(shownEntry))))
-		refuses(t, run(t, env, "gate", ask(test.OtherSession)), "search")
-	})
+	other := env
+	other.Processes = processes.Other()
 
 	t.Run("a session holding no seat owes the reads", func(t *testing.T) {
-		refuses(t, run(t, env, "gate", ask("s1")), "search")
+		refuses(t, run(t, other, "gate", ask(test.OtherSession)), "search")
+	})
+
+	t.Run("a seat exempt from the depth alone still owes the reads", func(t *testing.T) {
+		test.ClaimOtherSeat(t, store, "scout", test.OtherSession)
+		passes(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))))
+		refuses(t, run(t, other, "gate", ask(test.OtherSession)), "search")
 	})
 }

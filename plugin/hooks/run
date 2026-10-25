@@ -1,7 +1,7 @@
 #!/bin/sh
 # Runs one agentic-helpers binary of the release this plugin names.
 #
-#   run [--session-start] <binary> [argument...]
+#   run [--session-start | --command] <binary> [argument...]
 #
 # The binaries are not part of the plugin: each release publishes them, and
 # this launcher fetches the one named by the plugin's version into the plugin's
@@ -11,20 +11,29 @@
 #
 # With no binary at all, the grounding gate refuses (exit 2) rather than let
 # work run ungrounded, and every other hook does nothing (exit 0). One notice
-# says why, at the SessionStart that failed to fetch.
+# says why, at the SessionStart that failed to fetch. A command an agent runs
+# from the plugin's bin/ (--command) exits 1 instead: a silent success would
+# read as an entry filed or a search answered.
 
 set -u
 
 releases=https://github.com/fza/agentic-helpers/releases/download
 
 session_start=false
-if [ "${1:-}" = --session-start ]; then
+command=false
+case "${1:-}" in
+--session-start)
 	session_start=true
 	shift
-fi
+	;;
+--command)
+	command=true
+	shift
+	;;
+esac
 
 if [ $# -lt 1 ]; then
-	echo 'usage: run [--session-start] <binary> [argument...]' >&2
+	echo 'usage: run [--session-start | --command] <binary> [argument...]' >&2
 	exit 1
 fi
 
@@ -158,6 +167,11 @@ fi
 if [ "$binary" = agentic-grounding-gate ] && [ "${1:-}" = gate ]; then
 	echo "agentic-helpers: no agentic-grounding-gate binary is installed, so the grounding gate refuses every call; start a session with network so release v$version can be fetched, or set AGENTIC_HELPERS_BIN_DIR" >&2
 	exit 2
+fi
+
+if $command; then
+	echo "agentic-helpers: no $binary binary is installed for v$version; start a session with network so the release can be fetched, or set AGENTIC_HELPERS_BIN_DIR" >&2
+	exit 1
 fi
 
 if $tried && ! $fetched_elsewhere; then

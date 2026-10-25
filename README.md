@@ -9,7 +9,7 @@ and a command the agent calls itself:
 
 | Piece | Binary | What it keeps the agent doing |
 |---|---|---|
-| carry-forward | `agentic-carryforward` | writing down what the next session needs before the context runs out, and reading it back after |
+| memory | `agentic-memory` | filing what it learns as it works, and getting back what a fresh context needs after a compaction or a new session |
 | scratch sweep | `agentic-scratch` | keeping throwaway work in one place per session, and clearing it when the session ends |
 | grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing |
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
@@ -18,8 +18,8 @@ and a command the agent calls itself:
 Signal-Dialogue-Decision graph a project keeps under `.sdd/`. sdd motivates them and drives them:
 the gate counts real `sdd search` and `sdd view` reads, and capture writes through `sdd new`.
 
-Every piece installs once for the whole machine and stays silent in a project that does not carry
-the directory it works on: `.memory/`, `.tmp/` or `.sdd/`. Each comes with a skill, a Markdown file
+Every piece installs once for the whole machine and stays silent where it has nothing to work on: a
+project with no `.tmp/` or `.sdd/` directory, and a session that claimed no memory seat. Each comes with a skill, a Markdown file
 the agent loads to learn what the piece expects and what its refusals mean. Everything ships as one
 Claude Code plugin; the hooks and the command are Go binaries built from `source/hooks`, published
 with each release and fetched by the plugin.
@@ -77,9 +77,10 @@ release named by the plugin's own `version`, kept under the plugin's data direct
    rather than letting work run ungrounded, and every other hook does nothing. The SessionStart that
    failed to fetch says why, once.
 
-Claude Code's Bash tool finds `agentic-capture` and `agentic-carryforward` through the plugin's
-`bin/`, which hands each call to the same launcher, so `agentic-capture --help` is answered by the
-real binary. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
+Claude Code's Bash tool finds `agentic-capture` and `agentic-memory` through the plugin's `bin/`,
+which hands each call to the same launcher, so `agentic-capture --help` is answered by the real
+binary; with no binary installed, a command from `bin/` exits 1 and says why, where a hook would
+stay silent. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
 `go install -C source/hooks ./cmd/...` from a checkout.
 
 ### Coming from `agentic-install`
@@ -130,28 +131,68 @@ pushing after a release: `main` carries the release commit.
 
 ## What each one does
 
-### The carry-forward
+### Memory
 
-A session runs out of context and the next one starts knowing nothing. The carry-forward is the file
-that survives that: one per seat, written by the session holding it and read by the session that
-follows.
+A session runs out of context and the next one starts knowing nothing. With agentic-memory a session
+files what it learns as it works, one entry per finding, and the tool stamps, indexes and replays
+it. Nothing is ever rewritten: an entry is retired or superseded, and the tool chooses what returns
+to a fresh context.
 
-A **seat** is a named job at the work, held by one session at a time. Two sessions holding the same
-seat would overwrite each other's file, and whichever wrote last would win in silence, so a seat is
-claimed, the claim names the process holding it, and a claim against a live holder meets a refusal.
+A **seat** is a named job, held by one session at a time; claiming one is what turns memory on for
+a session, by a prompt or an instruction line. Every entry carries the seat that filed it, and a
+search covers the own seat unless it names others, so one seat sees what another holds and nothing
+is done twice. A call finds its seat through the `claude` process that owns it, so a command run
+from the Bash tool, a tool call to the plugin's MCP server and a hook all agree, also after `/clear`.
 
-The hook watches how full the session's context is and how far its transcript has grown. As either
-approaches the point where the session will be summarised, it says so, with what to write down and
-where. It also keeps a rolling log of what the session did, in pieces small enough for the client to
-inline, so the reminder arrives with the material rather than asking a session to remember it.
+```bash
+agentic-memory claim main
+agentic-memory new --title 'Gate ignores MCP reads' --topic gate --retention normal <<'BODY'
+reads are recorded only for Bash, so a search through MCP never counts
+BODY
+agentic-memory search --term mcp --query 'gate blind to tool calls'
+agentic-memory supersede m-7q2k --by m-9xq0
+```
+
+- **An entry** has a 3-10 word title, a free body, topics the agent chooses (one namespace per
+  project, merged with `merge`), a retention level setting how long it stays in view (`standing`,
+  `long`, `normal`, `short`, `scratch`) and a source (`--from user|agent|tool`). The tool stamps time,
+  seat, session, branch and commit, and anchors the entry to every file it names by content hash.
+- **Search** is sdd's: `--term` is a case-insensitive regex, every term required; `--query` searches
+  by meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or `other branch`
+  as computed against the tree right then, and `confirm` re-anchors a verified entry.
+- **What comes back:** a brief at every claim and compaction (standing entries, the seat's live
+  entries by heat, what other seats changed and filed, the topics), the turns since the seat's newest
+  entry, and up to three entries a prompt touches that stand out from the rest. Near compaction a
+  nudge asks the seat to file what the summary would lose; a session's last turns survive its end
+  for the next claim. There is no handoff to write.
+- **Every subcommand is also a tool** of the plugin's `memory` MCP server,
+  `mcp__plugin_agentic-helpers_memory__<subcommand>`, and `agentic-memory help` lists them.
+- **Other tools read seats** through `agentic-memory holder <seat> --json` and
+  `agentic-memory holder --session <id> --json`.
+
+The embedder is one per machine, set in the plugin's configuration dialog (`embedding_provider`,
+`embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, and
+`entry_max_words`). No project overrides it. Without one, a search by meaning exits 1 naming the
+cause, a keyword search still answers, and filing never waits: the next call that reaches the
+endpoint embeds what is pending.
 
 ```
-.memory/
-├── MEMORY.md                        one pointer line per surviving file
-├── carryforward/<seat>-memory.md    one per seat, written by its holder alone
-├── roles/<seat>.json                who holds it, and which process
-└── transcripts/<session>.md         what this session did, rolled forward
+~/.claude/agentic-memory/<project>/
+├── log/tail.jsonl, log/<hash>.seg, log/manifest.json   the append-only log: the truth
+├── seats/<seat>.json                                   who holds the seat, which process, which transcript
+└── seats/<seat>.slice                                  the last turns of the seat's last session
+~/.claude/agentic-memory/sessions/<session>.ctx         the context reading a status line writes
+~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ```
+
+`<project>` is the `repo_id` the project's `.sdd/config.yaml` declares, else a hash of its git
+directory, the key sdd gives its own search index. agentic-memory never reads or writes a project's
+`.memory/` directory; a seat whose `.memory/carryforward/<seat>-memory.md` still exists is told at
+claim to file its findings and delete that one file.
+
+The nudge reads how full the context is from `~/.claude/agentic-memory/sessions/<session>.ctx`, which
+a status line writes as `{"used_percentage": <n>, "size": <window>, "at": <unix seconds>}` from
+Claude Code's `context_window.used_percentage`; without one it falls back to transcript growth.
 
 ### The scratch sweep
 
@@ -173,9 +214,6 @@ identifier is somebody's deliberate keep, and survives whatever its age.
 └── <the project's own>    never touched
 ```
 
-At session start it also reports, without blocking, a carry-forward that has grown past the size a
-handover holds, and any `MEMORY.md` pointer that resolves to nothing.
-
 ### The grounding gate
 
 An agent asked to reason about a decision graph will answer from the entry it already read, or from
@@ -191,8 +229,8 @@ exactly like an empty graph, and a read that stops at the entry itself, since a 
 and a later entry may have renamed every surface it names.
 
 A show owes `--down 2 --up 1` unless `.sdd/grounding.yaml` sets another depth, and a project can
-name seats that owe none. A seat is the carry-forward's: the gate matches the session against the
-claims under `.memory/roles/`, so a session holding no claim owes the depth. The exemption lifts the
+name seats that owe none. A seat is agentic-memory's: the gate looks up the seat the claude process
+running the hook claimed, so a session holding no claim owes the depth. The exemption lifts the
 depth alone; every other refusal holds for every seat.
 
 ```yaml
@@ -300,7 +338,7 @@ skill carrying what it cannot say in a one-line refusal.
 
 | Skill | Carries |
 |---|---|
-| `agentic-helpers:agent-carryforward` | what a seat is, how to claim one, what belongs in a carry-forward against what belongs in the graph, and the handoff procedure |
+| `agentic-helpers:agent-memory` | what a seat is, how to claim one, how to file, find, retire and supersede, what belongs in memory against what belongs in the graph, and what comes back after a compaction |
 | `agentic-helpers:agent-grounding` | the three sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
 | `agentic-helpers:agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
 | `agentic-helpers:agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
@@ -309,8 +347,8 @@ Each skill is the whole of its rules. A global instruction file names the skill 
 it never restates what the skill holds, because two copies drift and a reader obeys whichever they
 opened.
 
-Each says in its own description that it applies only to a project carrying the directory its hook
-needs, so an agent in an unrelated project has no reason to open any of them.
+Each says in its own description when it applies, so an agent in an unrelated project has no reason
+to open any of them.
 
 The plugin carries the skills, so Claude Code names each after it (`agentic-helpers:agent-capture`), and
 a plugin update brings every skill's new text with it.
@@ -318,21 +356,16 @@ a plugin update brings every skill's new text with it.
 ## How a project opts in
 
 **No hook does anything until the project carries what it operates on.** Nothing is created,
-nothing is asked, and a project carrying none of the directories never hears from any hook.
+nothing is asked, and a project carrying none of it never hears from any hook.
 
 | Hook | Runs when the project carries | Otherwise |
 |---|---|---|
-| Carry-forward | a `.memory/` directory | exits 0, silently |
+| Memory | a seat claimed with `agentic-memory claim <seat>`; where a project has memory but this session holds no seat, one line names the seats | exits 0, silently |
 | Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
 
-So opting a project in is one command:
-
-```bash
-mkdir .memory          # start keeping a carry-forward here
-```
-
-and opting out is removing the directory. A project using none needs no configuration, no
+So opting a project in is one command, `mkdir .tmp` or `agentic-memory claim <seat>`, and opting
+out is removing the directory or releasing the seat. A project using none needs no configuration, no
 allowlist entry and no marker file, and installing these hooks costs it nothing.
 
 ## Working on this

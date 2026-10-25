@@ -39,11 +39,11 @@ func TestTheOverrideRunsItsOwnDirectory(t *testing.T) {
 
 func TestThePluginsVersionRunsWhenPresent(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
-	plugin.Installed(t, "1.3.0", "agentic-carryforward")
-	plugin.Installed(t, "1.4.0", "agentic-carryforward")
+	plugin.Installed(t, "1.3.0", "agentic-memory")
+	plugin.Installed(t, "1.4.0", "agentic-memory")
 
-	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-carryforward", "session-log", "1")
-	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-carryforward")+" session-log 1") {
+	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-memory", "session-log", "1")
+	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-memory")+" session-log 1") {
 		t.Errorf("the version the plugin names should run, got: %+v", got)
 	}
 
@@ -226,8 +226,9 @@ func TestNoBinaryAtAll(t *testing.T) {
 	}{
 		{name: "the gate refuses", args: []string{"agentic-grounding-gate", "gate"}, code: 2},
 		{name: "a session start says why once", args: []string{"--session-start", "agentic-scratch", "start"}, notice: true},
-		{name: "any other hook stays quiet", args: []string{"agentic-carryforward", "prompt"}},
+		{name: "any other hook stays quiet", args: []string{"agentic-memory", "prompt"}},
 		{name: "the gate's own record stays quiet", args: []string{"agentic-grounding-gate", "record"}},
+		{name: "a command from bin/ fails loudly", args: []string{"--command", "agentic-memory", "new"}, code: 1},
 	}
 
 	for _, tc := range cases {
@@ -239,7 +240,7 @@ func TestNoBinaryAtAll(t *testing.T) {
 				t.Errorf("the hook should exit as decided, got: %+v", got)
 			}
 
-			if tc.code == 2 && !strings.Contains(got.Stderr, "start a session with network") {
+			if tc.code != 0 && !strings.Contains(got.Stderr, "start a session with network") {
 				t.Errorf("the refusal should name the fix, got: %+v", got)
 			}
 
@@ -258,7 +259,7 @@ func TestNoBinaryAtAll(t *testing.T) {
 func TestTheShimsRunTheRealBinary(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	data := filepath.Join(plugin.Config, "plugins", "data", "agentic-helpers-agentic-helpers")
-	plugin.Binaries(t, filepath.Join(data, "1.4.0"), "agentic-capture", "agentic-carryforward")
+	plugin.Binaries(t, filepath.Join(data, "1.4.0"), "agentic-capture", "agentic-memory")
 
 	bashTool := []string{"CLAUDE_PLUGIN_ROOT", "CLAUDE_PLUGIN_DATA", "CLAUDE_CONFIG_DIR=" + plugin.Config}
 
@@ -267,7 +268,7 @@ func TestTheShimsRunTheRealBinary(t *testing.T) {
 		args []string
 	}{
 		{shim: "bin/agentic-capture", args: []string{"--help"}},
-		{shim: "bin/agentic-carryforward", args: []string{"claim", "main"}},
+		{shim: "bin/agentic-memory", args: []string{"claim", "main"}},
 	}
 
 	for _, tc := range cases {
@@ -291,7 +292,7 @@ func TestThePluginShipsOnlyItsOwnComponents(t *testing.T) {
 		t.Fatalf("reading the plugin directory: %v", err)
 	}
 
-	own := []string{".claude-plugin", "bin", "hooks", "skills"}
+	own := []string{".claude-plugin", ".mcp.json", "bin", "hooks", "skills"}
 
 	var names []string
 	for _, entry := range entries {
