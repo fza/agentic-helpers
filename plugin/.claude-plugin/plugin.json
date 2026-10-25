@@ -44,6 +44,13 @@
       "description": "Words an entry should stay within; longer entries still land, with a note",
       "default": 500,
       "required": false
+    },
+    "retired_body_days": {
+      "type": "number",
+      "title": "Retired body days",
+      "description": "Days a retired entry keeps its body before a log merge drops it; at least 14",
+      "default": 90,
+      "required": false
     }
   }
 }

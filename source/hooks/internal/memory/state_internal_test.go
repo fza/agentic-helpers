@@ -40,7 +40,7 @@ func TestMergePolicyDropsBodiesSupersededLongAgo(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			kept, err := mergePolicy(tc.now)(rows, read)
+			kept, err := mergePolicy(tc.now, 90*24*time.Hour)(rows, read)
 			if err != nil {
 				t.Fatalf("the policy should fold the rows: %v", err)
 			}
@@ -62,6 +62,52 @@ func TestMergePolicyDropsBodiesSupersededLongAgo(t *testing.T) {
 
 			if entry.Title == "" {
 				t.Error("a dropped body should keep its title")
+			}
+		})
+	}
+}
+
+func TestMergePolicyDropsBodiesRetiredLongAgo(t *testing.T) {
+	filed := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	retired := filed.Add(time.Hour)
+
+	body, err := json.Marshal(newPayload{Title: "Old finding about the gate", Body: "the body"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows := []memorylog.Row{
+		{Kind: memorylog.KindNew, Entry: "m-aaaa", Time: filed, Seat: "main"},
+		{Kind: memorylog.KindRetire, Entry: "m-aaaa", Time: retired, Seat: "main"},
+	}
+	payloads := [][]byte{body, []byte("{}")}
+	read := func(index int) ([]byte, error) { return payloads[index], nil }
+
+	cases := []struct {
+		name    string
+		now     time.Time
+		dropped bool
+	}{
+		{name: "a body retired longer ago than the setting is dropped", now: retired.Add(91 * 24 * time.Hour), dropped: true},
+		{name: "a body retired more recently than the setting stays", now: retired.Add(89 * 24 * time.Hour)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			kept, err := mergePolicy(tc.now, 90*24*time.Hour)(rows, read)
+			if err != nil {
+				t.Fatalf("the policy should fold the rows: %v", err)
+			}
+
+			var entry newPayload
+
+			err = json.Unmarshal(kept[0].Payload, &entry)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if entry.Dropped != tc.dropped || (entry.Body == "") != tc.dropped {
+				t.Error("a merge should drop exactly the bodies retired longer ago than the setting")
 			}
 		})
 	}

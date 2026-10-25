@@ -18,6 +18,14 @@ const PluginID = "agentic-helpers@agentic-helpers"
 
 const DefaultEntryMaxWords = 500
 
+// DefaultRetiredBodyDays / MinRetiredBodyDays bound how long a retired entry
+// keeps its body. The floor is the revive window: a body never goes before a
+// revive could still want it.
+const (
+	DefaultRetiredBodyDays = 90
+	MinRetiredBodyDays     = 14
+)
+
 type Options struct {
 	EmbeddingProvider   string
 	EmbeddingModel      string
@@ -25,6 +33,7 @@ type Options struct {
 	EmbeddingDimensions int
 	EmbeddingAPIKeyEnv  string
 	EntryMaxWords       int
+	RetiredBodyDays     int
 }
 
 type settings struct {
@@ -52,7 +61,7 @@ func Paths(home string, goos string) []string {
 // Read folds the plugin's options from paths in order, a later file winning
 // per key. A missing file contributes nothing; an unreadable one is an error.
 func Read(paths []string) (Options, error) {
-	options := Options{EntryMaxWords: DefaultEntryMaxWords}
+	options := Defaults()
 
 	for _, path := range paths {
 		raw, err := os.ReadFile(path)
@@ -77,7 +86,13 @@ func Read(paths []string) (Options, error) {
 		}
 	}
 
+	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
+
 	return options, nil
+}
+
+func Defaults() Options {
+	return Options{EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays}
 }
 
 func (options *Options) apply(values map[string]json.RawMessage) error {
@@ -103,6 +118,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 	numbers := map[string]*int{
 		"embedding_dimensions": &options.EmbeddingDimensions,
 		"entry_max_words":      &options.EntryMaxWords,
+		"retired_body_days":    &options.RetiredBodyDays,
 	}
 
 	for key, target := range numbers {

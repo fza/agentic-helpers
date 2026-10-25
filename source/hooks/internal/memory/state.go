@@ -358,8 +358,9 @@ func (held *entry) shadowed() bool {
 }
 
 // mergePolicy keeps every event, stripping the body of each entry superseded
-// longer ago than supersedeKeep: the one place a body is ever dropped.
-func mergePolicy(now time.Time) memorylog.Policy {
+// longer ago than supersedeKeep, or retired longer ago than retiredKeep: the
+// one place a body is ever dropped.
+func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 	return func(rows []memorylog.Row, payload func(int) ([]byte, error)) ([]memorylog.Event, error) {
 		folded := &state{entries: map[string]*entry{}}
 		payloads := make([][]byte, len(rows))
@@ -384,8 +385,7 @@ func mergePolicy(now time.Time) memorylog.Policy {
 			raw := payloads[index]
 
 			held := folded.entries[row.Entry]
-			if row.Kind == memorylog.KindNew && held != nil && held.status == statusSuperseded &&
-				now.Sub(held.supersededAt()) > supersedeKeep {
+			if row.Kind == memorylog.KindNew && bodyDue(held, now, retiredKeep) {
 				var filed newPayload
 
 				err := json.Unmarshal(raw, &filed)
@@ -409,4 +409,23 @@ func mergePolicy(now time.Time) memorylog.Policy {
 
 		return kept, nil
 	}
+}
+
+func bodyDue(held *entry, now time.Time, retiredKeep time.Duration) bool {
+	if held == nil {
+		return false
+	}
+
+	last, found := held.latest()
+
+	switch {
+	case !found:
+		return false
+	case held.status == statusSuperseded:
+		return now.Sub(held.supersededAt()) > supersedeKeep
+	case held.status == statusRetired:
+		return now.Sub(last.at) > retiredKeep
+	}
+
+	return false
 }

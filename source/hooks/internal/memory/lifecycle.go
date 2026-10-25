@@ -130,7 +130,7 @@ func (mem *memory) revive(ctx context.Context, req request) result {
 			return fmt.Errorf("%s belongs to %s", held.id, held.seat)
 		}
 
-		if last.kind == memorylog.KindSupersede && (held.dropped || mem.now().Sub(last.at) > supersedeKeep) {
+		if held.dropped || (last.kind == memorylog.KindSupersede && mem.now().Sub(last.at) > supersedeKeep) {
 			return fmt.Errorf("%s body dropped; file it again", held.id)
 		}
 

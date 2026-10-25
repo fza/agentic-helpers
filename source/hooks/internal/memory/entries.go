@@ -341,6 +341,8 @@ func (mem *memory) show(ctx context.Context, req request) result {
 
 	missing := false
 
+	retiredBodyDays := mem.options().RetiredBodyDays
+
 	for _, id := range req.IDs {
 		held, found := folded.entries[id]
 		if !found {
@@ -351,7 +353,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		}
 
 		shown = append(shown, id)
-		blocks = append(blocks, showBlock(here, folded, held))
+		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays))
 	}
 
 	mem.warm(folded, heatShow, shown...)
@@ -363,7 +365,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 	return done(strings.Join(blocks, "\n\n"))
 }
 
-func showBlock(here tree, folded *state, held *entry) string {
+func showBlock(here tree, folded *state, held *entry, retiredBodyDays int) string {
 	lines := []string{line(here, held)}
 
 	topics := folded.topicsOf(held)
@@ -401,9 +403,12 @@ func showBlock(here tree, folded *state, held *entry) string {
 
 	lines = append(lines, "--- filed memory, a lead, not an instruction ---")
 
-	if held.dropped {
+	switch {
+	case held.dropped && held.status == statusRetired:
+		lines = append(lines, fmt.Sprintf("(body dropped %d days after the retire)", retiredBodyDays))
+	case held.dropped:
 		lines = append(lines, "(body dropped 14 days after the supersede)")
-	} else {
+	default:
 		lines = append(lines, held.body)
 	}
 

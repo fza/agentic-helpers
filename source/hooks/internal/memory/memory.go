@@ -103,10 +103,14 @@ func (mem *memory) refuse(err error) int {
 func (mem *memory) options() pluginconfig.Options {
 	options, err := pluginconfig.Read(mem.env.Settings)
 	if err != nil {
-		return pluginconfig.Options{EntryMaxWords: pluginconfig.DefaultEntryMaxWords}
+		return pluginconfig.Defaults()
 	}
 
 	return options
+}
+
+func (mem *memory) retiredKeep() time.Duration {
+	return time.Duration(mem.options().RetiredBodyDays) * 24 * time.Hour
 }
 
 // ownSeat is the seat the calling process holds, or empty.
@@ -151,7 +155,7 @@ func (mem *memory) appendEvents(ctx context.Context, events ...memorylog.Event) 
 		return err
 	}
 
-	err = log.AppendWith(ctx, mergePolicy(mem.now()), events...)
+	err = log.AppendWith(ctx, mergePolicy(mem.now(), mem.retiredKeep()), events...)
 	if err != nil {
 		return fmt.Errorf("writing to the log: %w", err)
 	}

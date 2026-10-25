@@ -175,8 +175,8 @@ agentic-memory supersede m-7q2k --by m-9xq0
   `agentic-memory holder --session <id> --json`.
 
 The embedder is one per machine, set in the plugin's configuration dialog (`embedding_provider`,
-`embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, and
-`entry_max_words`). No project overrides it. Without one, a search by meaning exits 1 naming the
+`embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, with
+`entry_max_words` and `retired_body_days` beside them). No project overrides it. Without one, a search by meaning exits 1 naming the
 cause, a keyword search still answers, and filing never waits: the next call that reaches the
 endpoint embeds what is pending.
 
@@ -188,6 +188,10 @@ endpoint embeds what is pending.
 ~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ```
+
+A merge of the log drops the body of an entry superseded more than 14 days earlier, or retired more
+than `retired_body_days` earlier (90 unless set, never under 14); the entry stays in search, flagged,
+and `revive` refuses it.
 
 `<project>` is the `repo_id` the project's `.sdd/config.yaml` declares, else a hash of its git
 directory, the key sdd gives its own search index. agentic-memory never reads or writes a project's

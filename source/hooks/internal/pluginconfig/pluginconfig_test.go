@@ -18,7 +18,7 @@ func TestRead(t *testing.T) {
 	}{
 		{
 			name: "no settings files leave the defaults",
-			want: pluginconfig.Options{EntryMaxWords: pluginconfig.DefaultEntryMaxWords},
+			want: pluginconfig.Defaults(),
 		},
 		{
 			name: "user settings configure the embedder",
@@ -28,6 +28,7 @@ func TestRead(t *testing.T) {
 			want: pluginconfig.Options{
 				EmbeddingProvider: "openai", EmbeddingModel: "gemma", EmbeddingEndpoint: "http://127.0.0.1:1235",
 				EmbeddingDimensions: 256, EmbeddingAPIKeyEnv: "OPENAI_API_KEY", EntryMaxWords: 700,
+				RetiredBodyDays: pluginconfig.DefaultRetiredBodyDays,
 			},
 		},
 		{
@@ -36,12 +37,25 @@ func TestRead(t *testing.T) {
 			managed: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"embedding_model":"b"}}}}`,
 			want: pluginconfig.Options{
 				EmbeddingProvider: "openai", EmbeddingModel: "b", EntryMaxWords: pluginconfig.DefaultEntryMaxWords,
+				RetiredBodyDays: pluginconfig.DefaultRetiredBodyDays,
 			},
 		},
 		{
 			name: "another plugin's options are ignored",
 			user: `{"pluginConfigs":{"other@market":{"options":{"embedding_model":"x"}}}}`,
-			want: pluginconfig.Options{EntryMaxWords: pluginconfig.DefaultEntryMaxWords},
+			want: pluginconfig.Defaults(),
+		},
+		{
+			name: "a retired body keeps the days set",
+			user: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120}}}}`,
+			want: pluginconfig.Options{EntryMaxWords: pluginconfig.DefaultEntryMaxWords, RetiredBodyDays: 120},
+		},
+		{
+			name: "a retired body is kept at least the revive window",
+			user: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":"7"}}}}`,
+			want: pluginconfig.Options{
+				EntryMaxWords: pluginconfig.DefaultEntryMaxWords, RetiredBodyDays: pluginconfig.MinRetiredBodyDays,
+			},
 		},
 		{
 			name:    "a malformed settings file is an error",

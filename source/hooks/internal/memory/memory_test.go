@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
+	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -439,6 +440,45 @@ func TestMergeAndRevive(t *testing.T) {
 	got := h.run("", "revive", id)
 	if got.code != 1 || !strings.Contains(got.err, id+" body dropped; file it again") {
 		t.Errorf("a revive past 14 days should say the body is dropped, got %d %q", got.code, got.err)
+	}
+}
+
+// A merge drops a retired body only once eight sealed segments pile up, so the
+// log here holds what such a merge leaves: the entry's new row without its body.
+func TestARetiredBodyDroppedByAMerge(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	filed := h.clock.Now().Add(-100 * 24 * time.Hour)
+	err = log.Append(context.Background(),
+		memorylog.Event{
+			Kind: memorylog.KindNew, Entry: "m-r3t1", Time: filed, Seat: "main",
+			Payload: []byte(`{"title":"Gate finding retired long ago","body":"","topics":["gate"],"retention":"normal","dropped":true}`),
+		},
+		memorylog.Event{Kind: memorylog.KindRetire, Entry: "m-r3t1", Time: filed.Add(time.Hour), Seat: "main"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(h.must("", "show", "m-r3t1"), "(body dropped 90 days after the retire)") {
+		t.Error("show should say a retired body was dropped, and after how long")
+	}
+
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120}}}}`)
+
+	if !strings.Contains(h.must("", "show", "m-r3t1"), "(body dropped 120 days after the retire)") {
+		t.Error("show should name the days the setting gives")
+	}
+
+	got := h.run("", "revive", "m-r3t1")
+	if got.code != 1 || !strings.Contains(got.err, "m-r3t1 body dropped; file it again") {
+		t.Errorf("a revive of a retired entry without its body should be refused, got %d %q", got.code, got.err)
 	}
 }
 
