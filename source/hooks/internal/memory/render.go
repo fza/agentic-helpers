@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-const timeLayout = "2006-01-02 15:04"
+// timeLayout carries the zone: a local time alone repeats an hour each autumn
+// when the clocks go back, and two stamps from that hour read out of order.
+const timeLayout = "2006-01-02 15:04 MST"
 
 func stamp(at time.Time) string {
 	return at.Local().Format(timeLayout)

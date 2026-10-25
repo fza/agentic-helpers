@@ -21,6 +21,10 @@ const (
 	heatRecall    = 0.25
 )
 
+// searchWarmed is how many of a search's top results it warms: a broad search
+// returning most of the store says nothing about any one entry.
+const searchWarmed = 3
+
 var halfLives = map[string]time.Duration{
 	"long":    90 * 24 * time.Hour,
 	"normal":  14 * 24 * time.Hour,

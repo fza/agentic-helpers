@@ -572,7 +572,7 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		lines = append(lines, line(here, folded.entries[id]))
 	}
 
-	mem.warm(folded, heatSearchHit, ranked...)
+	mem.warm(folded, heatSearchHit, ranked[:min(searchWarmed, len(ranked))]...)
 
 	return done(strings.Join(lines, "\n"))
 }

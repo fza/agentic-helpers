@@ -136,7 +136,7 @@ func TestNewStampsAndAnchors(t *testing.T) {
 		"new", "--title", "Gate ignores MCP reads", "--topic", "Gate", "--about", "README.md")
 
 	if !regexp.MustCompile(`^filed m-[a-z0-9]{4} Gate ignores MCP reads  \[main, normal, from agent, ` +
-		`2026-10-25 \d\d:\d\d, 15af1a8c\]`).MatchString(out) {
+		`2026-10-25 \d\d:\d\d [A-Z0-9+-]+, 15af1a8c\]`).MatchString(out) {
 		t.Errorf("filing should print the stamped line: %s", out)
 	}
 
@@ -315,6 +315,33 @@ func TestEntryFiledWhileEmbedderDownIsEmbeddedLater(t *testing.T) {
 	}
 }
 
+func TestStampsCarryTheirZone(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	if !regexp.MustCompile(`\[main, normal, from agent, 2026-10-2[45] \d\d:\d\d [A-Za-z0-9+-]+,`).MatchString(
+		h.must("body", "new", "--title", "Gate reads Bash only today", "--topic", "gate")) {
+		t.Error("a stamp should name its zone, so an hour the clocks repeat reads unambiguously")
+	}
+}
+
+func TestABroadSearchWarmsOnlyItsTopResults(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	var ids []string
+	for index, body := range []string{"needle needle needle", "needle needle", "needle", "needle", "needle"} {
+		ids = append(ids, h.file(fmt.Sprintf("Finding number %d about needles", index), body))
+	}
+
+	h.must("", "search", "--term", "needle")
+
+	brief := h.must("", "brief")
+	if strings.Index(brief, ids[3]) < strings.Index(brief, ids[0]) {
+		t.Errorf("a search should warm its top three results only, leaving the rest cooler:\n%s", brief)
+	}
+}
+
 func TestSupersede(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
@@ -345,7 +372,7 @@ func TestSupersede(t *testing.T) {
 		t.Errorf("an entry superseded by a successor should never return:\n%s", widened)
 	}
 
-	if !regexp.MustCompile(wrong + `.*superseded 2026-10-25 \d\d:\d\d: misread the ledger`).MatchString(widened) {
+	if !regexp.MustCompile(wrong + `.*superseded 2026-10-25 \d\d:\d\d [A-Z0-9+-]+: misread the ledger`).MatchString(widened) {
 		t.Errorf("an entry superseded with a reason should return flagged with its time and reason:\n%s", widened)
 	}
 }
