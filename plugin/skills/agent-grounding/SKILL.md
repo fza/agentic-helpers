@@ -22,6 +22,10 @@ Top-level `exempt_seats: [reviewer]` → a session holding that seat passes ever
 
 ## Three reads, before any question, draft edit, or capture
 
+**Credit lasts until the graph changes or the context compacts.** Read once, then work across
+prompts on an unchanged graph. Any capture (yours or another session's) or a compaction → read
+again.
+
 ```bash
 sdd search --query "<how somebody would phrase it>" --limit 5 --max-citations 0   # semantic
 sdd search --term  "<literal token: flag, command, id>" --limit 5 --max-citations 0
@@ -41,10 +45,10 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 - **One call → `gather_command`.** Set → it runs all three: `--query` counts as semantic, `--term`
   as literal, each `--area <prefix><name>` as that listing, no `--area` as the `--entry` subject's
   areas. A flag left out → that mode still owed. The refusal prints the call.
-- **Capture turn → the reads again, unless the draft is grounded.** Grounded = saved through
-  `Write`/`Edit` under a `drafts/` directory in a turn carrying all three, unchanged since, graph
-  holding the same entries. Draft written through `Bash`, edited after, or another capture landed
-  in between → run the three before `agentic-capture`.
+- **Capture → the reads standing, or a grounded draft.** Grounded = saved through `Write`/`Edit`
+  under a `drafts/` directory while all three stood, unchanged since, graph holding the same
+  entries. Draft written through `Bash`, edited after, or another capture landed in between → run
+  the three before `agentic-capture`.
 - **Plain `sdd new` → the three reads, always.** No draft, nothing grounded. `--dry-run` exempt.
   Wrapping it (`bash -c`, subshell, `xargs`, full path) changes nothing.
 - **sdd's MCP tools count the same.** `mcp__sdd__search` `query` = semantic, `terms` = literal;
@@ -125,15 +129,12 @@ Immutable. Get it right before capture.
 
 **A question, a draft edit or a notebook edit is never refused.** Reads missing → the call goes
 ahead, and a note follows it, opening ``GROUNDING GATE: let through, reads owed.`` and naming what
-the turn still owes. A draft edit's note adds `This draft is not grounded: its capture owes the
+is still owed. A draft edit's note adds `This draft is not grounded: its capture owes the
 reads.` Treat the note as the refusal it replaces: run the reads, then go on. A question already
 asked → read before answering what it settled.
 
 A broken `.sdd/grounding.yaml` lets them through as ``GROUNDING GATE: let through.`` with the
 parse error. Fix the file.
-
-**A finished background task continues the turn.** Its `<task-notification>` keeps the reads already
-run.
 
 | Refused | Why |
 |---|---|

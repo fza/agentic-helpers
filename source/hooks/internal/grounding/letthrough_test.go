@@ -37,7 +37,7 @@ func TestAGatedToolIsLetThroughWithANote(t *testing.T) {
 					got.code, got.stdout, got.stderr)
 			}
 
-			if !strings.HasPrefix(got.said, "GROUNDING GATE: let through, reads owed.") || !strings.Contains(got.said, "This turn carries:") {
+			if !strings.HasPrefix(got.said, "GROUNDING GATE: let through, reads owed.") || !strings.Contains(got.said, "Standing reads:") {
 				t.Errorf("the note should say the call went ahead and what the turn still owes, got: %s", got.said)
 			}
 
@@ -96,31 +96,8 @@ func TestADraftWrittenWhileReadsAreOwedIsNotGrounded(t *testing.T) {
 
 	run(t, env, "gate", save("Write", draft))
 	record(t, env, save("Write", draft))
-	run(t, env, "turn", map[string]any{"session_id": "s1", "prompt": "capture it"})
+	ground(t, env)
+	compact(t, env)
 
 	refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
-}
-
-func TestATaskNotificationContinuesTheTurn(t *testing.T) {
-	cases := []struct {
-		name   string
-		prompt string
-		owes   bool
-	}{
-		{name: "a task notification", prompt: "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>"},
-		{name: "a typed prompt", prompt: "what did the task find?", owes: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := areaProject(t)
-			ground(t, env)
-			run(t, env, "turn", map[string]any{"session_id": "s1", "prompt": tc.prompt})
-
-			got := run(t, env, "gate", ask("s1"))
-			if got.noted != tc.owes {
-				t.Errorf("only a prompt the user typed should start a turn owing fresh reads, got: %+v", got)
-			}
-		})
-	}
 }

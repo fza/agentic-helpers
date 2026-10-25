@@ -16,15 +16,16 @@ import (
 
 var errNoLedger = errors.New("no ledger for this session")
 
-// evidence is what one turn of one session read out of the graph, plus the
-// drafts saved in a turn that read it all, which outlive the turn. The file
-// may carry fields another tool wrote, and they survive a record.
+// evidence is what one session read out of the graph while the graph stood as
+// Graph says, plus the drafts saved while it held every read. The file may
+// carry fields another tool wrote, and they survive a record.
 type evidence struct {
 	Search   int             `json:"search"`
 	Query    int             `json:"query"`
 	Term     int             `json:"term"`
 	Listings []string        `json:"listings"`
 	Grounded []groundedDraft `json:"grounded"`
+	Graph    string          `json:"graph"`
 
 	rest map[string]json.RawMessage
 }
@@ -38,6 +39,23 @@ type groundedDraft struct {
 
 func freshEvidence() evidence {
 	return evidence{Listings: []string{}, Grounded: []groundedDraft{}}
+}
+
+// against holds the reads to the graph as it stands now: reads recorded while
+// it stood otherwise no longer count. Grounded drafts carry their own graph
+// state and stay.
+func (held *evidence) against(graph string) {
+	if held.Graph == graph {
+		return
+	}
+
+	held.Search, held.Query, held.Term, held.Listings, held.Graph = 0, 0, 0, []string{}, graph
+}
+
+// forget drops the reads and keeps the grounded drafts, as a compaction drops
+// the reads' output from the context.
+func (held *evidence) forget() {
+	held.Search, held.Query, held.Term, held.Listings = 0, 0, 0, []string{}
 }
 
 func (held evidence) complete() bool {
@@ -71,7 +89,7 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("reading the ledger: %w", err)
 	}
 
-	for _, name := range []string{"search", "query", "term", "listings", "grounded"} {
+	for _, name := range []string{"search", "query", "term", "listings", "grounded", "graph"} {
 		delete(fields, name)
 	}
 
@@ -100,6 +118,7 @@ func (held evidence) MarshalJSON() ([]byte, error) {
 	fields["term"] = held.Term
 	fields["listings"] = held.Listings
 	fields["grounded"] = held.Grounded
+	fields["graph"] = held.Graph
 
 	data, err := json.Marshal(fields)
 	if err != nil {

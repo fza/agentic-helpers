@@ -5,7 +5,7 @@ what it believes the graph holds. Both are how a wrong answer gets written down 
 
 ## What it refuses
 
-The gate holds a question, a draft edit or an `agentic-capture` call to real reads in the turn: a literal search and a semantic one, because each misses what the other finds, and a
+The gate holds a question, a draft edit or an `agentic-capture` call to real reads of the graph: a literal search and a semantic one, because each misses what the other finds, and a
 listing, because an empty search result is never evidence of absence. A project naming a topic
 prefix in `.sdd/grounding.yaml` (`listing_prefix: area-`) owes a listing of one topic carrying it;
 every other project owes the view of every topic, `sdd view --layout "active:as-counts"`. It also
@@ -15,8 +15,8 @@ and a later entry may have renamed every surface it names.
 
 **A question, a draft edit and a notebook edit under `drafts/` are let through, never refused.**
 With reads owed the call goes ahead and the agent gets a note, opening
-`GROUNDING GATE: let through, reads owed.` and naming what the turn still owes; a draft edit's note
-adds `This draft is not grounded: its capture owes the reads.`, since a draft saved in a turn
+`GROUNDING GATE: let through, reads owed.` and naming what is still owed; a draft edit's note
+adds `This draft is not grounded: its capture owes the reads.`, since a draft saved while reads are
 missing reads never grounds. A `.sdd/grounding.yaml` that does not parse lets them through as
 `GROUNDING GATE: let through.` with the parse error. Claude Code draws any refusal of these tools as
 a red error in its default view, while a note is never shown to the user. Every other check stays a
@@ -47,11 +47,17 @@ the reads `agentic-capture` owes. Every other MCP tool passes.
 
 ## Grounded drafts
 
-A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as it stands now, in a
-turn carrying every read, while the graph holds the same entries (their count and the newest). The
-turn confirming a playback then need not repeat the reads the draft turn ran. A draft written
-through the shell, changed since, or captured after the graph moved owes the reads in the capture
-turn.
+A capture also passes on a grounded draft: one a `Write` or `Edit` saved, as it stands now, while
+every read stood, with the graph holding the same entries (their count and the newest). A draft
+written through the shell, changed since, or captured after the graph moved owes the reads.
+
+## How long the reads count
+
+Credit for the reads lasts until the graph changes or the session's context is compacted, not
+until the next prompt: a session that read the graph once works across prompts on an unchanged
+graph without reading it again. A capture by any session adds an entry file, and so voids the credit
+of every session; a compaction voids this session's, since the reads' output is gone from its
+context. Grounded drafts survive a compaction: their own graph state guards them.
 
 ## Configuration: `.sdd/grounding.yaml`
 

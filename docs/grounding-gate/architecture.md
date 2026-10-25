@@ -7,17 +7,21 @@ does nothing elsewhere or where `.sdd/grounding.yaml` says `enabled: false`.
 
 | Event | Mode | What it does |
 |---|---|---|
-| SessionStart | `start` | checks once that `sdd --version` carries `fza`, and otherwise turns the gate off for the session with one notice; removes the ledgers of sessions that left a week ago without ending cleanly |
-| UserPromptSubmit | `turn` | opens a new turn: the reads credited so far stop counting, grounded drafts stay; a prompt opening with `<task-notification>` (a background task finishing) continues the turn instead |
+| SessionStart | `start` | checks once that `sdd --version` carries `fza`, and otherwise turns the gate off for the session with one notice; removes the ledgers of sessions that left a week ago without ending cleanly; with `source: compact`, forgets this session's reads and keeps its grounded drafts |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view` | `record` | credits the reads the call performed |
-| PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory in a turn carrying every read, hashing the file as saved |
+| PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`; for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
 | SessionEnd | `end` | removes the session's ledger |
 
 ## The ledger
 
+A ledger's reads carry `graph`, the graph's state when they were recorded: the count of entry files
+and the newest entry's name, the state grounded drafts carry too. `record` compares it before
+crediting a read, and a different state clears the query, term and listings first; `gate` treats
+reads recorded under another state as none.
+
 The gate keeps each session's credited reads and grounded drafts under
-`.sdd/tmp/grounding-gate/`, one ledger per session. A ledger that cannot be written holds the turn's reads nowhere, so the gate refuses, the safe side. A grounded draft is recorded with the graph's
+`.sdd/tmp/grounding-gate/`, one ledger per session. A ledger that cannot be written holds the reads nowhere, so the gate refuses, the safe side. A grounded draft is recorded with the graph's
 entry count and newest entry at the time it was saved; a capture of it passes only while the draft
 file is byte-identical and the graph still holds the same entries.
 

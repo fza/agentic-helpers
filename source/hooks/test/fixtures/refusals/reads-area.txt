@@ -1,4 +1,4 @@
-GROUNDING GATE: let through, reads owed. No `--query` search ran this turn. No `--term` search ran this turn. No `area-` listing ran this turn.
+GROUNDING GATE: let through, reads owed. No `--query` search since the graph last changed. No `--term` search since the graph last changed. No `area-` listing since the graph last changed.
 
 Run both + the listing, then ask again:
 
@@ -8,4 +8,4 @@ Run both + the listing, then ask again:
 
 Empty search ≠ absence; a listing settles membership.
 
-This turn carries: neither read
+Standing reads: neither read

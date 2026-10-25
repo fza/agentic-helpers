@@ -110,7 +110,7 @@ func TestAGatherCallGroundsTheTurn(t *testing.T) {
 		record(t, env, bash(gather+" "+subject+" --query 'a subject' --entry "+subject))
 
 		got := run(t, env, "gate", ask("s1"))
-		refuses(t, got, "No `--term` search ran this turn.")
+		refuses(t, got, "No `--term` search since the graph last changed.")
 
 		if strings.Contains(got.said, "No `--query`") || strings.Contains(got.said, "listing ran") {
 			t.Errorf("only the missing mode should be owed, got: %s", got.said)
@@ -124,7 +124,7 @@ func TestAGatherCallGroundsTheTurn(t *testing.T) {
 		env := configured(t, "gather-command.yaml")
 		record(t, env, bash(gather+" s --query q --term x --area hooks --entry "+subject))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing ran this turn.")
+		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing since the graph last changed.")
 	})
 
 	t.Run("a failed call", func(t *testing.T) {

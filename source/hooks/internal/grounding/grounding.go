@@ -1,6 +1,6 @@
-// Package grounding refuses a question, a draft edit or a capture until the
-// turn behind it has read the decision graph: a literal search, a semantic
-// search, and a listing.
+// Package grounding holds a question, a draft edit or a capture to reads of the
+// decision graph: a literal search, a semantic search, and a listing. Credit for
+// them lasts until the graph changes or the session's context is compacted.
 //
 // One search mode alone misses what the other finds, and an empty search reads
 // as absence. A listing cannot miss that way, because it enumerates rather
@@ -29,13 +29,14 @@
 //
 // Modes:
 //
-//	record  PostToolUse on Bash: notes which graph reads a command performed;
-//	        on Write and Edit: notes a draft saved in a fully read turn
-//	turn    UserPromptSubmit: starts a fresh turn, so reads never carry over
-//	gate    PreToolUse: refuses a bad read, refuses AskUserQuestion and a draft
-//	        edit until this turn carries every read, and a capture until this
-//	        turn carries every read or its draft is grounded
-//	start   SessionStart: removes ledgers of sessions gone a week
+//	record  PostToolUse on Bash and sdd's MCP reads: notes which graph reads a
+//	        call performed; on Write and Edit: notes a draft saved while every
+//	        read stands
+//	gate    PreToolUse: refuses a bad read; lets AskUserQuestion and a draft
+//	        edit through with a note until every read stands, and refuses a
+//	        capture until every read stands or its draft is grounded
+//	start   SessionStart: removes ledgers of sessions gone a week, and after a
+//	        compaction forgets this session's reads
 //	end     SessionEnd: removes this session's ledgers
 package grounding
 
@@ -66,7 +67,7 @@ import (
 //go:embed refusals
 var refusals embed.FS
 
-var ErrUsage = errors.New("usage: agentic-grounding-gate record|turn|gate|start|end")
+var ErrUsage = errors.New("usage: agentic-grounding-gate record|gate|start|end")
 
 const (
 	graphDirName = ".sdd"
@@ -91,6 +92,23 @@ var (
 	enters      = regexp.MustCompile(`\bcd\s+(?:'([^']+)'|"([^"]+)"|([^\s;&|]+))`)
 )
 
+// forgetReads drops the session's reads after a compaction: the reads' output
+// is gone from the context, so their credit goes too. Grounded drafts stay.
+func forgetReads(ctx context.Context, env Env, payload hookio.Payload) {
+	path, err := ledgerPath(env.ledgerDir(), payload)
+	if err != nil {
+		return
+	}
+
+	held := loadEvidence(ctx, path)
+	held.forget()
+
+	err = saveEvidence(ctx, path, held)
+	if err != nil {
+		_ = os.Remove(path)
+	}
+}
+
 // Matching this shape is the whole safety of the sweep: only a ledger named for
 // a session, or for an agent within one, is ever removed.
 var ledgerName = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\.[^/]+)?\.json$`)
@@ -104,10 +122,9 @@ var gatedTools = map[string]bool{"AskUserQuestion": true, "Write": true, "Edit":
 
 const (
 	refusedLine      = "GROUNDING GATE: refused."
-	taskNotification = "<task-notification>"
 	letThroughLine   = "GROUNDING GATE: let through, reads owed."
 	letThroughAnyway = "GROUNDING GATE: let through."
-	readsOwed        = "This turn carries:"
+	readsOwed        = "Standing reads:"
 	ungroundedDraft  = "This draft is not grounded: its capture owes the reads."
 )
 
@@ -148,7 +165,7 @@ func (env Env) graphDir() string {
 // that does not parse keeps the gate on, since whether the project switched it
 // off is part of what the file says.
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
-	if len(args) != 1 || !slices.Contains([]string{"record", "turn", "gate", "start", "end"}, args[0]) {
+	if len(args) != 1 || !slices.Contains([]string{"record", "gate", "start", "end"}, args[0]) {
 		_, _ = fmt.Fprintln(streams.Err, ErrUsage)
 
 		return 1
@@ -175,13 +192,13 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		record(ctx, env, payload)
 
 		return 0
-	case "turn":
-		turn(ctx, env, payload)
-
-		return 0
 	case "start":
 		reap(ctx, env.ledgerDir(), time.Now())
 		stepAsideWithoutFork(ctx, env, payload, streams)
+
+		if payload.Source == "compact" {
+			forgetReads(ctx, env, payload)
+		}
 
 		return 0
 	case "end":
@@ -249,6 +266,8 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 	reads := readsOf(config)
 
 	held := loadEvidence(ctx, path)
+	held.against(env.graphState())
+
 	changed := false
 
 	if reads.search.MatchString(spoken) {
@@ -289,7 +308,7 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 
 	if changed {
-		// A ledger that cannot be written holds this turn's reads nowhere, and
+		// A ledger that cannot be written holds the reads nowhere, and
 		// the gate then refuses: the safe side.
 		_ = saveEvidence(ctx, path, held)
 	}
@@ -309,6 +328,7 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 
 	held := loadEvidence(ctx, path)
+	held.against(env.graphState())
 	if !held.complete() {
 		return
 	}
@@ -324,30 +344,6 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 
 	held.addGrounded(draft)
 	_ = saveEvidence(ctx, path, held)
-}
-
-// turn starts fresh, keeping only the grounded drafts. A turn that failed to
-// clear would leave the last one's reads standing, so a failure removes the
-// file rather than leaving it.
-func turn(ctx context.Context, env Env, payload hookio.Payload) {
-	// A finished background task reaches the hook as a prompt of its own, while
-	// the work it reports belongs to the turn that started it.
-	if strings.HasPrefix(strings.TrimSpace(payload.Prompt), taskNotification) {
-		return
-	}
-
-	path, err := ledgerPath(env.ledgerDir(), payload)
-	if err != nil {
-		return
-	}
-
-	fresh := freshEvidence()
-	fresh.Grounded = loadEvidence(ctx, path).Grounded
-
-	err = saveEvidence(ctx, path, fresh)
-	if err != nil {
-		_ = os.Remove(path)
-	}
 }
 
 // gate returns the refusal this call earns, or nothing. A seat the project
@@ -388,6 +384,8 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		held = loadEvidence(ctx, path)
 	}
 
+	held.against(env.graphState())
+
 	if held.complete() {
 		return ""
 	}
@@ -405,22 +403,22 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 	if haveSemantic {
 		have = append(have, "a semantic query")
 	} else {
-		missing = append(missing, "No `--query` search ran this turn.")
+		missing = append(missing, "No `--query` search since the graph last changed.")
 	}
 
 	if haveLiteral {
 		have = append(have, "a literal term search")
 	} else {
-		missing = append(missing, "No `--term` search ran this turn.")
+		missing = append(missing, "No `--term` search since the graph last changed.")
 	}
 
 	switch {
 	case haveListing:
 		have = append(have, "a listing of "+strings.Join(held.Listings, ", "))
 	case prefix != "":
-		missing = append(missing, "No `"+prefix+"` listing ran this turn.")
+		missing = append(missing, "No `"+prefix+"` listing since the graph last changed.")
 	default:
-		missing = append(missing, "No listing of every topic ran this turn.")
+		missing = append(missing, "No listing of every topic since the graph last changed.")
 	}
 
 	carries := strings.Join(have, " and ")

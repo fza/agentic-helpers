@@ -72,6 +72,7 @@ func recordMCP(ctx context.Context, env Env, payload hookio.Payload) {
 
 	input := mcpArguments(payload)
 	held := loadEvidence(ctx, path)
+	held.against(env.graphState())
 	changed := false
 
 	if payload.ToolName == mcpSearch {

@@ -132,6 +132,14 @@ func ground(t *testing.T, env grounding.Env) {
 
 // refuses asserts the call owes the reads: a refusal, or for a gated tool the
 // note it is let through with.
+// compact is the SessionStart a compaction of session s1 sends: it forgets the
+// session's reads and keeps its grounded drafts.
+func compact(t *testing.T, env grounding.Env) {
+	t.Helper()
+
+	run(t, env, "start", map[string]any{"session_id": "s1", "source": "compact"})
+}
+
 func refuses(t *testing.T, got result, says string) {
 	t.Helper()
 
@@ -159,10 +167,10 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 		missing string
 	}{
 		{name: "no reads", missing: "neither read"},
-		{name: "misspelled search alone", reads: []string{misspelled}, missing: "No `area-` listing ran this turn."},
-		{name: "area listing alone", reads: []string{areaRead}, missing: "No `--query` search ran this turn."},
-		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: "No `--term` search ran this turn."},
-		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: "No `--query` search ran this turn."},
+		{name: "misspelled search alone", reads: []string{misspelled}, missing: "No `area-` listing since the graph last changed."},
+		{name: "area listing alone", reads: []string{areaRead}, missing: "No `--query` search since the graph last changed."},
+		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: "No `--term` search since the graph last changed."},
+		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: "No `--query` search since the graph last changed."},
 		{name: "show alone", reads: []string{"sdd show 20260829-122703-d-tac-kuz"}, missing: "neither read"},
 		{name: "facet listing is no area", reads: []string{`sdd view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: "No `area-` listing"},
 	}
@@ -225,12 +233,12 @@ func TestAnotherRepository(t *testing.T) {
 }
 
 func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
-	t.Run("a new turn discards the evidence", func(t *testing.T) {
+	t.Run("a compaction discards the evidence", func(t *testing.T) {
 		env := areaProject(t)
 		ground(t, env)
 		passes(t, run(t, env, "gate", ask("s1")))
 
-		run(t, env, "turn", map[string]any{"session_id": "s1"})
+		compact(t, env)
 
 		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
 	})
@@ -249,7 +257,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 			record(t, env, with(bash(read), "agent_id", "a1"))
 		}
 
-		refuses(t, run(t, env, "gate", ask("s1")), "No `--query` search ran this turn.")
+		refuses(t, run(t, env, "gate", ask("s1")), "No `--query` search since the graph last changed.")
 		passes(t, run(t, env, "gate", with(ask("s1"), "agent_id", "a1")))
 		refuses(t, run(t, env, "gate", with(ask("s1"), "agent_id", "a2")), "neither read")
 	})
@@ -542,20 +550,16 @@ func TestEveryKindCaptures(t *testing.T) {
 	})
 }
 
-func TestTheTurnHookNeverBlocksAPrompt(t *testing.T) {
-	t.Run("a payload that is no object", func(t *testing.T) {
-		passes(t, runRaw(t, areaProject(t), "turn", `"a string"`))
+func TestALedgerThatCannotBeTrustedRefuses(t *testing.T) {
+	t.Run("a compaction with a session name carrying a separator", func(t *testing.T) {
+		passes(t, run(t, areaProject(t), "start", map[string]any{"session_id": "a/b/c", "source": "compact"}))
 	})
 
-	t.Run("a session name carrying a separator", func(t *testing.T) {
-		passes(t, run(t, areaProject(t), "turn", map[string]any{"session_id": "a/b/c"}))
-	})
-
-	t.Run("a ledger directory that is a file", func(t *testing.T) {
+	t.Run("a compaction with a ledger directory that is a file", func(t *testing.T) {
 		env := areaProject(t)
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate"), "occupied")
 
-		passes(t, run(t, env, "turn", map[string]any{"session_id": "s1"}))
+		passes(t, run(t, env, "start", map[string]any{"session_id": "s1", "source": "compact"}))
 	})
 
 	t.Run("a ledger that only partly decodes refuses", func(t *testing.T) {
@@ -634,7 +638,7 @@ func TestListingWithoutAPrefix(t *testing.T) {
 			if tc.opens {
 				passes(t, got)
 			} else {
-				refuses(t, got, "No listing of every topic ran this turn.")
+				refuses(t, got, "No listing of every topic since the graph last changed.")
 			}
 		})
 	}
@@ -652,7 +656,7 @@ func TestListingWithAPrefix(t *testing.T) {
 		env := areaProject(t)
 		record(t, env, bash(literalRead), bash(semanticRead), bash(`sdd view --layout "active:as-counts"`))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing ran this turn.")
+		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing since the graph last changed.")
 	})
 
 	t.Run("a quoted topic still counts", func(t *testing.T) {
@@ -697,9 +701,9 @@ func TestCaptureNeedsEveryRead(t *testing.T) {
 		missing string
 	}{
 		{name: "no reads", missing: "neither read"},
-		{name: "no semantic search", reads: []string{literalRead, areaRead}, missing: "No `--query` search ran this turn."},
-		{name: "no literal search", reads: []string{semanticRead, areaRead}, missing: "No `--term` search ran this turn."},
-		{name: "no listing", reads: []string{literalRead, semanticRead}, missing: "No `area-` listing ran this turn."},
+		{name: "no semantic search", reads: []string{literalRead, areaRead}, missing: "No `--query` search since the graph last changed."},
+		{name: "no literal search", reads: []string{semanticRead, areaRead}, missing: "No `--term` search since the graph last changed."},
+		{name: "no listing", reads: []string{literalRead, semanticRead}, missing: "No `area-` listing since the graph last changed."},
 	}
 
 	for _, tc := range cases {
@@ -778,7 +782,7 @@ func TestAPlainNewHasNoGroundedDraft(t *testing.T) {
 	draft := draftIn(t, env)
 	ground(t, env)
 	record(t, env, save("Write", draft))
-	run(t, env, "turn", map[string]any{"session_id": "s1"})
+	compact(t, env)
 
 	passes(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 	refuses(t, run(t, env, "gate", bash("sdd new d tac \"$(cat "+draft+")\"")), "neither read")
@@ -788,7 +792,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 	nextTurn := func(t *testing.T, env grounding.Env) {
 		t.Helper()
 
-		run(t, env, "turn", map[string]any{"session_id": "s1"})
+		compact(t, env)
 	}
 
 	for _, tool := range []string{"Write", "Edit"} {

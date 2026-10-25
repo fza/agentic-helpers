@@ -41,7 +41,7 @@ func TestTheGateSwitchedOff(t *testing.T) {
 	}
 
 	t.Run("no ledger is written", func(t *testing.T) {
-		run(t, env, "turn", ask("s1"))
+		run(t, env, "start", map[string]any{"session_id": "s1", "source": "compact"})
 		ground(t, env)
 
 		_, err := os.Stat(filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate"))
