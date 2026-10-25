@@ -102,10 +102,12 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 
 	payload := mem.payload()
 	mem.housekeep()
+	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
 	if name != "" {
 		held = mem.track(name, held, payload)
+		mem.say(mem.moved(ctx, name, held))
 
 		if payload.Source == "compact" || payload.Source == "clear" {
 			mem.resetWindow(held.SessionID)
@@ -412,6 +414,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
+	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
 	if name == "" {
@@ -422,6 +425,11 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	session := cmp.Or(held.SessionID, payload.SessionID)
 
 	var out []string
+
+	movedHere := mem.moved(ctx, name, held)
+	if movedHere != "" {
+		out = append(out, movedHere)
+	}
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
 	if mem.crossed(session, payload.TranscriptPath, steps) {
@@ -463,11 +471,17 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		return 0
 	}
 
-	_ = mem.payload()
+	payload := mem.payload()
+	mem.adopt(ctx, payload)
 
-	name, _ := mem.ownSeat(ctx)
+	name, held := mem.ownSeat(ctx)
 	if name == "" {
 		return 0
+	}
+
+	movedHere := mem.moved(ctx, name, held)
+	if movedHere != "" {
+		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", movedHere)
 	}
 
 	signature := mem.logSignature()
@@ -577,6 +591,7 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
+	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
 	if name == "" {
@@ -604,6 +619,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
+	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
 	if name == "" {

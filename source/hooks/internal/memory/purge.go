@@ -59,10 +59,6 @@ func closedAt(held seat.Claim) time.Time {
 		}
 	}
 
-	if held.Reserved != "" {
-		return parseStamp(held.Reserved).Add(reservationKeep)
-	}
-
 	return parseStamp(held.Claimed)
 }
 

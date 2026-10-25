@@ -27,6 +27,14 @@ type holderView struct {
 	Claimed        string `json:"claimed,omitempty"`
 	TranscriptPath string `json:"transcript_path,omitempty"`
 	Alive          bool   `json:"alive"`
+	Reserved       bool   `json:"reserved,omitempty"`
+}
+
+func (mem *memory) viewOf(name string, held seat.Claim, alive bool) holderView {
+	return holderView{
+		Seat: name, SessionID: held.SessionID, PID: held.PID, Started: held.Started, Claimed: held.Claimed,
+		TranscriptPath: held.TranscriptPath, Alive: alive, Reserved: !alive && mem.freshReservation(held),
+	}
 }
 
 func (mem *memory) alive(ctx context.Context, held seat.Claim) bool {
@@ -44,10 +52,7 @@ func (mem *memory) holder(ctx context.Context, req request) result {
 		view := holderView{Seat: name, SessionID: req.Session}
 
 		if name != "" {
-			view = holderView{
-				Seat: name, SessionID: held.SessionID, PID: held.PID, Started: held.Started, Claimed: held.Claimed,
-				TranscriptPath: held.TranscriptPath, Alive: mem.alive(ctx, held),
-			}
+			view = mem.viewOf(name, held, mem.alive(ctx, held))
 		}
 
 		return mem.holderAnswer(view, req.JSON || true)
@@ -65,10 +70,7 @@ func (mem *memory) holder(ctx context.Context, req request) result {
 	view := holderView{Seat: req.Name}
 
 	if found {
-		view = holderView{
-			Seat: req.Name, SessionID: held.SessionID, PID: held.PID, Started: held.Started, Claimed: held.Claimed,
-			TranscriptPath: held.TranscriptPath, Alive: mem.alive(ctx, held),
-		}
+		view = mem.viewOf(req.Name, held, mem.alive(ctx, held))
 	}
 
 	return mem.holderAnswer(view, req.JSON)
@@ -91,6 +93,10 @@ func (mem *memory) holderAnswer(view holderView, asJSON bool) result {
 
 	if code == 0 {
 		return result{text: fmt.Sprintf("%s is held by session %s (pid %d)", view.Seat, short(view.SessionID), view.PID)}
+	}
+
+	if view.Reserved {
+		return result{text: fmt.Sprintf("%s is reserved for session %s", view.Seat, short(view.SessionID)), code: 1}
 	}
 
 	return result{text: view.Seat + " is free", code: 1}
@@ -128,6 +134,10 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		if why != "" {
 			return refused("%s", why)
 		}
+	}
+
+	if req.Session != "" {
+		return mem.claimFor(ctx, req)
 	}
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
@@ -171,10 +181,13 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	// A running holder may be mid-work, and nothing tells a stuck one from a busy
-	// one, so no claim ever takes its seat.
-	if found && current != req.Name && mem.alive(ctx, existing) {
-		return refused("%s is held by session %s (pid %d), still running; its holder releases it with `%s release`, or the seat frees when that session ends",
-			req.Name, short(existing.SessionID), existing.PID, self)
+	// one, so no claim ever takes its seat; a fresh reservation waits for its
+	// session the same way.
+	if found && current != req.Name {
+		refusal := mem.inUseRefusal(ctx, req.Name, existing)
+		if refusal != "" {
+			return refused("%s", refusal)
+		}
 	}
 
 	if current == req.Name {
@@ -382,6 +395,8 @@ func (mem *memory) sweep(ctx context.Context) []string {
 			rows = append(rows, name+"  free")
 		case mem.alive(ctx, claim):
 			rows = append(rows, fmt.Sprintf("%s  %s  pid %d", name, short(claim.SessionID), claim.PID))
+		case mem.freshReservation(claim):
+			rows = append(rows, fmt.Sprintf("%s  reserved %s", name, short(claim.SessionID)))
 		default:
 			_ = seat.Remove(mem.seatsDir(), key)
 			rows = append(rows, fmt.Sprintf("%s  free (holder %s gone, freed)", name, short(claim.SessionID)))

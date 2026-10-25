@@ -471,14 +471,16 @@ func commands() []command {
 				`"json":{"type":"boolean"}}}`,
 		},
 		{
-			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] | claim --shelf <shelf> [...]",
-			description: "take a seat, on a shelf with --shelf, or a new seat on that shelf with no name; prints the brief and the slice",
-			flags:       []flagSpec{{"shelf", flagText}, {"lifetime", flagText}},
-			positional:  optionalName,
-			run:         (*memory).claim,
+			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] [--session <id>] | claim --shelf <shelf> [...]",
+			description: "take a seat, on a shelf with --shelf, or a new seat on that shelf with no name; prints the brief and the slice; " +
+				"--session claims it for that session: a reservation it takes over, or a handover where it holds a seat",
+			flags:      []flagSpec{{"shelf", flagText}, {"lifetime", flagText}, {"session", flagText}},
+			positional: optionalName,
+			run:        (*memory).claim,
 			schema: `{"type":"object","properties":{"name":{"type":"string"},` +
 				`"shelf":{"type":"string","description":"the shelf a new seat files onto; alone, claims a new seat on it"},` +
-				`"lifetime":{"type":"string","description":"durable, temporary, or a span such as 90m, 12h, 2d or 0"}}}`,
+				`"lifetime":{"type":"string","description":"durable, temporary, or a span such as 90m, 12h, 2d or 0"},` +
+				`"session":{"type":"string","description":"the session to claim the seat for, other than the caller's"}}}`,
 		},
 		{
 			name: "rename", usage: "rename '<new name>'", description: "give the seat this session holds a new name; its id and entries stay",

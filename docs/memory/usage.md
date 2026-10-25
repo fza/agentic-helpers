@@ -90,6 +90,28 @@ holder from a busy one, and a busy one losing its seat would find every write re
 noticing. The seat frees when its holder runs `release` or its session ends, which closes it; a
 seat whose holder has gone is free to claim, and `sweep` frees every such seat of the project.
 
+## Claiming for another session
+
+A launcher seats the sessions it starts or keeps from outside them, by the session id it gives
+`claude --session-id <uuid>`:
+
+```bash
+agentic-memory claim impl-7ah --session <uuid> --shelf row-7ah --lifetime 3d
+```
+
+- **For a session holding no seat it is a reservation**: the seat's claim names the session and no
+  process, and the reply says `reserved <seat> for session <id> (shelf <name>)`. The session's first
+  agentic-memory hook (SessionStart, else its first prompt or tool call) takes it over, and from
+  then on the seat is held like any other. A reservation untaken for 10 minutes frees the seat. A
+  reserved seat refuses every other claim, `<seat> is reserved for session <id> until it starts`,
+  and keeps a temporary shelf from purging.
+- **For a session holding a seat it is a handover**: in one step the session's seat closes and the
+  named seat is claimed for the same running process, which acts as the new seat from its next call:
+  `moved session <id> from <old> to <new> (shelf <name>)`. Its next hook tells it,
+  `agentic-memory: seat moved from <old> to <new> (shelf <name>)`, followed by the new seat's brief.
+- A seat held by another running session, or reserved for another session, is refused either way;
+  so is a seat on another shelf than `--shelf` names. MCP: key `session` on `claim`.
+
 ## Shelves
 
 A **shelf** is the memory one or more seats share. A seat claimed without `--shelf` gets a shelf of
@@ -320,7 +342,9 @@ anywhere, inside a git work tree or not. With nobody seated it says
 ## Other tools
 
 Other tools read seats through `agentic-memory holder <seat> --json` and
-`agentic-memory holder --session <id> --json`: exit 0 for a held seat, 1 for a free one.
+`agentic-memory holder --session <id> --json`: exit 0 for a held seat, 1 for a free one, and 1
+with `"reserved": true` beside `"alive": false` for a seat reserved for a session that has not yet
+taken it over.
 
 ## Options
 

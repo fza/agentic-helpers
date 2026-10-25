@@ -63,6 +63,10 @@ agentic-memory who                      # every live seated session, every proje
 - **Held by a running session → refused, always.** Nothing seizes it. It frees when its holder runs
   `release` or its session ends. Stuck holder → the user's to close, or ask its agent to release.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
+- **`claim <seat> --session <id>`** is a launcher's, never your own session's: a reservation the
+  session takes over on its first hook, or a handover of a session already seated.
+  **`agentic-memory: seat moved from <old> to <new> (shelf <name>)`** at a hook → the launcher
+  moved this session; the brief after it is the new seat's. Work on as the new seat.
 - **Only inside a git work tree.** Outside: every call refuses, `<dir> is not inside a git work
   tree; memory works only in one`. Plugin option `memory_require_git: false` lifts it, machine-wide.
 - **A seat has an id** (`s-` + 6), its name a label: `rename` changes only the name (and a shelf of

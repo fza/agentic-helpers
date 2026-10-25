@@ -106,7 +106,12 @@ stays in search, flagged, and `revive` refuses it.
 
 A claim file, under the seat's id, names the holding session, the pid of its `claude` process, that process's start time
 (`started`, RFC 3339 in UTC), when it was claimed, and the session's transcript. A `release` or a
-SessionEnd closing the seat moves the claim to `<id>.last.json` with `closed`, the time it closed. A call finds its own
+SessionEnd closing the seat moves the claim to `<id>.last.json` with `closed`, the time it closed.
+A claim made with `--session` for a session holding no seat is a reservation: `reserved` holds its
+time and `pid` is 0; any hook whose payload carries that session id, run by a process holding no
+seat, writes its owning `claude` process, start time and transcript into it. A handover writes the
+new seat's claim from the old one, process and all, with `moved_from` naming the old seat until the
+session's next hook reports it. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.
 
 A holder is alive while its pid runs `claude` and that process started at the recorded instant, so a
