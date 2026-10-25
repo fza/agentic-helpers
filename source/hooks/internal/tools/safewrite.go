@@ -171,7 +171,7 @@ func (held *dir) appendTo(name string) (*os.File, error) {
 		var checked fs.FileInfo
 
 		checked, err = held.fileInfo(name)
-		if err == nil && (!opened.Mode().IsRegular() || !os.SameFile(checked, opened)) {
+		if err == nil && (!opened.Mode().IsRegular() || !os.SameFile(checked, opened) || hardLinked(opened)) {
 			err = fmt.Errorf("%s %w", at, ErrMoved)
 		}
 	}

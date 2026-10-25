@@ -17,6 +17,7 @@ var (
 	ErrTooLarge   = errors.New("is over the read limit")
 	ErrTooMany    = errors.New("holds more files than a walk reads")
 	ErrMoved      = errors.New("changed while it was opened")
+	ErrHardLinked = errors.New("has a second name, a hard link; register a copy of it")
 )
 
 // Read limits. Every store is untrusted text, so no read is unbounded.
@@ -166,6 +167,12 @@ func (held *dir) fileInfo(name string) (fs.FileInfo, error) {
 		return nil, notARegularFile(at, checked)
 	}
 
+	// A second name can be an outside file linked in: reading it would hand
+	// that file out, and appending to it would write there.
+	if hardLinked(checked) {
+		return nil, fmt.Errorf("%s %w", at, ErrHardLinked)
+	}
+
 	return checked, nil
 }
 
@@ -312,8 +319,7 @@ func (held *dir) walk(limit int64, skipTop func(name string) bool) ([]walked, er
 	return found, nil
 }
 
-// hardLinked says whether a file has a second name: registering it would copy
-// a file some other path also changes.
+// hardLinked says whether a file has a second name.
 func hardLinked(info fs.FileInfo) bool {
 	stat, readable := info.Sys().(*syscall.Stat_t)
 

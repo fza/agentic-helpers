@@ -19,10 +19,9 @@ type source struct {
 
 // readSource reads --from: a file or a folder inside the checkout (outside
 // `.git`), AGENTIC_TOOLS_SCRATCH or the own store's `copies/`, every component
-// checked, no link, no hard
-// link, no pipe, at most a tool's size in all. A folder's files land at the
-// top of the version; its own `tool.json` is the description a take wrote
-// beside the files, never a file of the tool.
+// checked, no link, no hard link, no pipe, at most a tool's size in all. A
+// folder's files land at the top of the version; its own `tool.json` is the
+// description a take wrote beside the files, never a file of the tool.
 func (lib *library) readSource(ctx context.Context, given string) (source, error) {
 	if strings.TrimSpace(given) == "" {
 		return source{}, errors.New("--from names no file or folder")
@@ -81,15 +80,6 @@ func (lib *library) readSource(ctx context.Context, given string) (source, error
 		return source{files: files, copy: at}, lib.checkFiles(folder, files)
 	}
 
-	info, err := parent.fileInfo(last)
-	if err != nil {
-		return source{}, err
-	}
-
-	if hardLinked(info) {
-		return source{}, fmt.Errorf("%s is hard-linked; register a copy of it", given)
-	}
-
 	data, err := parent.read(last, toolLimit)
 	if err != nil {
 		return source{}, err
@@ -101,33 +91,6 @@ func (lib *library) readSource(ctx context.Context, given string) (source, error
 func (lib *library) checkFiles(folder *dir, files []walked) error {
 	if len(files) == 0 {
 		return fmt.Errorf("%s holds no file", folder.path)
-	}
-
-	for _, file := range files {
-		inner := folder
-		directory, name := filepath.Split(filepath.FromSlash(file.name))
-
-		if directory != "" {
-			opened, err := folder.subPath(strings.TrimSuffix(filepath.ToSlash(directory), "/"))
-			if err != nil {
-				return err
-			}
-
-			inner = opened
-		}
-
-		info, err := inner.fileInfo(name)
-		if inner != folder {
-			inner.close()
-		}
-
-		if err != nil {
-			return err
-		}
-
-		if hardLinked(info) {
-			return fmt.Errorf("%s is hard-linked; register a copy of it", file.name)
-		}
 	}
 
 	return nil

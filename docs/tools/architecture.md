@@ -44,7 +44,8 @@ store holds another project's agents' text.
 - **Reads follow no link and wait on no pipe.** A walk opens each folder relative to its parent's
   descriptor (`os.Root`), lstat-checked first and held to the checked folder after opening; `os.Root`
   alone follows a link that stays inside its tree. A file is read only where its lstat is a regular
-  file, opened with `O_NONBLOCK` and held to the lstat. Caps: a tool's files 1 MiB, a version folder
+  file with one name (a hard link could be an outside file linked in), opened with `O_NONBLOCK` and
+  held to the lstat. Caps: a tool's files 1 MiB, a version folder
   1 MiB + 64 KiB, `index.json`, `history.jsonl` and `takes.jsonl` 4 MiB each, a session file 1 MiB,
   `current` 64 bytes, a walk six folders deep and 2000 files. A malformed line is skipped.
 - **Writes open no path.** A write holds the descriptor of each folder, made and opened relative to
@@ -52,7 +53,8 @@ store holds another project's agents' text.
   descriptor, so a folder swapped for a link after its check is never written through. A new file
   is created with `O_EXCL`, which opens no existing name; a replaced file (`current`, `index.json`,
   a session file) is written under a fresh random name and renamed over the old one; an appended
-  file (`history.jsonl`, `takes.jsonl`, `.lock`) must be the regular file its folder's lstat names.
+  file (`history.jsonl`, `takes.jsonl`, `.lock`) must be the regular file of one name its folder's
+  lstat names.
 - **Every printed field is stripped of control characters**, an index row whose name is not its key
   is dropped, and every listing opens with the framing lead.
 - **Pushed lines carry names, paths and commands only.**

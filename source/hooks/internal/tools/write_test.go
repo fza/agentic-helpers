@@ -139,3 +139,44 @@ func TestAWriteNeverFollowsAPlantedLink(t *testing.T) {
 		})
 	}
 }
+
+func TestNeitherReaderNorWriterUsesAHardLinkedFile(t *testing.T) {
+	h := newHarness(t)
+	h.tool("word-count", "Count the words of standard input")
+	h.tool("word-split", "Put each word on its own line")
+
+	outside := filepath.Join(h.home, "outside.txt")
+	test.WriteFile(t, outside, "untouched\n")
+
+	history := filepath.Join(h.store(), "word-count", "history.jsonl")
+	_ = os.Remove(history)
+
+	err := os.Link(outside, history)
+	if err != nil {
+		t.Fatalf("planting the hard link: %v", err)
+	}
+
+	h.run("", "update", "word-count", "--summary", "Count words, a new way", "--why", "x")
+
+	data, _ := os.ReadFile(outside)
+	if string(data) != "untouched\n" {
+		t.Error("an append should never write into a file with a second name")
+	}
+
+	secret := filepath.Join(h.home, "secret.txt")
+	test.WriteFile(t, secret, "secret\n")
+
+	file := filepath.Join(h.store(), "word-split", "v1", "word-split.py")
+	_ = os.Remove(file)
+
+	err = os.Link(secret, file)
+	if err != nil {
+		t.Fatalf("planting the hard link: %v", err)
+	}
+
+	h.run("", "take", "word-split")
+
+	if test.Exists(t, filepath.Join(h.store(), "copies", "word-split", "v1", "word-split.py")) {
+		t.Error("a reader should never read a file with a second name")
+	}
+}
