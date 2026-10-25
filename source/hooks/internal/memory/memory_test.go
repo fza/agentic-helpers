@@ -599,6 +599,76 @@ func TestReadsWithoutHeat(t *testing.T) {
 	}
 }
 
+func TestMCPToolsTakeExactlyTheirKeys(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	id := h.file("Gate finding read over MCP", "finding")
+
+	calls := []struct {
+		name      string
+		tool      string
+		arguments string
+		refusal   string
+	}{
+		{name: "a wrong-case key", tool: "show", arguments: `{"ids":["` + id + `"],"Force":true}`,
+			refusal: `agentic-memory: show takes no key \"Force\"; it takes ids, no_heat`},
+		{name: "a key in capitals", tool: "search", arguments: `{"term":["Gate"],"ALL_SEATS":true}`,
+			refusal: `agentic-memory: search takes no key \"ALL_SEATS\"`},
+		{name: "another tool's key", tool: "show", arguments: `{"ids":["` + id + `"],"force":true}`,
+			refusal: `show takes no key \"force\"`},
+		{name: "every offending key", tool: "search", arguments: `{"limt":3,"Term":["Gate"]}`,
+			refusal: `search takes no key \"Term\", \"limt\"`},
+		{name: "a key for a tool taking none", tool: "topics", arguments: `{"all":true}`,
+			refusal: `topics takes no key \"all\"; it takes none`},
+		{name: "the exact keys", tool: "show", arguments: `{"ids":["` + id + `"],"no_heat":true}`},
+		{name: "no arguments at all", tool: "topics", arguments: `{}`},
+	}
+
+	lines := []string{`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`}
+	for index, call := range calls {
+		lines = append(lines, fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"%s","arguments":%s}}`,
+			index+10, call.tool, call.arguments))
+	}
+
+	answers := map[int]string{}
+
+	scanner := bufio.NewScanner(strings.NewReader(h.must(strings.Join(lines, "\n")+"\n", "mcp")))
+	scanner.Buffer(nil, 1<<20)
+
+	for scanner.Scan() {
+		var answer struct {
+			ID int `json:"id"`
+		}
+
+		_ = json.Unmarshal(scanner.Bytes(), &answer)
+		answers[answer.ID] = scanner.Text()
+	}
+
+	if strings.Count(answers[2], `"additionalProperties":false`) != strings.Count(answers[2], `"inputSchema"`) {
+		t.Error("every served tool schema should take no key beyond its properties")
+	}
+
+	for index, call := range calls {
+		t.Run(call.name, func(t *testing.T) {
+			answer := answers[index+10]
+			refused := strings.Contains(answer, `"isError":true`)
+
+			if call.refusal == "" {
+				if refused || !strings.Contains(strings.ToLower(answer), "gate") {
+					t.Errorf("a call with exactly the listed keys should answer as before: %s", answer)
+				}
+
+				return
+			}
+
+			if !refused || !strings.Contains(answer, call.refusal) {
+				t.Errorf("a call with a key the tool does not list should be refused naming it: %s", answer)
+			}
+		})
+	}
+}
+
 func TestStaleness(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")

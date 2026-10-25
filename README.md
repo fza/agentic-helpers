@@ -172,7 +172,10 @@ agentic-memory supersede m-7q2k4f --by m-9xq0b1
   nudge asks the seat to file what the summary would lose; a session's last turns survive its end
   for the next claim. There is no handoff to write.
 - **Every subcommand is also a tool** of the plugin's `memory` MCP server,
-  `mcp__plugin_agentic-helpers_memory__<subcommand>`, and `agentic-memory help` lists them.
+  `mcp__plugin_agentic-helpers_memory__<subcommand>`, and `agentic-memory help` lists them. A tool
+  takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_SEATS`), and its
+  schema says so with `additionalProperties: false`; any other key refuses the call with
+  `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
 - **Other tools read seats** through `agentic-memory holder <seat> --json` and
   `agentic-memory holder --session <id> --json`.
 
