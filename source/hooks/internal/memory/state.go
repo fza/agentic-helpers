@@ -357,13 +357,34 @@ func (held *entry) shadowed() bool {
 	return last.by != ""
 }
 
-// mergePolicy keeps every event, stripping the body of each entry superseded
-// longer ago than supersedeKeep, or retired longer ago than retiredKeep: the
-// one place a body is ever dropped.
+// horizonRun is an entry's leading run of events older than the fold horizon:
+// the entry as that run leaves it, its latest confirm, and the retire and
+// supersede rows still standing after the run's revives, by row index. The run
+// ends at the entry's first event past the horizon.
+type horizonRun struct {
+	held        *entry
+	confirm     int
+	transitions []int
+	ended       bool
+}
+
+// mergePolicy decides what a merge keeps. Each entry's leading run of events
+// older than supersedeKeep, the revive window, is folded into the shortest run
+// of existing kinds rebuilding the entry at that horizon: its new row carrying
+// the title, topics and retention the run left, its latest confirm, and the
+// retires and supersedes a revive can still step back over. No kind is added,
+// so a binary of an earlier release reads the merged segment. Topic merges and
+// every event past the horizon are kept as they are. The body of an entry
+// superseded longer ago than supersedeKeep, or retired longer ago than
+// retiredKeep, is dropped: the one place a body ever is.
 func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 	return func(rows []memorylog.Row, payload func(int) ([]byte, error)) ([]memorylog.Event, error) {
+		horizon := now.Add(-supersedeKeep)
 		folded := &state{entries: map[string]*entry{}}
+		atHorizon := &state{entries: map[string]*entry{}}
+		runs := map[string]*horizonRun{}
 		payloads := make([][]byte, len(rows))
+		inRun := make([]bool, len(rows))
 
 		for index, row := range rows {
 			raw, err := payload(index)
@@ -377,38 +398,129 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 			if err != nil {
 				return nil, err
 			}
+
+			if row.Kind == memorylog.KindMerge {
+				continue
+			}
+
+			if row.Kind == memorylog.KindNew && !row.Time.After(horizon) {
+				err = atHorizon.apply(row, raw)
+				if err != nil {
+					return nil, err
+				}
+
+				runs[row.Entry] = &horizonRun{held: atHorizon.entries[row.Entry], confirm: -1}
+				inRun[index] = true
+
+				continue
+			}
+
+			run, open := runs[row.Entry]
+			if !open || run.ended || row.Time.After(horizon) {
+				if open {
+					run.ended = true
+				}
+
+				continue
+			}
+
+			err = atHorizon.apply(row, raw)
+			if err != nil {
+				return nil, err
+			}
+
+			inRun[index] = true
+			run.record(row.Kind, index)
 		}
 
 		kept := make([]memorylog.Event, 0, len(rows))
-
-		for index, row := range rows {
-			raw := payloads[index]
-
-			held := folded.entries[row.Entry]
-			if row.Kind == memorylog.KindNew && bodyDue(held, now, retiredKeep) {
-				var filed newPayload
-
-				err := json.Unmarshal(raw, &filed)
-				if err != nil {
-					return nil, err
-				}
-
-				filed.Body = ""
-				filed.Dropped = true
-
-				raw, err = json.Marshal(filed)
-				if err != nil {
-					return nil, err
-				}
-			}
-
+		keep := func(index int, raw []byte) {
+			row := rows[index]
 			kept = append(kept, memorylog.Event{
 				Kind: row.Kind, Entry: row.Entry, Time: row.Time, Seat: row.Seat, Target: row.Target, Payload: raw,
 			})
 		}
 
+		for index, row := range rows {
+			if inRun[index] && row.Kind != memorylog.KindNew {
+				continue
+			}
+
+			if row.Kind != memorylog.KindNew {
+				keep(index, payloads[index])
+
+				continue
+			}
+
+			run := runs[row.Entry]
+			if !inRun[index] {
+				run = nil
+			}
+
+			raw, err := filedAtMerge(payloads[index], run, folded.entries[row.Entry], now, retiredKeep)
+			if err != nil {
+				return nil, err
+			}
+
+			keep(index, raw)
+
+			if run == nil {
+				continue
+			}
+
+			if run.confirm >= 0 {
+				keep(run.confirm, payloads[run.confirm])
+			}
+
+			for _, transition := range run.transitions {
+				keep(transition, payloads[transition])
+			}
+		}
+
 		return kept, nil
 	}
+}
+
+func (run *horizonRun) record(kind memorylog.Kind, index int) {
+	switch kind {
+	case memorylog.KindConfirm:
+		run.confirm = index
+	case memorylog.KindRetire, memorylog.KindSupersede:
+		run.transitions = append(run.transitions, index)
+	case memorylog.KindRevive:
+		if len(run.transitions) > 0 {
+			run.transitions = run.transitions[:len(run.transitions)-1]
+		}
+	}
+}
+
+// filedAtMerge is the payload a merge keeps for an entry's new row: the title,
+// topics and retention its folded run left, and no body once that is due to go.
+func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, retiredKeep time.Duration) ([]byte, error) {
+	drop := bodyDue(final, now, retiredKeep)
+	if run == nil && !drop {
+		return raw, nil
+	}
+
+	var filed newPayload
+
+	err := json.Unmarshal(raw, &filed)
+	if err != nil {
+		return nil, err
+	}
+
+	if run != nil {
+		filed.Title = run.held.title
+		filed.Topics = run.held.topics
+		filed.Retention = run.held.retention
+	}
+
+	if drop {
+		filed.Body = ""
+		filed.Dropped = true
+	}
+
+	return json.Marshal(filed)
 }
 
 func bodyDue(held *entry, now time.Time, retiredKeep time.Duration) bool {

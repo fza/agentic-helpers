@@ -129,6 +129,7 @@ agentic-memory merge <from> <into>                    # every seat's topic
   `retain`, `retitle`, `tag` → refused `<id> belongs to <seat>`.
 - Nothing is ever rewritten or deleted by an agent. Superseded bodies drop 14 days on, retired ones
   `retired_body_days` on (90 unless set). Dropped body → `revive` refused, file it again.
+- `show`'s event list keeps 14 days. Older events fold into the entry's current state.
 
 ## What comes back
 

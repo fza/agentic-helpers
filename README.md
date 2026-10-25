@@ -189,7 +189,13 @@ endpoint embeds what is pending.
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ```
 
-A merge of the log drops the body of an entry superseded more than 14 days earlier, or retired more
+The tail seals past 64 KiB into an immutable segment, and eight segments merge into one. A merge
+bounds what history it keeps: every event older than 14 days, the revive window, folds into the
+shortest run of existing event kinds that rebuilds its entry (one `new` row carrying the title,
+topics and retention as they stood, the latest `confirm`, and the `retire` or `supersede` still
+standing), so the log grows with the entries it holds rather than with every change ever made, and
+a binary of an earlier release still reads it. Topic merges and every younger event stay as they
+are. The same merge drops the body of an entry superseded more than 14 days earlier, or retired more
 than `retired_body_days` earlier (90 unless set, never under 14); the entry stays in search, flagged,
 and `revive` refuses it.
 
