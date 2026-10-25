@@ -1619,3 +1619,123 @@ func TestRecallLeavesThePromptVectorForAgenticTools(t *testing.T) {
 		t.Error("the session's end should empty its slot")
 	}
 }
+
+func (h *harness) ladderFile() string {
+	return filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "ladder", test.Session+".json")
+}
+
+func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.file("Gate reads Bash only today", "finding")
+
+	path := filepath.Join(t.TempDir(), "transcript.jsonl")
+	test.AppendTurns(t, path, h.clock.Now().Add(time.Hour), 10, 1000)
+
+	prompt := hookPayload("", path, "")
+
+	if strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+		t.Error("turns that fit the replay should never be nudged")
+	}
+
+	var checked struct {
+		Size int64 `json:"replay_checked_size"`
+	}
+
+	data, _ := os.ReadFile(h.ladderFile())
+	_ = json.Unmarshal(data, &checked)
+	info, _ := os.Stat(path)
+
+	if checked.Size != info.Size() {
+		t.Error("a check should record the transcript's size, so the next waits for a piece of growth")
+	}
+
+	test.AppendTurns(t, path, h.clock.Now().Add(2*time.Hour), 40, 1000)
+
+	first := h.must(prompt, "prompt")
+	if !strings.Contains(first, "Turns since your newest entry no longer fit the post-compaction replay. "+
+		"File where work stands: findings, open questions, judgment calls. "+
+		"agentic-memory new --title '<3-10 words>' --topic <name>... < body") {
+		t.Errorf("turns outgrowing the replay should nudge the seat to file:\n%s", first)
+	}
+
+	test.AppendTurns(t, path, h.clock.Now().Add(3*time.Hour), 20, 1000)
+
+	if strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+		t.Error("the replay nudge should fire once until the seat files")
+	}
+
+	var steps struct {
+		Nudges int `json:"nudges"`
+	}
+
+	data, _ = os.ReadFile(h.ladderFile())
+	_ = json.Unmarshal(data, &steps)
+
+	if steps.Nudges != 0 {
+		t.Error("the replay nudge should leave the compaction nudge's count untouched")
+	}
+
+	got := h.run(prompt, "stop")
+	if got.code != 0 {
+		t.Errorf("the replay nudge should never arm the Stop backstop, got %d %q", got.code, got.err)
+	}
+
+	h.clock.Advance(4 * time.Hour)
+	h.file("Where the gate work stands now", "filed")
+	test.AppendTurns(t, path, h.clock.Now().Add(time.Minute), 60, 1000)
+
+	if !strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+		t.Error("filing an entry should re-arm the replay nudge")
+	}
+}
+
+func TestTheReplayCheckWaitsForThePieceOfGrowth(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.file("Gate reads Bash only today", "finding")
+
+	path := filepath.Join(t.TempDir(), "transcript.jsonl")
+	test.AppendTurns(t, path, h.clock.Now().Add(time.Hour), 60, 1000)
+
+	info, _ := os.Stat(path)
+	test.WriteFile(t, h.ladderFile(), fmt.Sprintf(`{"rung":65,"replay_checked_size":%d}`, info.Size()-100))
+
+	prompt := hookPayload("", path, "")
+
+	if strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+		t.Error("below a piece of growth since the last check the hook should not read the transcript")
+	}
+
+	test.AppendTurns(t, path, h.clock.Now().Add(3*time.Hour), 5, 1000)
+
+	if !strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+		t.Error("a piece of growth should let the check run")
+	}
+}
+
+func TestACutReplaySaysWhatItDropped(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.file("Gate reads Bash only today", "finding")
+
+	path := filepath.Join(t.TempDir(), "transcript.jsonl")
+	test.AppendTurns(t, path, h.clock.Now().Add(time.Hour), 60, 1000)
+
+	out := h.must(hookPayload("compact", path, ""), "session-log", "1")
+	if !regexp.MustCompile(`^agentic-memory: the turns since seat main's newest entry, in 5 pieces, newest last; \d+ older pieces cut, the full transcript at ` +
+		regexp.QuoteMeta(path) + ":\n").MatchString(out) {
+		t.Errorf("a cut replay should name the count and the transcript in its first piece:\n%.300s", out)
+	}
+
+	if strings.Contains(h.must(hookPayload("compact", path, ""), "session-log", "2"), "cut") {
+		t.Error("only the first piece should carry the header")
+	}
+
+	short := h.transcript()
+
+	whole := h.must(hookPayload("compact", short, ""), "session-log", "1")
+	if !strings.HasPrefix(whole, "agentic-memory: the turns since seat main's newest entry, in 1 pieces, newest last:\n") {
+		t.Errorf("a replay cutting nothing should keep its header:\n%.200s", whole)
+	}
+}

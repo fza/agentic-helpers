@@ -244,25 +244,30 @@ func TestPieces(t *testing.T) {
 		pieceChars int
 		maxPieces  int
 		want       []string
+		cut        int
 	}{
-		{"a short text stays whole", "a\nb\n", 10, 5, []string{"a\nb\n"}},
-		{"lines group up to the limit", "aaa\nbbb\nccc\n", 8, 5, []string{"aaa\nbbb\n", "ccc\n"}},
-		{"the oldest pieces are dropped", "aaa\nbbb\nccc\n", 4, 2, []string{"bbb\n", "ccc\n"}},
-		{"a line longer than a piece is split", "abcdefghij\n", 4, 5, []string{"abcd", "efgh", "ij\n"}},
-		{"a long line closes the piece before it", "ab\nabcdef\n", 4, 5, []string{"ab\n", "abcd", "ef\n"}},
-		{"characters count, not bytes", "äöü\nßé\n", 4, 5, []string{"äöü\n", "ßé\n"}},
-		{"a blank text yields nothing", " \n", 10, 5, nil},
-		{"no piece size yields nothing", "a\n", 0, 5, nil},
-		{"a line exactly filling pieces leaves no empty piece", "abcdefgh", 4, 5, []string{"abcd", "efgh"}},
-		{"a negative piece size yields nothing", "a\n", -1, 5, nil},
-		{"a negative piece count yields nothing", "a\n", 10, -1, nil},
+		{"a short text stays whole", "a\nb\n", 10, 5, []string{"a\nb\n"}, 0},
+		{"lines group up to the limit", "aaa\nbbb\nccc\n", 8, 5, []string{"aaa\nbbb\n", "ccc\n"}, 0},
+		{"the oldest pieces are dropped", "aaa\nbbb\nccc\n", 4, 2, []string{"bbb\n", "ccc\n"}, 1},
+		{"a line longer than a piece is split", "abcdefghij\n", 4, 5, []string{"abcd", "efgh", "ij\n"}, 0},
+		{"a long line closes the piece before it", "ab\nabcdef\n", 4, 5, []string{"ab\n", "abcd", "ef\n"}, 0},
+		{"characters count, not bytes", "äöü\nßé\n", 4, 5, []string{"äöü\n", "ßé\n"}, 0},
+		{"a blank text yields nothing", " \n", 10, 5, nil, 0},
+		{"no piece size yields nothing", "a\n", 0, 5, nil, 0},
+		{"a line exactly filling pieces leaves no empty piece", "abcdefgh", 4, 5, []string{"abcd", "efgh"}, 0},
+		{"a negative piece size yields nothing", "a\n", -1, 5, nil, 0},
+		{"a negative piece count yields nothing", "a\n", 10, -1, nil, 0},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := transcript.Pieces(tc.text, tc.pieceChars, tc.maxPieces)
+			got, cut := transcript.Pieces(tc.text, tc.pieceChars, tc.maxPieces)
 			if !slices.Equal(got, tc.want) {
 				t.Errorf("the pieces should split at line ends within bounds, got %q", got)
+			}
+
+			if cut != tc.cut {
+				t.Errorf("the count of pieces cut should match the oldest dropped, got %d", cut)
 			}
 		})
 	}
@@ -275,7 +280,11 @@ func TestPieces(t *testing.T) {
 
 		builder.WriteString("the newest line survives\n")
 
-		got := transcript.Pieces(builder.String(), 9_000, 5)
+		got, cut := transcript.Pieces(builder.String(), 9_000, 5)
+		if cut == 0 {
+			t.Error("a log longer than every piece allowed should say how many it cut")
+		}
+
 		if len(got) != 5 {
 			t.Errorf("a long log should fill every piece allowed, got %d", len(got))
 		}

@@ -4,10 +4,11 @@ import "strings"
 
 // Pieces exists because Claude Code inlines a hook's output only up to a
 // character limit and swaps anything longer for a file path, so a caller sizes
-// a piece under that limit. Lengths count characters, as the client does.
-func Pieces(text string, pieceChars int, maxPieces int) []string {
+// a piece under that limit. Lengths count characters, as the client does. It
+// keeps the newest maxPieces and answers how many older ones it cut.
+func Pieces(text string, pieceChars int, maxPieces int) ([]string, int) {
 	if pieceChars < 1 || maxPieces < 1 || strings.TrimSpace(text) == "" {
-		return nil
+		return nil, 0
 	}
 
 	var pieces [][]rune
@@ -35,8 +36,11 @@ func Pieces(text string, pieceChars int, maxPieces int) []string {
 
 	pieces = append(pieces, current)
 
+	cut := 0
+
 	if len(pieces) > maxPieces {
-		pieces = pieces[len(pieces)-maxPieces:]
+		cut = len(pieces) - maxPieces
+		pieces = pieces[cut:]
 	}
 
 	rendered := make([]string, 0, len(pieces))
@@ -44,7 +48,7 @@ func Pieces(text string, pieceChars int, maxPieces int) []string {
 		rendered = append(rendered, string(piece))
 	}
 
-	return rendered
+	return rendered, cut
 }
 
 func Tail(text string, maxChars int) string {

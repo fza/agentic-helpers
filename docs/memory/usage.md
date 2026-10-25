@@ -194,6 +194,18 @@ entries a prompt touches that stand out from the rest. Near compaction a nudge a
 what the summary would lose; a session's last turns survive its end for the next claim. There is no
 handoff to write.
 
+The turns since the seat's newest entry come back after a compaction in at most five pieces of
+9,000 characters, the newest kept. Once they would no longer fit, the next prompt asks the seat to
+file, once per newest entry:
+
+    Turns since your newest entry no longer fit the post-compaction replay. File where work stands: findings, open questions, judgment calls. agentic-memory new --title '<3-10 words>' --topic <name>... < body
+
+Filing any entry moves the replay's start forward and re-arms the nudge, which counts toward neither
+the compaction nudge's two nor the `Stop` backstop. A replay that still cuts turns opens with the
+count and where the rest is:
+
+    agentic-memory: the turns since seat <name>'s newest entry, in <n> pieces, newest last; <k> older pieces cut, the full transcript at <path>:
+
 ## MCP tools
 
 Every subcommand is also a tool of the plugin's `memory` MCP server,

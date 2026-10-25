@@ -201,6 +201,12 @@ agentic-memory merge <from> <into>                    # every seat's topic
 - **Near compaction → nudge:** `Context near compaction. File what the summary would lose...`. Any
   entry filed answers it. Ignore twice → `Stop` blocks with the backstop. File, then go on. How full
   the context is → the plugin writes it after every turn. No status line needed.
+- **Turns outgrow the replay → nudge:** `Turns since your newest entry no longer fit the
+  post-compaction replay. File where work stands: findings, open questions, judgment calls.` Once
+  per newest entry; any entry re-arms it. Not counted toward the backstop. File now: the replay
+  keeps only the newest turns, and filing moves its start.
+- **Replay cut anyway → its first piece says so:** `...newest last; <k> older pieces cut, the full
+  transcript at <path>:`. Read the cut turns from that file only when the work needs them.
 - **Session ends → its last turns kept** for the next claim. No handoff, no prompt to write.
 
 ## Old carry-forward file

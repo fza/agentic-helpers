@@ -213,9 +213,13 @@ func (mem *memory) sessionLog(ctx context.Context, args []string) int {
 		return 0
 	}
 
-	pieces := transcript.Pieces(mem.recentTurns(ctx, name, payload.TranscriptPath), pieceChars, maxPieces)
+	pieces, cut := transcript.Pieces(mem.recentTurns(ctx, name, payload.TranscriptPath), pieceChars, maxPieces)
 	if index >= 1 && index <= len(pieces) {
-		if index == 1 {
+		switch {
+		case index == 1 && cut > 0:
+			mem.say(fmt.Sprintf("%s: the turns since seat %s's newest entry, in %d pieces, newest last; "+
+				"%d older pieces cut, the full transcript at %s:", self, name, len(pieces), cut, payload.TranscriptPath))
+		case index == 1:
 			mem.say(fmt.Sprintf("%s: the turns since seat %s's newest entry, in %d pieces, newest last:",
 				self, name, len(pieces)))
 		}
@@ -231,6 +235,46 @@ type ladder struct {
 	Rung           int       `json:"rung"`
 	TranscriptBase int64     `json:"transcript_base"`
 	NudgedAt       time.Time `json:"nudged_at"`
+	// ReplayNudgedFor is the newest own entry's time the replay nudge fired
+	// for, and ReplayCheckedSize the transcript's size at its last check.
+	ReplayNudgedFor   time.Time `json:"replay_nudged_for"`
+	ReplayCheckedSize int64     `json:"replay_checked_size"`
+}
+
+const replayNudgeText = "Turns since your newest entry no longer fit the post-compaction replay. " +
+	"File where work stands: findings, open questions, judgment calls. " +
+	"agentic-memory new --title '<3-10 words>' --topic <name>... < body"
+
+// replayNudge asks the seat to file once its turns since its newest entry
+// would no longer fit the replay a compaction brings back, once per newest
+// entry. The transcript is read only after it grew by a piece since the last
+// look. It counts toward neither Nudges nor the Stop backstop.
+func (mem *memory) replayNudge(ctx context.Context, seatName string, transcriptPath string, held *ladder) string {
+	folded, err := mem.load(ctx)
+	if err != nil || transcriptPath == "" {
+		return ""
+	}
+
+	newest := mem.newestOwn(folded, seatName)
+	if !held.ReplayNudgedFor.IsZero() && held.ReplayNudgedFor.Equal(newest) {
+		return ""
+	}
+
+	size := transcriptSize(transcriptPath)
+	if size-held.ReplayCheckedSize < pieceChars {
+		return ""
+	}
+
+	held.ReplayCheckedSize = size
+
+	_, cut := transcript.Pieces(mem.recentTurns(ctx, seatName, transcriptPath), pieceChars, maxPieces)
+	if cut == 0 {
+		return ""
+	}
+
+	held.ReplayNudgedFor = newest
+
+	return replayNudgeText
 }
 
 type sensor struct {
@@ -382,6 +426,11 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		steps.Nudges++
 		steps.NudgedAt = mem.now()
 		out = append(out, nudgeText)
+	}
+
+	replay := mem.replayNudge(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath), &steps)
+	if replay != "" {
+		out = append(out, replay)
 	}
 
 	_ = writeJSON(mem.ladderPath(session), steps)
