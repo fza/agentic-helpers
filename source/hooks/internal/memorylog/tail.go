@@ -11,7 +11,7 @@ import (
 type tailLine struct {
 	Kind    Kind            `json:"kind"`
 	Entry   string          `json:"entry"`
-	Time    int64           `json:"time"`
+	Time    lineTime        `json:"time"`
 	Seat    string          `json:"seat"`
 	Target  string          `json:"target"`
 	Payload json.RawMessage `json:"payload"`
@@ -31,7 +31,7 @@ func encodeLines(events []Event) ([]byte, error) {
 		line := tailLine{
 			Kind:   event.Kind,
 			Entry:  event.Entry,
-			Time:   event.Time.UnixNano(),
+			Time:   lineTime(event.Time),
 			Seat:   event.Seat,
 			Target: event.Target,
 		}
@@ -78,7 +78,7 @@ func decodeLines(tail []byte) ([]Event, error) {
 		events = append(events, Event{
 			Kind:    decoded.Kind,
 			Entry:   decoded.Entry,
-			Time:    time.Unix(0, decoded.Time).UTC(),
+			Time:    time.Time(decoded.Time).UTC(),
 			Seat:    decoded.Seat,
 			Target:  decoded.Target,
 			Payload: normalPayload(decoded.Payload),
@@ -86,6 +86,42 @@ func decodeLines(tail []byte) ([]Event, error) {
 	}
 
 	return events, nil
+}
+
+// lineTime is a tail line's time: written as RFC 3339 in UTC with every
+// nanosecond, so a person reads it as a date and a row reads back to the instant
+// it held; read as that, or as the Unix nanoseconds earlier releases wrote.
+type lineTime time.Time
+
+func (at lineTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Time(at).UTC().Format(time.RFC3339Nano))
+}
+
+func (at *lineTime) UnmarshalJSON(raw []byte) error {
+	var nanos int64
+
+	err := json.Unmarshal(raw, &nanos)
+	if err == nil {
+		*at = lineTime(time.Unix(0, nanos).UTC())
+
+		return nil
+	}
+
+	var text string
+
+	err = json.Unmarshal(raw, &text)
+	if err != nil {
+		return fmt.Errorf("a time that is neither RFC 3339 nor Unix nanoseconds: %s", raw)
+	}
+
+	parsed, err := time.Parse(time.RFC3339Nano, text)
+	if err != nil {
+		return fmt.Errorf("reading the time %q: %w", text, err)
+	}
+
+	*at = lineTime(parsed.UTC())
+
+	return nil
 }
 
 func normalPayload(payload []byte) []byte {

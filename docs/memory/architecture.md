@@ -18,6 +18,16 @@ shares one store. A directory counts as inside git when `git rev-parse --is-insi
 `memory_require_git` set to `false`, the store is keyed `local/` and a hash of the directory's
 absolute path.
 
+## Times
+
+Every time the store and its cache keep in a JSON file is an RFC 3339 string in UTC, ending in `Z`,
+with the precision the value carries: a log row's `time`, a claim's `claimed` and `started`, the
+cache's heat, brief marks and nudge ladders, and the context reading. RFC 3339 reads as a date, and
+UTC keeps every string in time order when sorted as text and never repeats an hour when the clocks
+go back. The binary segments keep their little-endian Unix nanoseconds. A log row an earlier release
+wrote with Unix nanoseconds reads as that. Printed stamps turn every time local, with the zone's
+abbreviation.
+
 ## The log
 
 Events append to `log/tail.jsonl`. The tail seals past 64 KiB into an immutable segment, named for
@@ -46,7 +56,8 @@ it.
 ## The context reading
 
 The nudge reads how full the context is from `~/.claude/agentic-memory/sessions/<session>.ctx`,
-`{"used_percentage": <n>, "size": <window>, "at": <unix seconds>}`. Claude Code hands that figure to
+`{"used_percentage": <n>, "size": <window>, "at": "<RFC 3339 UTC>"}`; a numeric `at`, as a plugin of
+an earlier release writes it, still reads as Unix seconds. Claude Code hands that figure to
 a status line and to a mod, never to a command hook, so the plugin carries a hooks module,
 `plugin/hooks/register.ts`, which writes the file on `session.measure` after every turn wherever
 `~/.claude/agentic-memory` exists. A Claude Code too old to load mods writes no reading, and the

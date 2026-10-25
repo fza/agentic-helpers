@@ -3,6 +3,7 @@ package memory
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -227,9 +228,42 @@ type ladder struct {
 }
 
 type sensor struct {
-	UsedPercentage *float64 `json:"used_percentage"`
-	At             float64  `json:"at"`
-	Size           float64  `json:"size"`
+	UsedPercentage *float64   `json:"used_percentage"`
+	At             sensorTime `json:"at"`
+	Size           float64    `json:"size"`
+}
+
+// sensorTime is when the plugin wrote a reading: an RFC 3339 string, or the
+// Unix seconds a plugin of an earlier release writes.
+type sensorTime struct {
+	time.Time
+}
+
+func (at *sensorTime) UnmarshalJSON(raw []byte) error {
+	var seconds float64
+
+	err := json.Unmarshal(raw, &seconds)
+	if err == nil {
+		at.Time = time.Unix(0, int64(seconds*float64(time.Second))).UTC()
+
+		return nil
+	}
+
+	var text string
+
+	err = json.Unmarshal(raw, &text)
+	if err != nil {
+		return fmt.Errorf("a reading time that is neither RFC 3339 nor Unix seconds: %s", raw)
+	}
+
+	parsed, err := time.Parse(time.RFC3339Nano, text)
+	if err != nil {
+		return fmt.Errorf("reading the reading time %q: %w", text, err)
+	}
+
+	at.Time = parsed.UTC()
+
+	return nil
 }
 
 func (mem *memory) ladderPath(session string) string {
@@ -259,12 +293,11 @@ func (mem *memory) resetWindow(session string) {
 func (mem *memory) contextPercent(session string) (float64, bool) {
 	var reading sensor
 	if !readJSON(filepath.Join(mem.sensorDir(), session+".ctx"), &reading) || reading.UsedPercentage == nil ||
-		reading.At == 0 {
+		reading.At.IsZero() {
 		return 0, false
 	}
 
-	recorded := time.Unix(0, int64(reading.At*float64(time.Second)))
-	if mem.now().Sub(recorded) > sensorMaxAge {
+	if mem.now().Sub(reading.At.Time) > sensorMaxAge {
 		return 0, false
 	}
 

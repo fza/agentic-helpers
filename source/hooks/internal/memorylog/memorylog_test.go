@@ -12,8 +12,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func TestRoundTrip(t *testing.T) {
@@ -464,5 +466,43 @@ func TestCancelledContext(t *testing.T) {
 
 	if !sameEvents(readEvents(t, log), events(0, 1, memorylog.SealBytes)) {
 		t.Error("cancelled calls should leave the log as it was")
+	}
+}
+
+func TestATailRowCarriesItsTimeAsRFC3339(t *testing.T) {
+	dir := t.TempDir()
+	log := openLog(t, dir)
+
+	at := time.Date(2026, 10, 25, 14, 3, 47, 829928123, time.FixedZone("CET", 60*60))
+	appendEvents(t, log, memorylog.Event{Kind: memorylog.KindRetire, Entry: "m-00001", Time: at, Seat: "main"})
+
+	raw, err := os.ReadFile(filepath.Join(dir, "tail.jsonl"))
+	if err != nil {
+		t.Fatalf("reading the tail: %v", err)
+	}
+
+	if !strings.Contains(string(raw), `"time":"2026-10-25T13:03:47.829928123Z"`) {
+		t.Errorf("a tail row should carry its time as RFC 3339 in UTC with every nanosecond, got %s", raw)
+	}
+}
+
+func TestATailReadsTimesInEitherForm(t *testing.T) {
+	dir := t.TempDir()
+	test.WriteFile(t, filepath.Join(dir, "tail.jsonl"), test.Fixture(t, "memorylog/tail-mixed-times.jsonl"))
+
+	got := readEvents(t, openLog(t, dir))
+	want := []time.Time{
+		time.Unix(0, 1792888503166677000).UTC(),
+		time.Date(2026, 10, 25, 13, 3, 47, 829928123, time.UTC),
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("both rows should read, got %d", len(got))
+	}
+
+	for index := range want {
+		if !got[index].Time.Equal(want[index]) {
+			t.Errorf("a row should read back at its instant whichever form it holds, got %v", got[index].Time)
+		}
 	}
 }

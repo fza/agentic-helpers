@@ -126,7 +126,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	held := seat.Claim{
-		SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339),
+		SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339Nano),
 	}
 
 	if current == req.Name {

@@ -1469,3 +1469,53 @@ func TestTheBriefNamesTheEntryLanguage(t *testing.T) {
 		})
 	}
 }
+
+func TestStoredTimesAreUTC(t *testing.T) {
+	h := newHarness(t)
+	h.clock = test.NewClock(time.Date(2026, 10, 25, 16, 0, 0, 0, time.FixedZone("CET", 60*60)))
+	h.must("", "claim", "main")
+	id := h.file("Gate reads Bash only today", "finding")
+	h.must("", "show", id)
+	h.sensor(70)
+	h.must(hookPayload("", "", ""), "prompt")
+
+	offset := regexp.MustCompile(`\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}:\d{2}`)
+
+	for _, path := range []string{
+		filepath.Join(h.store(), "seats", "main.json"),
+		filepath.Join(h.store(), "log", "tail.jsonl"),
+		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "heat.json"),
+		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "briefs", "main.json"),
+		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "ladder", h.session+".json"),
+	} {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+
+		if offset.Match(raw) || !regexp.MustCompile(`\d{2}:\d{2}:\d{2}(?:\.\d+)?Z`).Match(raw) {
+			t.Errorf("%s should hold its times in UTC, ending in Z, got %s", filepath.Base(path), raw)
+		}
+	}
+
+	claim, _ := os.ReadFile(filepath.Join(h.store(), "seats", "main.json"))
+	if !regexp.MustCompile(`"claimed": ?"2026-10-25T15:00:\d{2}(?:\.\d+)?Z"`).Match(claim) {
+		t.Errorf("a claim should record when it was claimed in RFC 3339 UTC, got %s", claim)
+	}
+}
+
+func TestAContextReadingIsReadInEitherForm(t *testing.T) {
+	for _, at := range []string{`"2026-10-25T09:00:00Z"`, fmt.Sprint(time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC).Unix())} {
+		t.Run(at, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+			h.file("Gate reads Bash only today", "finding")
+			test.WriteFile(t, filepath.Join(h.home, ".claude", "agentic-memory", "sessions", h.session+".ctx"),
+				`{"used_percentage":70,"size":200000,"at":`+at+`}`)
+
+			if !strings.Contains(h.must(hookPayload("", "", ""), "prompt"), "Context near compaction") {
+				t.Error("a reading written as RFC 3339 or as Unix seconds should count")
+			}
+		})
+	}
+}

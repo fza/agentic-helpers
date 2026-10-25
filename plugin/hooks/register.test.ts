@@ -54,7 +54,7 @@ describe('the context reading', () => {
     expect(writes).toEqual([
       {
         path: `${MEMORY_ROOT}/sessions/${SESSION}.ctx`,
-        text: '{"used_percentage":12,"size":1000000,"at":1792893991}\n',
+        text: '{"used_percentage":12,"size":1000000,"at":"2026-10-25T02:06:31.250Z"}\n',
       },
     ])
     expect(measured).toHaveLength(1)

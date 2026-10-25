@@ -116,8 +116,10 @@ func (mem *memory) outsideGitRefusal() string {
 	return fmt.Sprintf("%s is not inside a git work tree; memory works only in one", mem.env.Base)
 }
 
+// now is in UTC, so every time the store and its cache write reads the same
+// whatever zone the machine runs in; printed stamps turn it local.
 func (mem *memory) now() time.Time {
-	return mem.env.Now()
+	return mem.env.Now().UTC()
 }
 
 func (mem *memory) say(text string) {
