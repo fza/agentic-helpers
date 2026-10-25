@@ -160,12 +160,15 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		lines = append(lines, "not linked (no such entry): "+strings.Join(unlinked, ", "))
 	}
 
-	lines = append(lines, mem.filingNotes(ctx, folded, held, existing)...)
+	lines = append(lines, mem.filingNotes(ctx, folded, held, existing, req.Absorbs)...)
 
 	return done(strings.Join(lines, "\n"))
 }
 
-func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, existing map[string]int) []string {
+// absorbed are the entries the filing superseded, which no hint offers again.
+func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, existing map[string]int,
+	absorbed []string,
+) []string {
 	var notes []string
 
 	limit := mem.options().EntryMaxWords
@@ -206,6 +209,10 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 	}
 
 	for _, similar := range mem.similar(ctx, folded, held) {
+		if slices.Contains(absorbed, similar.id) {
+			continue
+		}
+
 		notes = append(notes, fmt.Sprintf("similar: %s %s (%.2f)", similar.id, similar.title, similar.score),
 			fmt.Sprintf("  replaces it → %s supersede %s --by %s", self, similar.id, held.id),
 			fmt.Sprintf("  relates → %s link %s %s", self, held.id, similar.id))

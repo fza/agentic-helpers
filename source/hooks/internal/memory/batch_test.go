@@ -235,3 +235,21 @@ func TestAnIDNamedTwiceChangesOnce(t *testing.T) {
 		t.Error("a repeated id should land one event")
 	}
 }
+
+func TestTheSimilarHintSkipsWhatTheFilingAbsorbed(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	absorbed := h.file("Gate seal tail manifest rename", "the gate seals the tail and renames the manifest")
+	kept := h.file("Gate seal tail manifest rewrite", "the gate seals the tail and renames the manifest again")
+
+	out := h.must("the gate seals the tail and renames the manifest", "new", "--title", "Gate seal tail manifest summary",
+		"--topic", "gate", "--absorbs", absorbed)
+
+	if strings.Contains(out, "similar: "+absorbed) {
+		t.Errorf("the hint should never offer an entry the filing absorbed:\n%s", out)
+	}
+
+	if !strings.Contains(out, "similar: "+kept) {
+		t.Errorf("the hint should still offer a close entry the filing kept:\n%s", out)
+	}
+}
