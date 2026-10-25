@@ -18,6 +18,7 @@ keys it (`.sdd/config.yaml` `repo_id`, else a hash of the main checkout), so wor
 | `<tool>/merged` | a tombstone naming the survivor |
 | `index.json` | per tool its current version and fields, vector, takers, roles and the file hashes of every version; the merged names |
 | `.lock` | the write lock |
+| `writers.json` | the git common directories of the checkouts allowed to write the store |
 | `sessions/<session>.json` | what a session holds and has been told |
 | `copies/` | copies taken where the checkout has no `.tmp/` |
 
@@ -32,7 +33,12 @@ or a tool folder with a `current`, found at most six folders deep, so a library 
 reads as is.
 
 Every write takes `.lock` with `flock`, waiting at most two seconds; the holder writes its pid into
-the file, and a refusal names it. A version's files, its `tool.json` and its history line land
+the file, and a refusal names it. Under the lock the writer is checked against `writers.json`: a
+store with no list is claimed by recording the writer's git common directory, a listed writer goes
+ahead, any other is refused, and a list that cannot be read (a link, past 64 KiB, not an array of
+clean absolute paths) refuses everyone rather than being claimed over. A store's key is the declared
+`repo_id`, which any checkout can declare; the list ties the right to write to the checkout, which
+it cannot. A version's files, its `tool.json` and its history line land
 before `current` names it, and the index is rewritten whole after every write; after a crash the
 index can trail the folders until the next write or `reindex`.
 

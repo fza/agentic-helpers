@@ -33,7 +33,7 @@ var hooks = map[string]func(lib *library, ctx context.Context) int{
 // hookPayload reads the event and takes its session. A hook never fails its
 // event: whatever goes wrong, it adds nothing. A machine holding no library,
 // which the first `add` creates, hears nothing and gets nothing created.
-func (lib *library) hookPayload() (hookio.Payload, bool) {
+func (lib *library) hookPayload(ctx context.Context) (hookio.Payload, bool) {
 	if !exists(lib.root()) {
 		return hookio.Payload{}, false
 	}
@@ -45,13 +45,17 @@ func (lib *library) hookPayload() (hookio.Payload, bool) {
 
 	lib.session = cmp.Or(payload.SessionID, lib.session)
 
-	return payload, lib.session != "" && !lib.outsideGit && sessionShape.MatchString(lib.session)
+	usable := lib.session != "" && !lib.outsideGit && sessionShape.MatchString(lib.session)
+
+	// Every hook writes the session's file into the store, which a checkout
+	// that may not write the library never does.
+	return payload, usable && lib.writer(ctx) == nil
 }
 
 // prompt delivers the nudges stop recorded, then offers up to three own tools
 // near the prompt, each once per session.
 func (lib *library) prompt(ctx context.Context) int {
-	payload, usable := lib.hookPayload()
+	payload, usable := lib.hookPayload(ctx)
 	if !usable || !exists(lib.ownDir()) {
 		return 0
 	}
@@ -216,7 +220,7 @@ func (lib *library) embedText(ctx context.Context, phrase string) ([]float32, st
 // Nothing is read beyond the session file and the indexes' stats when neither
 // moved since the last look.
 func (lib *library) notice(ctx context.Context) int {
-	_, usable := lib.hookPayload()
+	_, usable := lib.hookPayload(ctx)
 	if !usable {
 		return 0
 	}
@@ -343,7 +347,7 @@ func (lib *library) noticeSignature(state *sessionState) string {
 // stop records, without blocking, scripts in the session's scratch no tool
 // holds and taken copies changed since the take, for the next prompt to say.
 func (lib *library) stop(ctx context.Context) int {
-	_, usable := lib.hookPayload()
+	_, usable := lib.hookPayload(ctx)
 	if !usable {
 		return 0
 	}
@@ -491,8 +495,8 @@ func copyChanged(held holding) (bool, string) {
 }
 
 // end removes the session's file and its prompt vector slot.
-func (lib *library) end(_ context.Context) int {
-	_, usable := lib.hookPayload()
+func (lib *library) end(ctx context.Context) int {
+	_, usable := lib.hookPayload(ctx)
 	if !usable {
 		return 0
 	}

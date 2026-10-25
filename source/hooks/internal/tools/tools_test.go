@@ -34,6 +34,7 @@ type harness struct {
 	processes *test.Processes
 	variables map[string]string
 	lockWait  time.Duration
+	worktrees map[string]string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -46,7 +47,7 @@ func newHarness(t *testing.T) *harness {
 		settings: filepath.Join(root, "settings.json"),
 		clock:    test.NewClock(time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC)),
 		embedder: &test.Embedder{}, embedding: true, processes: test.NewProcesses(), session: test.Session,
-		variables: map[string]string{}, lockWait: 200 * time.Millisecond,
+		variables: map[string]string{}, lockWait: 200 * time.Millisecond, worktrees: map[string]string{},
 	}
 
 	h.project(filepath.Join(root, "app"), ownRepo)
@@ -82,7 +83,7 @@ func (h *harness) env() tools.Env {
 	return tools.Env{
 		Base: h.repo, Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.settings}, Getenv: func(name string) string { return h.variables[name] },
-		Now: h.clock.Now, Processes: h.processes, Checkout: test.CommonDir{Dir: filepath.Join(h.repo, ".git")},
+		Now: h.clock.Now, Processes: h.processes, Checkout: test.GitDirOf{Worktrees: h.worktrees},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test", LockWait: h.lockWait,
 	}
 }

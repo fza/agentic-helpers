@@ -261,6 +261,16 @@ func (lib *library) locked(ctx context.Context, write func() error) error {
 	_ = file.Truncate(0)
 	_, _ = file.Write([]byte(strconv.Itoa(os.Getpid()) + "\n"))
 
+	err = lib.writer(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = lib.claim(ctx, store)
+	if err != nil {
+		return err
+	}
+
 	return write()
 }
 

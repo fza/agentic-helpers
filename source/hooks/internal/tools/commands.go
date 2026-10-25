@@ -15,6 +15,7 @@ type request struct {
 	Names    []string `json:"names"`
 	Survivor string   `json:"survivor"`
 	Members  []string `json:"members"`
+	Path     string   `json:"path"`
 	From     string   `json:"from"`
 	Summary  *string  `json:"summary"`
 	Usage    *string  `json:"usage"`
@@ -131,6 +132,20 @@ func commands() []command {
 			run: (*library).merge,
 			schema: `{"type":"object","properties":{"survivor":` + text + `,"members":` + names + `,"from":` + text +
 				`,"why":` + text + `},"required":["survivor","members","from","why"]}`,
+		},
+		{
+			name: "trust", usage: "trust <path>", description: "let the checkout at path write this project's library",
+			positional: func(req *request, values []string) error {
+				if len(values) != 1 {
+					return errors.New("one checkout path expected")
+				}
+
+				req.Path = values[0]
+
+				return nil
+			},
+			run:    (*library).trust,
+			schema: `{"type":"object","properties":{"path":` + text + `},"required":["path"]}`,
 		},
 		{
 			name: "reindex", usage: "reindex", description: "rebuild the own project's index.json from its tool folders",

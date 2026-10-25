@@ -191,6 +191,21 @@ func (lib *library) insideWorkTree(ctx context.Context) bool {
 	return err == nil && strings.TrimSpace(answer) == "true"
 }
 
+// workTree is the top of the work tree the session works in, a worktree's own
+// rather than its main checkout's, or empty where git answers none.
+func (lib *library) workTree(ctx context.Context) string {
+	if lib.env.Git == nil {
+		return ""
+	}
+
+	answer, err := lib.env.Git.Output(ctx, lib.env.Base, "rev-parse", "--show-toplevel")
+	if err != nil || strings.TrimSpace(answer) == "" {
+		return ""
+	}
+
+	return filepath.Clean(strings.TrimSpace(answer))
+}
+
 func (lib *library) root() string { return filepath.Join(lib.env.Home, ".claude", self) }
 
 func (lib *library) ownDir() string { return projectkey.Dir(lib.root(), lib.key) }

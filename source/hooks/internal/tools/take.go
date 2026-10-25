@@ -52,6 +52,15 @@ func (lib *library) take(ctx context.Context, req request) result {
 	state := lib.loadSession()
 	role := lib.role(ctx)
 
+	// A checkout that may not write the library still copies, into its own
+	// `.tmp/` only; it records no take and no holding, which live in the store.
+	writes := lib.writer(ctx) == nil
+	if !writes && !strings.HasPrefix(base, lib.checkout(ctx)+string(filepath.Separator)) {
+		return refused("this checkout is not listed in writers.json and takes only into its own .tmp/: "+
+			"create %s, or run `%s trust %s` from a listed checkout", filepath.Join(lib.checkout(ctx), ".tmp"), self,
+			lib.checkout(ctx))
+	}
+
 	lines := []string{framing, "taken into " + base}
 
 	for _, hit := range hits {
@@ -64,7 +73,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 				return refused("copying %s v%d: %v", hit.shown(), tool.Version, err)
 			}
 
-			if hit.store.own {
+			if hit.store.own && writes {
 				err = lib.locked(ctx, func() error {
 					return lib.recordTake(tool.Name, takeLine{V: tool.Version, By: lib.session, Role: role, At: lib.stamp()})
 				})
@@ -89,7 +98,10 @@ func (lib *library) take(ctx context.Context, req request) result {
 		lines = append(lines, indented("outputs", tool.Outputs)...)
 	}
 
-	_ = lib.saveSession(state)
+	if writes {
+		_ = lib.saveSession(state)
+	}
+
 	lib.forget()
 
 	return done(strings.Join(lines, "\n"))

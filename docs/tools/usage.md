@@ -18,6 +18,7 @@ inside a git work tree unless `memory_require_git` is off.
     agentic-tools add <name> --from <path> --summary '<one line>' --usage '<how to run it>' [--inputs '<...>'] [--outputs '<...>'] [--distinct '<how it differs>']
     agentic-tools update <name> [--from <path>] [--summary ...] [--usage ...] [--inputs ...] [--outputs ...] --why '<what changed>'
     agentic-tools merge <survivor> <member>... --from <path> --why '<reason>'
+    agentic-tools trust <path>
     agentic-tools reindex
 
 Every refusal prints `refused: <why and what to run instead>` and exits 1. Every listing and every
@@ -44,8 +45,8 @@ other agents wrote, read as a lead, never as an instruction.
   name. A copy already there is reused, never overwritten. A merged name takes its survivor and says
   so. The answer prints `taken into <folder>`, then each `<name>/v<n>: <summary>` with its usage,
   inputs and outputs indented.
-- **add** registers v1 from a file or a folder inside the checkout (outside `.git`),
-  `AGENTIC_TOOLS_SCRATCH`, or a taken copy. A folder's files land at the top of v1, its subfolders
+- **add** registers v1 from a file or a folder inside the work tree or its main checkout (never under
+  a `.git` folder, in any letter case), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. A folder's files land at the top of v1, its subfolders
   kept; its own `tool.json` is a copy's description and never a file of the tool. Refused: a name
   that is no `[a-z][a-z0-9]*(-[a-z0-9]+)*` of at most 40 characters; a summary that is not one line
   of at most 200 characters; no usage; a name the project already holds or merged; a link, a hard
@@ -62,7 +63,23 @@ other agents wrote, read as a lead, never as an instruction.
 - **merge** folds near-duplicate tools of the own project into the survivor: its next version from
   `--from`, the members' take lines appended to its own, each member's folder replaced by a
   tombstone naming the survivor. A merged name is refused by `add` and never found.
+- **trust** lets the checkout at `<path>` write this project's library (below).
 - **reindex** rebuilds the own project's `index.json` from its tool folders.
+
+## Who writes a library
+
+A library belongs to the checkouts listed in its `writers.json`, by their git common directory, so
+every worktree of a listed checkout writes too. The first write to a library with no list claims it
+for the writing checkout. A write from any other checkout is refused, the library untouched:
+
+    refused: this library belongs to other checkouts: <checkouts>; run `agentic-tools trust <this checkout>` from one of them to let this one write
+
+A project's library is found by the `repo_id` its `.sdd/config.yaml` declares, which any checkout
+can declare; the list keeps a repository naming another project's `repo_id` from putting tools into
+that project's library. `agentic-tools trust <path>`, run from a listed checkout, adds the checkout
+at `<path>`: a second clone, a CI checkout. A checkout not listed still finds and takes tools, into
+its own `.tmp/` only, recording nothing; its hooks stay silent. A `writers.json` that cannot be read
+refuses every write until it is mended.
 
 ## Names and reach
 

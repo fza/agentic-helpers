@@ -35,7 +35,7 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
 
 - **Name** `[a-z][a-z0-9]*(-[a-z0-9]+)*`, at most 40. **Summary** one line, at most 200. **Usage**
   required.
-- **--from** inside the checkout (not `.git`), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. No link, no
+- **--from** inside the work tree (never a `.git` folder), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. No link, no
   hard link, no pipe, at most 1 MiB.
 - **Refused as a duplicate** → it already exists. `byte for byte` → take it. `close to <tool>` →
   `update <tool>` instead. Truly different → `--distinct '<how it differs>'`, kept in its history.
@@ -45,6 +45,9 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
   `--usage`.
 - **Near-duplicates already in the own project** → `merge <survivor> <member>... --from <path> --why
   '...'`. Members become tombstones; their takes fold into the survivor.
+- **`this library belongs to other checkouts`** → this checkout may not write the project's library.
+  Never edit `writers.json`. Tell the owner; trusting is `agentic-tools trust <this checkout>` run
+  from a listed checkout, the owner's call. Finding and taking still work, into `.tmp/` only.
 
 ## Lines you will see
 
@@ -67,4 +70,4 @@ launcher, never by hand.
 ## MCP
 
 Every verb is `mcp__plugin_agentic-helpers_tools__<verb>`: `find`, `list`, `take` (`names`), `add`,
-`update`, `merge` (`survivor`, `members`), `reindex`. Keys exactly as the schema lists them.
+`update`, `merge` (`survivor`, `members`), `trust` (`path`), `reindex`. Keys exactly as the schema lists them.

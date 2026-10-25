@@ -100,8 +100,14 @@ func (lib *library) checkFiles(folder *dir, files []walked) error {
 func (lib *library) reachOf(ctx context.Context, at string) (string, string, bool) {
 	var roots []string
 
+	// A worktree's own files lie under its top, apart from the main checkout.
+	top := lib.workTree(ctx)
+	if top != "" {
+		roots = append(roots, top)
+	}
+
 	checkout := lib.checkout(ctx)
-	if checkout != "" {
+	if checkout != "" && checkout != top {
 		roots = append(roots, checkout)
 	}
 

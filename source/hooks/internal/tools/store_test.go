@@ -178,13 +178,13 @@ func TestTheMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 	}
 
 	listed := answers[2]
-	for _, verb := range []string{"find", "list", "take", "add", "update", "merge", "reindex"} {
+	for _, verb := range []string{"find", "list", "take", "add", "update", "merge", "trust", "reindex"} {
 		if !strings.Contains(listed, `"name":"`+verb+`"`) {
 			t.Errorf("the server should serve %s", verb)
 		}
 	}
 
-	if strings.Count(listed, `"additionalProperties":false`) != 7 {
+	if strings.Count(listed, `"additionalProperties":false`) != strings.Count(listed, `"inputSchema"`) {
 		t.Error("every schema should take no key beyond its properties")
 	}
 
