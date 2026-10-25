@@ -37,11 +37,14 @@ const (
 	KindRevive    Kind = "revive"
 	KindRetitle   Kind = "retitle"
 	KindTag       Kind = "tag"
+	KindLink      Kind = "link"
+	KindUnlink    Kind = "unlink"
 )
 
 // kinds is the segment encoding of a kind: its index here. Only ever append.
 var kinds = []Kind{
 	KindNew, KindRetire, KindSupersede, KindMerge, KindConfirm, KindRetain, KindRevive, KindRetitle, KindTag,
+	KindLink, KindUnlink,
 }
 
 const (

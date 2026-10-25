@@ -150,6 +150,19 @@ agentic-memory brief [--topic <t>]
 - **`search` and `show` warm what they find**: heat orders the brief. A read no person asked for
   (a sweep, a script, a loop) → `--no-heat`, MCP `"no_heat": true`.
 
+## Links
+
+```bash
+agentic-memory new --title '...' --topic gate --link 20261025-162357-d-tac-427 <<'EOF'
+agentic-memory link <id> <target>       # graph id or memory id; any seat
+agentic-memory unlink <id> <target>     # links from --link / link only
+```
+
+- **Name the full id in the text** → linked if it resolves. Short graph ids (`d-tac-427`) never link.
+- **Line flags:** `→ <target> closed by|superseded by|settled|retired|gone`, `← <n>` = linked from n.
+  A lead whose target closed or was superseded → read the successor before relying on it.
+- **`← <id> <title>`** under a hit = a newer entry citing it. Often the fix or the follow-up.
+
 ## Lifecycle
 
 ```bash

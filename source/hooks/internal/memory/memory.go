@@ -62,6 +62,8 @@ type Env struct {
 	Git           Git
 	Embedders     EmbedderFactory
 	Version       string
+	// Graph asks sdd for the graph's statuses, which link flags read.
+	Graph GraphExporter
 	// WaitPoll and WaitDeadline pace the idle waiter; zero takes every 5
 	// seconds for 30 minutes.
 	WaitPoll     time.Duration
@@ -82,6 +84,11 @@ type memory struct {
 	// unreadable says why the store is of a format newer than this release
 	// reads: nothing is read or written then.
 	unreadable string
+
+	// graphKnown is the graph's statuses once a read asked for them; graphWarned
+	// is set once a read said they are unavailable.
+	graphKnown  map[string]graphState
+	graphWarned bool
 }
 
 func (mem *memory) root() string      { return seat.StoreRoot(mem.env.Home) }
@@ -228,6 +235,7 @@ func (mem *memory) load(ctx context.Context) (*state, error) {
 	}
 
 	mem.annotate(folded)
+	mem.annotateLinks(ctx, folded)
 
 	return folded, nil
 }

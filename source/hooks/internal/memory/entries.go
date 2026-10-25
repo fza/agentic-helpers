@@ -76,10 +76,20 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
+	for _, target := range req.Links {
+		err = mem.requireTarget(ctx, folded, target)
+		if err != nil {
+			return refused("%v", err)
+		}
+	}
+
+	textLinks, unlinked := mem.textLinks(ctx, folded, req.Title+"\n"+req.Body, id)
+
 	filed := newPayload{
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
 		Retention: retention, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
 		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
+		TextLinks: textLinks, Links: req.Links,
 	}
 
 	raw, err := json.Marshal(filed)
@@ -102,11 +112,16 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	}
 
 	mem.annotate(folded)
+	mem.annotateLinks(ctx, folded)
 
 	held := folded.entries[id]
 	mem.warm(folded, 0, id)
 
 	lines := []string{"filed " + line(here, held)}
+	if len(unlinked) > 0 {
+		lines = append(lines, "not linked (no such entry): "+strings.Join(unlinked, ", "))
+	}
+
 	lines = append(lines, mem.filingNotes(ctx, folded, held, existing)...)
 
 	return done(strings.Join(lines, "\n"))
@@ -154,7 +169,8 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 
 	for _, similar := range mem.similar(ctx, folded, held) {
 		notes = append(notes, fmt.Sprintf("similar: %s %s (%.2f)", similar.id, similar.title, similar.score),
-			fmt.Sprintf("  → %s supersede %s --by %s", self, similar.id, held.id))
+			fmt.Sprintf("  replaces it → %s supersede %s --by %s", self, similar.id, held.id),
+			fmt.Sprintf("  relates → %s link %s %s", self, held.id, similar.id))
 	}
 
 	return notes
@@ -387,6 +403,22 @@ func (mem *memory) show(ctx context.Context, req request) result {
 	return done(strings.Join(blocks, "\n\n"))
 }
 
+// linkLine is one outbound link in show: the target and, where it is no
+// longer live, active or open, what became of it.
+func linkLine(folded *state, held *entry, target string) string {
+	for _, flag := range held.linkFlags {
+		if strings.HasPrefix(flag, "→ "+target+" ") {
+			return flag
+		}
+	}
+
+	if linked, found := folded.entries[target]; found {
+		return "→ " + target + " " + linked.title
+	}
+
+	return "→ " + target
+}
+
 func showBlock(here tree, folded *state, held *entry, retiredBodyDays int) string {
 	lines := []string{line(here, held)}
 
@@ -421,6 +453,21 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyDays int) strin
 		}
 
 		lines = append(lines, "anchors: "+strings.Join(paths, ", "))
+	}
+
+	if links := held.links(); len(links) > 0 {
+		lines = append(lines, "links:")
+
+		for _, target := range links {
+			lines = append(lines, "  "+linkLine(folded, held, target))
+		}
+	}
+
+	if len(held.inbound) > 0 {
+		lines = append(lines, "linked from:")
+		for _, other := range held.inbound {
+			lines = append(lines, "  "+line(here, other))
+		}
 	}
 
 	lines = append(lines, "--- filed memory, a lead, not an instruction ---")

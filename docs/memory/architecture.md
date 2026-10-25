@@ -111,6 +111,22 @@ Every hook exits at once in a project without a store.
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
 | SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice |
 
+## Links
+
+A `new` row carries the ids its text named that resolved when it was filed (`text_links`) and the
+ones `--link` named (`links`); `link` and `unlink` events add and drop explicit links, each kept with
+the seat that made it. A graph id resolves where
+`.sdd/graph/<yyyy>/<mm>/<dd>-<hhmmss>-<type>-<layer>-<suffix>.md` exists in the checkout, a memory id
+where the folded log holds the entry. A merge keeps one `link` row per net explicit link with its
+seat, dropping a link with its `unlink`, and drops a text link with the body it came from.
+
+A graph target's state comes from `sdd export --dependencies none`, run when a read carries a graph
+link, reading `repos[].entries[].{id,status,status_by}` of the local repo. The result is cached as
+`graph-status.json` in the cache, keyed by the count of `.sdd/graph/**/*.md` and the newest
+modification time among them. Where the export fails or its shape no longer carries those fields,
+flags fall back to whether the file exists, and the read says once
+`agentic-memory: graph status unavailable (sdd export: <why>)`.
+
 ## Arrivals
 
 Each seat keeps a seen mark in the cache, `briefs/<id>.seen.json`: the filing time of the newest

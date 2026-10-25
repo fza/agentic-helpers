@@ -47,6 +47,8 @@ type request struct {
 	Skip           int      `json:"skip,omitempty"`
 	Statuses       []string `json:"status,omitempty"`
 	For            []string `json:"for,omitempty"`
+	Links          []string `json:"link,omitempty"`
+	Target         string   `json:"target,omitempty"`
 	By             string   `json:"by,omitempty"`
 	Because        string   `json:"because,omitempty"`
 	Level          string   `json:"level,omitempty"`
@@ -209,7 +211,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
-		"for": &req.For,
+		"for": &req.For, "link": &req.Links,
 	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
@@ -300,11 +302,11 @@ func commands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--for <seat>|all]... [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--for <seat>|all]... [--link <id>]... [options]",
 			description: "file an entry; body on stdin; --for shares it with other seats",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"retention", flagText}, {"from", flagText},
-				{"about", flagList}, {"for", flagList},
+				{"about", flagList}, {"for", flagList}, {"link", flagList},
 			},
 			readsBody: true,
 			schema: `{"type":"object","properties":{` +
@@ -314,7 +316,8 @@ func commands() []command {
 				`"retention":{"type":"string","enum":["standing","long","normal","short","scratch"]},` +
 				`"from":{"type":"string","enum":["user","agent","tool"]},` +
 				`"about":{"type":"array","items":{"type":"string"}},` +
-				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"}},` +
+				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"},` +
+				`"link":{"type":"array","items":{"type":"string"},"description":"full graph ids or memory ids the entry links to"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
@@ -402,6 +405,16 @@ func commands() []command {
 			run: (*memory).tag,
 			schema: `{"type":"object","properties":{"id":` + idSchema +
 				`,"topic":{"type":"array","items":{"type":"string"}}},"required":["id","topic"]}`,
+		},
+		{
+			name: "link", usage: "link <id> <target>", description: "link an entry to a graph entry or another memory entry",
+			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).link,
+			schema: `{"type":"object","properties":{"id":` + idSchema + `,"target":{"type":"string"}},"required":["id","target"]}`,
+		},
+		{
+			name: "unlink", usage: "unlink <id> <target>", description: "drop a link made by --link or link",
+			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).unlink,
+			schema: `{"type":"object","properties":{"id":` + idSchema + `,"target":{"type":"string"}},"required":["id","target"]}`,
 		},
 		{
 			name: "who", usage: "who", description: "every live seated session on the machine, in every project",

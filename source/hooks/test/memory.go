@@ -159,3 +159,32 @@ func Random() *bytes.Reader {
 
 	return bytes.NewReader(data)
 }
+
+// Graph stands in for `sdd export`: it answers Out, or fails with Err, and
+// counts the calls.
+type Graph struct {
+	Out   string
+	Err   error
+	mutex sync.Mutex
+	calls int
+}
+
+func (fake *Graph) Export(context.Context, string) ([]byte, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	fake.calls++
+
+	if fake.Err != nil {
+		return nil, fake.Err
+	}
+
+	return []byte(fake.Out), nil
+}
+
+func (fake *Graph) Calls() int {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	return fake.calls
+}

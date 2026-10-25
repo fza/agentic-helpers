@@ -662,8 +662,14 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 
 	var ids []string
 
+	listed := map[string]bool{}
+	for _, held := range hits {
+		listed[held.id] = true
+	}
+
 	for _, held := range hits {
 		lines = append(lines, "  "+line(here, held))
+		lines = append(lines, citingLines(held, listed, "    ")...)
 		ids = append(ids, held.id)
 	}
 

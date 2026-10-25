@@ -37,6 +37,10 @@ type newPayload struct {
 	Anchors   []anchor    `json:"anchors"`
 	Dropped   bool        `json:"dropped,omitempty"`
 	For       *recipients `json:"for,omitempty"`
+	// TextLinks are the ids the title and body name that resolved when the
+	// entry was filed; Links the ones `new --link` named.
+	TextLinks []string `json:"text_links,omitempty"`
+	Links     []string `json:"links,omitempty"`
 }
 
 // retirePayload is why an entry ended. A retire from an earlier release
@@ -114,6 +118,33 @@ type entry struct {
 	forAll     bool
 	forKeys    []string
 	recipients string
+
+	// textLinks are the ids named in the text when it was filed; explicit are
+	// the links `--link` and `link` made and no `unlink` dropped, each with
+	// the seat that made it. linkFlags and inbound are how its line reads them,
+	// filled in once the log is folded.
+	textLinks []string
+	explicit  []explicitLink
+	linkFlags []string
+	inbound   []*entry
+}
+
+type explicitLink struct {
+	target string
+	seat   string
+}
+
+// links is every id the entry links to, text links first.
+func (held *entry) links() []string {
+	links := slices.Clone(held.textLinks)
+
+	for _, link := range held.explicit {
+		if !slices.Contains(links, link.target) {
+			links = append(links, link.target)
+		}
+	}
+
+	return links
 }
 
 func (held *entry) supersededAt() time.Time {
@@ -262,6 +293,11 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 			folded.entries[row.Entry].forAll = filed.For.All
 			folded.entries[row.Entry].forKeys = filed.For.Seats
 		}
+
+		folded.entries[row.Entry].textLinks = filed.TextLinks
+		for _, target := range filed.Links {
+			folded.entries[row.Entry].explicit = append(folded.entries[row.Entry].explicit, explicitLink{target: target, seat: row.Seat})
+		}
 		folded.order = append(folded.order, row.Entry)
 
 		return nil
@@ -321,6 +357,15 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 		} else {
 			note("superseded: " + superseded.Because)
 		}
+	case memorylog.KindLink:
+		if !slices.ContainsFunc(held.explicit, func(link explicitLink) bool { return link.target == row.Target }) {
+			held.explicit = append(held.explicit, explicitLink{target: row.Target, seat: row.Seat})
+		}
+
+		note("linked to " + row.Target)
+	case memorylog.KindUnlink:
+		held.explicit = slices.DeleteFunc(held.explicit, func(link explicitLink) bool { return link.target == row.Target })
+		note("unlinked from " + row.Target)
 	case memorylog.KindRevive:
 		if len(held.transitions) > 0 {
 			held.transitions = held.transitions[:len(held.transitions)-1]
@@ -410,6 +455,9 @@ type horizonRun struct {
 	confirm     int
 	transitions []int
 	ended       bool
+	// links is, per target, the index of the link event a net explicit link
+	// rests on; an unlink drops it with its link.
+	links map[string]int
 }
 
 // mergePolicy decides what a merge keeps. Each entry's leading run of events
@@ -475,6 +523,7 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 
 			inRun[index] = true
 			run.record(row.Kind, index)
+			run.recordLink(row.Kind, row.Target, index)
 		}
 
 		kept := make([]memorylog.Event, 0, len(rows))
@@ -519,6 +568,8 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 			for _, transition := range run.transitions {
 				keep(transition, payloads[transition])
 			}
+
+			kept = append(kept, run.keptLinks(rows, payloads)...)
 		}
 
 		return kept, nil
@@ -535,6 +586,42 @@ func (run *horizonRun) record(kind memorylog.Kind, index int) {
 		if len(run.transitions) > 0 {
 			run.transitions = run.transitions[:len(run.transitions)-1]
 		}
+	}
+}
+
+// keptLinks is a link row per net explicit link of the run, in the order the
+// links were made.
+func (run *horizonRun) keptLinks(rows []memorylog.Row, payloads [][]byte) []memorylog.Event {
+	indexes := make([]int, 0, len(run.links))
+	for _, index := range run.links {
+		indexes = append(indexes, index)
+	}
+
+	slices.Sort(indexes)
+
+	events := make([]memorylog.Event, 0, len(indexes))
+	for _, index := range indexes {
+		row := rows[index]
+		events = append(events, memorylog.Event{
+			Kind: row.Kind, Entry: row.Entry, Time: row.Time, Seat: row.Seat, Target: row.Target, Payload: payloads[index],
+		})
+	}
+
+	return events
+}
+
+func (run *horizonRun) recordLink(kind memorylog.Kind, target string, index int) {
+	if run.links == nil {
+		run.links = map[string]int{}
+	}
+
+	switch kind {
+	case memorylog.KindLink:
+		if _, held := run.links[target]; !held {
+			run.links[target] = index
+		}
+	case memorylog.KindUnlink:
+		delete(run.links, target)
 	}
 }
 
@@ -559,9 +646,11 @@ func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, reti
 		filed.Retention = run.held.retention
 	}
 
+	// A link from the text holds as long as the text does.
 	if drop {
 		filed.Body = ""
 		filed.Dropped = true
+		filed.TextLinks = nil
 	}
 
 	return json.Marshal(filed)

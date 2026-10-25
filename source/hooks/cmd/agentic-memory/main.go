@@ -69,6 +69,7 @@ func main() {
 		Processes:     process.Table{},
 		Checkout:      project.GitCommonDir{},
 		Git:           process.Git{},
+		Graph:         process.SddExport{},
 		Embedders: func(config embed.Config) (embed.Embedder, error) {
 			return embed.New(config, &http.Client{Timeout: 30 * time.Second})
 		},

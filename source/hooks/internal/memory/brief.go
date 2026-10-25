@@ -192,9 +192,18 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	if len(working) > 0 {
 		out.add("working set:")
 
+		listed := map[string]bool{}
+		for _, held := range append(slices.Clone(standing), working...) {
+			listed[held.id] = true
+		}
+
 		for _, held := range working {
 			if out.add("  " + line(here, held)) {
 				shown++
+
+				for _, cited := range citingLines(held, listed, "    ") {
+					out.add(cited)
+				}
 			}
 		}
 	}

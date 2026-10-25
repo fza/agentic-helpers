@@ -114,6 +114,30 @@ A seat hears about every entry it receives, once, as the lines `agentic-memory: 
 and one entry line each: at the next prompt, at the agent's next tool call, and, for a session idle
 at its prompt, through a waiter that wakes it with a new turn.
 
+## Links
+
+A memory entry can link to a graph entry and to another memory entry: a full graph id
+(`20261025-162357-d-tac-427`) or a memory id (`m-` and its characters). A short graph id
+(`d-tac-427`) is never a link. Ids are per project.
+
+- **From the text**: every full id the title or body names that resolves when `new` files the entry
+  links it. One that resolves to nothing stays text, and the reply names it:
+  `not linked (no such entry): m-zzzz99`.
+- **`new --link <id>`**, repeatable (MCP key `link`): an id resolving to nothing refuses the filing,
+  `agentic-memory: <id>: no such entry`.
+- **`link <id> <target>`** and **`unlink <id> <target>`** (MCP `link` and `unlink`, keys `id` and
+  `target`) add or drop a link later. Any seat may; the owner's brief lists it under changes by
+  other seats. A link from the text holds as long as the text does: `unlink` on it refuses with
+  `<target> is named in <id>'s text; supersede the entry instead`.
+
+A link is read, never followed for bodies. A line flags each target that is no longer live, active or
+open: `→ <target> closed by <id>`, `superseded by <id>`, `settled`, `retired`, or `gone` where the
+graph entry's file is missing from the checkout. `← <n>` counts the entries linking to it. `show` adds
+`links:` and `linked from:`. Recall and the brief name, under a hit, up to two entries linking to it
+that were filed after it, newest first, title only: `← <id> <title> [<seat>, <date>]`. The
+similar-entry hint offers both fixes: `replaces it → agentic-memory supersede <old> --by <new>` and
+`relates → agentic-memory link <new> <old>`.
+
 ## Ending an entry
 
 `retire <id>... [--because '<why>']` (MCP `retire`, key `because`) ends entries that are done or no

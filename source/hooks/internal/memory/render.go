@@ -32,6 +32,11 @@ func line(here tree, held *entry) string {
 
 	flags := statusFlags(held)
 	flags = append(flags, staleness(here, held)...)
+	flags = append(flags, held.linkFlags...)
+
+	if len(held.inbound) > 0 {
+		flags = append(flags, fmt.Sprintf("← %d", len(held.inbound)))
+	}
 
 	if len(flags) > 0 {
 		text += "  " + strings.Join(flags, "; ")

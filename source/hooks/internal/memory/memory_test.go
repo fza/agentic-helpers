@@ -38,6 +38,7 @@ type harness struct {
 
 	waitPoll     time.Duration
 	waitDeadline time.Duration
+	graph        *test.Graph
 }
 
 func newHarness(t *testing.T) *harness {
@@ -55,6 +56,7 @@ func newHarness(t *testing.T) *harness {
 		clock:    test.NewClock(time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC)),
 		git:      &test.Git{Top: repo, Commit: "15af1a8c", Branch: "main"},
 		embedder: &test.Embedder{}, embedding: true, processes: test.NewProcesses(), session: test.Session,
+		graph: &test.Graph{Err: errors.New("no graph in this test")},
 	}
 }
 
@@ -93,7 +95,7 @@ func (h *harness) env() memory.Env {
 		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now,
 		Random: test.Random(), Processes: h.processes, Checkout: test.CommonDir{Dir: filepath.Join(h.repo, ".git")},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
-		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline,
+		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph,
 	}
 }
 
@@ -652,6 +654,10 @@ func TestMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 			refusal: `search takes no key \"Term\", \"limt\"`},
 		{name: "a negative skip", tool: "search", arguments: `{"term":["Gate"],"skip":-1}`,
 			refusal: `--skip takes a number of 0 or more, not -1`},
+		{name: "link's keys", tool: "link", arguments: `{"id":"` + id + `","target":"m-zzzz99","seat":"main"}`,
+			refusal: `link takes no key \"seat\"; it takes id, target`},
+		{name: "unlink's keys", tool: "unlink", arguments: `{"id":"` + id + `","to":"m-zzzz99"}`,
+			refusal: `unlink takes no key \"to\"; it takes id, target`},
 		{name: "claim's removed force", tool: "claim", arguments: `{"name":"main","force":true}`,
 			refusal: `claim takes no key \"force\"; it takes name`},
 		{name: "a key for a tool taking none", tool: "topics", arguments: `{"all":true}`,

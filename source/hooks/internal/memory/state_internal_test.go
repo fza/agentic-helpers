@@ -332,3 +332,34 @@ func TestMergePolicyKeepsAYoungEntryByteForByte(t *testing.T) {
 		t.Error("an entry filed inside the horizon should keep its new row exactly as it was appended")
 	}
 }
+
+func TestAMergeKeepsNetExplicitLinks(t *testing.T) {
+	filed := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
+	at := func(hours int) time.Time { return filed.Add(time.Duration(hours) * time.Hour) }
+	payload := newPayload{Title: "Waiter test flaky on CI", Body: "flaky", Topics: []string{"waiter"}, Retention: "long", From: "agent"}
+
+	rows, read := rowsOf(t, []logged{
+		{memorylog.Row{Kind: memorylog.KindNew, Entry: "m-aaaa", Time: filed, Seat: "idea"}, payload},
+		{memorylog.Row{Kind: memorylog.KindLink, Entry: "m-aaaa", Time: at(1), Seat: "main", Target: "m-bbbb"}, nil},
+		{memorylog.Row{Kind: memorylog.KindLink, Entry: "m-aaaa", Time: at(2), Seat: "main", Target: "m-cccc"}, nil},
+		{memorylog.Row{Kind: memorylog.KindUnlink, Entry: "m-aaaa", Time: at(3), Seat: "drive", Target: "m-cccc"}, nil},
+	})
+
+	kept, err := mergePolicy(at(30*24), 90*24*time.Hour)(rows, read)
+	if err != nil {
+		t.Fatalf("the policy should fold the rows: %v", err)
+	}
+
+	if !slices.Equal(kindsOf(kept), []memorylog.Kind{memorylog.KindNew, memorylog.KindLink}) || kept[1].Target != "m-bbbb" ||
+		kept[1].Seat != "main" {
+		t.Errorf("a merge should keep one link row per net explicit link, with the seat that made it, got %+v", kept)
+	}
+
+	before := foldRows(t, rows, read)
+	after := foldEvents(t, kept)
+
+	if !reflect.DeepEqual(after.entries["m-aaaa"].explicit, before.entries["m-aaaa"].explicit) {
+		t.Errorf("the folded log should keep the links the full log holds, got %+v want %+v",
+			after.entries["m-aaaa"].explicit, before.entries["m-aaaa"].explicit)
+	}
+}
