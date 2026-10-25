@@ -39,8 +39,9 @@ EOF
 ```
 
 - **Title 3-10 words. At least one topic.** Wrong → lands anyway, reply names `retitle` / `tag`.
-- **Body ≤ ${user_config.entry_max_words} words.** Longer lands, reply notes it. One finding per
-  entry: one entry = one vector = sharpest recall.
+- **Body within the word limit:** `entry_max_words` in the plugin's settings, 500 unless set.
+  Longer lands, reply names the count. One finding per entry: one entry = one vector = sharpest
+  recall.
 - **Topics: reuse before coining.** `agentic-memory topics` lists them. Reply names near topics and
   similar entries with the fix: `merge <from> <into>`, `supersede <old> --by <new>`. Do it.
 - **Stamped by the tool:** time, seat, session, branch, commit. Paths named in title or body anchor

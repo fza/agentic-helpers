@@ -69,8 +69,11 @@ release named by the plugin's own `version`, kept under the plugin's data direct
 
 1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched.
 2. The plugin's version is there: it runs.
-3. At SessionStart, and only then, the release archive for this machine and the release's
-   `checksums.txt` are downloaded; the archive is unpacked only where its sha256 matches.
+3. At SessionStart, or for a command an agent runs (a `bin/` shim, the `memory` MCP server), the
+   release archive for this machine and the release's `checksums.txt` are downloaded; the archive
+   is unpacked only where its sha256 matches. A prompt or a tool-call hook never downloads. Claude
+   Code starts the MCP server alongside the SessionStart hooks, so the first to fetch holds a lock
+   and the other waits for it.
 4. Otherwise the newest version already there runs. A session that cannot write the data directory,
    such as a sandboxed job, runs what an earlier session fetched.
 5. No binary at all: the grounding gate refuses every call it guards, with a message naming the fix,
@@ -79,8 +82,8 @@ release named by the plugin's own `version`, kept under the plugin's data direct
 
 Claude Code's Bash tool finds `agentic-capture` and `agentic-memory` through the plugin's `bin/`,
 which hands each call to the same launcher, so `agentic-capture --help` is answered by the real
-binary; with no binary installed, a command from `bin/` exits 1 and says why, where a hook would
-stay silent. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
+binary; with no binary installed and none fetchable, a command from `bin/` or the MCP server exits 1
+and says why on stderr, where a hook would stay silent. A script outside Claude Code has no plugin on its PATH and builds the binaries itself:
 `go install -C source/hooks ./cmd/...` from a checkout.
 
 ### Coming from `agentic-install`

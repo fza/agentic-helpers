@@ -3,6 +3,7 @@
     "memory": {
       "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run",
       "args": [
+        "--command",
         "agentic-memory",
         "mcp"
       ]

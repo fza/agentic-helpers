@@ -74,6 +74,53 @@ func TestSessionStartFetchesTheRelease(t *testing.T) {
 	}
 }
 
+func TestACommandFetchesAMissingRelease(t *testing.T) {
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+	plugin.Release(t, "1.4.0", "", "agentic-memory")
+	plugin.Installed(t, "1.3.0", "agentic-capture")
+
+	got := plugin.Run(t, "hooks/run", nil, "--command", "agentic-memory", "mcp")
+	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join(plugin.Data, "1.4.0", "agentic-memory")+" mcp") {
+		t.Fatalf("a command should fetch the release it is missing and run its binary, got: %+v", got)
+	}
+
+	if strings.Contains(got.Stdout, "agentic-helpers:") {
+		t.Errorf("a command's stdout belongs to the binary and carries no notice, got: %+v", got)
+	}
+}
+
+func TestTheMCPServerRunsThroughTheCommandLauncher(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join(pluginRoot, ".mcp.json"))
+	if err != nil {
+		t.Fatalf("reading .mcp.json: %v", err)
+	}
+
+	var servers struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+
+	err = json.Unmarshal(content, &servers)
+	if err != nil {
+		t.Fatalf("parsing .mcp.json: %v", err)
+	}
+
+	for name, server := range servers.MCPServers {
+		if server.Command != "${CLAUDE_PLUGIN_ROOT}/hooks/run" || len(server.Args) < 2 || server.Args[0] != "--command" {
+			t.Errorf("the %s server should start through the launcher's command mode, which fetches a missing release, got: %+v",
+				name, server)
+
+			continue
+		}
+
+		if !test.Exists(t, filepath.Join(repository, "source", "hooks", "cmd", server.Args[1])) {
+			t.Errorf("the %s server should name a binary the release builds, got: %s", name, server.Args[1])
+		}
+	}
+}
+
 func TestParallelSessionStartsFetchOnce(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Release(t, "1.4.0", "", "agentic-scratch")
