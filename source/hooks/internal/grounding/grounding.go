@@ -40,6 +40,7 @@
 package grounding
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"embed"
@@ -94,7 +95,21 @@ var (
 // a session, or for an agent within one, is ever removed.
 var ledgerName = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\.[^/]+)?\.json$`)
 
+// Claude Code draws a refusal of a gated tool as a red error in its default
+// view, whether the hook exits 2 or answers a JSON deny, while a refusal of
+// `Bash` or an MCP tool folds into a grey line. So a gated tool is let through
+// with the refusal's text as a note the agent reads, and the capture that would
+// write its work into the graph stays refused.
 var gatedTools = map[string]bool{"AskUserQuestion": true, "Write": true, "Edit": true, "NotebookEdit": true}
+
+const (
+	refusedLine      = "GROUNDING GATE: refused."
+	taskNotification = "<task-notification>"
+	letThroughLine   = "GROUNDING GATE: let through, reads owed."
+	letThroughAnyway = "GROUNDING GATE: let through."
+	readsOwed        = "This turn carries:"
+	ungroundedDraft  = "This draft is not grounded: its capture owes the reads."
+)
 
 var savingTools = map[string]bool{"Write": true, "Edit": true}
 
@@ -180,6 +195,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		refusal := gate(ctx, env, payload)
 		if refusal == "" {
+			return 0
+		}
+
+		if gatedTools[payload.ToolName] {
+			_ = hookio.AddContext(streams.Out, "PreToolUse", letThrough(payload, refusal))
+
 			return 0
 		}
 
@@ -309,6 +330,12 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 // clear would leave the last one's reads standing, so a failure removes the
 // file rather than leaving it.
 func turn(ctx context.Context, env Env, payload hookio.Payload) {
+	// A finished background task reaches the hook as a prompt of its own, while
+	// the work it reports belongs to the turn that started it.
+	if strings.HasPrefix(strings.TrimSpace(payload.Prompt), taskNotification) {
+		return
+	}
+
 	path, err := ledgerPath(env.ledgerDir(), payload)
 	if err != nil {
 		return
@@ -407,6 +434,22 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		"{listing}", listingCommand(prefix), "{have}", carries, "{missing}", strings.Join(missing, " "))
 }
 
+// letThrough is the note a let-through call carries: the refusal's text under a
+// first line saying the call went ahead.
+func letThrough(payload hookio.Payload, refusal string) string {
+	if !strings.Contains(refusal, readsOwed) {
+		return strings.Replace(refusal, refusedLine, letThroughAnyway, 1)
+	}
+
+	note := strings.Replace(refusal, refusedLine, letThroughLine, 1)
+
+	if payload.ToolName != "AskUserQuestion" {
+		note = strings.Replace(note, letThroughLine, letThroughLine+" "+ungroundedDraft, 1)
+	}
+
+	return note
+}
+
 func gated(payload hookio.Payload) bool {
 	if payload.ToolName == "AskUserQuestion" || gatesCapture(payload) {
 		return true
@@ -416,7 +459,7 @@ func gated(payload hookio.Payload) bool {
 		return false
 	}
 
-	target := payload.ToolInput.FilePath
+	target := cmp.Or(payload.ToolInput.FilePath, payload.ToolInput.NotebookPath)
 
 	return draftPath.MatchString(target)
 }

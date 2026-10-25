@@ -112,8 +112,8 @@ func TestAGatherCallGroundsTheTurn(t *testing.T) {
 		got := run(t, env, "gate", ask("s1"))
 		refuses(t, got, "No `--term` search ran this turn.")
 
-		if strings.Contains(got.stderr, "No `--query`") || strings.Contains(got.stderr, "listing ran") {
-			t.Errorf("only the missing mode should be owed, got: %s", got.stderr)
+		if strings.Contains(got.said, "No `--query`") || strings.Contains(got.said, "listing ran") {
+			t.Errorf("only the missing mode should be owed, got: %s", got.said)
 		}
 
 		record(t, env, bash("pilot graph search --term x"))
@@ -151,8 +151,8 @@ func TestRefusalsOfferTheGatherCall(t *testing.T) {
 		"  pilot graph search --query '<subject>' --entry <entry>\n",
 		`  pilot graph view --layout "topic(area-<name>):as-list" --entry <entry>` + "\n",
 	} {
-		if !strings.Contains(got.stderr, line) {
-			t.Errorf("the refusal should offer the gather call before the separate reads, got: %s", got.stderr)
+		if !strings.Contains(got.said, line) {
+			t.Errorf("the refusal should offer the gather call before the separate reads, got: %s", got.said)
 		}
 	}
 }

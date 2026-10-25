@@ -20,10 +20,14 @@ const (
 	misspelled   = "sdd search --terms 'ssh_host_key_changed'"
 )
 
+// result is one gate call: said is what the agent is handed, the refusal on
+// stderr for a refused call, or the note a gated tool is let through with.
 type result struct {
 	code   int
 	stdout string
 	stderr string
+	said   string
+	noted  bool
 }
 
 // areaProject is a project carrying a graph and an `area-` listing prefix.
@@ -72,7 +76,21 @@ func runRaw(t *testing.T, env grounding.Env, mode string, stdin string) result {
 	captured := &test.Captured{}
 	code := grounding.Main(context.Background(), []string{mode}, env, captured.Streams(stdin))
 
-	return result{code: code, stdout: captured.Out.String(), stderr: captured.Err.String()}
+	got := result{code: code, stdout: captured.Out.String(), stderr: captured.Err.String()}
+	got.said = got.stderr
+
+	var answer struct {
+		HookSpecificOutput struct {
+			HookEventName     string `json:"hookEventName"`
+			AdditionalContext string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+
+	if code == 0 && json.Unmarshal([]byte(got.stdout), &answer) == nil && answer.HookSpecificOutput.AdditionalContext != "" {
+		got.said, got.noted = answer.HookSpecificOutput.AdditionalContext, true
+	}
+
+	return got
 }
 
 func bash(command string) map[string]any {
@@ -112,23 +130,25 @@ func ground(t *testing.T, env grounding.Env) {
 	record(t, env, bash(literalRead), bash(semanticRead), bash(areaRead))
 }
 
+// refuses asserts the call owes the reads: a refusal, or for a gated tool the
+// note it is let through with.
 func refuses(t *testing.T, got result, says string) {
 	t.Helper()
 
-	if got.code != 2 {
+	if got.code != 2 && !got.noted {
 		t.Fatalf("the call should be refused, got exit %d, stderr: %s", got.code, got.stderr)
 	}
 
-	if !strings.Contains(got.stderr, says) {
-		t.Errorf("the refusal should explain itself, got: %s", got.stderr)
+	if !strings.Contains(got.said, says) {
+		t.Errorf("the refusal should explain itself, got: %s", got.said)
 	}
 }
 
 func passes(t *testing.T, got result) {
 	t.Helper()
 
-	if got.code != 0 {
-		t.Errorf("the call should pass, got exit %d, stderr: %s", got.code, got.stderr)
+	if got.code != 0 || got.noted {
+		t.Errorf("the call should pass with nothing owed, got exit %d, said: %s", got.code, got.said)
 	}
 }
 
@@ -170,8 +190,8 @@ func TestNoRefusalSpellsAFlagTheToolDoesNotTake(t *testing.T) {
 	for _, payload := range []map[string]any{ask("s1"), bash("sdd search --term x 2>/dev/null")} {
 		got := run(t, areaProject(t), "gate", payload)
 
-		if !strings.Contains(got.stderr, "--term ") || strings.Contains(got.stderr, "--terms") {
-			t.Errorf("the refusal should name the real flag only, got: %s", got.stderr)
+		if !strings.Contains(got.said, "--term ") || strings.Contains(got.said, "--terms") {
+			t.Errorf("the refusal should name the real flag only, got: %s", got.said)
 		}
 	}
 }
@@ -336,7 +356,7 @@ func TestShowDepth(t *testing.T) {
 
 	t.Run("a sufficient depth names nothing short", func(t *testing.T) {
 		got := run(t, areaProject(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm --down 2"))
-		if strings.Contains(got.stderr, "--down 2` reads short") {
+		if strings.Contains(got.said, "--down 2` reads short") {
 			t.Error("only the depth that fell short should be named")
 		}
 	})
@@ -447,8 +467,8 @@ func TestRefusalsNameTheToolItself(t *testing.T) {
 	} {
 		got := run(t, areaProject(t), "gate", payload)
 
-		if !strings.Contains(got.stderr, "sdd ") || strings.Contains(got.stderr, "graph.py") || strings.Contains(got.stderr, "--entry") {
-			t.Errorf("a refusal should suggest plain sdd calls, got: %s", got.stderr)
+		if !strings.Contains(got.said, "sdd ") || strings.Contains(got.said, "graph.py") || strings.Contains(got.said, "--entry") {
+			t.Errorf("a refusal should suggest plain sdd calls, got: %s", got.said)
 		}
 	}
 }
@@ -587,7 +607,7 @@ func TestOptIn(t *testing.T) {
 	t.Run("an unknown mode is refused", func(t *testing.T) {
 		got := runRaw(t, bare(t), "sweep", "{}")
 
-		if got.code != 1 || !strings.Contains(got.stderr, "usage") {
+		if got.code != 1 || !strings.Contains(got.said, "usage") {
 			t.Error("an unknown mode should be refused with usage")
 		}
 	})
@@ -621,8 +641,8 @@ func TestListingWithoutAPrefix(t *testing.T) {
 
 	t.Run("the refusal names the view", func(t *testing.T) {
 		got := run(t, bare(t), "gate", ask("s1"))
-		if !strings.Contains(got.stderr, `sdd view --layout "active:as-counts"`) || strings.Contains(got.stderr, "area-") {
-			t.Errorf("a project without a prefix should be pointed at the view of every topic, got: %s", got.stderr)
+		if !strings.Contains(got.said, `sdd view --layout "active:as-counts"`) || strings.Contains(got.said, "area-") {
+			t.Errorf("a project without a prefix should be pointed at the view of every topic, got: %s", got.said)
 		}
 	})
 }

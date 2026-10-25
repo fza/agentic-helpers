@@ -29,9 +29,10 @@ type Payload struct {
 }
 
 type ToolInput struct {
-	Command  string          `json:"command"`
-	FilePath string          `json:"file_path"`
-	Raw      json.RawMessage `json:"-"`
+	Command      string          `json:"command"`
+	FilePath     string          `json:"file_path"`
+	NotebookPath string          `json:"notebook_path"`
+	Raw          json.RawMessage `json:"-"`
 }
 
 // UnmarshalJSON keeps the whole input beside the fields every tool shares,
@@ -82,4 +83,26 @@ func (payload Payload) Failed() bool {
 	}
 
 	return response.IsError || response.Interrupted || (response.ExitCode != nil && *response.ExitCode != 0)
+}
+
+type hookOutput struct {
+	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
+}
+
+type hookSpecificOutput struct {
+	HookEventName     string `json:"hookEventName"`
+	AdditionalContext string `json:"additionalContext"`
+}
+
+// AddContext answers an event with a note for the agent, which Claude Code
+// hands over without showing it to the user.
+func AddContext(out io.Writer, event string, note string) error {
+	err := json.NewEncoder(out).Encode(hookOutput{HookSpecificOutput: hookSpecificOutput{
+		HookEventName: event, AdditionalContext: note,
+	}})
+	if err != nil {
+		return fmt.Errorf("writing the hook's context: %w", err)
+	}
+
+	return nil
 }

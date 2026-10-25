@@ -23,8 +23,8 @@ func TestRefusalsWithoutAReadCommandAreUnchanged(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := tc.env(t)
-			if got.stderr != test.Fixture(t, tc.fixture) {
-				t.Errorf("a project naming no read command should get the refusal it always got, got: %s", got.stderr)
+			if got.said != test.Fixture(t, tc.fixture) {
+				t.Errorf("a project naming no read command should get the refusal it always got, got: %s", got.said)
 			}
 		})
 	}
@@ -39,13 +39,13 @@ func TestRefusalsSuggestTheReadCommand(t *testing.T) {
 			"  " + wrapper + " search --query '<subject>' --entry <entry>\n",
 			"  " + wrapper + ` view --layout "topic(area-<name>):as-list" --entry <entry>` + "\n",
 		} {
-			if !strings.Contains(got.stderr, line) {
-				t.Errorf("every suggested read should run through the command and end with the suffix, got: %s", got.stderr)
+			if !strings.Contains(got.said, line) {
+				t.Errorf("every suggested read should run through the command and end with the suffix, got: %s", got.said)
 			}
 		}
 
-		if strings.Contains(got.stderr, "  sdd ") {
-			t.Errorf("no suggested read should name bare sdd, got: %s", got.stderr)
+		if strings.Contains(got.said, "  sdd ") {
+			t.Errorf("no suggested read should name bare sdd, got: %s", got.said)
 		}
 	})
 

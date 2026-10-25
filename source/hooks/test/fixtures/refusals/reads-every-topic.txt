@@ -1,4 +1,4 @@
-GROUNDING GATE: refused. No `--query` search ran this turn. No `--term` search ran this turn. No listing of every topic ran this turn.
+GROUNDING GATE: let through, reads owed. No `--query` search ran this turn. No `--term` search ran this turn. No listing of every topic ran this turn.
 
 Run both + the listing, then ask again:
 

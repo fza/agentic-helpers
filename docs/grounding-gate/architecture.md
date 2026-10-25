@@ -8,10 +8,10 @@ does nothing elsewhere or where `.sdd/grounding.yaml` says `enabled: false`.
 | Event | Mode | What it does |
 |---|---|---|
 | SessionStart | `start` | checks once that `sdd --version` carries `fza`, and otherwise turns the gate off for the session with one notice; removes the ledgers of sessions that left a week ago without ending cleanly |
-| UserPromptSubmit | `turn` | opens a new turn: the reads credited so far stop counting, grounded drafts stay |
+| UserPromptSubmit | `turn` | opens a new turn: the reads credited so far stop counting, grounded drafts stay; a prompt opening with `<task-notification>` (a background task finishing) continues the turn instead |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view` | `record` | credits the reads the call performed |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory in a turn carrying every read, hashing the file as saved |
-| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `gate` | refuses with exit 2 and the refusal on stderr, or passes with exit 0 |
+| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`; for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
 | SessionEnd | `end` | removes the session's ledger |
 
 ## The ledger

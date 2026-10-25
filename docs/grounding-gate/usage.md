@@ -5,14 +5,23 @@ what it believes the graph holds. Both are how a wrong answer gets written down 
 
 ## What it refuses
 
-The gate refuses a question, a draft edit or an `agentic-capture` call until the turn carries real
-reads: a literal search and a semantic one, because each misses what the other finds, and a
+The gate holds a question, a draft edit or an `agentic-capture` call to real reads in the turn: a literal search and a semantic one, because each misses what the other finds, and a
 listing, because an empty search result is never evidence of absence. A project naming a topic
 prefix in `.sdd/grounding.yaml` (`listing_prefix: area-`) owes a listing of one topic carrying it;
 every other project owes the view of every topic, `sdd view --layout "active:as-counts"`. It also
 refuses a call that would discard the graph tool's own output, since a swallowed refusal reads
 exactly like an empty graph, and a read that stops at the entry itself, since a body is immutable
 and a later entry may have renamed every surface it names.
+
+**A question, a draft edit and a notebook edit under `drafts/` are let through, never refused.**
+With reads owed the call goes ahead and the agent gets a note, opening
+`GROUNDING GATE: let through, reads owed.` and naming what the turn still owes; a draft edit's note
+adds `This draft is not grounded: its capture owes the reads.`, since a draft saved in a turn
+missing reads never grounds. A `.sdd/grounding.yaml` that does not parse lets them through as
+`GROUNDING GATE: let through.` with the parse error. Claude Code draws any refusal of these tools as
+a red error in its default view, while a note is never shown to the user. Every other check stays a
+refusal, exit 2 with the reason on stderr: a capture, a plain `sdd new`, a discarded stream, a short
+show and an MCP capture, each a call Claude Code folds into one grey line.
 
 A plain `sdd new` without `--dry-run` owes the reads too, and since it names no draft, nothing
 grounded stands in for them. A capture counts however the shell spells it: after a runner, in a

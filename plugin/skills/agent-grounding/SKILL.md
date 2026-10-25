@@ -1,6 +1,6 @@
 ---
 name: agent-grounding
-description: 'Grounding a decision graph before asking, drafting or capturing: both search modes, the listing, read depths, ref kinds. Use when reading or writing entries in an sdd graph, when the grounding gate refuses a call, before putting a question or editing a draft, and before any capture. Only projects carrying a .sdd/ graph use this.'
+description: 'Grounding a decision graph before asking, drafting or capturing: both search modes, the listing, read depths, ref kinds. Use when reading or writing entries in an sdd graph, when the grounding gate refuses a call or lets one through with a note, before putting a question or editing a draft, and before any capture. Only projects carrying a .sdd/ graph use this.'
 license: MIT
 ---
 
@@ -117,11 +117,22 @@ Immutable. Get it right before capture.
 | `required-by` | recorded from the prerequisite's side |
 | `related` | floor kind. Understates every time. Pre-flight flags it |
 
-## What the gate refuses
+## What the gate refuses, and what it lets through
+
+**A question, a draft edit or a notebook edit is never refused.** Reads missing → the call goes
+ahead, and a note follows it, opening ``GROUNDING GATE: let through, reads owed.`` and naming what
+the turn still owes. A draft edit's note adds `This draft is not grounded: its capture owes the
+reads.` Treat the note as the refusal it replaces: run the reads, then go on. A question already
+asked → read before answering what it settled.
+
+A broken `.sdd/grounding.yaml` lets them through as ``GROUNDING GATE: let through.`` with the
+parse error. Fix the file.
+
+**A finished background task continues the turn.** Its `<task-notification>` keeps the reads already
+run.
 
 | Refused | Why |
 |---|---|
-| question or draft edit, three reads missing | answering from memory |
 | capture, three reads missing, draft not grounded | writing what the graph never confirmed |
 | `sdd new` without `--dry-run`, three reads missing | same, by the path that skips the draft |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
