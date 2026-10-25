@@ -120,8 +120,8 @@ var interpreters = []string{
 // namesRemoval matches the removal calls of the shell and of the interpreters'
 // own libraries, as a word.
 var (
-	namesRemoval = regexp.MustCompile(`(^|[^A-Za-z0-9_-])(rm|rmdir|unlink|rmtree|rmSync|rmdirSync|unlinkSync|` +
-		`removeSync|remove_dir_all|rm_rf|rm_r)([^A-Za-z0-9_-]|$)`)
+	namesRemoval = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_-])(rm|rmdir|unlink|rmtree|rmSync|rmdirSync|unlinkSync|` +
+		`removeSync|remove_dir_all|remove_tree|removedirs|rm_rf|rm_r)([^A-Za-z0-9_-]|$)`)
 	namesMktemp = regexp.MustCompile(`(^|[^A-Za-z0-9_-])mktemp([^A-Za-z0-9_-]|$)`)
 )
 
@@ -355,24 +355,78 @@ func (inspection *inspector) piped(binary *syntax.BinaryCmd) {
 		return
 	}
 
-	name := commandName(call.Args[0])
-	if !slices.Contains(shells, name) || shellCode(call.Args[1:]) != nil || hasOperand(call.Args[1:]) {
+	args := launched(call.Args)
+	if args == nil {
+		return
+	}
+
+	name := commandName(args[0])
+	if shellCode(args[1:]) != nil || namesScript(args[1:]) {
 		return
 	}
 
 	inspection.unreadable(name+" stdin", fmt.Sprintf("cannot read the code piped to %s; refusing", name))
 }
 
-// hasOperand is whether a shell is named a script to run.
-func hasOperand(args []*syntax.Word) bool {
-	for _, arg := range args {
-		value, isLiteral := literal(arg)
-		if !isLiteral || (value != "-" && value != "-s" && !strings.HasPrefix(value, "-")) {
+// launched is the shell a call runs, through any launchers before it, with its
+// arguments, or nil where it runs none.
+func launched(args []*syntax.Word) []*syntax.Word {
+	for index, arg := range args {
+		name := commandName(arg)
+
+		switch {
+		case slices.Contains(shells, name):
+			return args[index:]
+		case index == 0 && !slices.Contains(launchers, name):
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// namesScript is whether a shell's arguments name a script for it to run: its
+// first operand, unless -s sends it to standard input. An option taking a
+// value (-o, +o, -O, +O) takes the next word with it.
+func namesScript(args []*syntax.Word) bool {
+	for index := 0; index < len(args); index++ {
+		value, isLiteral := literal(args[index])
+
+		switch {
+		case !isLiteral:
+			return true
+		case value == "-" || value == "--":
+			return false
+		case value == "-o" || value == "+o" || value == "-O" || value == "+O":
+			index++
+		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
+			if strings.Contains(strings.TrimLeft(value, "-+"), "s") {
+				return false
+			}
+		default:
 			return true
 		}
 	}
 
 	return false
+}
+
+// trapHandler is the code trap sets, past its options, or nil where it sets none.
+func trapHandler(args []*syntax.Word) *syntax.Word {
+	for index, arg := range args {
+		value, isLiteral := literal(arg)
+		if isLiteral && (value == "--" || value == "-p" || value == "-l" || value == "-P") {
+			continue
+		}
+
+		if index+1 < len(args) || !isLiteral {
+			return arg
+		}
+
+		return nil
+	}
+
+	return nil
 }
 
 // removal is a removal that is not the whole command, its targets from
@@ -411,8 +465,11 @@ func (inspection *inspector) command(args []*syntax.Word) {
 		}
 	case name == "eval":
 		inspection.nested("eval", args[1:])
-	case name == "trap" && len(args) > 1:
-		inspection.nested("trap", args[1:2])
+	case name == "trap":
+		handler := trapHandler(args[1:])
+		if handler != nil {
+			inspection.nested("trap", []*syntax.Word{handler})
+		}
 	case slices.Contains(shells, name):
 		code := shellCode(args[1:])
 		if code != nil {
@@ -545,7 +602,7 @@ func shellCode(args []*syntax.Word) *syntax.Word {
 }
 
 func isJudged(name string) bool {
-	return slices.Contains(removers, name) || name == "mktemp" || name == "git" || name == "eval" ||
+	return slices.Contains(removers, name) || name == "mktemp" || name == "git" || name == "eval" || name == "trap" ||
 		slices.Contains(shells, name) || isInterpreter(name) || slices.Contains(launchers, name)
 }
 

@@ -37,7 +37,7 @@ carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A 
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
 stood alone.
 
-Code another program runs as shell, `eval`'s arguments, `trap`'s first, the word after a shell's
+Code another program runs as shell, `eval`'s arguments, the handler `trap` sets past its options, the word after a shell's
 `-c`-carrying option, and the body of a here-document or here-string a shell reads, is joined and
 parsed again, and walked with removals and `mktemp` only noted. Under
 `shell_guard_nested_code` a noted one denies, and so does code that is no literal or does not parse;
@@ -45,8 +45,9 @@ with it off, a noted removal and unreadable code take the outside-project verdic
 code handed to <runner> (nested code)`, and a noted `mktemp` passes. Inline code for another
 interpreter cannot be parsed: an argument whose text names `rm`, `rmdir`, `unlink` or `mktemp` as a
 word denies under the nested-code guard, and with it off a removal takes the same `cannot place`
-verdict. A shell at the end of a pipe that is named no `-c` code and no script reads its code from the pipe:
-code it cannot read. A here-document or here-string fed to another interpreter is judged as its
+verdict. A shell at the end of a pipe, through any launchers before it, that is named no `-c` code and no
+script, or is told `-s`, reads its code from the pipe: code it cannot read. Its first operand past
+its options is the script, an option taking a value (`-o`, `-O`) taking the next word with it. A here-document or here-string fed to another interpreter is judged as its
 inline code. Any other guard's verdict found inside nested code counts as found outside it.
 
 Every guard adds a verdict; `deny` outranks `ask`, which outranks letting the call run, and the first
