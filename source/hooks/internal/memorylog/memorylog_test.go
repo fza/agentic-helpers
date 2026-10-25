@@ -506,3 +506,42 @@ func TestATailReadsTimesInEitherForm(t *testing.T) {
 		}
 	}
 }
+
+func TestARewritePassesTheTailThroughThePolicy(t *testing.T) {
+	log := openLog(t, t.TempDir())
+	appendEvents(t, log, events(0, 3, 0)...)
+
+	dropSecond := func(rows []memorylog.Row, payload func(int) ([]byte, error)) ([]memorylog.Event, error) {
+		var kept []memorylog.Event
+
+		for index, row := range rows {
+			if row.Entry == "m-00001" {
+				continue
+			}
+
+			body, err := payload(index)
+			if err != nil {
+				return nil, err
+			}
+
+			kept = append(kept, memorylog.Event{Kind: row.Kind, Entry: row.Entry, Time: row.Time, Seat: row.Seat, Payload: body})
+		}
+
+		return kept, nil
+	}
+
+	err := log.Rewrite(context.Background(), dropSecond)
+	if err != nil {
+		t.Fatalf("rewriting: %v", err)
+	}
+
+	read := readEvents(t, log)
+	if len(read) != 2 || read[0].Entry != "m-00000" || read[1].Entry != "m-00002" {
+		t.Errorf("a rewrite should run every event, the tail's included, through the policy, got %v", read)
+	}
+
+	err = log.Rewrite(context.Background(), nil)
+	if err != nil || len(readEvents(t, log)) != 2 {
+		t.Errorf("a rewrite of a log with an empty tail should keep what it holds, got %v", err)
+	}
+}

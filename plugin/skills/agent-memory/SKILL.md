@@ -124,6 +124,26 @@ one → `retire`. Overturned decision → `supersede <old> --by <new>`. Other ro
 
 Graph holds the decision → never a second copy: memory points at its id. **No credential, ever.**
 
+## Lifetime
+
+A shelf is **durable** (the default) or **temporary**: purged, with its seats and entries, a
+retention after its last seat closes. Claiming a seat on it before then keeps everything.
+
+```bash
+agentic-memory lifetime temporary | <span> | durable   # the shelf of this seat; span 90m, 12h, 2d, 0
+agentic-memory claim <seat> --lifetime <value>          # same, while claiming
+agentic-memory drop <shelf>                             # purge an unused temporary shelf now
+```
+
+- `temporary` = default retention, `temporary_seat_lifetime`, 1d unless set. `0` = purged as the
+  last seat closes.
+- **Closes**: `release`, or the session ending (not `/clear`, not `/resume`).
+- **User's words map onto `--lifetime` without asking**: "temporary" → `temporary`; a span
+  ("2 days", "for an hour") → `2d`, `1h`; "durable", "keep it" → `durable`. Combines with seat and
+  shelf words: "main, shared, temporary" → the shared claim with `--lifetime temporary`.
+- Something meant to outlive a temporary shelf → file it `--for` a durable seat's shelf. It survives
+  the purge, filer shown `<seat> (expired)`.
+
 ## Shared entries
 
 ```bash

@@ -471,13 +471,14 @@ func commands() []command {
 				`"json":{"type":"boolean"}}}`,
 		},
 		{
-			name: "claim", usage: "claim <seat> [--shelf <shelf>] | claim --shelf <shelf>",
+			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] | claim --shelf <shelf> [...]",
 			description: "take a seat, on a shelf with --shelf, or a new seat on that shelf with no name; prints the brief and the slice",
-			flags:       []flagSpec{{"shelf", flagText}},
+			flags:       []flagSpec{{"shelf", flagText}, {"lifetime", flagText}},
 			positional:  optionalName,
 			run:         (*memory).claim,
 			schema: `{"type":"object","properties":{"name":{"type":"string"},` +
-				`"shelf":{"type":"string","description":"the shelf a new seat files onto; alone, claims a new seat on it"}}}`,
+				`"shelf":{"type":"string","description":"the shelf a new seat files onto; alone, claims a new seat on it"},` +
+				`"lifetime":{"type":"string","description":"durable, temporary, or a span such as 90m, 12h, 2d or 0"}}}`,
 		},
 		{
 			name: "rename", usage: "rename '<new name>'", description: "give the seat this session holds a new name; its id and entries stay",
@@ -489,6 +490,20 @@ func commands() []command {
 			name: "release", usage: "release [<seat>]", description: "give a seat up",
 			positional: optionalName, run: (*memory).release,
 			schema: `{"type":"object","properties":{"name":{"type":"string"}}}`,
+		},
+		{
+			name: "lifetime", usage: "lifetime durable|temporary|<span>",
+			description: "make the shelf of the seat this session holds durable, or temporary: purged the span (default temporary_seat_lifetime) after its last seat closes",
+			positional:  func(req *request) error { return exactly(1, &req.Value)(req) },
+			run:         (*memory).lifetime,
+			schema: `{"type":"object","properties":{"value":{"type":"string",` +
+				`"description":"durable, temporary, or a span such as 90m, 12h, 2d or 0"}},"required":["value"]}`,
+		},
+		{
+			name: "drop", usage: "drop <shelf>", description: "purge a temporary shelf no seat uses, with its seats and entries, at once",
+			positional: func(req *request) error { return exactly(1, &req.Shelf)(req) },
+			run:        (*memory).drop,
+			schema:     `{"type":"object","properties":{"shelf":{"type":"string"}},"required":["shelf"]}`,
 		},
 		{
 			name: "sweep", usage: "sweep", description: "list every seat, free each whose holder is gone",

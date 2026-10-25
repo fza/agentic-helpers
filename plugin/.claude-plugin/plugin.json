@@ -72,6 +72,12 @@
       "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; empty means en",
       "required": false
     },
+    "temporary_seat_lifetime": {
+      "type": "string",
+      "title": "Temporary seat lifetime",
+      "description": "How long a closed temporary seat keeps its entries before they are purged, e.g. 12h, 1d, 0; empty means 1d",
+      "required": false
+    },
     "tools_query_floor": {
       "type": "number",
       "title": "Tool query floor",

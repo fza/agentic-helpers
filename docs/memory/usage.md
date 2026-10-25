@@ -87,8 +87,8 @@ with `sweep`, maps the words onto the seat meaning the same, and asks when none 
 
 A seat whose holder still runs is refused to every other session, always: nothing tells a stuck
 holder from a busy one, and a busy one losing its seat would find every write refused without
-noticing. The seat frees when its holder runs `release` or its session ends; a seat whose holder has
-gone is free to claim, and `sweep` frees every such seat of the project.
+noticing. The seat frees when its holder runs `release` or its session ends, which closes it; a
+seat whose holder has gone is free to claim, and `sweep` frees every such seat of the project.
 
 ## Shelves
 
@@ -118,6 +118,46 @@ agentic-memory claim --shelf row-7ah            # a new seat row-7ah-<n>, the lo
   `agentic-memory: new for <seat> (<n>):`, and a retire, retain, retitle or tag a shelf mate made
   arrives as `agentic-memory: changed on shelf <name> (<n>):`, one line per change,
   `<id> <title>: <what> by <seat>`, both through the paths shared entries arrive by.
+
+## Temporary shelves
+
+A shelf is **durable**, as every shelf is unless set otherwise, or **temporary**: it keeps its
+entries while a seat on it is in use, and once its last seat has closed, a retention runs; when it
+runs out, the shelf, every seat on it and every entry they filed are purged from the store, bodies
+and events alike. Nothing of a purged entry is left to search, list, show or revive, and every name
+it freed can be claimed anew, carrying nothing over. Claiming any seat on the shelf before the
+retention runs out keeps everything.
+
+```bash
+agentic-memory lifetime temporary      # temporary, the default retention
+agentic-memory lifetime 2d             # temporary, purged 2 days after its last seat closes
+agentic-memory lifetime 0              # temporary, purged as its last seat closes
+agentic-memory lifetime durable
+agentic-memory claim impl-7ah --shelf row-7ah --lifetime 3d
+agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, at once
+```
+
+- **`lifetime durable|temporary|<span>`** (MCP `lifetime`, key `value`) sets the lifetime of the
+  shelf of the seat the session holds, for every seat on it; `claim --lifetime` (MCP key `lifetime`)
+  does it while claiming. A span is minutes, hours or days (`90m`, `12h`, `2d`) or `0`; `temporary`
+  takes the default, the plugin option `temporary_seat_lifetime`, `1d` unless set. A value neither
+  word nor span is refused. The reply says how the shelf ends:
+  `shelf row-7ah is temporary: purged 2d after its last seat closes`.
+- **A seat closes** when its holder runs `release`, or its session ends with SessionEnd for any
+  reason but `clear` or `resume`, which leave the process and its seat in place. A holder gone
+  without SessionEnd, a crash or a kill, closed at its transcript's last write. A seat in use, held
+  by a running session, keeps the clock from starting.
+- **The purge runs** at every SessionStart, in any project, over every store at the current format
+  under `~/.claude/agentic-memory/`; a store holding no temporary shelf is only read. A retention of
+  `0` purges inside the `release` or SessionEnd closing the last seat.
+- **What survives**: an entry filed `--for` a shelf outside the purge, or `--for all`. It stays in
+  its recipients' brief and search, names its filer as `<seat> (expired)`, and every seat on a
+  shelf it was filed for may retire, retain, retitle and tag it. Entries other shelves filed for the
+  purged one stay their filers'.
+- **`drop <shelf>`** (MCP `drop`, key `shelf`) purges a temporary shelf at once, from any process,
+  and says `dropped <shelf> (<n> seats, <m> entries)`. It is refused while a seat on the shelf is in
+  use, `<seat> holds a seat on <shelf>`, and for a durable shelf,
+  `<shelf> is durable; make it temporary first`.
 
 ## Entries
 
@@ -294,6 +334,7 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 | `entry_id_length` | the characters after `m-` in a new entry id |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
+| `temporary_seat_lifetime` | how long a closed temporary shelf keeps its entries, a span as `lifetime` takes one (`12h`, `1d`, `0`); `1d` unless set, and `1d`, with a note in the reply, where it holds no span |
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.

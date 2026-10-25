@@ -56,8 +56,11 @@ type Options struct {
 	EntryIDLength       int
 	MemoryLanguage      string
 	MemoryRequireGit    bool
-	ToolsDuplicateFloor float64
-	ToolsQueryFloor     float64
+	// TemporarySeatLifetime is how long a closed temporary shelf keeps its
+	// entries, as `lifetime` spells a span; empty takes agentic-memory's default.
+	TemporarySeatLifetime string
+	ToolsDuplicateFloor   float64
+	ToolsQueryFloor       float64
 }
 
 type settings struct {
@@ -126,11 +129,12 @@ func Defaults() Options {
 
 func (options *Options) apply(values map[string]json.RawMessage) error {
 	texts := map[string]*string{
-		"embedding_provider":    &options.EmbeddingProvider,
-		"embedding_model":       &options.EmbeddingModel,
-		"embedding_endpoint":    &options.EmbeddingEndpoint,
-		"embedding_api_key_env": &options.EmbeddingAPIKeyEnv,
-		"memory_language":       &options.MemoryLanguage,
+		"embedding_provider":      &options.EmbeddingProvider,
+		"embedding_model":         &options.EmbeddingModel,
+		"embedding_endpoint":      &options.EmbeddingEndpoint,
+		"embedding_api_key_env":   &options.EmbeddingAPIKeyEnv,
+		"memory_language":         &options.MemoryLanguage,
+		"temporary_seat_lifetime": &options.TemporarySeatLifetime,
 	}
 
 	for key, target := range texts {

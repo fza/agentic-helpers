@@ -105,7 +105,8 @@ stays in search, flagged, and `revive` refuses it.
 ## Seats and liveness
 
 A claim file, under the seat's id, names the holding session, the pid of its `claude` process, that process's start time
-(`started`, RFC 3339 in UTC), when it was claimed, and the session's transcript. A call finds its own
+(`started`, RFC 3339 in UTC), when it was claimed, and the session's transcript. A `release` or a
+SessionEnd closing the seat moves the claim to `<id>.last.json` with `closed`, the time it closed. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.
 
 A holder is alive while its pid runs `claude` and that process started at the recorded instant, so a
@@ -114,6 +115,23 @@ it in the caller's locale otherwise, and callers in two locales would read one p
 claim written by an earlier release may hold `ps` text in another locale, which cannot be read back
 into an instant; such a claim is judged by the process alone, and its holder's next claim rewrites
 it.
+
+## The purge
+
+A shelf's lifetime is `lifetime` in `shelves.json`: none for durable, `temporary` for the default
+retention, or a span. A temporary shelf is due once no seat on it is in use and its retention has
+passed since the latest close among its seats: a last claim's `closed`, else the modification time
+of the transcript a dead holder's claim names, else the time it was claimed. A purge, under the
+store lock, decides the entries the shelf filed that no `--for` names another shelf for, rewrites
+the log through `memorylog.Log.Rewrite` (the tail sealed, every segment merged) with the merge
+policy run over every row but theirs, removes the seats' claim, last-claim and slice files, marks the
+seats `expired` in `seats.json` while a remaining row names them and deletes them otherwise, and
+deletes the shelves from `shelves.json`. An expired seat's name is free: `IDOf` passes over it, and a
+line names it `<name> (expired)`.
+
+SessionStart runs the purge over every store at the current format under
+`~/.claude/agentic-memory/`, the caller's own included, before it looks at its own project; a
+`release` and a closing SessionEnd run it over their own store.
 
 ## The context reading
 
@@ -131,13 +149,13 @@ Every hook exits at once in a project without a store.
 
 | Event | What memory does |
 |---|---|
-| SessionStart (`session-start`) | for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
+| SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
 | UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry would no longer fit the pieces, once per newest entry; the ladder records the entry it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares |
 | PostToolUse (`tool`) | tells the seat about arrivals as `additionalContext`; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls and nothing more |
 | Stop (`stop`) | blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
-| SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice, and empties the session's prompt vector slot |
+| SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
 ## Links
 

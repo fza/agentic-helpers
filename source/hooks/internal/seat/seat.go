@@ -41,6 +41,10 @@ func Normal(name string) string {
 	return strings.ToLower(norm.NFC.String(strings.TrimSpace(name)))
 }
 
+// Claim is who holds a seat. Closed is when its holder released it or its
+// session ended, kept on the seat's last claim; Reserved is when a claim made
+// for a session that has not yet taken it over was written; MovedFrom names
+// the seat a handover moved the session off, until its next hook tells it.
 type Claim struct {
 	SessionID      string `json:"session_id"`
 	PID            int    `json:"pid"`
@@ -48,6 +52,9 @@ type Claim struct {
 	Claimed        string `json:"claimed,omitempty"`
 	SeizedFrom     string `json:"seized_from,omitempty"`
 	TranscriptPath string `json:"transcript_path,omitempty"`
+	Closed         string `json:"closed,omitempty"`
+	Reserved       string `json:"reserved,omitempty"`
+	MovedFrom      string `json:"moved_from,omitempty"`
 }
 
 type Processes interface {
@@ -165,6 +172,46 @@ func Remove(dir string, name string) error {
 	err := os.Remove(Path(dir, name))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("removing the claim on %s: %w", name, err)
+	}
+
+	return nil
+}
+
+// Close frees a seat as Remove does, recording on its last claim when it closed.
+func Close(dir string, name string, at string) error {
+	if !ValidName(name) {
+		return fmt.Errorf("%w, %q is not one", ErrBadName, name)
+	}
+
+	held, found := Read(dir, name)
+	if found {
+		held.Closed = at
+
+		err := writeClaim(LastPath(dir, name), held)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := os.Remove(Path(dir, name))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("removing the claim on %s: %w", name, err)
+	}
+
+	return nil
+}
+
+// Forget removes every file of a seat: its claim, its last claim and its slice.
+func Forget(dir string, name string) error {
+	if !ValidName(name) {
+		return fmt.Errorf("%w, %q is not one", ErrBadName, name)
+	}
+
+	for _, path := range []string{Path(dir, name), LastPath(dir, name), filepath.Join(dir, name+".slice")} {
+		err := os.Remove(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("removing %s: %w", path, err)
+		}
 	}
 
 	return nil

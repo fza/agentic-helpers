@@ -220,6 +220,15 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 
 	lines := []string{fmt.Sprintf("%s: %s (pid %d)", req.Name, short(held.SessionID), held.PID)}
 
+	described, err := mem.claimLifetime(ctx, req)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	if described != "" {
+		lines = append(lines, described)
+	}
+
 	lines = append(lines, mem.brief(ctx, here, folded, req.Name))
 
 	hint := mem.carryForwardHint(ctx, req.Name)
@@ -238,6 +247,30 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	return done(strings.Join(lines, "\n"))
+}
+
+// claimLifetime sets the lifetime --lifetime names on the claimed seat's
+// shelf, and says how a temporary shelf ends.
+func (mem *memory) claimLifetime(ctx context.Context, req request) (string, error) {
+	shelf := mem.shelfOf(req.Name)
+
+	if req.Lifetime != "" {
+		held, err := mem.setLifetime(ctx, shelf, req.Lifetime)
+		if err != nil {
+			return "", err
+		}
+
+		return mem.describeLifetime(held), nil
+	}
+
+	shelves, _ := mem.shelves()
+
+	held := shelves.Shelves[shelf]
+	if held.Lifetime == "" {
+		return "", nil
+	}
+
+	return mem.describeLifetime(held), nil
 }
 
 // carryForwardHint points a seat at the carry-forward file it still has. The
@@ -325,10 +358,12 @@ func (mem *memory) release(ctx context.Context, req request) result {
 			held.PID)
 	}
 
-	err := seat.Remove(mem.seatsDir(), key)
+	err := seat.Close(mem.seatsDir(), key, mem.now().Format(time.RFC3339Nano))
 	if err != nil {
 		return refused("%v", err)
 	}
+
+	_ = mem.purgeExpired(ctx)
 
 	return done("released " + name)
 }

@@ -94,6 +94,8 @@ func (mem *memory) track(seatName string, held seat.Claim, payload hookio.Payloa
 }
 
 func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
+	mem.purgeEverywhere(ctx)
+
 	if !mem.storeExists() {
 		return 0
 	}
@@ -615,6 +617,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	text := mem.recentTurns(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath))
 	if text == "" {
 		removeIfThere(mem.slicePath(name))
+		mem.closeAtEnd(ctx, name, payload)
 
 		return 0
 	}
@@ -622,7 +625,22 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	content := "session " + held.SessionID + "\n" + transcript.Tail(text, claimBudget)
 	_ = os.WriteFile(mem.slicePath(name), []byte(content), 0o600)
 
+	mem.closeAtEnd(ctx, name, payload)
+
 	return 0
+}
+
+// closeAtEnd closes the seat of a session that ends: its claim moves to the
+// seat's last claim with the time it closed, which starts a temporary shelf's
+// clock once no seat on it is in use. A `/clear` or `/resume` ends a session
+// id but not the process, which keeps its seat.
+func (mem *memory) closeAtEnd(ctx context.Context, seatName string, payload hookio.Payload) {
+	if payload.Reason == "clear" || payload.Reason == "resume" {
+		return
+	}
+
+	_ = seat.Close(mem.seatsDir(), mem.seatKey(seatName), mem.now().Format(time.RFC3339Nano))
+	_ = mem.purgeExpired(ctx)
 }
 
 type shownSet struct {

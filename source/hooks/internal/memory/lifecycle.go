@@ -12,12 +12,33 @@ import (
 )
 
 // mayEdit is whether seatName may retire, retain, retitle or tag the entry:
-// every seat on the entry's shelf may.
+// every seat on the entry's shelf may, and, once a purge left the entry with an
+// expired filer, every seat on a shelf it was filed for.
 func (mem *memory) mayEdit(_ *state, held *entry, seatName string) bool {
-	return mem.onShelf(held, seatName)
+	if mem.onShelf(held, seatName) {
+		return true
+	}
+
+	if !mem.filerExpired(held) {
+		return false
+	}
+
+	mine := mem.shelfOf(seatName)
+
+	return held.forAll || slices.ContainsFunc(held.forKeys, func(key string) bool { return mem.recipientShelf(key) == mine })
+}
+
+func (mem *memory) filerExpired(held *entry) bool {
+	registry, _ := mem.registry()
+
+	return registry.Seats[held.seatKey].Expired
 }
 
 func (mem *memory) notOnShelf(held *entry) string {
+	if mem.filerExpired(held) {
+		return fmt.Sprintf("%s was filed by %s for other shelves", held.id, held.seat)
+	}
+
 	return fmt.Sprintf("%s is on shelf %s", held.id, mem.shelfName(mem.entryShelf(held)))
 }
 

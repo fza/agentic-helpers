@@ -186,6 +186,26 @@ func (l *Log) Merge(ctx context.Context, policy Policy) error {
 	})
 }
 
+// Rewrite seals the tail, then merges every segment through policy: every
+// event the log holds passes the policy, the tail's included.
+func (l *Log) Rewrite(ctx context.Context, policy Policy) error {
+	return l.locked(ctx, func(current manifest) error {
+		info, err := os.Stat(l.path(tailName))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("measuring the tail: %w", err)
+		}
+
+		if err == nil && info.Size() > 0 {
+			current, err = l.seal(current)
+			if err != nil {
+				return err
+			}
+		}
+
+		return l.merge(current, policy)
+	})
+}
+
 // locked runs write holding the log lock, on a repaired log. The context is
 // checked once the lock is held: a flock wait cannot be interrupted.
 func (l *Log) locked(ctx context.Context, write func(current manifest) error) error {
