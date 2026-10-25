@@ -129,6 +129,11 @@ file**. Never any other file under `.memory/`: a project keeps its own files the
 Every command above is also a tool: `mcp__plugin_agentic-helpers_memory__<subcommand>`, same
 arguments as JSON (`body` for the body, arrays for repeatable flags). Same seat, same answers.
 
+- **MCP server connected → use the tools.** CLI only where the server is not connected, or where no
+  agent tool call can run (a script, a hook, another process). Chaining two commands in one Bash
+  call is no reason: two tool calls, the id carried over.
+- Not loaded yet → `ToolSearch` `select:mcp__plugin_agentic-helpers_memory__<subcommand>` first.
+
 ## Traps
 
 - `new` reads the body from stdin. Heredoc, never `echo` with backticks in it.
