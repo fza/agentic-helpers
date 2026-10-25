@@ -172,6 +172,8 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"code piped to bash with an option value", "{project}", "echo 'rm x' | bash -o errexit", "deny"},
 		{"code piped to bash with a grouped option value", "{project}", "echo 'rm x' | bash -eo pipefail", "deny"},
 		{"fish init command with a removal", "{project}", "fish -C 'rm x'", "deny"},
+		{"code piped to fish with init code", "{project}", "echo 'rm x' | fish -C 'echo hi'", "deny"},
+		{"code piped to bash after an unknown long option", "{project}", "echo 'rm x' | bash --dump-po-strings x", "deny"},
 		{"shell --command with a removal", "{project}", "fish --command 'rm x'", "deny"},
 		{"inline code for an interpreter it does not know", "{project}", `rust-script -e 'std::fs::remove_dir_all("x")'`, "allow"},
 		{"ruby code naming rm_f", "{project}", `ruby -e 'FileUtils.rm_f("x")'`, "deny"},

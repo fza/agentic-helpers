@@ -104,6 +104,12 @@ var removers = []string{"rm", "rmdir", "unlink"}
 
 var shells = []string{"sh", "bash", "zsh", "dash", "ksh", "mksh", "fish"}
 
+// longFlags are the shells' long options that take no value.
+var longFlags = []string{
+	"--norc", "--noprofile", "--login", "--posix", "--noediting", "--verbose", "--restricted", "--debugger",
+	"--dump-strings", "--no-config", "--private", "--interactive", "--no-execute", "--emulate-sh",
+}
+
 // A launcher runs its arguments as a command: whatever it names is judged as
 // if it stood alone.
 var launchers = []string{
@@ -362,7 +368,7 @@ func (inspection *inspector) piped(binary *syntax.BinaryCmd) {
 	}
 
 	name := commandName(args[0])
-	if shellCode(args[1:]) != nil || namesScript(args[1:]) {
+	if replacesInput(args[1:]) || namesScript(args[1:]) {
 		return
 	}
 
@@ -388,8 +394,8 @@ func launched(args []*syntax.Word) []*syntax.Word {
 
 // namesScript is whether a shell's arguments name a script for it to run: its
 // first operand, unless -s sends it to standard input. An option taking a
-// value (-o, -O, grouped as -eo, --rcfile, --init-file) takes the next word
-// with it.
+// value (-o, -O, grouped as -eo, and every long option but the shells' known
+// flags) takes the next word with it.
 func namesScript(args []*syntax.Word) bool {
 	for index := 0; index < len(args); index++ {
 		value, isLiteral := literal(args[index])
@@ -399,17 +405,19 @@ func namesScript(args []*syntax.Word) bool {
 			return true
 		case value == "-" || value == "--":
 			return false
-		case value == "--rcfile" || value == "--init-file":
-			index++
+		case slices.Contains(longFlags, value):
 		case strings.HasPrefix(value, "--"):
+			// A long option it does not know may take a value: the next word goes with it.
+			index++
 		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
 			flags := strings.TrimLeft(value, "-+")
 			if strings.Contains(flags, "s") {
 				return false
 			}
 
-			// A grouped option taking a value, as -eo pipefail, takes the next word.
-			if strings.ContainsAny(flags, "oO") {
+			// A grouped option taking a value, as -eo pipefail or fish's -C init code,
+			// takes the next word.
+			if strings.ContainsAny(flags, "oOC") {
 				index++
 			}
 		default:
@@ -593,6 +601,20 @@ func (inspection *inspector) unreadable(runner string, reason string) {
 	}
 
 	inspection.found.add(cannotPlace(inspection.options, "code handed to "+runner, whyNestedCode))
+}
+
+// replacesInput is whether a shell is handed its code with -c or --command,
+// and so reads none from its standard input; fish's -C init code runs before
+// the input is read.
+func replacesInput(args []*syntax.Word) bool {
+	for _, arg := range args {
+		value, _ := literal(arg)
+		if value == "--command" || (strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.Contains(value, "c")) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // shellCode is the word a shell runs as code: the one after an option
