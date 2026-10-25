@@ -1310,3 +1310,46 @@ func TestSearchPages(t *testing.T) {
 		t.Errorf("a negative --skip should be refused naming the flag, got %d %q", got.code, got.err)
 	}
 }
+
+func TestAJapaneseTitleOfThreeToTenCharactersDrawsNoNote(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	out := h.must("出力が止まる", "new", "--title", "納品書の出力", "--topic", "gate")
+	if strings.Contains(out, "note: title has") {
+		t.Errorf("a six-character Japanese title should count as six words, got:\n%s", out)
+	}
+
+	id := idPattern.FindString(out)
+	if retitled := h.must("", "retitle", id, "納品書が失敗"); strings.Contains(retitled, "note: title has") {
+		t.Errorf("retitle should count a Japanese title by character too, got:\n%s", retitled)
+	}
+}
+
+func TestFileNamesInAnyScriptAnchorAnEntry(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	for _, name := range []string{"docs/Übersicht.md", "src/納品書.go", "src/Größe.go"} {
+		test.WriteFile(t, filepath.Join(h.repo, filepath.FromSlash(name)), "content\n")
+	}
+
+	id := h.file("Paths written in other scripts", "see docs/Übersicht.md, src/納品書.go and src/Größe.go:12, z.B. not docs/Fehlt.md")
+
+	out := h.must("", "show", id)
+
+	anchors := regexp.MustCompile(`(?m)^anchors: (.*)$`).FindStringSubmatch(out)
+	if anchors == nil {
+		t.Fatalf("show should list the entry's anchors, got:\n%s", out)
+	}
+
+	for _, want := range []string{"docs/Übersicht.md", "src/納品書.go", "src/Größe.go"} {
+		if !strings.Contains(anchors[1], want) {
+			t.Errorf("a file named in another script should anchor the entry, %s missing from %q", want, anchors[1])
+		}
+	}
+
+	if strings.Contains(anchors[1], "Fehlt") || strings.Contains(anchors[1], "z.B") || strings.Contains(anchors[1], ":12") {
+		t.Errorf("only existing files, without a line suffix, should anchor, got %q", anchors[1])
+	}
+}

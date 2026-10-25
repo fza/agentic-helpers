@@ -11,10 +11,10 @@ import (
 	"strings"
 )
 
-// pathToken is anything that may name a file: a run of path characters holding
-// a dot or a slash. `grounding.go:324` is a token whose line suffix goes.
+// pathToken is anything that may name a file: a run of path characters, letters
+// and digits of any script among them, holding a dot or a slash. `grounding.go:324` is a token whose line suffix goes.
 var (
-	pathToken  = regexp.MustCompile("[A-Za-z0-9_./~-]*[./][A-Za-z0-9_./~-]+(?::[0-9]+(?::[0-9]+)?)?")
+	pathToken  = regexp.MustCompile(`[\p{L}\p{N}\p{M}_./~-]*[./][\p{L}\p{N}\p{M}_./~-]+(?::[0-9]+(?::[0-9]+)?)?`)
 	lineSuffix = regexp.MustCompile(`(?::[0-9]+)+$`)
 )
 

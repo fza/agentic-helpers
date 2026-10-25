@@ -32,7 +32,14 @@ gone is free to claim, and `sweep` frees every such seat of the project.
 An entry has a 3-10 word title, a free body, topics the agent chooses (one namespace per project,
 merged with `merge`), a retention level setting how long it stays in view (`standing`, `long`,
 `normal`, `short`, `scratch`) and a source (`--from user|agent|tool`). The tool stamps time, seat,
-session, branch and commit, and anchors the entry to every file it names by content hash.
+session, branch and commit, and anchors the entry to every file it names by content hash: a name of
+letters, digits and marks of any script holding a dot or a slash, where a file exists under it,
+with a trailing `:<line>` dropped.
+
+Words are counted for the body against `entry_max_words` and for the title against 3-10, and the
+similar-entry hint compares entries by their words. In scripts written without spaces (Han,
+Hiragana, Katakana, Thai, Lao, Khmer, Myanmar) every character counts as a word; elsewhere a word is
+a run between spaces.
 
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.

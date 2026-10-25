@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // timeLayout carries the zone: a local time alone repeats an hour each autumn
@@ -58,8 +59,37 @@ func statusFlags(held *entry) []string {
 	return nil
 }
 
+// unspaced are the scripts written without spaces between words, where a
+// character is the unit a count can rely on.
+var unspaced = []*unicode.RangeTable{
+	unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Thai, unicode.Lao, unicode.Khmer, unicode.Myanmar,
+}
+
+func isUnspaced(char rune) bool {
+	return unicode.In(char, unspaced...)
+}
+
+// words counts each character of an unspaced script as a word, and every other
+// run between whitespace and such characters as one.
 func words(text string) int {
-	return len(strings.Fields(text))
+	count := 0
+
+	for _, field := range strings.Fields(text) {
+		inRun := false
+
+		for _, char := range field {
+			switch {
+			case isUnspaced(char):
+				count++
+				inRun = false
+			case !inRun:
+				count++
+				inRun = true
+			}
+		}
+	}
+
+	return count
 }
 
 func plural(count int, noun string) string {

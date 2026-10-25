@@ -240,9 +240,22 @@ func deviation(values []float64) float64 {
 
 var wordPattern = regexp.MustCompile(`[\p{L}\p{N}]{3,}`)
 
+// wordSet is the words two entries are compared by: each character of an
+// unspaced script on its own, and every other run of three letters or digits.
 func wordSet(text string) map[string]bool {
 	set := map[string]bool{}
-	for _, word := range wordPattern.FindAllString(strings.ToLower(text), -1) {
+
+	spaced := strings.Map(func(char rune) rune {
+		if isUnspaced(char) {
+			set[string(char)] = true
+
+			return ' '
+		}
+
+		return char
+	}, strings.ToLower(text))
+
+	for _, word := range wordPattern.FindAllString(spaced, -1) {
 		set[word] = true
 	}
 

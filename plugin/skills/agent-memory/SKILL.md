@@ -57,7 +57,8 @@ body: anything, Markdown or not
 EOF
 ```
 
-- **Title 3-10 words. At least one topic.** Wrong → lands anyway, reply names `retitle` / `tag`.
+- **Title 3-10 words. At least one topic.** Chinese, Japanese, Thai and other unspaced scripts:
+  one character = one word. Wrong → lands anyway, reply names `retitle` / `tag`.
 - **Body within the word limit:** `entry_max_words` in the plugin's settings, 500 unless set.
   Longer lands, reply names the count. One finding per entry: one entry = one vector = sharpest
   recall.
