@@ -22,8 +22,10 @@ agentic-memory search --term mcp --query 'gate blind to tool calls'
 agentic-memory supersede m-7q2k4f --by m-9xq0b1
 ```
 
-A seat whose holder still runs is refused to any other session unless the claim passes `--force`;
-a seat whose holder has gone is free to claim, and `sweep` frees every such seat of the project.
+A seat whose holder still runs is refused to every other session, always: nothing tells a stuck
+holder from a busy one, and a busy one losing its seat would find every write refused without
+noticing. The seat frees when its holder runs `release` or its session ends; a seat whose holder has
+gone is free to claim, and `sweep` frees every such seat of the project.
 
 ## Entries
 

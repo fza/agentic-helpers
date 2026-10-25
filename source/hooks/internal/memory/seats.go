@@ -109,15 +109,11 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		previous, hadPrevious = seat.ReadLast(dir, req.Name)
 	}
 
-	seizedFrom := ""
-
+	// A running holder may be mid-work, and nothing tells a stuck one from a busy
+	// one, so no claim ever takes its seat.
 	if found && current != req.Name && mem.alive(ctx, existing) {
-		if !req.Force {
-			return refused("%s is held by session %s (pid %d); %s claim %s --force seizes it from a wedged holder",
-				req.Name, short(existing.SessionID), existing.PID, self, req.Name)
-		}
-
-		seizedFrom = existing.SessionID
+		return refused("%s is held by session %s (pid %d), still running; its holder releases it with `%s release`, or the seat frees when that session ends",
+			req.Name, short(existing.SessionID), existing.PID, self)
 	}
 
 	if current == req.Name {
@@ -130,7 +126,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	held := seat.Claim{
-		SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339), SeizedFrom: seizedFrom,
+		SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339),
 	}
 
 	if current == req.Name {
@@ -157,9 +153,6 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	here := mem.checkout(ctx)
 
 	lines := []string{fmt.Sprintf("%s: %s (pid %d)", req.Name, short(held.SessionID), held.PID)}
-	if seizedFrom != "" {
-		lines[0] += ", seized from " + short(seizedFrom)
-	}
 
 	lines = append(lines, mem.brief(here, folded, req.Name))
 

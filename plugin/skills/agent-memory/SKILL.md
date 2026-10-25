@@ -35,7 +35,6 @@ Seat = named job, one session at a time. Entries carry the seat that filed them.
 
 ```bash
 agentic-memory claim <seat>             # free seat; prints brief + last turns of the previous session
-agentic-memory claim <seat> --force     # seize from a wedged holder
 agentic-memory release [<seat>]
 agentic-memory holder <seat> [--json]   # exit 0 held, 1 free
 agentic-memory holder --session <id> --json
@@ -43,6 +42,8 @@ agentic-memory sweep                    # list seats, free dead holders
 ```
 
 - Name → `^[a-z][a-z0-9-]{0,23}$`. One seat per session.
+- **Held by a running session → refused, always.** Nothing seizes it. It frees when its holder runs
+  `release` or its session ends. Stuck holder → the user's to close, or ask its agent to release.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
 - Store → `~/.claude/agentic-memory/<project>/`, outside the repo. Project = `.sdd/config.yaml`
   `repo_id`, else a hash of the main checkout. Worktrees share it.

@@ -49,7 +49,6 @@ type request struct {
 	FromTopic      string   `json:"from_topic,omitempty"`
 	Name           string   `json:"name,omitempty"`
 	Session        string   `json:"session,omitempty"`
-	Force          bool     `json:"force,omitempty"`
 	JSON           bool     `json:"json,omitempty"`
 	NoHeat         bool     `json:"no_heat,omitempty"`
 
@@ -179,7 +178,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	}
 	lists := map[string]*[]string{"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats}
 	switches := map[string]*bool{
-		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "force": &req.Force, "json": &req.JSON,
+		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat,
 	}
 
@@ -374,10 +373,10 @@ func commands() []command {
 				`"json":{"type":"boolean"}}}`,
 		},
 		{
-			name: "claim", usage: "claim <seat> [--force]", description: "take a seat; prints the brief and the slice",
-			flags: []flagSpec{{"force", flagSwitch}}, positional: func(req *request) error { return exactly(1, &req.Name)(req) },
-			run: (*memory).claim,
-			schema: `{"type":"object","properties":{"name":{"type":"string"},"force":{"type":"boolean"}},` +
+			name: "claim", usage: "claim <seat>", description: "take a seat; prints the brief and the slice",
+			positional: func(req *request) error { return exactly(1, &req.Name)(req) },
+			run:        (*memory).claim,
+			schema: `{"type":"object","properties":{"name":{"type":"string"}},` +
 				`"required":["name"]}`,
 		},
 		{

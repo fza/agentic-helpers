@@ -618,6 +618,8 @@ func TestMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 			refusal: `show takes no key \"force\"`},
 		{name: "every offending key", tool: "search", arguments: `{"limt":3,"Term":["Gate"]}`,
 			refusal: `search takes no key \"Term\", \"limt\"`},
+		{name: "claim's removed force", tool: "claim", arguments: `{"name":"main","force":true}`,
+			refusal: `claim takes no key \"force\"; it takes name`},
 		{name: "a key for a tool taking none", tool: "topics", arguments: `{"all":true}`,
 			refusal: `topics takes no key \"all\"; it takes none`},
 		{name: "the exact keys", tool: "show", arguments: `{"ids":["` + id + `"],"no_heat":true}`},
@@ -816,30 +818,40 @@ func TestClaimRules(t *testing.T) {
 	other := newHarnessSharing(h)
 
 	got := other.run("", "claim", "main")
-	if got.code != 1 || !strings.Contains(got.err, "--force") {
-		t.Errorf("a live holder should be refused unless forced, got %d %q", got.code, got.err)
+	if got.code != 1 || !strings.Contains(got.err, "main is held by session "+test.Session[:8]+" (pid 200), still running") ||
+		!strings.Contains(got.err, "agentic-memory release") {
+		t.Errorf("a running holder's seat should be refused, naming the holder and how the seat frees, got %d %q", got.code, got.err)
 	}
 
-	if !strings.Contains(other.must("", "claim", "main", "--force"), "seized from") {
-		t.Error("--force should seize a wedged holder's seat")
+	if got := other.run("", "claim", "main", "--force"); got.code != 1 || !strings.Contains(got.err, "claim takes no --force") {
+		t.Errorf("claim should take no --force, got %d %q", got.code, got.err)
 	}
 
-	if h.run("", "holder", "main").code != 0 {
-		t.Error("a live holder should read as held")
-	}
-
-	if got := h.run("", "release", "main"); got.code != 1 || !strings.Contains(got.err, "only its holder releases it") {
+	if got := other.run("", "release", "main"); got.code != 1 || !strings.Contains(got.err, "only its holder releases it") {
 		t.Errorf("a seat held by another live session should be released only by it, got %d %q", got.code, got.err)
 	}
 
-	h.processes.Kill(test.OtherOwnerPID)
+	if h.run("", "holder", "main").code != 0 {
+		t.Error("a running holder should keep its seat")
+	}
 
-	if !strings.Contains(h.must("", "sweep"), "freed") {
+	h.processes.Kill(test.OwnerPID)
+
+	if !strings.Contains(other.must("", "sweep"), "freed") {
 		t.Error("sweep should free a seat whose holder is gone")
 	}
 
-	if h.run("", "holder", "main").code != 1 {
+	if other.run("", "holder", "main").code != 1 {
 		t.Error("a swept seat should read as free")
+	}
+
+	if !strings.Contains(other.must("", "claim", "main"), "main: ") {
+		t.Error("a seat whose holder is gone should be claimed without any flag")
+	}
+
+	held, err := os.ReadFile(filepath.Join(h.store(), "seats", "main.json"))
+	if err != nil || strings.Contains(string(held), "seized_from") {
+		t.Errorf("a claim should record no seized_from, got %s %v", held, err)
 	}
 }
 
