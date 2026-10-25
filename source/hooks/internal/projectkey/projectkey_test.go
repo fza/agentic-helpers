@@ -59,6 +59,23 @@ func TestKey(t *testing.T) {
 	}
 }
 
+func TestARepoIDThatWouldLeaveTheStoreIsRefused(t *testing.T) {
+	for _, id := range []string{
+		"../../.ssh", "github.com/../../x", "github.com/./x", "/etc/passwd", "github.com//x", "nohost/x",
+		"github.com/a b", "single",
+	} {
+		t.Run(id, func(t *testing.T) {
+			base := t.TempDir()
+			test.WriteFile(t, filepath.Join(base, ".sdd", "config.yaml"), "repo_id: \""+id+"\"\n")
+
+			got := projectkey.Key(context.Background(), base, test.CommonDir{Err: errors.New("not a git repository")})
+			if got != local(base) {
+				t.Errorf("a repo_id outside sdd's shape should fall back to the hashed key, got %s", got)
+			}
+		})
+	}
+}
+
 func TestDirNestsARepoID(t *testing.T) {
 	got := projectkey.Dir("/store", "github.com/fza/agentic-helpers")
 	if got != "/store/github.com/fza/agentic-helpers" {

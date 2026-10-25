@@ -59,7 +59,39 @@ func declaredRepoID(root string) string {
 		return ""
 	}
 
-	return strings.TrimSpace(parsed.RepoID)
+	id := strings.TrimSpace(parsed.RepoID)
+	if !validRepoID(id) {
+		return ""
+	}
+
+	return id
+}
+
+// validRepoID holds a `repo_id` to sdd's shape, host/path of letters, digits,
+// dots, dashes and underscores, and refuses a `.` or `..` segment besides: the
+// key becomes directories, and a cloned repository declaring `../x` must not
+// put its store outside the store root. A refused one falls back to the hash.
+func validRepoID(id string) bool {
+	segments := strings.Split(id, "/")
+	if len(segments) < 2 || !strings.Contains(segments[0], ".") {
+		return false
+	}
+
+	for _, segment := range segments {
+		if segment == "" || segment == "." || segment == ".." {
+			return false
+		}
+
+		for _, char := range segment {
+			allowed := char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' ||
+				char == '.' || char == '-' || char == '_'
+			if !allowed {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // Dir is where a key lives below a root: a `repo_id` such as
