@@ -185,7 +185,7 @@ endpoint embeds what is pending.
 ├── log/tail.jsonl, log/<hash>.seg, log/manifest.json   the append-only log: the truth
 ├── seats/<seat>.json                                   who holds the seat, which process, which transcript
 └── seats/<seat>.slice                                  the last turns of the seat's last session
-~/.claude/agentic-memory/sessions/<session>.ctx         the context reading a status line writes
+~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ```
 
@@ -194,9 +194,12 @@ directory, the key sdd gives its own search index. agentic-memory never reads or
 `.memory/` directory; a seat whose `.memory/carryforward/<seat>-memory.md` still exists is told at
 claim to file its findings and delete that one file.
 
-The nudge reads how full the context is from `~/.claude/agentic-memory/sessions/<session>.ctx`, which
-a status line writes as `{"used_percentage": <n>, "size": <window>, "at": <unix seconds>}` from
-Claude Code's `context_window.used_percentage`; without one it falls back to transcript growth.
+The nudge reads how full the context is from `~/.claude/agentic-memory/sessions/<session>.ctx`,
+`{"used_percentage": <n>, "size": <window>, "at": <unix seconds>}`. Claude Code hands that figure to
+a status line and to a mod, never to a command hook, so the plugin carries a hooks module,
+`plugin/hooks/register.ts`, which writes the file on `session.measure` after every turn wherever
+`~/.claude/agentic-memory` exists; no status line has to. A Claude Code too old to load mods writes
+no reading, and the nudge falls back to transcript growth.
 
 ### The scratch sweep
 
@@ -381,8 +384,9 @@ allowlist entry and no marker file, and installing these hooks costs it nothing.
 ## Working on this
 
 ```bash
-cd source/hooks && go vet ./... && go test -race ./...   # every suite
+cd source/hooks && go vet ./... && go test -race ./...   # every Go suite
 claude plugin validate .                                 # the plugin and marketplace manifests
+claude plugin test plugin                                # the plugin's hooks module, register.ts
 ```
 
 The rules for this code live in [`source/AGENTS.md`](source/AGENTS.md). Each suite drives its

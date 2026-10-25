@@ -1,5 +1,6 @@
 {
-  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart",
+  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; register.ts writes agentic-memory's context reading",
+  "modules": ["./register.ts"],
   "hooks": {
     "SessionStart": [
       {

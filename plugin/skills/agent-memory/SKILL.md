@@ -136,7 +136,8 @@ agentic-memory merge <from> <into>                    # every seat's topic
 - **Every prompt → up to three related entries** that stand out from the rest. Not repeated until the
   next compaction.
 - **Near compaction → nudge:** `Context near compaction. File what the summary would lose...`. Any
-  entry filed answers it. Ignore twice → `Stop` blocks with the backstop. File, then go on.
+  entry filed answers it. Ignore twice → `Stop` blocks with the backstop. File, then go on. How full
+  the context is → the plugin writes it after every turn. No status line needed.
 - **Session ends → its last turns kept** for the next claim. No handoff, no prompt to write.
 
 ## Old carry-forward file

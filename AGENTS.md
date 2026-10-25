@@ -18,7 +18,7 @@ and how a project opts in.
 |---|---|
 | `source/hooks/` | one Go module: a binary per hook, `agentic-capture` and `agentic-memory` under `cmd/`, everything else under `internal/` |
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
-| `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` MCP server), `hooks/` (wiring and launcher), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
+| `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` MCP server), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 
 ## Setup and commands
@@ -27,8 +27,9 @@ Go 1.27 or newer.
 
 ```bash
 go install -C source/hooks ./cmd/...   # build every binary into ~/go/bin (or GOBIN)
-cd source/hooks && go vet ./... && go test -race ./...   # every suite
+cd source/hooks && go vet ./... && go test -race ./...   # every Go suite
 claude plugin validate .               # the plugin and marketplace manifests
+claude plugin test plugin              # the plugin's hooks module, register.ts
 ```
 
 **The hooks ship as a Claude Code plugin** from `plugin/`, and `plugin/hooks/run` runs the binaries
