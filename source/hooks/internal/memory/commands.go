@@ -51,6 +51,7 @@ type request struct {
 	Session        string   `json:"session,omitempty"`
 	Force          bool     `json:"force,omitempty"`
 	JSON           bool     `json:"json,omitempty"`
+	NoHeat         bool     `json:"no_heat,omitempty"`
 
 	given map[string]bool
 }
@@ -179,6 +180,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	lists := map[string]*[]string{"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "force": &req.Force, "json": &req.JSON,
+		"no-heat": &req.NoHeat,
 	}
 
 	switch spec.kind {
@@ -281,17 +283,20 @@ func commands() []command {
 			flags: []flagSpec{
 				{"term", flagList}, {"query", flagText}, {"topic", flagList}, {"seat", flagList},
 				{"all-seats", flagSwitch}, {"with-superseded", flagSwitch}, {"limit", flagNumber},
+				{"no-heat", flagSwitch},
 			},
 			schema: `{"type":"object","properties":{` +
 				`"term":{"type":"array","items":{"type":"string"}},"query":{"type":"string"},` +
 				`"topic":{"type":"array","items":{"type":"string"}},"seat":{"type":"array","items":{"type":"string"}},` +
-				`"all_seats":{"type":"boolean"},"with_superseded":{"type":"boolean"},"limit":{"type":"integer","minimum":1}}}`,
+				`"all_seats":{"type":"boolean"},"with_superseded":{"type":"boolean"},"limit":{"type":"integer","minimum":1},` +
+				`"no_heat":{"type":"boolean","description":"answer without adding heat"}}}`,
 			run: (*memory).search,
 		},
 		{
-			name: "show", usage: "show <id>...", description: "an entry in full: stamps, anchors, flags, events",
-			positional: someIDs, run: (*memory).show,
-			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `}},"required":["ids"]}`,
+			name: "show", usage: "show <id>... [--no-heat]", description: "an entry in full: stamps, anchors, flags, events",
+			flags: []flagSpec{{"no-heat", flagSwitch}}, positional: someIDs, run: (*memory).show,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},` +
+				`"no_heat":{"type":"boolean","description":"answer without adding heat"}},"required":["ids"]}`,
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>]", description: "the brief, or one topic's entries",

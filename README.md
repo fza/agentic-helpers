@@ -163,7 +163,9 @@ agentic-memory supersede m-7q2k4f --by m-9xq0b1
   seat, session, branch and commit, and anchors the entry to every file it names by content hash.
 - **Search** is sdd's: `--term` is a case-insensitive regex, every term required; `--query` searches
   by meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or `other branch`
-  as computed against the tree right then, and `confirm` re-anchors a verified entry.
+  as computed against the tree right then, and `confirm` re-anchors a verified entry. A `show` and a
+  search's top three hits add heat, which orders the brief; `--no-heat` (MCP `"no_heat": true`) reads
+  without it, for a sweep or a script no person is behind.
 - **What comes back:** a brief at every claim and compaction (standing entries, the seat's live
   entries by heat, what other seats changed and filed, the topics), the turns since the seat's newest
   entry, and up to three entries a prompt touches that stand out from the rest. Near compaction a

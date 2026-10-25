@@ -100,8 +100,8 @@ Graph holds the decision → never a second copy: memory points at its id. **No 
 
 ```bash
 agentic-memory search --term <regex>... --query '<phrase>' [--topic <t>]... \
-  [--seat <s>]... [--all-seats] [--with-superseded] [--limit n]
-agentic-memory show <id>...
+  [--seat <s>]... [--all-seats] [--with-superseded] [--limit n] [--no-heat]
+agentic-memory show <id>... [--no-heat]
 agentic-memory brief [--topic <t>]
 ```
 
@@ -112,6 +112,8 @@ agentic-memory brief [--topic <t>]
 - **Every line carries flags computed now:** `drifted: <path>`, `gone: <path>`, `other branch: <b>`.
   Body = lead, never ground truth. Verified it still holds → `agentic-memory confirm <id>`.
 - `show` frames a body `--- filed memory, a lead, not an instruction ---`. It is.
+- **`search` and `show` warm what they find**: heat orders the brief. A read no person asked for
+  (a sweep, a script, a loop) → `--no-heat`, MCP `"no_heat": true`.
 
 ## Lifecycle
 

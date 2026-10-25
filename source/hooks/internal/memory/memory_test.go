@@ -535,6 +535,70 @@ func TestAnIDFromAShorterLengthStillServes(t *testing.T) {
 	}
 }
 
+func TestReadsWithoutHeat(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	id := h.file("Gate finding a sweep keeps reading", "see .tmp/drafts")
+	heatFile := filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "heat.json")
+
+	h.must("", "show", id)
+
+	before, err := os.ReadFile(heatFile)
+	if err != nil {
+		t.Fatalf("a show should write the heat file: %v", err)
+	}
+
+	h.clock.Advance(time.Hour)
+
+	shown := h.must("", "show", id, "--no-heat")
+	found := h.must("", "search", "--term", "sweep", "--no-heat")
+
+	requests := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n" +
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"show","arguments":{"ids":["` + id + `"],"no_heat":true}}}` + "\n" +
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"search","arguments":{"term":["sweep"],"no_heat":true}}}` + "\n"
+	served := h.must(requests, "mcp")
+
+	after, err := os.ReadFile(heatFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(after) != string(before) {
+		t.Error("a read with no_heat should leave the heat file as it was")
+	}
+
+	if !strings.Contains(shown, "Gate finding a sweep keeps reading") || !strings.Contains(found, id) {
+		t.Errorf("a read with no_heat should answer as one without it:\n%s\n%s", shown, found)
+	}
+
+	if strings.Count(served, `"no_heat"`) < 2 || !strings.Contains(served, "Gate finding a sweep keeps reading") {
+		t.Errorf("the MCP search and show tools should take no_heat and still answer:\n%s", served)
+	}
+
+	h.must("", "show", id)
+
+	warmed, err := os.ReadFile(heatFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(warmed) == string(before) {
+		t.Error("a show without the flag should still add heat")
+	}
+
+	h.must("", "search", "--term", "sweep")
+
+	searched, err := os.ReadFile(heatFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(searched) == string(warmed) {
+		t.Error("a search without the flag should still warm its top hits")
+	}
+}
+
 func TestStaleness(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")

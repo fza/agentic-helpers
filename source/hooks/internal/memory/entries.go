@@ -356,7 +356,9 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays))
 	}
 
-	mem.warm(folded, heatShow, shown...)
+	if !req.NoHeat {
+		mem.warm(folded, heatShow, shown...)
+	}
 
 	if missing {
 		return result{text: strings.Join(blocks, "\n\n"), code: 1}
@@ -577,7 +579,9 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		lines = append(lines, line(here, folded.entries[id]))
 	}
 
-	mem.warm(folded, heatSearchHit, ranked[:min(searchWarmed, len(ranked))]...)
+	if !req.NoHeat {
+		mem.warm(folded, heatSearchHit, ranked[:min(searchWarmed, len(ranked))]...)
+	}
 
 	return done(strings.Join(lines, "\n"))
 }
