@@ -5,6 +5,23 @@ files what it learns as it works, one entry per finding, and the tool stamps, in
 it. Nothing is ever rewritten: an entry is retired or superseded, and the tool chooses what returns
 to a fresh context.
 
+## Memory and the graph
+
+sdd's graph is the project's long-term memory, and agentic-memory its short-term memory. They hold
+different things, and an entry belongs in exactly one:
+
+| | sdd graph (`.sdd/`) | agentic-memory |
+|---|---|---|
+| Holds | decisions, the signals behind them, why the project is the way it is | where work stands, a judgment call made without confirmation, an open question, a measured fact nothing else records, a trap that already cost time |
+| For | everyone working on the project, for as long as it stands | one job, the seat, across compactions and sessions |
+| Lives | in the repository, under version control, reviewed like code | on the machine, under `~/.claude/agentic-memory/`, outside the repository |
+| Changes | never in place: a decision is superseded, a signal closed | retired or superseded, and fading by retention (`standing` to `scratch`) |
+| Found by | `sdd search`, `sdd show`, and the grounding gate making an agent read it | the brief, prompt recall, `search` |
+
+A memory entry about a decision points at the graph entry by its id and never restates it: two
+copies drift, and a reader acts on whichever it opened. A project without a graph files its
+decisions and its defects in memory, at `long` retention, since nothing else would keep them.
+
 ## Where it works
 
 agentic-memory works only inside a git work tree, a fresh `git init` without commits included.

@@ -17,6 +17,14 @@ and commands the agent calls itself:
 **The grounding gate and capture exist for [sdd](https://github.com/fza/sdd)**, the
 Signal-Dialogue-Decision graph a project keeps under `.sdd/`.
 
+**sdd is a project's long-term memory; agentic-memory is its short-term memory.** The graph holds
+what should still hold in a month and for everyone working on the project: decisions, the signals
+behind them, and why. It lives in the repository, is reviewed like code, and never changes an entry
+once written. agentic-memory holds what one job needs to pick up where it left off: where work
+stands, a judgment call made without confirmation, a trap that already cost time. It lives on the
+machine outside the repository, fades by each entry's retention, and survives a compaction or a new
+session. A memory entry points at a graph entry by id; it never copies a decision.
+
 Every piece installs once for the whole machine and stays silent where it has nothing to work on.
 Everything ships as one Claude Code plugin; the hooks and commands are Go binaries built from
 `source/hooks`, published with each release and fetched by the plugin.
