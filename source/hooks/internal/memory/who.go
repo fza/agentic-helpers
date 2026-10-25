@@ -28,6 +28,11 @@ func (mem *memory) who(ctx context.Context, _ request) result {
 	var rows []row
 
 	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		// A migration's backup copies a store's seats; it is no store of its own.
+		if err == nil && entry.IsDir() && entry.Name() == "backup" {
+			return filepath.SkipDir
+		}
+
 		if err != nil || !entry.IsDir() || entry.Name() != "seats" {
 			return nil
 		}

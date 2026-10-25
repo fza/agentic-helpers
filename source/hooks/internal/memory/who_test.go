@@ -20,6 +20,8 @@ func TestWhoListsEveryLiveSeatedSessionOnTheMachine(t *testing.T) {
 	test.ClaimOtherSeat(t, elsewhere, "drive", test.OtherSession)
 	test.ClaimDeadSeat(t, elsewhere, "left", test.Session)
 
+	test.ClaimSeat(t, filepath.Join(h.store(), "backup", "format-1-20261025T170001.000000000Z"), "main", test.Session)
+
 	outsideGit(h)
 
 	root := filepath.Join(h.home, ".claude", "agentic-memory")
