@@ -38,6 +38,12 @@ type newPayload struct {
 	Dropped   bool     `json:"dropped,omitempty"`
 }
 
+// retirePayload is why an entry ended. A retire from an earlier release
+// carries none, and reads as a retire without a reason.
+type retirePayload struct {
+	Because string `json:"because,omitempty"`
+}
+
 type supersedePayload struct {
 	By      string `json:"by,omitempty"`
 	Because string `json:"because,omitempty"`
@@ -111,6 +117,14 @@ func (held *entry) supersededAt() time.Time {
 	}
 
 	return time.Time{}
+}
+
+// endedBecause is the reason the entry's standing retire or supersede gives,
+// if any.
+func (held *entry) endedBecause() string {
+	last, _ := held.latest()
+
+	return last.because
 }
 
 func (held *entry) latest() (transition, bool) {
@@ -256,9 +270,23 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 
 	switch row.Kind {
 	case memorylog.KindRetire:
+		var retired retirePayload
+
+		if len(payload) > 0 {
+			err := json.Unmarshal(payload, &retired)
+			if err != nil {
+				return err
+			}
+		}
+
 		held.status = statusRetired
-		held.transitions = append(held.transitions, transition{kind: row.Kind, at: row.Time, seat: row.Seat})
-		note("retired")
+		held.transitions = append(held.transitions, transition{kind: row.Kind, at: row.Time, seat: row.Seat, because: retired.Because})
+
+		if retired.Because != "" {
+			note("retired: " + retired.Because)
+		} else {
+			note("retired")
+		}
 	case memorylog.KindSupersede:
 		var superseded supersedePayload
 

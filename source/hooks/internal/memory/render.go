@@ -42,6 +42,10 @@ func statusFlags(held *entry) []string {
 
 	switch held.status {
 	case statusRetired:
+		if last.because != "" {
+			return []string{fmt.Sprintf("retired %s: %s", stamp(last.at), last.because)}
+		}
+
 		return []string{"retired " + stamp(last.at)}
 	case statusSuperseded:
 		if last.by != "" {

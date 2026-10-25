@@ -319,9 +319,10 @@ func commands() []command {
 				`"enum":["standing","long","normal","short","scratch"]}},"required":["id","level"]}`,
 		},
 		{
-			name: "retire", usage: "retire <id>...", description: "keep entries in results, flagged, out of the brief",
-			positional: someIDs, run: (*memory).retire,
-			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `}},"required":["ids"]}`,
+			name: "retire", usage: "retire <id>... [--because '<why>']", description: "keep entries in results, flagged, out of the brief; --because says why they ended",
+			flags: []flagSpec{{"because", flagText}}, positional: someIDs, run: (*memory).retire,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},` +
+				`"because":{"type":"string","description":"what finished the entries, or why they stopped mattering"}},"required":["ids"]}`,
 		},
 		{
 			name: "supersede", usage: "supersede <id> --by <id> | --because '<why>'",

@@ -595,7 +595,7 @@ func keywordArm(candidates []*entry, patterns []*regexp.Regexp, limit int) []str
 	var hits []hit
 
 	for _, held := range candidates {
-		text := held.title + "\n" + held.body
+		text := held.title + "\n" + held.body + "\n" + held.endedBecause()
 		total := 0
 
 		matchedAll := true

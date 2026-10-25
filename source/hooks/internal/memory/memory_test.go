@@ -1110,3 +1110,57 @@ func TestAClaimRecordsItsHolderStartInRFC3339(t *testing.T) {
 		t.Errorf("claiming the own seat again should rewrite a start held in locale text, got %q", started())
 	}
 }
+
+func TestARetireCarriesItsReason(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	finished := h.file("Release work for the fetch lock", "owed: a patch for the launcher")
+	dropped := h.file("Probe of the old launcher", "a scratch probe")
+
+	h.must("", "retire", finished, "--because", "released as v2.2.2, commit 81df9dd")
+	h.must("", "retire", dropped)
+
+	for _, args := range [][]string{{"search", "--term", "launcher"}, {"show", finished}} {
+		out := h.must("", args...)
+		if !regexp.MustCompile(`retired [^\n]*: released as v2\.2\.2, commit 81df9dd`).MatchString(out) {
+			t.Errorf("%v should print the retire's reason after its stamp, got:\n%s", args, out)
+		}
+	}
+
+	if out := h.must("", "show", dropped); !regexp.MustCompile(`retired \d{4}-\d{2}-\d{2} \d{2}:\d{2} [A-Z+0-9-]+\n`).MatchString(out) ||
+		strings.Contains(out, "retired: ") {
+		t.Errorf("a retire without a reason should print the stamp alone, got:\n%s", out)
+	}
+
+	found := h.must("", "search", "--term", `v2\.2\.2`)
+	if !strings.Contains(found, finished) || strings.Contains(found, dropped) {
+		t.Errorf("--term should match a word appearing only in a retire's reason, got:\n%s", found)
+	}
+
+	h.must("", "revive", finished)
+
+	if out := h.must("", "show", finished); regexp.MustCompile(`(?m)^m-\S+ .*retired `).MatchString(out) {
+		t.Errorf("a revived entry should carry no retire reason, got:\n%s", out)
+	}
+}
+
+func TestARetireFromAnEarlierReleaseReadsWithoutAReason(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	id := h.file("An entry retired long ago", "retired by a release writing no payload")
+
+	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	if err != nil {
+		t.Fatalf("opening the log: %v", err)
+	}
+
+	err = log.Append(context.Background(), memorylog.Event{Kind: memorylog.KindRetire, Entry: id, Time: h.clock.Now(), Seat: "main"})
+	if err != nil {
+		t.Fatalf("appending a payload-less retire: %v", err)
+	}
+
+	out := h.must("", "show", id)
+	if !strings.Contains(out, "retired ") || strings.Contains(out, "retired: ") {
+		t.Errorf("a retire with no payload should read as retired without a reason, got:\n%s", out)
+	}
+}

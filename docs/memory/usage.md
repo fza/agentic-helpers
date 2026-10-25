@@ -37,9 +37,18 @@ session, branch and commit, and anchors the entry to every file it names by cont
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
 
+## Ending an entry
+
+`retire <id>... [--because '<why>']` (MCP `retire`, key `because`) ends entries that are done or no
+longer matter: they leave the brief and stay in search, flagged `retired <stamp>: <why>`, the reason
+standing after the stamp where one was given. `supersede <id> --by <id>` replaces an entry and
+`supersede <id> --because '<why>'` marks it wrong; `revive <id>` undoes the latest of either within
+14 days. Only the filing seat retires its own entries; any seat may supersede or confirm.
+
 ## Search
 
-Search is sdd's: `--term` is a case-insensitive regex, every term required; `--query` searches by
+Search is sdd's: `--term` is a case-insensitive regex, every term required, matched against the
+title, the body and the reason an ended entry gives; `--query` searches by
 meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or `other branch` as
 computed against the tree right then, and `confirm` re-anchors a verified entry. A `show` and a
 search's top three hits add heat, which orders the brief; `--no-heat` (MCP `"no_heat": true`) reads

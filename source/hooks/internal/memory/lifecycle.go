@@ -68,7 +68,7 @@ func (mem *memory) retire(ctx context.Context, req request) result {
 			}
 
 			return nil
-		}, memorylog.KindRetire, "", nil)
+		}, memorylog.KindRetire, "", retirement(req.Because))
 		if !ok {
 			return failure
 		}
@@ -77,6 +77,16 @@ func (mem *memory) retire(ctx context.Context, req request) result {
 	}
 
 	return done(strings.Join(lines, "\n"))
+}
+
+// retirement is a retire's payload: its reason where one is given, and no
+// payload otherwise, as earlier releases wrote every retire.
+func retirement(because string) any {
+	if strings.TrimSpace(because) == "" {
+		return nil
+	}
+
+	return retirePayload{Because: strings.TrimSpace(because)}
 }
 
 func (mem *memory) supersede(ctx context.Context, req request) result {
