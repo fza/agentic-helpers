@@ -71,10 +71,15 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		}
 	}
 
+	shared, err := mem.recipientsFor(req.For, name)
+	if err != nil {
+		return refused("%v", err)
+	}
+
 	filed := newPayload{
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
 		Retention: retention, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
-		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About),
+		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
 	}
 
 	raw, err := json.Marshal(filed)
@@ -95,6 +100,8 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	if err != nil {
 		return refused("%v", err)
 	}
+
+	mem.annotate(folded)
 
 	held := folded.entries[id]
 	mem.warm(folded, 0, id)
@@ -558,7 +565,9 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	var candidates []*entry
 
 	for _, held := range folded.entryList() {
-		if !req.AllSeats && !slices.Contains(scope, held.seat) {
+		inScope := req.AllSeats || slices.Contains(scope, held.seat) ||
+			(len(req.Seats) == 0 && mem.receives(folded, held, own))
+		if !inScope {
 			continue
 		}
 

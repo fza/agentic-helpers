@@ -38,6 +38,8 @@ const (
 	recallMinimum            = 20
 	recallHits               = 3
 	recallLimit              = 5 * time.Second
+	waitPoll                 = 5 * time.Second
+	waitDeadline             = 30 * time.Minute
 )
 
 const nudgeText = "Context near compaction. File what the summary would lose: findings, open questions, " +
@@ -54,6 +56,8 @@ var hookEvents = map[string]hookEvent{
 	"prompt":        (*memory).prompt,
 	"stop":          (*memory).stop,
 	"session-end":   (*memory).sessionEnd,
+	"tool":          (*memory).tool,
+	"wait":          (*memory).wait,
 }
 
 func (mem *memory) payload() hookio.Payload {
@@ -386,7 +390,131 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		out = append(out, recalled)
 	}
 
+	folded, err := mem.load(ctx)
+	if err == nil {
+		arrived := mem.announce(ctx, folded, name)
+		if arrived != "" {
+			out = append(out, arrived)
+		}
+	}
+
 	mem.say(strings.Join(out, "\n"))
+
+	return 0
+}
+
+// tool tells a working session, at its next tool call, about every entry that
+// arrived for its seat. A call finding the log as it stood at the last look
+// costs two stats and reads nothing more.
+func (mem *memory) tool(ctx context.Context, _ []string) int {
+	if !mem.storeExists() {
+		return 0
+	}
+
+	_ = mem.payload()
+
+	name, _ := mem.ownSeat(ctx)
+	if name == "" {
+		return 0
+	}
+
+	signature := mem.logSignature()
+
+	var mark seenMark
+	if readJSON(mem.seenPath(name), &mark) && mark.Log == signature {
+		return 0
+	}
+
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return 0
+	}
+
+	arrived := mem.announce(ctx, folded, name)
+	mem.noteLog(name, signature)
+
+	if arrived != "" {
+		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", arrived)
+	}
+
+	return 0
+}
+
+// logSignature changes whenever the log gains an event: the tail's size and
+// time, and the manifest's, which a seal or a merge rewrites.
+func (mem *memory) logSignature() string {
+	parts := make([]string, 0, 2)
+
+	for _, name := range []string{"tail.jsonl", "manifest.json"} {
+		info, err := os.Stat(filepath.Join(mem.logDir(), name))
+		if err != nil {
+			parts = append(parts, "-")
+
+			continue
+		}
+
+		parts = append(parts, fmt.Sprintf("%d@%d", info.Size(), info.ModTime().UnixNano()))
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// wait is the waiter the Stop hook starts for an idle seated session: it
+// looks for arrivals every poll, and on one exits 2 with the lines, which
+// Claude Code hands the session as a new turn. It stops waking nothing once
+// the seat no longer belongs to this session, its process ends, a later
+// turn's waiter replaces it, or the deadline passes.
+func (mem *memory) wait(ctx context.Context, _ []string) int {
+	if !mem.storeExists() {
+		return 0
+	}
+
+	payload := mem.payload()
+
+	name, held := mem.ownSeat(ctx)
+	if name == "" {
+		return 0
+	}
+
+	session := cmp.Or(payload.SessionID, held.SessionID)
+	key := mem.seatKey(name)
+	poll := cmp.Or(mem.env.WaitPoll, waitPoll)
+	polls := int(cmp.Or(mem.env.WaitDeadline, waitDeadline) / poll)
+
+	// Each turn end starts a waiter; the newest one names itself here, and every
+	// older one sees the name change and ends.
+	me := fmt.Sprintf("%d %d", mem.env.Processes.Self(), time.Now().UnixNano())
+	waiter := filepath.Join(mem.cacheDir(), "waiters", session)
+	_ = os.MkdirAll(filepath.Dir(waiter), 0o700)
+	_ = os.WriteFile(waiter, []byte(me), 0o600)
+
+	for range polls + 1 {
+		claim, found := seat.Read(mem.seatsDir(), key)
+		if !found || claim.SessionID != session || !mem.alive(ctx, claim) {
+			return 0
+		}
+
+		current, err := os.ReadFile(waiter)
+		if err != nil || string(current) != me {
+			return 0
+		}
+
+		folded, err := mem.load(ctx)
+		if err == nil {
+			arrived := mem.announce(ctx, folded, name)
+			if arrived != "" {
+				_, _ = fmt.Fprintln(mem.streams.Err, arrived)
+
+				return 2
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return 0
+		case <-time.After(poll):
+		}
+	}
 
 	return 0
 }
@@ -513,7 +641,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 		}
 
 		floor := recallFloorOther
-		if held.seat == seatName {
+		if mem.ownOrReceived(folded, held, seatName) {
 			floor = recallFloorOwn
 		}
 

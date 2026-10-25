@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -27,10 +28,12 @@ type Process struct {
 type Processes struct {
 	Table map[int]Process
 	self  int
+	// guard lets a test kill a process while a hook reads the table.
+	guard *sync.RWMutex
 }
 
 func NewProcesses() *Processes {
-	return &Processes{self: HookPID, Table: map[int]Process{
+	return &Processes{self: HookPID, guard: &sync.RWMutex{}, Table: map[int]Process{
 		HookPID:  {Parent: ShellPID, Name: "agentic-memory"},
 		ShellPID: {Parent: OwnerPID, Name: "zsh"},
 		OwnerPID: {Parent: 1, Name: "claude", Started: OwnerStart},
@@ -45,11 +48,14 @@ func (fake *Processes) Other() *Processes {
 	fake.Table[OtherShellPID] = Process{Parent: OtherOwnerPID, Name: "zsh"}
 	fake.Table[OtherOwnerPID] = Process{Parent: 1, Name: "claude", Started: OtherOwnerStart}
 
-	return &Processes{Table: fake.Table, self: OtherHookPID}
+	return &Processes{Table: fake.Table, self: OtherHookPID, guard: fake.guard}
 }
 
 // Kill takes a process out of the table, as if it exited.
 func (fake *Processes) Kill(pid int) {
+	fake.guard.Lock()
+	defer fake.guard.Unlock()
+
 	delete(fake.Table, pid)
 }
 
@@ -66,6 +72,9 @@ func (fake *Processes) Parent() int {
 }
 
 func (fake *Processes) ParentAndName(_ context.Context, pid int) (int, string) {
+	fake.guard.RLock()
+	defer fake.guard.RUnlock()
+
 	held, found := fake.Table[pid]
 	if !found {
 		return 0, ""
@@ -75,6 +84,9 @@ func (fake *Processes) ParentAndName(_ context.Context, pid int) (int, string) {
 }
 
 func (fake *Processes) StartTime(_ context.Context, pid int) (time.Time, bool) {
+	fake.guard.RLock()
+	defer fake.guard.RUnlock()
+
 	held, found := fake.Table[pid]
 	if !found || held.Started.IsZero() {
 		return time.Time{}, false

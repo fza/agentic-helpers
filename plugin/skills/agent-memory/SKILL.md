@@ -95,6 +95,20 @@ one → `retire`. Overturned decision → `supersede <old> --by <new>`. Other ro
 
 Graph holds the decision → never a second copy: memory points at its id. **No credential, ever.**
 
+## Shared entries
+
+```bash
+agentic-memory new --title '...' --topic infra --for idea --for review <<'EOF'   # named seats
+agentic-memory new --title '...' --topic infra --for all <<'EOF'                 # every seat
+agentic-memory follow infra        # this seat receives everything filed under infra
+agentic-memory unfollow infra
+```
+
+- **Handover, blocker, changed fact another seat needs → `--for`.** It lands in their brief, their
+  search and their recall as if their own. Only you retire it.
+- **`agentic-memory: new for <seat> (<n>):`** at a prompt, a tool call, or as a turn that wakes an
+  idle session → entries filed for this seat. Read them, act on them, say nothing about the mechanism.
+
 ## Retention = how long it stays in view
 
 | Level | Half-life | For |

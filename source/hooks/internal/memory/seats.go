@@ -103,6 +103,8 @@ func newSeatName(name string) string {
 		return fmt.Sprintf("%v, %q is not one", seat.ErrBadName, name)
 	case seat.IsID(name):
 		return fmt.Sprintf("%q has the shape of a seat id, s- and 6 letters or digits; name the seat otherwise", name)
+	case name == forAllSeats:
+		return fmt.Sprintf("%q is the word --for takes for every seat; name the seat otherwise", name)
 	}
 
 	return ""

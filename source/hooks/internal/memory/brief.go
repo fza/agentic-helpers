@@ -102,7 +102,7 @@ func (mem *memory) ownLive(folded *state, seatName string) []*entry {
 	var live []*entry
 
 	for _, held := range folded.entryList() {
-		if held.seat == seatName && held.status == statusLive {
+		if held.status == statusLive && mem.ownOrReceived(folded, held, seatName) {
 			live = append(live, held)
 		}
 	}

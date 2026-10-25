@@ -62,6 +62,10 @@ type Env struct {
 	Git           Git
 	Embedders     EmbedderFactory
 	Version       string
+	// WaitPoll and WaitDeadline pace the idle waiter; zero takes every 5
+	// seconds for 30 minutes.
+	WaitPoll     time.Duration
+	WaitDeadline time.Duration
 }
 
 type memory struct {
@@ -218,7 +222,14 @@ func (mem *memory) load(ctx context.Context) (*state, error) {
 
 	defer func() { _ = snapshot.Close() }()
 
-	return fold(snapshot, mem.seatName)
+	folded, err := fold(snapshot, mem.seatName)
+	if err != nil {
+		return nil, err
+	}
+
+	mem.annotate(folded)
+
+	return folded, nil
 }
 
 func (mem *memory) appendEvents(ctx context.Context, events ...memorylog.Event) error {

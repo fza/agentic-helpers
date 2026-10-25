@@ -106,7 +106,24 @@ Every hook exits at once in a project without a store.
 | SessionStart (`session-start`) | for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path |
 | UserPromptSubmit (`prompt`) | adds up to three related entries, and the nudge near compaction |
+| PostToolUse (`tool`) | tells the seat about arrivals as `additionalContext`; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls and nothing more |
 | Stop (`stop`) | blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
+| Stop (`wait`, `asyncRewake`) | the idle waiter, below |
 | SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice |
+
+## Arrivals
+
+Each seat keeps a seen mark in the cache, `briefs/<id>.seen.json`: the filing time of the newest
+received entry it was told about, and how the log stood at its last look. The prompt hook, the tool
+hook and the waiter each tell the seat about every received entry filed after the mark, then move
+it, so an arrival is told once.
+
+The waiter is the `Stop` hook `agentic-memory wait`, marked `asyncRewake`: Claude Code runs it in the
+background once a turn ends, and its exit 2 with the arrival lines on stderr starts a new turn with
+them. It looks every 5 seconds for up to 30 minutes. Each look first checks that the seat's claim
+still names this session and that the session's `claude` process runs, and that no later turn's
+waiter has taken its place (`waiters/<session>` in the cache names the newest); otherwise it exits 0
+waking nothing. A session holding no seat starts none. The waiter delivers its own lines and
+nothing else, so a tool running its own `asyncRewake` waiter beside it keeps its deliveries apart.
 
 agentic-memory never reads or writes a project's `.memory/` directory.

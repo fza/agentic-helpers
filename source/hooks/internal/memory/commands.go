@@ -46,6 +46,7 @@ type request struct {
 	Limit          int      `json:"limit,omitempty"`
 	Skip           int      `json:"skip,omitempty"`
 	Statuses       []string `json:"status,omitempty"`
+	For            []string `json:"for,omitempty"`
 	By             string   `json:"by,omitempty"`
 	Because        string   `json:"because,omitempty"`
 	Level          string   `json:"level,omitempty"`
@@ -75,6 +76,20 @@ func (req *request) normalize() {
 	for index, name := range req.Seats {
 		req.Seats[index] = seat.Normal(name)
 	}
+
+	for index, name := range req.For {
+		req.For[index] = seat.Normal(name)
+	}
+}
+
+func topicsOnly(req *request) error {
+	if len(req.Positional) == 0 {
+		return errors.New("at least one topic expected")
+	}
+
+	req.Topics = req.Positional
+
+	return nil
 }
 
 func done(text string) result {
@@ -194,6 +209,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
+		"for": &req.For,
 	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
@@ -284,11 +300,11 @@ func commands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [options]",
-			description: "file an entry; body on stdin",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--for <seat>|all]... [options]",
+			description: "file an entry; body on stdin; --for shares it with other seats",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"retention", flagText}, {"from", flagText},
-				{"about", flagList},
+				{"about", flagList}, {"for", flagList},
 			},
 			readsBody: true,
 			schema: `{"type":"object","properties":{` +
@@ -297,7 +313,9 @@ func commands() []command {
 				`"topic":{"type":"array","items":{"type":"string"}},` +
 				`"retention":{"type":"string","enum":["standing","long","normal","short","scratch"]},` +
 				`"from":{"type":"string","enum":["user","agent","tool"]},` +
-				`"about":{"type":"array","items":{"type":"string"}}},"required":["title","body"]}`,
+				`"about":{"type":"array","items":{"type":"string"}},` +
+				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"}},` +
+				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
 		{
@@ -384,6 +402,16 @@ func commands() []command {
 			run: (*memory).tag,
 			schema: `{"type":"object","properties":{"id":` + idSchema +
 				`,"topic":{"type":"array","items":{"type":"string"}}},"required":["id","topic"]}`,
+		},
+		{
+			name: "follow", usage: "follow <topic>...", description: "receive every entry filed under these topics",
+			positional: topicsOnly, run: (*memory).follow,
+			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"}}},"required":["topic"]}`,
+		},
+		{
+			name: "unfollow", usage: "unfollow <topic>...", description: "stop receiving entries filed under these topics",
+			positional: topicsOnly, run: (*memory).unfollow,
+			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"}}},"required":["topic"]}`,
 		},
 		{
 			name: "merge", usage: "merge <from> <into>", description: "merge one topic into another, every seat",

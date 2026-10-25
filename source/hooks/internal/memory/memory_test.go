@@ -35,6 +35,9 @@ type harness struct {
 	embedding bool
 	processes *test.Processes
 	session   string
+
+	waitPoll     time.Duration
+	waitDeadline time.Duration
 }
 
 func newHarness(t *testing.T) *harness {
@@ -90,6 +93,7 @@ func (h *harness) env() memory.Env {
 		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now,
 		Random: test.Random(), Processes: h.processes, Checkout: test.CommonDir{Dir: filepath.Join(h.repo, ".git")},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
+		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline,
 	}
 }
 
@@ -805,10 +809,12 @@ func TestRecallBarIsHigherForOtherSeats(t *testing.T) {
 	cases := []struct {
 		name     string
 		bySeat   func(h *harness) *harness
+		extra    []string
 		recalled bool
 	}{
 		{name: "the own seat's hits clear two deviations", bySeat: func(h *harness) *harness { return h }, recalled: true},
 		{name: "another seat's hits need three", bySeat: newHarnessSharing},
+		{name: "another seat's hits filed for this seat clear two", bySeat: newHarnessSharing, extra: []string{"--for", "main"}, recalled: true},
 	}
 
 	for _, tc := range cases {
@@ -822,7 +828,7 @@ func TestRecallBarIsHigherForOtherSeats(t *testing.T) {
 			}
 
 			for _, number := range []string{"one", "two", "three"} {
-				filer.file("Zebra quokka narwhal sighting "+number, "zebra quokka narwhal")
+				filer.file("Zebra quokka narwhal sighting "+number, "zebra quokka narwhal", tc.extra...)
 			}
 
 			for _, word := range unrelated[:17] {

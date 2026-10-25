@@ -18,7 +18,12 @@ func stamp(at time.Time) string {
 // line is how an entry shows in every list: id, title, the bracket naming seat,
 // retention, source, filing time and commit, then its flags.
 func line(here tree, held *entry) string {
-	parts := []string{held.seat, held.retention, "from " + held.from, stamp(held.filed)}
+	filer := held.seat
+	if held.recipients != "" {
+		filer += " → " + held.recipients
+	}
+
+	parts := []string{filer, held.retention, "from " + held.from, stamp(held.filed)}
 	if held.commit != "" {
 		parts = append(parts, held.commit)
 	}

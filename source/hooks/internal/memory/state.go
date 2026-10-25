@@ -26,16 +26,17 @@ type anchor struct {
 }
 
 type newPayload struct {
-	Title     string   `json:"title"`
-	Body      string   `json:"body"`
-	Topics    []string `json:"topics"`
-	Retention string   `json:"retention"`
-	From      string   `json:"from"`
-	Session   string   `json:"session"`
-	Commit    string   `json:"commit"`
-	Branch    string   `json:"branch"`
-	Anchors   []anchor `json:"anchors"`
-	Dropped   bool     `json:"dropped,omitempty"`
+	Title     string      `json:"title"`
+	Body      string      `json:"body"`
+	Topics    []string    `json:"topics"`
+	Retention string      `json:"retention"`
+	From      string      `json:"from"`
+	Session   string      `json:"session"`
+	Commit    string      `json:"commit"`
+	Branch    string      `json:"branch"`
+	Anchors   []anchor    `json:"anchors"`
+	Dropped   bool        `json:"dropped,omitempty"`
+	For       *recipients `json:"for,omitempty"`
 }
 
 // retirePayload is why an entry ended. A retire from an earlier release
@@ -107,6 +108,12 @@ type entry struct {
 	transitions []transition
 	history     []string
 	changes     []change
+
+	// forAll and forKeys are the seats the entry was filed for, by seat key;
+	// recipients is how a line names them, filled in once the registry is known.
+	forAll     bool
+	forKeys    []string
+	recipients string
 }
 
 func (held *entry) supersededAt() time.Time {
@@ -249,6 +256,11 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 			body: filed.Body, topics: filed.Topics, retention: filed.Retention, from: filed.From,
 			commit: filed.Commit, branch: filed.Branch, anchors: filed.Anchors, dropped: filed.Dropped,
 			status: statusLive,
+		}
+
+		if filed.For != nil {
+			folded.entries[row.Entry].forAll = filed.For.All
+			folded.entries[row.Entry].forKeys = filed.For.Seats
 		}
 		folded.order = append(folded.order, row.Entry)
 

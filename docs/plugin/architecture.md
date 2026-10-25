@@ -25,7 +25,8 @@ files goes into `plugin/`.
 | UserPromptSubmit | `agentic-memory prompt`, `agentic-grounding-gate turn` |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `agentic-grounding-gate gate` |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `Write`, `Edit` | `agentic-grounding-gate record` |
-| Stop | `agentic-memory stop` |
+| PostToolUse on every tool | `agentic-memory tool` |
+| Stop | `agentic-memory stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
 | SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end` |
 
 ## Where the binaries come from

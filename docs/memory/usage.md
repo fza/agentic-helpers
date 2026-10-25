@@ -75,6 +75,28 @@ language may follow it in parentheses.
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
 
+## Shared entries
+
+An entry can reach seats besides the one that filed it. A seat receives an entry when any of these
+holds:
+
+- the entry names it: `new ... --for <seat>`, repeatable (MCP key `for`, an array);
+- the entry is for every seat, present and future: `--for all`, which is why no seat may be named
+  `all`;
+- the seat follows one of the entry's topics: `follow <topic>...` and `unfollow <topic>...` (MCP
+  `follow`, `unfollow`, key `topic`) change what the seat the session holds follows, read through
+  topic merges.
+
+The filing seat is never its own recipient. A received entry stands with the seat's own: in its
+brief, in a search without `--seat` or `--all-seats`, and in prompt recall at the own seat's bar.
+Ownership stays the filer's: only it retires, retains, retitles or tags the entry, while any seat
+may supersede or confirm it. An entry line names its recipients after the filer: `[main → all, ...]`,
+`[main → idea, review, ...]`, or `[main → infra followers, ...]` where only a follow brings it.
+
+A seat hears about every entry it receives, once, as the lines `agentic-memory: new for <seat> (<n>):`
+and one entry line each: at the next prompt, at the agent's next tool call, and, for a session idle
+at its prompt, through a waiter that wakes it with a new turn.
+
 ## Ending an entry
 
 `retire <id>... [--because '<why>']` (MCP `retire`, key `because`) ends entries that are done or no
