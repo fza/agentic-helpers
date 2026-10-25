@@ -44,6 +44,7 @@ type Options struct {
 	EntryMaxWords       int
 	RetiredBodyDays     int
 	EntryIDLength       int
+	MemoryLanguage      string
 	MemoryRequireGit    bool
 }
 
@@ -116,6 +117,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		"embedding_model":       &options.EmbeddingModel,
 		"embedding_endpoint":    &options.EmbeddingEndpoint,
 		"embedding_api_key_env": &options.EmbeddingAPIKeyEnv,
+		"memory_language":       &options.MemoryLanguage,
 	}
 
 	for key, target := range texts {

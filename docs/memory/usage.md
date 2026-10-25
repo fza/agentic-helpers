@@ -50,6 +50,14 @@ similar-entry hint compares entries by their words. In scripts written without s
 Hiragana, Katakana, Thai, Lao, Khmer, Myanmar) every character counts as a word; elsewhere a word is
 a run between spaces.
 
+An entry is written in the project's language, never in the language the conversation happens to
+run in: the graph's `language` from `.sdd/config.yaml`, else the plugin option `memory_language`,
+else `en`. The brief's first line names it, as in
+`agentic-memory: seat main, 14 live, 6 retired, entries in de`. A domain term (a word naming a thing
+in the project's code, documents or business, such as `Lieferschein`) keeps the project's spelling
+and is never translated, so `--term` still finds the word the code uses; a gloss in the entry's
+language may follow it in parentheses.
+
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
 
@@ -114,6 +122,7 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `retired_body_days` | how long a retired entry keeps its body, 90 unless set, never under 14 |
 | `entry_id_length` | the characters after `m-` in a new entry id |
+| `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,

@@ -154,7 +154,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 
 	lines := []string{fmt.Sprintf("%s: %s (pid %d)", req.Name, short(held.SessionID), held.PID)}
 
-	lines = append(lines, mem.brief(here, folded, req.Name))
+	lines = append(lines, mem.brief(ctx, here, folded, req.Name))
 
 	hint := mem.carryForwardHint(ctx, req.Name)
 	if hint != "" {

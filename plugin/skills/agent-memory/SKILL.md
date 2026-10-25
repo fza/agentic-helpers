@@ -59,6 +59,9 @@ body: anything, Markdown or not
 EOF
 ```
 
+- **Language → the one the brief names** (`entries in de`), whatever language the conversation
+  runs in. **Domain terms keep the project's spelling, never translated**: "the Lieferschein export
+  skips cancelled orders", never "the delivery note export". A gloss in parentheses may follow.
 - **Title 3-10 words. At least one topic.** Chinese, Japanese, Thai and other unspaced scripts:
   one character = one word. Wrong → lands anyway, reply names `retitle` / `tag`.
 - **Body within the word limit:** `entry_max_words` in the plugin's settings, 500 unless set.

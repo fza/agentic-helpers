@@ -1432,3 +1432,40 @@ func TestInsideGitTheOptionChangesNothing(t *testing.T) {
 		t.Error("inside a work tree the store should keep the project's key whatever the option says")
 	}
 }
+
+func TestTheBriefNamesTheEntryLanguage(t *testing.T) {
+	cases := []struct {
+		name   string
+		graph  string
+		option string
+		want   string
+	}{
+		{name: "the graph's language", graph: "language: de\n", option: "fr", want: "de"},
+		{name: "a graph with an empty language takes the option", graph: "language: \"\"\n", option: "fr", want: "fr"},
+		{name: "a graph naming none takes the option", option: "ja", want: "ja"},
+		{name: "neither is English", want: "en"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			test.WriteFile(t, filepath.Join(h.repo, ".sdd", "config.yaml"), "repo_id: "+repoID+"\n"+tc.graph)
+
+			if tc.option != "" {
+				test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"memory_language":"`+tc.option+`"}}}}`)
+			}
+
+			header := regexp.MustCompile(`(?m)^agentic-memory: seat main, \d+ live, \d+ retired, entries in (\S+)$`)
+
+			claimed := header.FindStringSubmatch(h.must("", "claim", "main"))
+			if claimed == nil || claimed[1] != tc.want {
+				t.Errorf("the brief at claim should name the resolved entry language, got %v", claimed)
+			}
+
+			compacted := header.FindStringSubmatch(h.must(hookPayload("compact", h.transcript(), ""), "session-start"))
+			if compacted == nil || compacted[1] != tc.want {
+				t.Errorf("the brief after a compaction should name it too, got %v", compacted)
+			}
+		})
+	}
+}

@@ -104,7 +104,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 
 			folded, err := mem.load(ctx)
 			if err == nil {
-				mem.say(mem.brief(mem.checkout(ctx), folded, name))
+				mem.say(mem.brief(ctx, mem.checkout(ctx), folded, name))
 			}
 		}
 

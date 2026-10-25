@@ -65,6 +65,12 @@
       "description": "Keep agentic-memory to git work trees; off lets a directory outside git keep a store keyed by its own path",
       "default": true,
       "required": false
+    },
+    "memory_language": {
+      "type": "string",
+      "title": "Memory entry language",
+      "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; empty means en",
+      "required": false
     }
   }
 }

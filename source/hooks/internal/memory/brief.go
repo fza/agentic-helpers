@@ -66,7 +66,7 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 		return done(mem.topicBrief(here, folded, name, req.Topics))
 	}
 
-	return done(mem.brief(here, folded, name))
+	return done(mem.brief(ctx, here, folded, name))
 }
 
 func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics []string) string {
@@ -117,7 +117,7 @@ func (mem *memory) ownLive(folded *state, seatName string) []*entry {
 // brief is what a fresh context gets: standing entries, then the seat's live
 // entries by heat, then what other seats did since this seat's last brief, then
 // the topics. Claim and compaction share it.
-func (mem *memory) brief(here tree, folded *state, seatName string) string {
+func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName string) string {
 	since := mem.previousBrief(seatName)
 	live := mem.ownLive(folded, seatName)
 
@@ -130,7 +130,7 @@ func (mem *memory) brief(here tree, folded *state, seatName string) string {
 	}
 
 	out := &budget{limit: briefBudget}
-	out.add(fmt.Sprintf("%s: seat %s, %d live, %d retired", self, seatName, len(live), retired))
+	out.add(fmt.Sprintf("%s: seat %s, %d live, %d retired, entries in %s", self, seatName, len(live), retired, mem.language(ctx)))
 
 	var changed []string
 

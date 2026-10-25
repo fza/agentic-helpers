@@ -93,6 +93,11 @@ func TestRead(t *testing.T) {
 			want: defaultsWith(func(options *pluginconfig.Options) { options.MemoryRequireGit = false }),
 		},
 		{
+			name: "an entry language",
+			user: own + `{"memory_language":"de"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.MemoryLanguage = "de" }),
+		},
+		{
 			name:    "a git limit that is no boolean is an error",
 			user:    own + `{"memory_require_git":"sometimes"}}}}`,
 			wantErr: true,
