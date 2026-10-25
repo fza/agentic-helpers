@@ -49,7 +49,7 @@ func TestACheckoutNotListedUsesNoMemory(t *testing.T) {
 
 	for _, args := range [][]string{
 		{"claim", "drive"}, {"new", "--title", "Planted entry for the seat", "--topic", "gate"}, {"search", "--term", "gate"},
-		{"show", id}, {"supersede", id, "--because", "planted"}, {"brief"}, {"sweep"}, {"topics"},
+		{"show", id}, {"supersede", id, "--because", "planted"}, {"brief"}, {"topics"},
 	} {
 		got := other.run("planted", args...)
 		if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this memory belongs to other checkouts: "+h.repo+

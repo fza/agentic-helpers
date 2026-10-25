@@ -893,8 +893,8 @@ func TestClaimRules(t *testing.T) {
 
 	h.processes.Kill(test.OwnerPID)
 
-	if !strings.Contains(other.must("", "sweep"), "freed") {
-		t.Error("sweep should free a seat whose holder is gone")
+	if !strings.Contains(other.must("", "who"), "freed") {
+		t.Error("who should free a seat whose holder is gone")
 	}
 
 	if other.run("", "holder", "main").code != 1 {
@@ -1113,7 +1113,7 @@ func TestMCPServesEveryCommand(t *testing.T) {
 	}
 
 	for _, name := range []string{"new", "search", "show", "brief", "topics", "confirm", "retain", "retire",
-		"supersede", "revive", "retitle", "tag", "merge", "holder", "claim", "release", "sweep"} {
+		"supersede", "revive", "retitle", "tag", "merge", "holder", "claim", "release", "who", "lifetime", "drop"} {
 		if !strings.Contains(answers[2], `"name":"`+name+`"`) {
 			t.Errorf("the MCP server should offer %s as a tool", name)
 		}

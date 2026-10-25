@@ -47,7 +47,8 @@ silent, and none of its calls migrates the store:
 
 `agentic-memory trust <path>` (MCP `trust`, key `path`), run from a listed checkout, adds the
 checkout at `<path>`, for agentic-memory and agentic-tools both; `agentic-tools trust <path>` does
-the same. `help`, `who` and `holder` read only and answer anywhere. A list that cannot be read (a
+the same. `help`, `who` and `holder` answer anywhere, and claim no project; `who` frees dead claims
+only for a listed checkout. A list that cannot be read (a
 link, a pipe, a hard link, past 64 KiB, not an array of clean absolute paths) admits no one until it
 is mended. A store keyed by a directory outside git, under `memory_require_git: false`, has no
 declared key and is not listed.
@@ -83,12 +84,12 @@ the new one too. A name in use by a seat or a shelf, an invalid one, or one in a
 new seat.
 
 An agent asked for a seat in words that are not its exact name ("Haupt-Session") lists the seats
-with `sweep`, maps the words onto the seat meaning the same, and asks when none or several fit.
+with `who`, maps the words onto the seat meaning the same, and asks when none or several fit.
 
 A seat whose holder still runs is refused to every other session, always: nothing tells a stuck
 holder from a busy one, and a busy one losing its seat would find every write refused without
 noticing. The seat frees when its holder runs `release` or its session ends, which closes it; a
-seat whose holder has gone is free to claim, and `sweep` frees every such seat of the project.
+seat whose holder has gone is free to claim, and `who` frees every such seat of the project.
 
 ## Claiming for another session
 
@@ -330,14 +331,22 @@ takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_
 schema says so with `additionalProperties: false`; any other key refuses the call with
 `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
 
-## Every seated session on the machine
+## Seats of the project, and of the machine
 
-`agentic-memory who` (MCP `who`, no keys) lists every live seated session in every project's store
-under `~/.claude/agentic-memory/`, a migration's backups aside, one line each, sorted by project, then seat: the project key, the
-seat's name, the session id's first 8 characters, the pid, and since when it holds the seat. It only
-reads: it frees no seat whose holder is gone, warms nothing and migrates no store, and it runs
-anywhere, inside a git work tree or not. With nobody seated it says
-`no live seated session on this machine`.
+`agentic-memory who` (MCP `who`) lists every seat of the current project, one row each, grouped by
+shelf, then by seat:
+
+    impl   shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET
+    rev    shelf row-7ah  reserved a1b2c3d4
+    main   shelf main     free
+    gone   shelf gone     free (holder a1b2c3d4 gone, freed)
+
+It frees the project's claims whose holder is gone and its reservations nobody took over in 10
+minutes, saying `freed` on their row; from a checkout not listed for the project it frees nothing.
+`who --all` (MCP key `all`) adds every other project's seats on the machine, a migration's backups
+aside, under a line naming the project key; it never writes to another project's store. `who`
+migrates no store and runs anywhere: outside a project it says `no seat in this project` and, with
+`--all`, lists the others.
 
 ## Other tools
 

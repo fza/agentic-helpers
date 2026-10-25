@@ -44,14 +44,13 @@ agentic-memory release [<seat>]
 agentic-memory rename '<new name>'      # the seat this session holds; id and entries stay
 agentic-memory holder <seat> [--json]   # exit 0 held, 1 free
 agentic-memory holder --session <id> --json
-agentic-memory sweep                    # list seats, free dead holders
-agentic-memory who                      # every live seated session, every project; changes nothing
+agentic-memory who [--all]              # every seat of this project + shelf + state; frees dead holders; --all: every project
 ```
 
 - Name → any script: a letter, then up to 23 letters, marks, digits or dashes. Normalised (NFC,
   lower-cased): `Café` = `café`. One seat per session.
 - **User asks for a seat without its exact name** ("main seat", "Haupt-Session", "sesión
-  principal") → run `agentic-memory sweep` for the current seats, map the words onto the seat whose
+  principal") → run `agentic-memory who` for the current seats, map the words onto the seat whose
   name means the same, claim it. No seat or several fit → ask the user which, naming the seats.
   Never coin a new seat from a translation without asking.
 - **"<seat>, shared"** ("main, shared", "Haupt-Session, geteilt") → a seat on `<seat>`'s memory,

@@ -121,7 +121,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		return 0
 	}
 
-	mem.sweep(ctx)
+	_ = mem.seatRows(ctx, true)
 
 	folded, err := mem.load(ctx)
 	if err != nil {

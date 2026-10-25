@@ -442,8 +442,11 @@ func commands() []command {
 			schema: `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`,
 		},
 		{
-			name: "who", usage: "who", description: "every live seated session on the machine, in every project",
-			run: (*memory).who, schema: `{"type":"object","properties":{}}`,
+			name: "who", usage: "who [--all]",
+			description: "every seat of this project, held, reserved or free, with its shelf, freeing those whose holder is gone; " +
+				"--all adds every other project's seats",
+			flags: []flagSpec{{"all", flagSwitch}}, run: (*memory).who,
+			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add every other project's seats"}}}`,
 		},
 		{
 			name: "follow", usage: "follow <topic>...", description: "receive every entry filed under these topics",
@@ -506,10 +509,6 @@ func commands() []command {
 			positional: func(req *request) error { return exactly(1, &req.Shelf)(req) },
 			run:        (*memory).drop,
 			schema:     `{"type":"object","properties":{"shelf":{"type":"string"}},"required":["shelf"]}`,
-		},
-		{
-			name: "sweep", usage: "sweep", description: "list every seat, free each whose holder is gone",
-			run: (*memory).sweepCommand, schema: `{"type":"object","properties":{}}`,
 		},
 	}
 }

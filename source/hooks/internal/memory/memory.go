@@ -328,10 +328,17 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	mem := &memory{env: env, streams: streams}
 	mem.locate(ctx)
 
-	// who reads every store on the machine and changes none, so it neither
-	// needs a git work tree nor migrates the caller's store.
+	// who answers anywhere: outside a git work tree it lists the other projects
+	// only, and it migrates no store.
 	if args[0] == "who" {
-		mem.say(mem.who(ctx, request{}).text)
+		held, _ := commandByName("who")
+
+		req, err := held.parse(args[1:], nil)
+		if err != nil {
+			return mem.refuse(err)
+		}
+
+		mem.say(mem.who(ctx, req).text)
 
 		return 0
 	}

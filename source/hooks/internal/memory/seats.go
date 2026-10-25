@@ -381,40 +381,6 @@ func (mem *memory) release(ctx context.Context, req request) result {
 	return done("released " + name)
 }
 
-func (mem *memory) sweep(ctx context.Context) []string {
-	var rows []string
-
-	held := seat.Held(mem.seatsDir())
-
-	for _, key := range seat.Known(mem.seatsDir()) {
-		claim, found := held[key]
-		name := mem.seatName(key)
-
-		switch {
-		case !found:
-			rows = append(rows, name+"  free")
-		case mem.alive(ctx, claim):
-			rows = append(rows, fmt.Sprintf("%s  %s  pid %d", name, short(claim.SessionID), claim.PID))
-		case mem.freshReservation(claim):
-			rows = append(rows, fmt.Sprintf("%s  reserved %s", name, short(claim.SessionID)))
-		default:
-			_ = seat.Remove(mem.seatsDir(), key)
-			rows = append(rows, fmt.Sprintf("%s  free (holder %s gone, freed)", name, short(claim.SessionID)))
-		}
-	}
-
-	return rows
-}
-
-func (mem *memory) sweepCommand(ctx context.Context, _ request) result {
-	rows := mem.sweep(ctx)
-	if len(rows) == 0 {
-		return done("no seat in this project")
-	}
-
-	return done(strings.Join(rows, "\n"))
-}
-
 // rename gives the seat the calling session holds a new name. Entries, claims
 // and slices name the seat's id, so the registry is the only thing it changes.
 func (mem *memory) rename(ctx context.Context, req request) result {
