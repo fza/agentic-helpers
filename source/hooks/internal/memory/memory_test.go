@@ -1060,3 +1060,41 @@ func TestMCPServesEveryCommand(t *testing.T) {
 		t.Errorf("a refused tool call should come back as an error result: %s", answers[5])
 	}
 }
+
+func TestAClaimRecordsItsHolderStartInRFC3339(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	started := func() string {
+		var held map[string]any
+
+		raw, err := os.ReadFile(filepath.Join(h.store(), "seats", "main.json"))
+		if err == nil {
+			err = json.Unmarshal(raw, &held)
+		}
+
+		if err != nil {
+			t.Fatalf("reading the claim: %v", err)
+		}
+
+		text, _ := held["started"].(string)
+
+		return text
+	}
+
+	if started() != test.OwnerStarted {
+		t.Errorf("a claim should record its holder's start as RFC 3339 in UTC, got %q", started())
+	}
+
+	test.ClaimSeatStarted(t, h.store(), "main", test.Session, "Do. 25 Sep. 14:00:00 2026")
+
+	if h.run("", "holder", "main").code != 0 {
+		t.Error("a claim holding ps text in another locale should read as held while its process runs")
+	}
+
+	h.must("", "claim", "main")
+
+	if started() != test.OwnerStarted {
+		t.Errorf("claiming the own seat again should rewrite a start held in locale text, got %q", started())
+	}
+}

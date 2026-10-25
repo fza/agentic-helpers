@@ -1,6 +1,9 @@
 package test
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // The fake process tree: a hook (HookPID) runs under a shell (ShellPID)
 // started by the Claude process (OwnerPID).
@@ -18,7 +21,7 @@ const (
 type Process struct {
 	Parent  int
 	Name    string
-	Started string
+	Started time.Time
 }
 
 type Processes struct {
@@ -28,9 +31,9 @@ type Processes struct {
 
 func NewProcesses() *Processes {
 	return &Processes{self: HookPID, Table: map[int]Process{
-		HookPID:  {Parent: ShellPID, Name: "agentic-memory", Started: "hook"},
-		ShellPID: {Parent: OwnerPID, Name: "zsh", Started: "shell"},
-		OwnerPID: {Parent: 1, Name: "claude", Started: OwnerStarted},
+		HookPID:  {Parent: ShellPID, Name: "agentic-memory"},
+		ShellPID: {Parent: OwnerPID, Name: "zsh"},
+		OwnerPID: {Parent: 1, Name: "claude", Started: OwnerStart},
 	}}
 }
 
@@ -38,9 +41,9 @@ func NewProcesses() *Processes {
 // under another claude process, sharing this process table, so two seats can
 // act in one test and a kill in either is seen by both.
 func (fake *Processes) Other() *Processes {
-	fake.Table[OtherHookPID] = Process{Parent: OtherShellPID, Name: "agentic-memory", Started: "hook"}
-	fake.Table[OtherShellPID] = Process{Parent: OtherOwnerPID, Name: "zsh", Started: "shell"}
-	fake.Table[OtherOwnerPID] = Process{Parent: 1, Name: "claude", Started: OtherOwnerStarted}
+	fake.Table[OtherHookPID] = Process{Parent: OtherShellPID, Name: "agentic-memory"}
+	fake.Table[OtherShellPID] = Process{Parent: OtherOwnerPID, Name: "zsh"}
+	fake.Table[OtherOwnerPID] = Process{Parent: 1, Name: "claude", Started: OtherOwnerStart}
 
 	return &Processes{Table: fake.Table, self: OtherHookPID}
 }
@@ -71,6 +74,11 @@ func (fake *Processes) ParentAndName(_ context.Context, pid int) (int, string) {
 	return held.Parent, held.Name
 }
 
-func (fake *Processes) StartTime(_ context.Context, pid int) string {
-	return fake.Table[pid].Started
+func (fake *Processes) StartTime(_ context.Context, pid int) (time.Time, bool) {
+	held, found := fake.Table[pid]
+	if !found || held.Started.IsZero() {
+		return time.Time{}, false
+	}
+
+	return held.Started, true
 }

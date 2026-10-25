@@ -130,12 +130,18 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	held := seat.Claim{
-		SessionID: mem.env.SessionID, PID: owner, Started: mem.env.Processes.StartTime(ctx, owner),
-		Claimed: mem.now().Format(time.RFC3339), SeizedFrom: seizedFrom,
+		SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339), SeizedFrom: seizedFrom,
 	}
 
 	if current == req.Name {
 		held = existing
+	}
+
+	// Rewritten on every claim, a session's own again included, so a claim
+	// holding `started` in an earlier release's locale text gains an instant.
+	started, running := mem.env.Processes.StartTime(ctx, owner)
+	if running {
+		held.Started = seat.FormatStarted(started)
 	}
 
 	err := seat.Write(dir, req.Name, held)

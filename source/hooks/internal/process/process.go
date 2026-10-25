@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Table struct{}
@@ -44,13 +45,32 @@ func (Table) ParentAndName(ctx context.Context, pid int) (int, string) {
 	return parent, filepath.Base(command)
 }
 
+// LstartLayout is how `ps -o lstart=` prints a start time under the C locale,
+// in the machine's local zone. Under any other locale `ps` translates the day
+// and month names, which no layout here can read.
+const LstartLayout = "Mon Jan _2 15:04:05 2006"
+
 // StartTime identifies one run of a pid, so a reused pid never passes for the
-// process that held it before.
-func (Table) StartTime(ctx context.Context, pid int) string {
-	output, err := exec.CommandContext(ctx, "ps", "-p", strconv.Itoa(pid), "-o", "lstart=").Output()
+// process that held it before. `ps` runs under LC_ALL=C: its text follows the
+// caller's locale otherwise, and two callers in different locales would read
+// one process as two.
+func (Table) StartTime(ctx context.Context, pid int) (time.Time, bool) {
+	command := exec.CommandContext(ctx, "ps", "-p", strconv.Itoa(pid), "-o", "lstart=")
+	command.Env = append(os.Environ(), "LC_ALL=C")
+
+	output, err := command.Output()
 	if err != nil {
-		return ""
+		return time.Time{}, false
 	}
 
-	return strings.TrimSpace(string(output))
+	return ParseLstart(string(output), time.Local)
+}
+
+func ParseLstart(text string, zone *time.Location) (time.Time, bool) {
+	started, err := time.ParseInLocation(LstartLayout, strings.Join(strings.Fields(text), " "), zone)
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	return started, true
 }

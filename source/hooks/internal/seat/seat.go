@@ -16,6 +16,9 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
 // How far up the process tree to look for the owner. A hook runs through a
@@ -41,7 +44,7 @@ type Processes interface {
 	Self() int
 	Parent() int
 	ParentAndName(ctx context.Context, pid int) (int, string)
-	StartTime(ctx context.Context, pid int) string
+	StartTime(ctx context.Context, pid int) (time.Time, bool)
 }
 
 func ValidName(name string) bool {
@@ -240,7 +243,11 @@ func Owner(ctx context.Context, processes Processes, ownerName string) int {
 }
 
 // Alive reports whether the claim's holder still runs: the same pid, still the
-// owner process, started at the same time, so a reused pid never passes.
+// owner process, started at the same instant, so a reused pid never passes.
+//
+// A claim written by an earlier release holds `ps` text in the claimer's
+// locale. Text in another locale cannot be read back into an instant, so such
+// a claim is judged by the process alone until its holder claims again.
 func Alive(ctx context.Context, processes Processes, ownerName string, held Claim) bool {
 	if held.PID <= 0 {
 		return false
@@ -251,7 +258,31 @@ func Alive(ctx context.Context, processes Processes, ownerName string, held Clai
 		return false
 	}
 
-	return held.Started == "" || processes.StartTime(ctx, held.PID) == held.Started
+	recorded, readable := StartedAt(held.Started)
+	if !readable {
+		return true
+	}
+
+	current, found := processes.StartTime(ctx, held.PID)
+
+	return found && current.Equal(recorded)
+}
+
+// StartedAt reads a claim's `started`: RFC 3339, as every claim is written now,
+// or `ps` text in the C locale and the machine's zone, as earlier releases wrote
+// it from a C shell.
+func StartedAt(started string) (time.Time, bool) {
+	at, err := time.Parse(time.RFC3339, started)
+	if err == nil {
+		return at, true
+	}
+
+	return process.ParseLstart(started, time.Local)
+}
+
+// FormatStarted is how a claim records its holder's start: RFC 3339 in UTC.
+func FormatStarted(started time.Time) string {
+	return started.UTC().Format(time.RFC3339)
 }
 
 // Of is the seat the calling process holds, or empty where it holds none.

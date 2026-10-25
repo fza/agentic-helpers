@@ -4,7 +4,9 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
@@ -158,5 +160,38 @@ func TestANameOutsideTheSeatsDirectoryIsRefused(t *testing.T) {
 
 	if seat.Remove(dir, "../outside") == nil || !test.Exists(t, filepath.Join(store, "outside.json")) {
 		t.Error("a name escaping the seats directory should not remove anything")
+	}
+}
+
+func TestAliveReadsStartedAsAnInstant(t *testing.T) {
+	processes := test.NewProcesses()
+	inC := test.OwnerStart.In(time.Local).Format(process.LstartLayout)
+	otherInC := test.OwnerStart.Add(time.Minute).In(time.Local).Format(process.LstartLayout)
+
+	cases := []struct {
+		name  string
+		pid   int
+		start string
+		alive bool
+	}{
+		{name: "RFC 3339 at the process start", pid: test.OwnerPID, start: test.OwnerStarted, alive: true},
+		{name: "RFC 3339 at another instant", pid: test.OwnerPID, start: "2026-09-25T12:00:01Z"},
+		{name: "RFC 3339 in another zone at the process start", pid: test.OwnerPID, start: "2026-09-25T14:00:00+02:00", alive: true},
+		{name: "C locale ps text at the process start", pid: test.OwnerPID, start: inC, alive: true},
+		{name: "C locale ps text at another instant", pid: test.OwnerPID, start: otherInC},
+		{name: "ps text in another locale, the pid running claude", pid: test.OwnerPID, start: "Do. 25 Sep. 14:00:00 2026", alive: true},
+		{name: "no start recorded", pid: test.OwnerPID, alive: true},
+		{name: "the pid running something else", pid: test.ShellPID, start: "Do. 25 Sep. 14:00:00 2026"},
+		{name: "the pid gone", pid: test.DeadPID, start: test.OwnerStarted},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			held := seat.Claim{SessionID: test.Session, PID: tc.pid, Started: tc.start}
+
+			if seat.Alive(context.Background(), processes, "claude", held) != tc.alive {
+				t.Errorf("liveness should follow the process and its start instant, never the locale of its text")
+			}
+		})
 	}
 }
