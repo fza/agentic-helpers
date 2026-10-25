@@ -87,7 +87,10 @@ func TestLifetimeSetsTheShelfsLifetime(t *testing.T) {
 func TestATemporaryShelfIsPurgedOnceItsRetentionRunsOut(t *testing.T) {
 	h, other := rowShelf(t)
 	other.must("", "release")
+	other.must("", "claim", "idle")
+	other.must("", "release")
 	other.must("", "claim", "main")
+	toRow := other.file("Handover for the row from main", "main's note", "--for", "row-7ah")
 	other.must("", "release")
 	other.must("", "claim", "rev")
 	h.must("", "lifetime", "1d")
@@ -139,6 +142,19 @@ func TestATemporaryShelfIsPurgedOnceItsRetentionRunsOut(t *testing.T) {
 		t.Errorf("a surviving entry should name its filer as expired, got:\n%s", out)
 	}
 
+	if out := h.must("", "show", toRow); !strings.Contains(out, toRow) {
+		t.Errorf("an entry another shelf filed for the purged shelf should stay its filer's, got:\n%s", out)
+	}
+
+	h.must("", "release")
+	h.must("", "claim", "idle")
+
+	if got := h.run("", "retire", kept); got.code != 1 || !strings.Contains(got.err, kept+" was filed by impl (expired) for other shelves") {
+		t.Errorf("a seat the surviving entry was not filed for should be refused it, got %d %q", got.code, got.err)
+	}
+
+	h.must("", "release")
+	h.must("", "claim", "main")
 	h.must("", "retire", kept, "--because", "read")
 
 	shelves, _, _ := seat.LoadShelves(h.store())
