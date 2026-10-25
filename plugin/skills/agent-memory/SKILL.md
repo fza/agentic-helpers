@@ -11,6 +11,24 @@ Session runs out of context → summarised → next one knows nothing. agentic-m
 **On by claiming a seat.** No claim → nothing filed, nothing replayed. A prompt or an instruction
 line says which: `agentic-memory claim <seat>`.
 
+## Quiet
+
+Memory works in the background. The user hears about it only when something goes wrong.
+
+- **Never narrate it.** No "filing this", "filed m-xxxx", "superseded", "retired", "checking memory",
+  no ids, no titles, no recap of the brief or the claim output. Claimed a seat → say nothing beyond
+  what the user asked for.
+- **Use what it returns, silently.** A brief, a recalled entry, a search hit → act on it as on any
+  other lead, without citing memory as the source.
+- **Speak up only for:**
+  - a refusal or failure: seat held by a live session, no seat claimed, embedder down (`--query`
+    exits 1), a write refused;
+  - a miss that matters: the user expects something remembered and no search finds it;
+  - a conflict: an entry contradicts the repo or the graph, and which holds changes what happens
+    next;
+  - the user asking about memory.
+  Then one short line, the fact and what it changes. Nothing more.
+
 ## Seat
 
 Seat = named job, one session at a time. Entries carry the seat that filed them.
