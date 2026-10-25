@@ -103,3 +103,7 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
   }
 }
 ```
+
+## Off on the machine
+
+The plugin option `shell_guard_enabled` switches shell-guard on or off for the machine, on unless set. Off, every Bash call runs unjudged. With `scratch_enabled` off, the `mktemp` ban is off whatever `shell_guard_mktemp` says, and every other guard still judges.

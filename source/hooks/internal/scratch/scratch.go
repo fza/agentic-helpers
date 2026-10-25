@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 )
 
 // Matching this shape is the whole safety of the sweep.
@@ -38,14 +40,28 @@ func isSession(name string) bool {
 
 // Main runs one hook invocation against the checkout at root. A project opts
 // in by carrying `.tmp/`; without it nothing is read, created or said.
-func Main(ctx context.Context, args []string, root string, streams hookio.Streams) int {
+// Env is the project the sweep works in, and where the plugin's options are
+// read: the sweep's own switch.
+type Env struct {
+	Root     string
+	Settings []string
+	Getenv   func(string) string
+}
+
+func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
 	if len(args) != 1 || (args[0] != "end" && args[0] != "start") {
 		_, _ = fmt.Fprintln(streams.Err, ErrUsage)
 
 		return 1
 	}
 
-	if !isDir(filepath.Join(root, ".tmp")) {
+	options, err := pluginconfig.ReadWith(env.Settings, env.Getenv)
+	if err != nil {
+		options = pluginconfig.Defaults()
+	}
+
+	root := env.Root
+	if !pieces.Scratch.On(options) || !isDir(filepath.Join(root, ".tmp")) {
 		return 0
 	}
 

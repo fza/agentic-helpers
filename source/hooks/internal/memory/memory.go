@@ -23,7 +23,9 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
@@ -185,7 +187,7 @@ func (mem *memory) refuse(err error) int {
 }
 
 func (mem *memory) options() pluginconfig.Options {
-	options, err := pluginconfig.Read(mem.env.Settings)
+	options, err := pluginconfig.ReadWith(mem.env.Settings, mem.env.Getenv)
 	if err != nil {
 		return pluginconfig.Defaults()
 	}
@@ -326,6 +328,11 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	mem := &memory{env: env, streams: streams}
+
+	if !pieces.Memory.On(mem.options()) {
+		return mem.off(ctx, args[0])
+	}
+
 	mem.locate(ctx)
 
 	// who answers anywhere: outside a git work tree it lists the other projects
@@ -424,6 +431,30 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	mem.say(result.text)
 
 	return result.code
+}
+
+// off answers a call while memory is off on the machine: a hook says nothing,
+// the MCP server lists no tools and says which option turns it on, a command
+// refuses.
+func (mem *memory) off(ctx context.Context, name string) int {
+	_, isHook := hookEvents[name]
+
+	switch {
+	case isHook:
+		return 0
+	case name == "mcp":
+		err := mcpserver.ServeNone(ctx, mem.streams.In, mem.streams.Out, "memory", mem.env.Version,
+			pieces.Memory.Instructions())
+		if err != nil {
+			return 1
+		}
+
+		return 0
+	}
+
+	_, _ = fmt.Fprintln(mem.streams.Err, pieces.Memory.Off())
+
+	return 1
 }
 
 func (mem *memory) dump(ctx context.Context, args []string) int {

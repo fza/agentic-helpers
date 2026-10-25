@@ -956,3 +956,30 @@ func TestCaptureNeedsTheSddFork(t *testing.T) {
 		})
 	}
 }
+
+func TestCaptureOffOnTheMachine(t *testing.T) {
+	cases := []struct {
+		options string
+		says    string
+	}{
+		{`"capture_enabled":false`, "agentic-capture: off on this machine (plugin option capture_enabled)"},
+		{`"grounding_gate_enabled":false`, "agentic-capture: off while grounding gate is off (plugin option grounding_gate_enabled)"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.options, func(t *testing.T) {
+			root := t.TempDir()
+			settings := filepath.Join(root, "settings.json")
+			test.WriteFile(t, settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{`+tc.options+`}}}}`)
+
+			runner := &test.Runner{}
+			captured := &test.Captured{}
+			code := capture.Main(context.Background(), []string{"entry.md"},
+				capture.Env{WorkingDir: root, Runner: runner, Settings: []string{settings}}, captured.Streams(""))
+
+			if code != 1 || strings.TrimSpace(captured.Err.String()) != tc.says || len(runner.Calls) != 0 {
+				t.Errorf("capture should refuse, naming the option, and run nothing, got %d %q", code, captured.Err.String())
+			}
+		})
+	}
+}

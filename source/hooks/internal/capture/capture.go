@@ -44,6 +44,8 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddfork"
 )
@@ -129,6 +131,10 @@ type Env struct {
 	Runner     Runner
 	Limit      string
 	Pause      func(ctx context.Context, delay time.Duration) error
+	// Settings and Getenv carry the plugin's options: capture's own switch, and
+	// the grounding gate's, whose check a capture rests on.
+	Settings []string
+	Getenv   func(string) string
 }
 
 type request struct {
@@ -253,6 +259,22 @@ func Sleep(ctx context.Context, delay time.Duration) error {
 // Main captures one draft. Exit 2 is a pre-flight holding the draft back, 1
 // every other refusal.
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
+	options, err := pluginconfig.ReadWith(env.Settings, env.Getenv)
+	if err != nil {
+		options = pluginconfig.Defaults()
+	}
+
+	switch {
+	case !pieces.Capture.On(options):
+		_, _ = fmt.Fprintln(streams.Err, pieces.Capture.Off())
+
+		return 1
+	case !pieces.CaptureGrounded.Holds(options):
+		_, _ = fmt.Fprintln(streams.Err, pieces.CaptureGrounded.Off())
+
+		return 1
+	}
+
 	held, parsed := parseArgs(args)
 	if !parsed {
 		_, _ = fmt.Fprintln(streams.Err, usage)

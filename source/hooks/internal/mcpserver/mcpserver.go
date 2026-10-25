@@ -77,6 +77,7 @@ type initializeResult struct {
 	ProtocolVersion string         `json:"protocolVersion"`
 	Capabilities    capabilities   `json:"capabilities"`
 	ServerInfo      implementation `json:"serverInfo"`
+	Instructions    string         `json:"instructions,omitempty"`
 }
 
 type capabilities struct {
@@ -113,10 +114,11 @@ type callResult struct {
 }
 
 type server struct {
-	info    implementation
-	tools   map[string]Tool
-	listing toolsListResult
-	encoder *json.Encoder
+	info         implementation
+	instructions string
+	tools        map[string]Tool
+	listing      toolsListResult
+	encoder      *json.Encoder
 }
 
 type line struct {
@@ -125,10 +127,24 @@ type line struct {
 }
 
 func Serve(ctx context.Context, in io.Reader, out io.Writer, name string, version string, tools []Tool) error {
+	return serve(ctx, in, out, name, version, "", tools)
+}
+
+// ServeNone answers the handshake with instructions and lists no tools, for a
+// server whose piece is off: its tools would only invite calls.
+func ServeNone(ctx context.Context, in io.Reader, out io.Writer, name string, version string, instructions string) error {
+	return serve(ctx, in, out, name, version, instructions, nil)
+}
+
+func serve(ctx context.Context, in io.Reader, out io.Writer, name string, version string, instructions string,
+	tools []Tool,
+) error {
 	served, err := newServer(out, name, version, tools)
 	if err != nil {
 		return err
 	}
+
+	served.instructions = instructions
 
 	lines := make(chan line)
 	readerCtx, stopReader := context.WithCancel(ctx)
@@ -285,6 +301,7 @@ func (served *server) initialize(params json.RawMessage) initializeResult {
 		ProtocolVersion: negotiated,
 		Capabilities:    capabilities{Tools: toolsCapability{ListChanged: false}},
 		ServerInfo:      served.info,
+		Instructions:    served.instructions,
 	}
 }
 

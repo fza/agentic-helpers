@@ -74,3 +74,7 @@ launcher, never by hand.
 
 Every verb is `mcp__plugin_agentic-helpers_tools__<verb>`: `find`, `list`, `take` (`names`), `add`,
 `update`, `merge` (`survivor`, `members`), `trust` (`path`), `reindex`. Keys exactly as the schema lists them.
+
+## Off on the machine
+
+**Off on the machine** (`tools_enabled: false`) → every subcommand refuses `agentic-tools: off on this machine (plugin option tools_enabled)`, hooks silent, MCP lists no tools. Write the helper without the library; the switch is the user's.

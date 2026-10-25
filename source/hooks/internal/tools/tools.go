@@ -24,6 +24,8 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
@@ -92,6 +94,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	lib.options = lib.readOptions()
 
 	verb, rest := args[0], args[1:]
+
+	if !pieces.Tools.On(lib.options) {
+		return off(ctx, pieces.Tools, "tools", env.Version, verb, hooks[verb] != nil, streams)
+	}
 
 	hook, isHook := hooks[verb]
 	if isHook {
@@ -238,7 +244,7 @@ func (lib *library) role(ctx context.Context) string {
 		return given
 	}
 
-	if lib.key == "" || lib.env.Processes == nil {
+	if lib.key == "" || lib.env.Processes == nil || !pieces.ToolsSeatName.Holds(lib.options) {
 		return ""
 	}
 
@@ -257,8 +263,30 @@ func (lib *library) role(ctx context.Context) string {
 	return cmp.Or(registry.NameOf(id), id)
 }
 
+// off answers a call while the piece is off: a hook says nothing, the MCP
+// server lists no tools and says which option turns it on, a command refuses.
+func off(ctx context.Context, piece pieces.Piece, server string, version string, verb string, isHook bool,
+	streams hookio.Streams,
+) int {
+	switch {
+	case isHook:
+		return 0
+	case verb == "mcp":
+		err := mcpserver.ServeNone(ctx, streams.In, streams.Out, server, version, piece.Instructions())
+		if err != nil {
+			return 1
+		}
+
+		return 0
+	}
+
+	_, _ = fmt.Fprintln(streams.Err, piece.Off())
+
+	return 1
+}
+
 func (lib *library) readOptions() pluginconfig.Options {
-	options, err := pluginconfig.Read(lib.env.Settings)
+	options, err := pluginconfig.ReadWith(lib.env.Settings, lib.env.Getenv)
 	if err != nil {
 		return pluginconfig.Defaults()
 	}

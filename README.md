@@ -68,6 +68,49 @@ one release. Installed at user scope, the plugin is enabled in every project on 
 in the next session or after `/reload-plugins`. Auto-update is off by default for a marketplace like
 this one, and can be turned on under `/plugin`, Marketplaces.
 
+## Options
+
+Set once per machine in the plugin's configuration dialog (`/plugin`), or as `pluginConfigs` in the
+user or managed settings; no project overrides them.
+
+| Option | Default | Sets |
+|---|---|---|
+| `memory_enabled` | `true` | agentic-memory on or off; off, its commands refuse, its hooks say nothing, its MCP server lists no tools |
+| `tools_enabled` | `true` | agentic-tools on or off, as for memory |
+| `scratch_enabled` | `true` | the scratch sweep on or off |
+| `grounding_gate_enabled` | `true` | the grounding gate on or off |
+| `capture_enabled` | `true` | `agentic-capture` on or off |
+| `shell_guard_enabled` | `true` | shell-guard on or off |
+| `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env` | none | the embedder memory's and the tool library's search by meaning runs on; the key itself stays in the environment variable named |
+| `entry_max_words` | `500` | the words a memory entry's body should stay within |
+| `retired_body_days` | `90` | how long a retired memory entry keeps its body, never under 14 |
+| `entry_id_length` | `6` | the characters after `m-` in a new memory entry id, 6 to 16 |
+| `memory_language` | `en` | the language memory entries are written in where `.sdd/config.yaml` names none |
+| `memory_require_git` | `true` | memory only inside a git work tree |
+| `temporary_seat_lifetime` | `1d` | how long a closed temporary shelf keeps its entries before they are purged |
+| `tools_query_floor` | `0.45` | the cosine at or above which the tool library counts a tool as near a search or a prompt |
+| `tools_duplicate_floor` | `0.85` | the cosine at or above which the tool library refuses a new tool as another's duplicate |
+| `shell_guard_outside_project` | `ask` | `ask`, `deny` or `off` for a removal reaching outside the project and `/tmp` |
+| `shell_guard_find_delete` | `ask` | `ask`, `deny` or `off` for `find ... -delete` |
+| `shell_guard_lone_removal` | `true` | deny a removal that is not the whole Bash command |
+| `shell_guard_expansion` | `true` | deny a removal target built from a variable or command substitution |
+| `shell_guard_nested_code` | `true` | deny a removal or `mktemp` inside `eval`, a shell's `-c` or inline code for another interpreter |
+| `shell_guard_mktemp` | `true` | deny `mktemp` anywhere in a Bash command |
+
+## Dependencies
+
+No piece breaks when another is off; a feature resting on the other goes off with it, and the rest
+of the piece runs. Each session start names every such feature off, as
+`agentic-helpers: scratch is off, so shell-guard's mktemp ban is off; turn scratch_enabled on to restore it`,
+and `agentic-helpers check` lists every piece on or off with its features off through a tie.
+
+| Off | Feature that goes off | Why |
+|---|---|---|
+| `scratch_enabled` | shell-guard's `mktemp` ban, whatever `shell_guard_mktemp` says | its refusal sends scratch files to a `.tmp/` nothing sweeps |
+| `grounding_gate_enabled` | `agentic-capture` | its grounding check is the gate's hook; without it a draft lands ungrounded |
+| `memory_enabled` | the grounding gate's `exempt_seats` | a seat is an agentic-memory claim; a claim left from before the switch must not exempt anything |
+| `memory_enabled` | the seat name agentic-tools stamps on what it files | it reads the name from agentic-memory's seat registry |
+
 ## Documentation
 
 How to use each piece and how each works inside: [`docs/index.md`](docs/index.md).

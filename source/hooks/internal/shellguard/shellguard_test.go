@@ -381,3 +381,25 @@ func TestAnUnreadableCallIsRefused(t *testing.T) {
 		})
 	}
 }
+
+func TestShellGuardOffOnTheMachine(t *testing.T) {
+	g := newGuard(t, true, `"shell_guard_enabled":false`)
+
+	for _, command := range []string{"rm -rf ~/x", "mktemp", "echo 'unterminated", "ls && rm a"} {
+		if decision, _ := g.judge(command, "{project}"); decision != "allow" {
+			t.Errorf("shell-guard off on the machine should let %q run, got %s", command, decision)
+		}
+	}
+}
+
+func TestTheMktempBanRestsOnTheScratchSweep(t *testing.T) {
+	g := newGuard(t, true, `"scratch_enabled":false,"shell_guard_mktemp":true`)
+
+	if decision, _ := g.judge("mktemp -d", "{project}"); decision != "allow" {
+		t.Errorf("with the scratch sweep off, mktemp should pass, got %s", decision)
+	}
+
+	if decision, _ := g.judge("rm -rf ~/x", "{project}"); decision != "ask" {
+		t.Errorf("with the scratch sweep off, every other guard should still judge, got %s", decision)
+	}
+}

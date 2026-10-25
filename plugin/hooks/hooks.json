@@ -1,5 +1,5 @@
 {
-  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-shell-guard, on Bash, holds removals to the project and bans mktemp; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; agentic-tools offers tools near a prompt and notes newer versions and unregistered scripts; register.ts writes agentic-memory's context reading",
+  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-shell-guard, on Bash, holds removals to the project and bans mktemp; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; agentic-tools offers tools near a prompt and notes newer versions and unregistered scripts; agentic-helpers check names features off because a piece they rest on is off; register.ts writes agentic-memory's context reading",
   "modules": ["./register.ts"],
   "hooks": {
     "SessionStart": [
@@ -12,7 +12,8 @@
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 4", "timeout": 120 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 5", "timeout": 120 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-scratch start", "timeout": 120 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-grounding-gate start", "timeout": 120 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-grounding-gate start", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-helpers check", "timeout": 120 }
         ]
       }
     ],

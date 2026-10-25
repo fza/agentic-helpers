@@ -114,3 +114,7 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
 - **Read the generated summary.** Drift (wrong actor, wrong ref attribution, lost identifier) →
   `sdd summarize <id> --text '<faithful summary>'`.
 - **The draft stays.** Delete it once the entry reads right.
+
+## Off on the machine
+
+**Off on the machine** → `agentic-capture: off on this machine (plugin option capture_enabled)`, or `agentic-capture: off while grounding gate is off (plugin option grounding_gate_enabled)`. Exit 1, nothing runs. Tell the user; never capture with `sdd new` instead.

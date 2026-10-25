@@ -11,7 +11,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 const PluginID = "agentic-helpers@agentic-helpers"
@@ -76,6 +78,26 @@ type Options struct {
 	ShellGuardMktemp         bool
 	ToolsDuplicateFloor      float64
 	ToolsQueryFloor          float64
+	// MemoryEnabled ... ShellGuardEnabled switch each piece on or off for the
+	// machine; every one is on unless set.
+	MemoryEnabled        bool
+	ToolsEnabled         bool
+	ScratchEnabled       bool
+	GroundingGateEnabled bool
+	CaptureEnabled       bool
+	ShellGuardEnabled    bool
+}
+
+// Keys is every option the plugin's userConfig declares, as a settings file
+// and the hook environment spell it.
+var Keys = []string{
+	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
+	"entry_max_words", "retired_body_days", "entry_id_length", "memory_require_git", "memory_language",
+	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
+	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
+	"shell_guard_nested_code", "shell_guard_mktemp",
+	"memory_enabled", "tools_enabled", "scratch_enabled", "grounding_gate_enabled", "capture_enabled",
+	"shell_guard_enabled",
 }
 
 type settings struct {
@@ -85,19 +107,74 @@ type settings struct {
 }
 
 // Paths is every settings file that can carry `pluginConfigs`, lowest
-// precedence first. Project settings are never among them: one embedder serves
-// every project on the machine.
-func Paths(home string, goos string) []string {
-	paths := []string{filepath.Join(home, ".claude", "settings.json")}
+// precedence first: the user's, under CLAUDE_CONFIG_DIR where it is set, then
+// the managed settings and their `managed-settings.d/` drop-ins in name order,
+// as Claude Code merges them. Project settings are never among them: one
+// embedder serves every project on the machine.
+func Paths(home string, goos string, getenv func(string) string) []string {
+	config := filepath.Join(home, ".claude")
+	if getenv != nil && getenv("CLAUDE_CONFIG_DIR") != "" {
+		config = getenv("CLAUDE_CONFIG_DIR")
+	}
 
-	switch goos {
-	case "darwin":
-		paths = append(paths, "/Library/Application Support/ClaudeCode/managed-settings.json")
-	case "linux":
-		paths = append(paths, "/etc/claude-code/managed-settings.json")
+	managed := map[string]string{
+		"darwin": "/Library/Application Support/ClaudeCode", "linux": "/etc/claude-code",
+	}[goos]
+
+	return pathsUnder(config, managed)
+}
+
+func pathsUnder(config string, managed string) []string {
+	paths := []string{filepath.Join(config, "settings.json")}
+
+	if managed == "" {
+		return paths
+	}
+
+	paths = append(paths, filepath.Join(managed, "managed-settings.json"))
+
+	dropIns, err := filepath.Glob(filepath.Join(managed, "managed-settings.d", "*.json"))
+	if err == nil {
+		slices.Sort(dropIns)
+		paths = append(paths, dropIns...)
 	}
 
 	return paths
+}
+
+// ReadWith folds the settings files as Read does, then the hook environment's
+// CLAUDE_PLUGIN_OPTION_<KEY> variables over them: Claude Code hands a hook the
+// options it resolved, which win.
+func ReadWith(paths []string, getenv func(string) string) (Options, error) {
+	options, err := Read(paths)
+	if err != nil || getenv == nil {
+		return options, err
+	}
+
+	values := map[string]json.RawMessage{}
+
+	for _, key := range Keys {
+		value := getenv("CLAUDE_PLUGIN_OPTION_" + strings.ToUpper(key))
+		if value == "" {
+			continue
+		}
+
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return Options{}, fmt.Errorf("encoding %s: %w", key, err)
+		}
+
+		values[key] = raw
+	}
+
+	err = options.apply(values)
+	if err != nil {
+		return Options{}, fmt.Errorf("reading the hook environment's options: %w", err)
+	}
+
+	options.clamp()
+
+	return options, nil
 }
 
 // Read folds the plugin's options from paths in order, a later file winning
@@ -128,10 +205,14 @@ func Read(paths []string) (Options, error) {
 		}
 	}
 
-	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
-	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
+	options.clamp()
 
 	return options, nil
+}
+
+func (options *Options) clamp() {
+	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
+	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
 }
 
 func Defaults() Options {
@@ -141,6 +222,8 @@ func Defaults() Options {
 		ToolsQueryFloor:          DefaultToolsQueryFloor,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
+		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
+		ShellGuardEnabled: true,
 	}
 }
 
@@ -231,6 +314,12 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		"shell_guard_expansion":    &options.ShellGuardExpansion,
 		"shell_guard_nested_code":  &options.ShellGuardNestedCode,
 		"shell_guard_mktemp":       &options.ShellGuardMktemp,
+		"memory_enabled":           &options.MemoryEnabled,
+		"tools_enabled":            &options.ToolsEnabled,
+		"scratch_enabled":          &options.ScratchEnabled,
+		"grounding_gate_enabled":   &options.GroundingGateEnabled,
+		"capture_enabled":          &options.CaptureEnabled,
+		"shell_guard_enabled":      &options.ShellGuardEnabled,
 	}
 
 	for key, target := range switches {

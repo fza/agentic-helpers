@@ -85,6 +85,48 @@
       "default": 0.45,
       "required": false
     },
+    "memory_enabled": {
+      "type": "boolean",
+      "title": "Switch on agentic-memory",
+      "description": "agentic-memory: seats, entries, recall and their hooks; off, its commands refuse and its hooks say nothing",
+      "default": true,
+      "required": false
+    },
+    "tools_enabled": {
+      "type": "boolean",
+      "title": "Switch on agentic-tools",
+      "description": "agentic-tools: the helper tool library and its hooks; off, its commands refuse and its hooks say nothing",
+      "default": true,
+      "required": false
+    },
+    "scratch_enabled": {
+      "type": "boolean",
+      "title": "Switch on the scratch sweep",
+      "description": "agentic-scratch: sweeping .tmp/claude/<session>/ at session end; off, shell-guard's mktemp ban goes off with it",
+      "default": true,
+      "required": false
+    },
+    "grounding_gate_enabled": {
+      "type": "boolean",
+      "title": "Switch on the grounding gate",
+      "description": "agentic-grounding-gate: the sdd reads owed before a question, draft or capture; off, agentic-capture goes off with it",
+      "default": true,
+      "required": false
+    },
+    "capture_enabled": {
+      "type": "boolean",
+      "title": "Switch on agentic-capture",
+      "description": "agentic-capture: capturing sdd entries from drafts; off, it refuses",
+      "default": true,
+      "required": false
+    },
+    "shell_guard_enabled": {
+      "type": "boolean",
+      "title": "Switch on shell-guard",
+      "description": "agentic-shell-guard: holding Bash removals to the project and banning mktemp; off, every Bash call runs unjudged",
+      "default": true,
+      "required": false
+    },
     "shell_guard_outside_project": {
       "type": "string",
       "title": "Shell-guard: removals outside the project",

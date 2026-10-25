@@ -371,3 +371,7 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.
+
+## Off on the machine
+
+The plugin option `memory_enabled` switches agentic-memory on or off for the machine, on unless set. Off, every memory hook says nothing, every subcommand exits 1 with `agentic-memory: off on this machine (plugin option memory_enabled)`, and the `memory` MCP server lists no tools, its instructions naming the option. The grounding gate's `exempt_seats` and the seat name agentic-tools stamps go off with it.

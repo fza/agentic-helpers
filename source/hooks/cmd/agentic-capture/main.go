@@ -7,10 +7,12 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/capture"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
@@ -23,6 +25,11 @@ func main() {
 	// Every command runs in a process group of its own, out of reach of the
 	// terminal's interrupt, so the signal cancels the run and the runner kills
 	// the group.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	env := capture.Env{
@@ -30,6 +37,8 @@ func main() {
 		Runner:     process.Runner{},
 		Limit:      os.Getenv(capture.LimitVariable),
 		Pause:      capture.Sleep,
+		Settings:   pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
+		Getenv:     os.Getenv,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

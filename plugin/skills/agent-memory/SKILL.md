@@ -286,3 +286,7 @@ arguments as JSON (`body` for the body, arrays for repeatable flags). Same seat,
 - `holder --json` exit 1 still prints JSON. Read the code, not the output.
 - Entry ids `m-xxxxxx` (`entry_id_length`, 6 unless set; older ones 4) are per project. An id from
   another project names something else.
+
+## Off on the machine
+
+**Off on the machine** (`memory_enabled: false`) → every subcommand refuses `agentic-memory: off on this machine (plugin option memory_enabled)`, hooks silent, MCP lists no tools. Tell the user once; the switch is theirs.

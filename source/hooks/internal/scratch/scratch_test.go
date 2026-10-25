@@ -48,7 +48,7 @@ func run(t *testing.T, root string, mode string, stdin string) (int, *test.Captu
 	t.Helper()
 
 	captured := &test.Captured{}
-	code := scratch.Main(context.Background(), []string{mode}, root, captured.Streams(stdin))
+	code := scratch.Main(context.Background(), []string{mode}, scratch.Env{Root: root}, captured.Streams(stdin))
 
 	return code, captured
 }
@@ -200,7 +200,7 @@ func TestAProjectWithoutScratchIsLeftAlone(t *testing.T) {
 func TestAnUnknownModeIsRefused(t *testing.T) {
 	for _, args := range [][]string{{}, {"sweep"}, {"end", "extra"}} {
 		captured := &test.Captured{}
-		code := scratch.Main(context.Background(), args, project(t), captured.Streams(""))
+		code := scratch.Main(context.Background(), args, scratch.Env{Root: project(t)}, captured.Streams(""))
 
 		if code != 1 || !strings.Contains(captured.Err.String(), "usage") {
 			t.Errorf("%v should be refused with usage", args)

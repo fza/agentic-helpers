@@ -47,3 +47,7 @@ identifier is a deliberate keep and survives whatever its age. That is the whole
 keep something, give it a name.
 
 Reaping is by directory mtime. A keep whose name looks like a session id is not a keep.
+
+## Off on the machine
+
+**Off on the machine** (`scratch_enabled: false`) → nothing swept. Throwaway still goes under `.tmp/claude/<session-id>/`; delete your own. shell-guard's `mktemp` ban is off with it.

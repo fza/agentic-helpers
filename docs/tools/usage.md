@@ -121,3 +121,7 @@ tool as near, 0.45 unless set; `tools_duplicate_floor` sets the near-duplicate c
 set. Both depend on the embedder: with `embeddinggemma-300m`, paraphrases of a tool's purpose score
 about 0.50 to 0.63 against it and unrelated needs about 0.35 to 0.38. The embedding options are
 agentic-memory's own.
+
+## Off on the machine
+
+The plugin option `tools_enabled` switches agentic-tools on or off for the machine, on unless set. Off, every tool-library hook says nothing, every subcommand exits 1 with `agentic-tools: off on this machine (plugin option tools_enabled)`, and the `tools` MCP server lists no tools, its instructions naming the option. With `memory_enabled` off, the library stamps no seat name on what it files.

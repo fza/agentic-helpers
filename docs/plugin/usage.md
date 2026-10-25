@@ -26,7 +26,7 @@ grounding gate says the same once as a session starts, then stays off for that s
 
 ## Commands
 
-Claude Code's Bash tool finds `agentic-capture`, `agentic-memory` and `agentic-tools` through the plugin's `bin/`,
+Claude Code's Bash tool finds `agentic-capture`, `agentic-helpers`, `agentic-memory` and `agentic-tools` through the plugin's `bin/`,
 which hands each call to the launcher, so `agentic-capture --help` is answered by the real binary.
 With no binary installed and none fetchable, a command from `bin/` or the MCP server exits 1 and
 says why on stderr, where a hook stays silent. A script outside Claude Code has no plugin on its
@@ -39,6 +39,23 @@ carries agentic-memory's options, agentic-tools' `tools_query_floor` and `tools_
 shell-guard's six `shell_guard_*` options; no project overrides them.
 [`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md) and
 [`../shell-guard/usage.md`](../shell-guard/usage.md) list each.
+
+## Switching a piece off
+
+Each piece has a boolean plugin option switching it on or off for the machine, on unless set:
+`memory_enabled`, `tools_enabled`, `scratch_enabled`, `grounding_gate_enabled`, `capture_enabled` and
+`shell_guard_enabled`. Off, its hooks say nothing, its commands exit 1 with
+`<binary>: off on this machine (plugin option <key>)`, its MCP server lists no tools and its
+instructions name the option, and its skill stays listed. Each binary checks its own switch. A
+feature resting on an off piece goes off with it, and the rest of its piece runs; the table is in
+[`README.md`](../../README.md#dependencies). At each session start `agentic-helpers check` prints one
+line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`;
+run as a command it lists every piece on or off, with its features off under it.
+
+Hooks read the options Claude Code hands them as `CLAUDE_PLUGIN_OPTION_<KEY>`, which win; commands
+and the MCP servers read the settings files: `settings.json` under `CLAUDE_CONFIG_DIR` (else
+`~/.claude`), then the managed settings and their `managed-settings.d/` drop-ins in name order, as
+Claude Code merges them.
 
 ## The skills
 

@@ -19,7 +19,7 @@ func main() {
 
 	env := shellguard.Env{
 		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"), Home: home, Tmp: "/tmp",
-		Settings: pluginconfig.Paths(home, runtime.GOOS),
+		Settings: pluginconfig.Paths(home, runtime.GOOS, os.Getenv), Getenv: os.Getenv,
 	}
 	streams := shellguard.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

@@ -5,9 +5,11 @@ package main
 import (
 	"context"
 	"os"
+	"runtime"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
@@ -36,6 +38,8 @@ func main() {
 		Runner:     process.Runner{},
 		Processes:  process.Table{},
 		OwnerName:  owner,
+		Settings:   pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
+		Getenv:     os.Getenv,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

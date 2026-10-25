@@ -525,3 +525,24 @@ func TestServeRefusesAnInvalidToolSet(t *testing.T) {
 		})
 	}
 }
+
+func TestServeNoneListsNoToolsAndCarriesItsInstructions(t *testing.T) {
+	input := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n"
+
+	var out bytes.Buffer
+
+	err := mcpserver.ServeNone(t.Context(), strings.NewReader(input), &out, serverName, serverVersion, "the piece is off")
+	if err != nil {
+		t.Fatalf("serving: %v", err)
+	}
+
+	if !strings.Contains(out.String(), `"instructions":"the piece is off"`) || !strings.Contains(out.String(), `"tools":[]`) {
+		t.Errorf("a server of an off piece should hand over its instructions and list no tools, got %s", out.String())
+	}
+
+	served, _ := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`+"\n")
+	if len(served) != 1 || strings.Contains(string(served[0].Result), "instructions") {
+		t.Errorf("a server of an on piece should carry no instructions, got %+v", served)
+	}
+}

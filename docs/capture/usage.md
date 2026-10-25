@@ -60,3 +60,7 @@ pre-flight runs as usual. The flag is refused beside `--skip-preflight`.
 ## Exit codes
 
 Exit 0 is captured, 2 is a high finding holding the draft back, 1 everything else.
+
+## Off on the machine
+
+The plugin option `capture_enabled` switches capture on or off for the machine, on unless set. Off, `agentic-capture` exits 1 with `agentic-capture: off on this machine (plugin option capture_enabled)`; with `grounding_gate_enabled` off it exits 1 with `agentic-capture: off while grounding gate is off (plugin option grounding_gate_enabled)`, since a draft would land ungrounded.

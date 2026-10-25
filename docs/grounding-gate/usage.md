@@ -102,3 +102,7 @@ read_suffix: --entry <entry>                # one line, printed only
 listing_prefix: area-                       # the topic prefix a listing reads
 draft_lint: vale --output=line              # agentic-capture's lint, see ../capture/usage.md
 ```
+
+## Off on the machine
+
+The plugin option `grounding_gate_enabled` switches the gate on or off for the machine, on unless set. Off, every gate hook lets every call through and keeps no evidence. `agentic-capture` goes off with it, since its grounding check is the gate's. With `memory_enabled` off, `exempt_seats` exempts nobody: a seat is an agentic-memory claim, and one left from before the switch must not exempt anything.

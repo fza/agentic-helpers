@@ -19,3 +19,7 @@ identifier is somebody's deliberate keep, and survives whatever its age.
 ```
 
 A project opts in by carrying `.tmp/`, which should be gitignored.
+
+## Off on the machine
+
+The plugin option `scratch_enabled` switches the sweep on or off for the machine, on unless set. Off, `agentic-scratch` removes nothing and says nothing. Shell-guard's `mktemp` ban goes off with it, since its refusal would send scratch files to a `.tmp/` nothing sweeps.

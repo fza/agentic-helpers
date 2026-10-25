@@ -192,13 +192,13 @@ func TestRead(t *testing.T) {
 
 func TestPathsNeverIncludeProjectSettings(t *testing.T) {
 	for _, goos := range []string{"darwin", "linux", "windows"} {
-		for _, path := range pluginconfig.Paths("/home/u", goos) {
+		for _, path := range pluginconfig.Paths("/home/u", goos, nil) {
 			if filepath.Base(filepath.Dir(path)) == ".claude" && filepath.Dir(filepath.Dir(path)) != "/home/u" {
 				t.Errorf("only user and managed settings should be read, got %s", path)
 			}
 		}
 
-		if pluginconfig.Paths("/home/u", goos)[0] != "/home/u/.claude/settings.json" {
+		if pluginconfig.Paths("/home/u", goos, nil)[0] != "/home/u/.claude/settings.json" {
 			t.Errorf("user settings should come first, with the lowest precedence")
 		}
 	}

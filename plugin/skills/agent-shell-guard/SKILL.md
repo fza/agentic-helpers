@@ -62,3 +62,7 @@ guard exists for exactly that call.
 - **No binary installed** → every Bash call refused:
   `agentic-helpers: no agentic-shell-guard binary is installed, so shell-guard refuses every Bash call; ...`.
   Tell the user: a session with network fetches it, or `AGENTIC_HELPERS_BIN_DIR`.
+
+## Off on the machine
+
+**Off on the machine** (`shell_guard_enabled: false`) → every Bash call runs unjudged; removals stay yours to keep inside the project. With `scratch_enabled` off, `mktemp` passes.

@@ -28,6 +28,7 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 )
 
@@ -55,6 +56,7 @@ type Env struct {
 	Home       string
 	Tmp        string
 	Settings   []string
+	Getenv     func(string) string
 }
 
 type Streams struct {
@@ -159,21 +161,26 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 		}
 	}()
 
+	read, err := pluginconfig.ReadWith(env.Settings, env.Getenv)
+	if err != nil {
+		read = pluginconfig.Defaults()
+	}
+
+	if !pieces.ShellGuard.On(read) {
+		return 0
+	}
+
 	var call payload
 
-	err := json.NewDecoder(streams.In).Decode(&call)
+	err = json.NewDecoder(streams.In).Decode(&call)
 	if err != nil || call.ToolInput.Command == nil {
 		_, _ = fmt.Fprintln(streams.Err, self+": could not read the command; refusing")
 
 		return 2
 	}
 
-	read, err := pluginconfig.Read(env.Settings)
-	if err != nil {
-		read = pluginconfig.Defaults()
-	}
-
 	options := optionsFrom(read)
+	options.Mktemp = options.Mktemp && pieces.MktempBan.Holds(read)
 
 	info, err := os.Stat(filepath.Join(env.ProjectDir, ".tmp"))
 	options.Scratch = env.ProjectDir != "" && err == nil && info.IsDir()

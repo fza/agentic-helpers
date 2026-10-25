@@ -161,3 +161,7 @@ parse error. Fix the file.
 - **No acceptance criterion waits on a decision the entry could take itself.**
 - Body carries: **what**, **why**, **rejected alternatives with their reasoning**, **accepted
   costs**. No discarded alternatives → re-proposed within the month.
+
+## Off on the machine
+
+**Off on the machine** (`grounding_gate_enabled: false`) → the gate lets every call through and `agentic-capture` refuses `agentic-capture: off while grounding gate is off (plugin option grounding_gate_enabled)`. Run the reads anyway; capture is the user's to switch back on.

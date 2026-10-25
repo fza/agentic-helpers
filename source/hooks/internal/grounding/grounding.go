@@ -58,6 +58,8 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddfork"
@@ -140,6 +142,19 @@ type Env struct {
 	Runner     sddfork.Runner
 	Processes  seat.Processes
 	OwnerName  string
+	// Settings and Getenv carry the plugin's options: the gate's own switch, and
+	// memory's, which exempt_seats rests on.
+	Settings []string
+	Getenv   func(string) string
+}
+
+func (env Env) options() pluginconfig.Options {
+	options, err := pluginconfig.ReadWith(env.Settings, env.Getenv)
+	if err != nil {
+		return pluginconfig.Defaults()
+	}
+
+	return options
 }
 
 func (env Env) project() string {
@@ -171,7 +186,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return 1
 	}
 
-	if env.graphDir() == "" {
+	if !pieces.GroundingGate.On(env.options()) || env.graphDir() == "" {
 		return 0
 	}
 
@@ -727,7 +742,7 @@ func depthFlags(owed graphconfig.ShowDepth) string {
 // agentic-memory seat its owning claude process claimed. A subagent runs in
 // its session's process, so it reads as the seat its session holds.
 func (env Env) exempt(ctx context.Context, seats []string) bool {
-	if len(seats) == 0 || env.Processes == nil {
+	if len(seats) == 0 || env.Processes == nil || !pieces.ExemptSeats.Holds(env.options()) {
 		return false
 	}
 

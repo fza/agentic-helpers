@@ -63,7 +63,7 @@ func main() {
 		OwnerName:     owner,
 		SessionID:     os.Getenv("CLAUDE_CODE_SESSION_ID"),
 		CompactWindow: window,
-		Settings:      pluginconfig.Paths(home, runtime.GOOS),
+		Settings:      pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
 		Getenv:        os.Getenv,
 		Now:           time.Now,
 		Processes:     process.Table{},
