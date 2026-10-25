@@ -15,8 +15,13 @@ import (
 // can declare. The right to write it belongs to the checkouts listed in the
 // project's one writers list, which agentic-tools reads too.
 
-// readOnly are the calls that change no store and answer anywhere.
-var readOnly = []string{"help", "--help", "-h", "who", "holder"}
+// readOnly are the calls that change no store and answer anywhere; reads
+// change none either, but read a project's entries, so only a listed checkout
+// or an unclaimed project's runs them, and they claim nothing.
+var (
+	readOnly = []string{"help", "--help", "-h", "who", "holder"}
+	reads    = []string{"search", "show", "brief", "topics", "dump", "mcp"}
+)
 
 func (mem *memory) writersList() writers.List {
 	return writers.List{Home: mem.env.Home, Key: mem.key, Lookup: mem.env.Checkout}
@@ -35,7 +40,15 @@ func (mem *memory) admission(ctx context.Context, call string) error {
 		return nil
 	}
 
-	err := mem.writersList().Admit(ctx, mem.env.Base)
+	list := mem.writersList()
+
+	err := list.Check(ctx, mem.env.Base)
+	if errors.Is(err, writers.ErrUnclaimed) {
+		err = nil
+		if !slices.Contains(reads, call) {
+			err = list.Admit(ctx, mem.env.Base)
+		}
+	}
 
 	var refusal writers.NotListed
 

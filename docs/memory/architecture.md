@@ -17,8 +17,9 @@
 ```
 
 Admission runs before anything else a call does, the format migration included: `internal/writers`
-reads the project's list through checked folder descriptors and claims an unlisted project for the
-calling checkout under the list's own `.lock`. A hook of a checkout not listed exits silently; the
+reads the project's list through checked folder descriptors, or a library's own legacy list while
+the project's is missing, and a write claims an unlisted project for the calling checkout under the
+list's own `.lock`; a read claims nothing. A hook of a checkout not listed exits silently; the
 MCP server checks each call, and starts without migrating where its checkout is not listed. A call
 on a project with no store yet, other than `claim` and `trust`, makes no list.
 

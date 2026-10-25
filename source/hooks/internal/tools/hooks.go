@@ -50,7 +50,7 @@ func (lib *library) hookPayload(ctx context.Context) (hookio.Payload, bool) {
 	// Every hook writes the session's file into the store, which a checkout
 	// that may not write the library never does. Where the project keeps no
 	// library yet there is nothing to guard, and no list is made for it.
-	return payload, usable && (!exists(lib.ownDir()) || lib.writer(ctx) == nil)
+	return payload, usable && (!exists(lib.ownDir()) || lib.recorder(ctx) == nil)
 }
 
 // prompt delivers the nudges stop recorded, then offers up to three own tools

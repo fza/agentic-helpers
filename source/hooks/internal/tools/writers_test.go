@@ -191,3 +191,25 @@ func TestALibrarysOwnListMovesIntoTheProjectsList(t *testing.T) {
 		}
 	})
 }
+
+func TestAReadOfAnUnclaimedLibraryClaimsNothing(t *testing.T) {
+	h := newHarness(t)
+	h.tool("word-count", "Count the words of standard input")
+	_ = os.Remove(h.writersFile())
+
+	h.file(".tmp/keep", "")
+	h.must("take", "word-count")
+	h.hook("prompt", map[string]any{"prompt": "count the words of standard input"})
+	h.hook("stop", nil)
+
+	if test.Exists(t, h.writersFile()) {
+		t.Error("a take or a hook should claim nothing")
+	}
+
+	_ = os.Remove(filepath.Join(h.store(), "index.json"))
+	h.must("list")
+
+	if test.Exists(t, h.writersFile()) || !test.Exists(t, filepath.Join(h.store(), "index.json")) {
+		t.Error("a read rebuilding the index should write it back and claim nothing")
+	}
+}

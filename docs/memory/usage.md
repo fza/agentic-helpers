@@ -36,9 +36,11 @@ keeps a store keyed by its own path.
 A project's store is found by the `repo_id` its `.sdd/config.yaml` declares, which any checkout can
 declare. The checkouts that may use it are listed, by their git common directory, in the project's
 one list `~/.claude/agentic-helpers/<project>/writers.json`, which agentic-tools reads too; every
-worktree of a listed checkout is listed with it. The first call that would touch an unlisted
-project's store (a `claim` creating one, or any call on a store already there) lists the calling
-checkout. Any other checkout is refused every subcommand and memory MCP tool, its hooks stay
+worktree of a listed checkout is listed with it. The first call that writes an unlisted
+project's store (a `claim`, a filing, any change) lists the calling checkout; a read (`search`,
+`show`, `brief`, `topics`) claims nothing. While the project's list is missing, a library's own
+`writers.json` from agentic-tools binds memory too, and moves into the project's list on the first
+write. Any other checkout is refused every subcommand and memory MCP tool, its hooks stay
 silent, and none of its calls migrates the store:
 
     agentic-memory: this memory belongs to other checkouts: <checkouts>; run `agentic-memory trust <this checkout>` from one of them to let this one write

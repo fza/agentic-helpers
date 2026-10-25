@@ -44,6 +44,7 @@ const (
 var (
 	ErrUnreadable = errors.New("writers.json cannot be read")
 	ErrNoCheckout = errors.New("is no git checkout")
+	ErrUnclaimed  = errors.New("no checkout is listed for this project yet")
 )
 
 // NotListed is a refusal: the checkouts that may write, and the one asking.
@@ -56,16 +57,65 @@ func (refusal NotListed) Error() string {
 	return fmt.Sprintf("this project belongs to other checkouts: %s", strings.Join(refusal.Checkouts, ", "))
 }
 
-// List is one project's list as both pieces reach it. Legacy names a list an
-// earlier release kept elsewhere, moved into this one on first use.
+// List is one project's list as both pieces reach it.
 type List struct {
 	Home   string
 	Key    string
 	Lookup project.CommonDirLookup
-	Legacy string
 }
 
 func (list List) root() string { return filepath.Join(list.Home, ".claude", "agentic-helpers") }
+
+// legacy is where agentic-tools kept a library's own list before the project's
+// one list. Every check consults it while the project's list is missing, so a
+// piece that never wrote it cannot claim the project past it; the first change
+// moves it in.
+func (list List) legacy() string {
+	return filepath.Join(projectkey.Dir(filepath.Join(list.Home, ".claude", "agentic-tools"), list.Key), fileName)
+}
+
+// current is the project's list, or the legacy one while the project's is
+// missing.
+func (list List) current() ([]string, bool, error) {
+	listed, present, err := readList(list.root(), list.Key)
+	if err != nil || present {
+		return listed, present, err
+	}
+
+	return readList(filepath.Dir(list.legacy()), "")
+}
+
+// Check says whether the checkout at base is listed, without claiming
+// anything: nil where it is, ErrUnclaimed where no list exists, NotListed or
+// ErrUnreadable otherwise. A read uses it; only a write claims.
+func (list List) Check(ctx context.Context, base string) error {
+	own, err := list.CommonDir(ctx, base)
+	if err != nil {
+		return err
+	}
+
+	listed, present, err := list.current()
+
+	switch {
+	case err != nil:
+		return err
+	case !present:
+		return ErrUnclaimed
+	case slices.Contains(listed, own):
+		return nil
+	}
+
+	return list.notListed(ctx, base, listed)
+}
+
+func (list List) notListed(ctx context.Context, base string, listed []string) NotListed {
+	checkouts := make([]string, 0, len(listed))
+	for _, common := range listed {
+		checkouts = append(checkouts, filepath.Dir(common))
+	}
+
+	return NotListed{Checkouts: checkouts, Here: project.Root(ctx, base, list.Lookup)}
+}
 
 // Path is where the list lives.
 func (list List) Path() string {
@@ -118,12 +168,7 @@ func (list List) Admit(ctx context.Context, base string) error {
 			return current, nil
 		}
 
-		checkouts := make([]string, 0, len(current))
-		for _, common := range current {
-			checkouts = append(checkouts, filepath.Dir(common))
-		}
-
-		return nil, NotListed{Checkouts: checkouts, Here: project.Root(ctx, base, list.Lookup)}
+		return nil, list.notListed(ctx, base, current)
 	})
 }
 
@@ -178,10 +223,10 @@ func (list List) change(ctx context.Context, update func(current []string, prese
 
 	moved := false
 
-	if !present && list.Legacy != "" {
-		current, present, err = readList(filepath.Dir(list.Legacy), "")
+	if !present {
+		current, present, err = readList(filepath.Dir(list.legacy()), "")
 		if err != nil {
-			return fmt.Errorf("moving %s: %w", list.Legacy, err)
+			return fmt.Errorf("moving %s: %w", list.legacy(), err)
 		}
 
 		moved = present
@@ -191,7 +236,7 @@ func (list List) change(ctx context.Context, update func(current []string, prese
 	if err != nil {
 		if moved {
 			_ = write(folder, current)
-			removeLegacy(list.Legacy)
+			removeLegacy(list.legacy())
 		}
 
 		return err
@@ -203,7 +248,7 @@ func (list List) change(ctx context.Context, update func(current []string, prese
 	}
 
 	if moved {
-		removeLegacy(list.Legacy)
+		removeLegacy(list.legacy())
 	}
 
 	return nil

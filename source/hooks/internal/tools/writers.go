@@ -18,15 +18,27 @@ import (
 var ErrNotAWriter = errors.New("this library belongs to other checkouts")
 
 func (lib *library) writersList() writers.List {
-	return writers.List{Home: lib.env.Home, Key: lib.key, Lookup: lib.env.Checkout,
-		Legacy: filepath.Join(lib.ownDir(), "writers.json")}
+	return writers.List{Home: lib.env.Home, Key: lib.key, Lookup: lib.env.Checkout}
 }
 
 // writer admits this checkout to write the own store, claiming an unlisted
-// project for it, or says why not.
+// project for it, or says why not. Only a write under the store lock calls it.
 func (lib *library) writer(ctx context.Context) error {
-	err := lib.writersList().Admit(ctx, lib.env.Base)
+	return lib.refusal(lib.writersList().Admit(ctx, lib.env.Base))
+}
 
+// recorder says whether this checkout may record a take or a session's file,
+// claiming nothing: listed, or the project unclaimed.
+func (lib *library) recorder(ctx context.Context) error {
+	err := lib.writersList().Check(ctx, lib.env.Base)
+	if errors.Is(err, writers.ErrUnclaimed) {
+		return nil
+	}
+
+	return lib.refusal(err)
+}
+
+func (lib *library) refusal(err error) error {
 	var refusal writers.NotListed
 
 	switch {

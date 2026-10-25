@@ -76,7 +76,7 @@ func (lib *library) indexOf(ctx context.Context, held *store) *index {
 	}
 
 	if held.own && exists(held.path) {
-		_ = lib.locked(ctx, func() error { return lib.writeIndex(rebuilt) })
+		_ = lib.recording(ctx, func() error { return lib.writeIndex(rebuilt) })
 	}
 
 	return rebuilt
@@ -222,6 +222,16 @@ func (lib *library) writeIndex(held *index) error {
 // locked runs write holding the own store's lock, waiting at most LockWait.
 // The lock file records its holder's pid, which a refusal names.
 func (lib *library) locked(ctx context.Context, write func() error) error {
+	return lib.lockedAs(ctx, lib.writer, write)
+}
+
+// recording runs a record (a take line, an index a read rebuilt) under the
+// lock, claiming nothing: a record is no reason to own a project.
+func (lib *library) recording(ctx context.Context, write func() error) error {
+	return lib.lockedAs(ctx, lib.recorder, write)
+}
+
+func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) error, write func() error) error {
 	store, err := lib.ownStore()
 	if err != nil {
 		return fmt.Errorf("creating the store: %w", err)
@@ -261,7 +271,7 @@ func (lib *library) locked(ctx context.Context, write func() error) error {
 	_ = file.Truncate(0)
 	_, _ = file.Write([]byte(strconv.Itoa(os.Getpid()) + "\n"))
 
-	err = lib.writer(ctx)
+	err = admit(ctx)
 	if err != nil {
 		return err
 	}

@@ -152,3 +152,41 @@ func TestAProjectWithoutAStoreGetsNoList(t *testing.T) {
 		t.Error("a call touching no store should make no list")
 	}
 }
+
+func TestALibrarysListBindsMemoryToo(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	other := impostor(h)
+	legacy := filepath.Join(h.home, ".claude", "agentic-tools", filepath.FromSlash(repoID), "writers.json")
+	test.WriteFile(t, legacy, `["`+filepath.Join(h.repo, ".git")+`"]`+"\n")
+	_ = os.Remove(h.writersFile())
+
+	read := other.run("", "search", "--term", "gate")
+	if read.code != 1 || !strings.Contains(read.err, "this memory belongs to other checkouts: "+h.repo) {
+		t.Errorf("a library's list should bind memory's reads while the project's list is missing, got %d %q", read.code, read.err)
+	}
+
+	got := other.run("", "claim", "drive")
+	if got.code != 1 || !strings.Contains(got.err, "this memory belongs to other checkouts: "+h.repo) {
+		t.Errorf("a library's list should bind memory while the project's list is missing, got %d %q", got.code, got.err)
+	}
+}
+
+func TestAReadOfAnUnclaimedStoreClaimsNothing(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	_ = os.Remove(h.writersFile())
+
+	h.must("", "search", "--term", "gate")
+
+	if test.Exists(t, h.writersFile()) {
+		t.Error("a read should claim nothing")
+	}
+
+	h.file("Gate reads Bash only today", "finding")
+
+	if !test.Exists(t, h.writersFile()) {
+		t.Error("a write should claim an unclaimed store")
+	}
+}

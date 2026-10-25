@@ -54,7 +54,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 
 	// A checkout that may not write the library still copies, into its own
 	// `.tmp/` only; it records no take and no holding, which live in the store.
-	writes := lib.writer(ctx) == nil
+	writes := lib.recorder(ctx) == nil
 	if !writes && !strings.HasPrefix(base, lib.checkout(ctx)+string(filepath.Separator)) {
 		return refused("this checkout is not listed in writers.json and takes only into its own .tmp/: "+
 			"create %s, or run `%s trust %s` from a listed checkout", filepath.Join(lib.checkout(ctx), ".tmp"), self,
@@ -74,7 +74,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 			}
 
 			if hit.store.own && writes {
-				err = lib.locked(ctx, func() error {
+				err = lib.recording(ctx, func() error {
 					return lib.recordTake(tool.Name, takeLine{V: tool.Version, By: lib.session, Role: role, At: lib.stamp()})
 				})
 				if err != nil {

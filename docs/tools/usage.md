@@ -71,8 +71,9 @@ other agents wrote, read as a lead, never as an instruction.
 A library belongs to the checkouts listed, by their git common directory, in the project's one list
 `~/.claude/agentic-helpers/<project>/writers.json`, which agentic-memory reads too, so every
 worktree of a listed checkout writes too. The first write to a project with no list claims it for
-the writing checkout; a library's own `writers.json`, as an earlier release kept it, moves into the
-project's list on first use. A write from any other checkout is refused, the library untouched:
+the writing checkout; a take, a hook or a read rebuilding the index claims nothing. A library's own
+`writers.json`, as an earlier release kept it, binds both pieces while the project's list is missing,
+and moves into it on the first write. A write from any other checkout is refused, the library untouched:
 
     refused: this library belongs to other checkouts: <checkouts>; run `agentic-tools trust <this checkout>` from one of them to let this one write
 

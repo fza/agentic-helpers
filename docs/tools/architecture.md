@@ -38,8 +38,10 @@ and agentic-memory both: a project with no list is claimed by recording the writ
 directory, a listed writer goes ahead, any other is refused, and a list that cannot be read (a link,
 a pipe, a hard link, past 64 KiB, not an array of clean absolute paths) refuses everyone rather than
 being claimed over. A library's own `writers.json` from an earlier release moves into the project's
-list under that list's lock and is removed. The hooks check the list only where the library exists,
-so a project keeping none gets no list. A store's key is the declared
+list under that list's lock and is removed; until then it binds every check, so neither piece claims
+past it. A take line and an index a read rebuilt are written under the lock with a check that claims
+nothing. The hooks check the list only where the library exists, so a project keeping none gets no
+list. A store's key is the declared
 `repo_id`, which any checkout can declare; the list ties the right to write to the checkout, which
 it cannot. A version's files, its `tool.json` and its history line land
 before `current` names it, and the index is rewritten whole after every write; after a crash the
