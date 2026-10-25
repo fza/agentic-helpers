@@ -121,7 +121,8 @@ var interpreters = []string{
 // own libraries, as a word.
 var (
 	namesRemoval = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_-])(rm|rmdir|unlink|rmtree|rmSync|rmdirSync|unlinkSync|` +
-		`removeSync|remove_dir_all|remove_tree|removedirs|rm_rf|rm_r)([^A-Za-z0-9_-]|$)`)
+		`removeSync|remove_dir_all|remove_dir|remove_file|remove_tree|remove_entry|removedirs|deleteSync|rm_rf|rm_r|rm_f)` +
+		`([^A-Za-z0-9_-]|$)`)
 	namesMktemp = regexp.MustCompile(`(^|[^A-Za-z0-9_-])mktemp([^A-Za-z0-9_-]|$)`)
 )
 
@@ -387,7 +388,8 @@ func launched(args []*syntax.Word) []*syntax.Word {
 
 // namesScript is whether a shell's arguments name a script for it to run: its
 // first operand, unless -s sends it to standard input. An option taking a
-// value (-o, +o, -O, +O) takes the next word with it.
+// value (-o, -O, grouped as -eo, --rcfile, --init-file) takes the next word
+// with it.
 func namesScript(args []*syntax.Word) bool {
 	for index := 0; index < len(args); index++ {
 		value, isLiteral := literal(args[index])
@@ -397,11 +399,18 @@ func namesScript(args []*syntax.Word) bool {
 			return true
 		case value == "-" || value == "--":
 			return false
-		case value == "-o" || value == "+o" || value == "-O" || value == "+O":
+		case value == "--rcfile" || value == "--init-file":
 			index++
+		case strings.HasPrefix(value, "--"):
 		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
-			if strings.Contains(strings.TrimLeft(value, "-+"), "s") {
+			flags := strings.TrimLeft(value, "-+")
+			if strings.Contains(flags, "s") {
 				return false
+			}
+
+			// A grouped option taking a value, as -eo pipefail, takes the next word.
+			if strings.ContainsAny(flags, "oO") {
+				index++
 			}
 		default:
 			return true
@@ -586,10 +595,15 @@ func (inspection *inspector) unreadable(runner string, reason string) {
 	inspection.found.add(cannotPlace(inspection.options, "code handed to "+runner, whyNestedCode))
 }
 
+// shellCode is the word a shell runs as code: the one after an option
+// carrying c, or C, fish's init command, or the long --command and
+// --init-command.
 func shellCode(args []*syntax.Word) *syntax.Word {
 	for index, arg := range args {
 		value, _ := literal(arg)
-		if strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.Contains(value, "c") {
+
+		short := strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.ContainsAny(value, "cC")
+		if short || value == "--command" || value == "--init-command" {
 			if index+1 < len(args) {
 				return args[index+1]
 			}

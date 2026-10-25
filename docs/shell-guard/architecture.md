@@ -47,7 +47,9 @@ interpreter cannot be parsed: an argument whose text names `rm`, `rmdir`, `unlin
 word denies under the nested-code guard, and with it off a removal takes the same `cannot place`
 verdict. A shell at the end of a pipe, through any launchers before it, that is named no `-c` code and no
 script, or is told `-s`, reads its code from the pipe: code it cannot read. Its first operand past
-its options is the script, an option taking a value (`-o`, `-O`) taking the next word with it. A here-document or here-string fed to another interpreter is judged as its
+its options is the script, an option taking a value (`-o`, `-O`, grouped as `-eo`, `--rcfile`,
+`--init-file`) taking the next word with it. A shell's code is the word after an option carrying `c`,
+or fish's `C`, or after `--command` or `--init-command`. A here-document or here-string fed to another interpreter is judged as its
 inline code. Any other guard's verdict found inside nested code counts as found outside it.
 
 Every guard adds a verdict; `deny` outranks `ask`, which outranks letting the call run, and the first
