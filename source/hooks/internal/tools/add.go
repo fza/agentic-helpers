@@ -157,7 +157,11 @@ func (lib *library) reachOf(ctx context.Context, at string) (string, string, boo
 			continue
 		}
 
-		if root == checkout && strings.Split(filepath.ToSlash(relative), "/")[0] == ".git" {
+		// A `.git` at any depth is a repository's own, a submodule's included, and
+		// a case-insensitive filesystem reaches it as `.GIT` too.
+		if slices.ContainsFunc(strings.Split(filepath.ToSlash(relative), "/"), func(name string) bool {
+			return strings.EqualFold(name, ".git")
+		}) {
 			continue
 		}
 

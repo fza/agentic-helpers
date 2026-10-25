@@ -259,6 +259,10 @@ func TestAddRefusals(t *testing.T) {
 			"lies outside the checkout, AGENTIC_TOOLS_SCRATCH and the taken copies"},
 		{"inside .git", []string{"add", "in-git", "--from", h.file(".git/hook.sh", "x"), "--summary", "x", "--usage", "u"},
 			"lies outside the checkout"},
+		{"inside a submodule's .git", []string{"add", "in-git", "--from", h.file("vendor/lib/.git/hook.sh", "x"), "--summary", "x",
+			"--usage", "u"}, "lies outside the checkout"},
+		{"inside .git spelled in capitals", []string{"add", "in-git", "--from", filepath.Join(h.repo, ".GIT", "HEAD"), "--summary", "x",
+			"--usage", "u"}, "lies outside the checkout"},
 	}
 
 	for _, tc := range cases {
