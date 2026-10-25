@@ -74,7 +74,7 @@ func TestAClaimMintsASeatID(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":2`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
 		t.Errorf("the claim creating a store should write it at the current format, got %s", format)
 	}
 
@@ -95,7 +95,7 @@ func TestAClaimMintsASeatID(t *testing.T) {
 		}
 	}
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":2`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
 		t.Errorf("a fresh store should be written at the current format, got %s", format)
 	}
 }
@@ -165,7 +165,7 @@ func TestAFormat1StoreMigrates(t *testing.T) {
 
 	h.must("", "topics")
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":2`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
 		t.Fatalf("the store should be at the current format after one call, got %s", format)
 	}
 
@@ -292,12 +292,12 @@ func TestANewerStoreIsRefused(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.file("Gate reads Bash only today", "finding")
-	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format": 3}`)
+	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format": 4}`)
 
 	before := test.Tree(t, h.store())
 
 	got := h.run("", "search", "--term", "Gate")
-	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this store has format 3; this release reads up to 2") {
+	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this store has format 4; this release reads up to 3") {
 		t.Errorf("a store of a newer format should be refused naming both, got %d %q", got.code, got.err)
 	}
 

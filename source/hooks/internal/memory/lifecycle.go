@@ -3,12 +3,23 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
+
+// mayEdit is whether seatName may retire, retain, retitle or tag the entry:
+// every seat on the entry's shelf may.
+func (mem *memory) mayEdit(_ *state, held *entry, seatName string) bool {
+	return mem.onShelf(held, seatName)
+}
+
+func (mem *memory) notOnShelf(held *entry) string {
+	return fmt.Sprintf("%s is on shelf %s", held.id, mem.shelfName(mem.entryShelf(held)))
+}
 
 // change loads the log, checks the entry and the acting seat, and appends one
 // event. ownerOnly holds an event to the seat that filed the entry.
@@ -30,8 +41,8 @@ func (mem *memory) change(ctx context.Context, id string, ownerOnly bool,
 		return "", nil, refused("%s: %s", id, ErrNoEntry), false
 	}
 
-	if ownerOnly && held.seat != name {
-		return "", nil, refused("%s belongs to %s", id, held.seat), false
+	if ownerOnly && !mem.mayEdit(folded, held, name) {
+		return "", nil, refused("%s", mem.notOnShelf(held)), false
 	}
 
 	if check != nil {
@@ -90,8 +101,8 @@ func (mem *memory) batch(ctx context.Context, verb string, ids []string, ownerOn
 		switch {
 		case !found:
 			failures = append(failures, fmt.Sprintf("%s: %s", id, ErrNoEntry))
-		case ownerOnly && held.seat != name:
-			failures = append(failures, fmt.Sprintf("%s belongs to %s", id, held.seat))
+		case ownerOnly && !mem.mayEdit(folded, held, name):
+			failures = append(failures, mem.notOnShelf(held))
 		case check != nil:
 			err = check(folded, held)
 			if err != nil {
@@ -212,14 +223,14 @@ func (mem *memory) supersedable(successor string) func(folded *state, held *entr
 func (mem *memory) revive(ctx context.Context, req request) result {
 	name, _ := mem.seated(ctx)
 
-	_, _, failure, ok := mem.change(ctx, req.ID, false, func(_ *state, held *entry) error {
+	_, _, failure, ok := mem.change(ctx, req.ID, false, func(folded *state, held *entry) error {
 		last, found := held.latest()
 		if !found {
 			return fmt.Errorf("%s was never retired or superseded", held.id)
 		}
 
-		if last.kind == memorylog.KindRetire && held.seat != name {
-			return fmt.Errorf("%s belongs to %s", held.id, held.seat)
+		if last.kind == memorylog.KindRetire && !mem.mayEdit(folded, held, name) {
+			return errors.New(mem.notOnShelf(held))
 		}
 
 		if held.dropped || (last.kind == memorylog.KindSupersede && mem.now().Sub(last.at) > supersedeKeep) {

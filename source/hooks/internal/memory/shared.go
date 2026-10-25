@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
 
 // forAllSeats is the word `--for` takes for every seat, present and future,
@@ -49,8 +49,9 @@ func (held *recipients) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// recipientsFor turns the seat names a `--for` gave into the keys an entry
-// stores, refusing a name no seat has.
+// recipientsFor turns the names a `--for` gave into the shelf ids an entry
+// stores: a shelf name names that shelf, a seat name the seat's shelf. A name
+// neither carries is refused, and the filer's own shelf is left out.
 func (mem *memory) recipientsFor(names []string, filer string) (*recipients, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -61,50 +62,52 @@ func (mem *memory) recipientsFor(names []string, filer string) (*recipients, err
 	}
 
 	held := &recipients{}
+	shelves, _ := mem.shelves()
+	own := mem.shelfOf(filer)
 
 	for _, name := range names {
-		key := mem.seatKey(name)
-		if key == "" {
-			return nil, fmt.Errorf("--for names no seat called %s; %s sweep lists the seats", name, self)
+		shelf, found := shelves.IDOf(name)
+		if !found {
+			shelf = mem.shelfOf(name)
 		}
 
-		if name != filer && !slices.Contains(held.Seats, key) {
-			held.Seats = append(held.Seats, key)
+		if shelf == "" {
+			return nil, fmt.Errorf("--for names no seat or shelf called %s; %s who lists them", name, self)
+		}
+
+		if shelf != own && !slices.Contains(held.Seats, shelf) {
+			held.Seats = append(held.Seats, shelf)
 		}
 	}
 
 	return held, nil
 }
 
-// follows is every topic the seat named seatName follows, each read through
-// the topic merges.
+// follows is every topic the shelf of seatName follows, each read through the
+// topic merges.
 func (mem *memory) follows(folded *state, seatName string) []string {
-	registry, found := mem.registry()
+	shelves, found := mem.shelves()
 	if !found {
 		return nil
 	}
 
-	id, known := registry.IDOf(seatName)
-	if !known {
-		return nil
-	}
-
 	var topics []string
-	for _, topic := range registry.Seats[id].Follows {
+	for _, topic := range shelves.Shelves[mem.shelfOf(seatName)].Follows {
 		topics = append(topics, folded.resolve(topic))
 	}
 
 	return topics
 }
 
-// receives is whether the entry reaches seatName without being its own: filed
-// for every seat, for seatName by key, or under a topic seatName follows.
+// receives is whether the entry reaches seatName from another shelf: filed for
+// every seat, for seatName's shelf, or under a topic that shelf follows.
 func (mem *memory) receives(folded *state, held *entry, seatName string) bool {
-	if seatName == "" || held.seat == seatName {
+	mine := mem.shelfOf(seatName)
+	if seatName == "" || mine == "" || mem.entryShelf(held) == mine {
 		return false
 	}
 
-	if held.forAll || slices.Contains(held.forKeys, mem.seatKey(seatName)) {
+	if held.forAll || slices.ContainsFunc(held.forKeys, func(key string) bool { return mem.recipientShelf(key) == mine }) {
 		return true
 	}
 
@@ -113,22 +116,23 @@ func (mem *memory) receives(folded *state, held *entry, seatName string) bool {
 	return slices.ContainsFunc(folded.topicsOf(held), func(topic string) bool { return slices.Contains(followed, topic) })
 }
 
-// ownOrReceived is whether the entry stands with seatName's own.
+// ownOrReceived is whether the entry stands with seatName's own: on its shelf,
+// or received from another.
 func (mem *memory) ownOrReceived(folded *state, held *entry, seatName string) bool {
-	return held.seat == seatName || mem.receives(folded, held, seatName)
+	return mem.onShelf(held, seatName) || mem.receives(folded, held, seatName)
 }
 
 // annotate names each entry's recipients the way its line shows them: every
-// seat, the seats it was filed for, or the followers of its topics where only a
-// follow brings it to anyone.
+// seat, the shelves it was filed for, or the followers of its topics where only
+// a follow brings it to anyone.
 func (mem *memory) annotate(folded *state) {
-	registry, found := mem.registry()
+	shelves, found := mem.shelves()
 
 	followed := map[string]bool{}
 
 	if found {
-		for _, id := range registry.IDs() {
-			for _, topic := range registry.Seats[id].Follows {
+		for _, id := range shelves.IDs() {
+			for _, topic := range shelves.Shelves[id].Follows {
 				followed[folded.resolve(topic)] = true
 			}
 		}
@@ -141,7 +145,7 @@ func (mem *memory) annotate(folded *state) {
 		case len(held.forKeys) > 0:
 			names := make([]string, 0, len(held.forKeys))
 			for _, key := range held.forKeys {
-				names = append(names, mem.seatName(key))
+				names = append(names, mem.shelfName(mem.recipientShelf(key)))
 			}
 
 			held.recipients = strings.Join(names, ", ")
@@ -162,7 +166,8 @@ func (mem *memory) annotate(folded *state) {
 	}
 }
 
-// setFollows changes what the seat the calling session holds follows.
+// setFollows changes what the shelf of the seat the calling session holds
+// follows: every seat on it receives what it follows.
 func (mem *memory) setFollows(ctx context.Context, req request, add bool) result {
 	own, _ := mem.ownSeat(ctx)
 	if own == "" {
@@ -188,17 +193,15 @@ func (mem *memory) setFollows(ctx context.Context, req request, add bool) result
 	}
 	defer unlock()
 
-	registry, found, err := seat.LoadRegistry(mem.store())
-	if err != nil {
-		return refused("%v", err)
-	}
+	mem.forgetShelves()
 
-	id, known := registry.IDOf(own)
+	shelves, found := mem.shelves()
+	shelf := mem.shelfOf(own)
+
+	held, known := shelves.Shelves[shelf]
 	if !found || !known {
-		return refused("this store keeps no seat ids yet, so %s cannot follow topics", own)
+		return refused("this store keeps no shelves yet, so %s cannot follow topics", own)
 	}
-
-	held := registry.Seats[id]
 
 	for _, topic := range topics {
 		switch {
@@ -210,20 +213,20 @@ func (mem *memory) setFollows(ctx context.Context, req request, add bool) result
 	}
 
 	slices.Sort(held.Follows)
-	registry.Seats[id] = held
+	shelves.Shelves[shelf] = held
 
-	err = registry.Save()
+	err = shelves.Save()
 	if err != nil {
 		return refused("%v", err)
 	}
 
-	mem.forgetRegistry()
+	mem.forgetShelves()
 
 	if len(held.Follows) == 0 {
-		return done(own + " follows no topic")
+		return done(held.Name + " follows no topic")
 	}
 
-	return done(fmt.Sprintf("%s follows %s", own, strings.Join(held.Follows, ", ")))
+	return done(fmt.Sprintf("%s follows %s", held.Name, strings.Join(held.Follows, ", ")))
 }
 
 func (mem *memory) follow(ctx context.Context, req request) result {
@@ -234,19 +237,31 @@ func (mem *memory) unfollow(ctx context.Context, req request) result {
 	return mem.setFollows(ctx, req, false)
 }
 
-// seenMark is when the newest entry a seat was told had arrived was filed, and
+// seenMark is when the newest entry a seat was told had arrived was filed,
+// when the newest change to its shelf's entries it was told of was made, and
 // how the log stood when the seat last looked.
 type seenMark struct {
-	At  time.Time `json:"at"`
-	Log string    `json:"log,omitempty"`
+	At      time.Time `json:"at"`
+	Changed time.Time `json:"changed,omitzero"`
+	Log     string    `json:"log,omitempty"`
 }
 
 func (mem *memory) seenPath(seatName string) string {
 	return filepath.Join(mem.cacheDir(), "briefs", mem.seatKey(seatName)+".seen.json")
 }
 
-// arrivals is every entry seatName receives that was filed after its seen mark,
-// oldest first. A seat without a mark has seen everything filed so far.
+// arrives is whether the entry is news for seatName: filed by a shelf mate, or
+// received from another shelf.
+func (mem *memory) arrives(folded *state, held *entry, seatName string) bool {
+	if held.seat == seatName {
+		return false
+	}
+
+	return mem.onShelf(held, seatName) || mem.receives(folded, held, seatName)
+}
+
+// arrivals is every entry seatName is told of that was filed after its seen
+// mark, oldest first. A seat without a mark has seen everything filed so far.
 func (mem *memory) arrivals(folded *state, seatName string) []*entry {
 	var mark seenMark
 	if !readJSON(mem.seenPath(seatName), &mark) {
@@ -258,7 +273,7 @@ func (mem *memory) arrivals(folded *state, seatName string) []*entry {
 	var arrived []*entry
 
 	for _, held := range folded.entryList() {
-		if held.status == statusLive && held.filed.After(mark.At) && mem.receives(folded, held, seatName) {
+		if held.status == statusLive && held.filed.After(mark.At) && mem.arrives(folded, held, seatName) {
 			arrived = append(arrived, held)
 		}
 	}
@@ -268,10 +283,57 @@ func (mem *memory) arrivals(folded *state, seatName string) []*entry {
 	return arrived
 }
 
+// shelfEdits are the kinds of change any seat on a shelf may make to its
+// entries, and so the ones its shelf mates are told of.
+var shelfEdits = []memorylog.Kind{memorylog.KindRetire, memorylog.KindRetain, memorylog.KindRetitle, memorylog.KindTag}
+
+type shelfChange struct {
+	held *entry
+	change
+}
+
+// shelfChanges is every change a shelf mate made to an entry on seatName's
+// shelf after its mark, oldest first. A mark from before shelves starts the
+// count now.
+func (mem *memory) shelfChanges(folded *state, seatName string) []shelfChange {
+	var mark seenMark
+	if !readJSON(mem.seenPath(seatName), &mark) || mark.Changed.IsZero() {
+		mark.Changed = mem.now()
+		_ = writeJSON(mem.seenPath(seatName), mark)
+
+		return nil
+	}
+
+	var changed []shelfChange
+
+	for _, held := range folded.entryList() {
+		if !mem.onShelf(held, seatName) {
+			continue
+		}
+
+		for _, other := range held.events {
+			if other.seat != seatName && other.at.After(mark.Changed) && slices.Contains(shelfEdits, other.kind) {
+				changed = append(changed, shelfChange{held: held, change: other})
+			}
+		}
+	}
+
+	slices.SortStableFunc(changed, func(a, b shelfChange) int { return a.at.Compare(b.at) })
+
+	return changed
+}
+
 func (mem *memory) markSeen(seatName string, at time.Time) {
 	var mark seenMark
 	readJSON(mem.seenPath(seatName), &mark)
 	mark.At = at
+	_ = writeJSON(mem.seenPath(seatName), mark)
+}
+
+func (mem *memory) markChanged(seatName string, at time.Time) {
+	var mark seenMark
+	readJSON(mem.seenPath(seatName), &mark)
+	mark.Changed = at
 	_ = writeJSON(mem.seenPath(seatName), mark)
 }
 
@@ -282,22 +344,40 @@ func (mem *memory) noteLog(seatName string, signature string) {
 	_ = writeJSON(mem.seenPath(seatName), mark)
 }
 
-// announce is the lines telling seatName what arrived, and moves its mark past
-// them; nothing where nothing did.
+// announce is the lines telling seatName what arrived and what its shelf mates
+// changed, and moves its mark past them; nothing where nothing did.
 func (mem *memory) announce(ctx context.Context, folded *state, seatName string) string {
 	arrived := mem.arrivals(folded, seatName)
-	if len(arrived) == 0 {
+	changed := mem.shelfChanges(folded, seatName)
+
+	if len(arrived) == 0 && len(changed) == 0 {
 		return ""
 	}
 
 	here := mem.checkout(ctx)
-	lines := []string{fmt.Sprintf("%s: new for %s (%d):", self, seatName, len(arrived))}
 
-	for _, held := range arrived {
-		lines = append(lines, "  "+line(here, held))
+	var lines []string
+
+	if len(arrived) > 0 {
+		lines = append(lines, fmt.Sprintf("%s: new for %s (%d):", self, seatName, len(arrived)))
+
+		for _, held := range arrived {
+			lines = append(lines, "  "+line(here, held))
+		}
+
+		mem.markSeen(seatName, arrived[len(arrived)-1].filed)
 	}
 
-	mem.markSeen(seatName, arrived[len(arrived)-1].filed)
+	if len(changed) > 0 {
+		lines = append(lines, fmt.Sprintf("%s: changed on shelf %s (%d):", self, mem.shelfName(mem.shelfOf(seatName)),
+			len(changed)))
+
+		for _, other := range changed {
+			lines = append(lines, fmt.Sprintf("  %s %s: %s by %s", other.held.id, other.held.title, other.text, other.seat))
+		}
+
+		mem.markChanged(seatName, changed[len(changed)-1].at)
+	}
 
 	return strings.Join(lines, "\n")
 }

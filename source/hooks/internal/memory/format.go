@@ -12,10 +12,10 @@ import (
 )
 
 // storeFormat is the store's shape this release reads and writes: seats keyed
-// by id through the registry. A store without format.json is format 1, keyed
-// by seat name.
+// by id through the registry, each filing onto a shelf of shelves.json. A store
+// without format.json is format 1, keyed by seat name; format 2 has no shelves.
 const (
-	storeFormat = 2
+	storeFormat = 3
 	formatName  = "format.json"
 )
 
@@ -45,8 +45,8 @@ func readFormat(store string) (int, error) {
 	return held.Format, nil
 }
 
-func writeFormat(store string) error {
-	data, err := json.Marshal(formatFile{Format: storeFormat})
+func writeFormat(store string, version int) error {
+	data, err := json.Marshal(formatFile{Format: version})
 	if err != nil {
 		return fmt.Errorf("encoding the store's format: %w", err)
 	}
@@ -86,7 +86,20 @@ func (mem *memory) initStore() error {
 		}
 	}
 
-	mem.forgetRegistry()
+	shelves, found, err := seat.LoadShelves(mem.store())
+	if err != nil {
+		return err
+	}
 
-	return writeFormat(mem.store())
+	if !found {
+		err = shelves.Save()
+		if err != nil {
+			return err
+		}
+	}
+
+	mem.forgetRegistry()
+	mem.forgetShelves()
+
+	return writeFormat(mem.store(), storeFormat)
 }

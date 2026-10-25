@@ -55,9 +55,10 @@ declared key and is not listed.
 ## Seats
 
 A **seat** is a named job, held by one session at a time; claiming one is what turns memory on for
-a session, by a prompt or an instruction line. Every entry carries the seat that filed it, and a
-search covers the own seat unless it names others, so one seat sees what another holds and nothing
-is done twice. A call finds its seat through the `claude` process that owns it, so a command run
+a session, by a prompt or an instruction line. Every seat files onto a **shelf**, its own unless it
+was claimed onto another (see [Shelves](#shelves)). Every entry carries the seat that filed it and
+belongs to that seat's shelf, and a search covers the own shelf unless it names seats, so one seat
+sees what another holds and nothing is done twice. A call finds its seat through the `claude` process that owns it, so a command run
 from the Bash tool, a tool call to the plugin's MCP server and a hook all agree, also after `/clear`.
 
 ```bash
@@ -76,9 +77,10 @@ reads (`claim`, `release`, `holder`, `--seat`, the MCP keys carrying a seat, `ex
 precomposed or decomposed names one seat with one file.
 
 `rename '<new name>'` (MCP `rename`, key `name`) gives the seat the calling session holds a new
-name; its id, its entries and its files stay. A name in use, an invalid one, or one in a seat id's
-shape (`s-` and 6 letters or digits) is refused. The old name is free afterwards, and claiming it
-starts a new seat.
+name; its id, its entries and its files stay, and a shelf of its own, carrying its old name, takes
+the new one too. A name in use by a seat or a shelf, an invalid one, or one in a seat id's shape
+(`s-` and 6 letters or digits) is refused. The old name is free afterwards, and claiming it starts a
+new seat.
 
 An agent asked for a seat in words that are not its exact name ("Haupt-Session") lists the seats
 with `sweep`, maps the words onto the seat meaning the same, and asks when none or several fit.
@@ -87,6 +89,35 @@ A seat whose holder still runs is refused to every other session, always: nothin
 holder from a busy one, and a busy one losing its seat would find every write refused without
 noticing. The seat frees when its holder runs `release` or its session ends; a seat whose holder has
 gone is free to claim, and `sweep` frees every such seat of the project.
+
+## Shelves
+
+A **shelf** is the memory one or more seats share. A seat claimed without `--shelf` gets a shelf of
+its own, under its name, so a store where no seat shares behaves as one memory per seat. Several
+seats on one shelf, as the agents working one board row, read and write one memory, while each
+still holds its own seat and every entry still names the seat that filed it.
+
+```bash
+agentic-memory claim impl-7ah --shelf row-7ah   # a new seat onto shelf row-7ah, made where none exists
+agentic-memory claim --shelf row-7ah            # a new seat row-7ah-<n>, the lowest free n, onto it
+```
+
+- **A seat stays on its shelf for good.** `--shelf` takes effect when the seat is first claimed; a
+  later claim naming another shelf is refused, `<seat> is on shelf <name>`. MCP: key `shelf` on
+  `claim`, and `name` left out for a minted seat.
+- **Shelf names** follow the seat-name rule, no two shelves share one, and none takes an id's shape.
+  A new seat claimed without `--shelf` under a name a shelf already carries is refused:
+  `<name> names a shelf; claim it with --shelf <name>`.
+- **A seat's memory is its shelf.** Its brief, a search without `--seat` or `--all-seats` and
+  prompt recall treat every entry on the shelf as the seat's own; `search --seat <s>` narrows to one
+  filer. The brief of a seat on a shelf of another name opens `agentic-memory: seat rev on shelf
+  row-7ah, ...`.
+- **Every seat on the shelf may retire, retain, retitle and tag its entries.** A seat on another
+  shelf is refused: `<id> is on shelf <name>`.
+- **The seats on a shelf are its subscribers.** A shelf mate's new entry arrives as
+  `agentic-memory: new for <seat> (<n>):`, and a retire, retain, retitle or tag a shelf mate made
+  arrives as `agentic-memory: changed on shelf <name> (<n>):`, one line per change,
+  `<id> <title>: <what> by <seat>`, both through the paths shared entries arrive by.
 
 ## Entries
 
@@ -118,18 +149,20 @@ most 16; an id filed at another length keeps working.
 An entry can reach seats besides the one that filed it. A seat receives an entry when any of these
 holds:
 
-- the entry names it: `new ... --for <seat>`, repeatable (MCP key `for`, an array);
+- the entry names its shelf: `new ... --for <name>`, repeatable (MCP key `for`, an array), a shelf
+  name for that shelf or a seat name for the seat's shelf;
 - the entry is for every seat, present and future: `--for all`, which is why no seat may be named
   `all`;
-- the seat follows one of the entry's topics: `follow <topic>...` and `unfollow <topic>...` (MCP
-  `follow`, `unfollow`, key `topic`) change what the seat the session holds follows, read through
-  topic merges.
+- the seat's shelf follows one of the entry's topics: `follow <topic>...` and
+  `unfollow <topic>...` (MCP `follow`, `unfollow`, key `topic`) change what the shelf of the seat
+  the session holds follows, for every seat on it, read through topic merges.
 
-The filing seat is never its own recipient. A received entry stands with the seat's own: in its
-brief, in a search without `--seat` or `--all-seats`, and in prompt recall at the own seat's bar.
-Ownership stays the filer's: only it retires, retains, retitles or tags the entry, while any seat
-may supersede or confirm it. An entry line names its recipients after the filer: `[main → all, ...]`,
-`[main → idea, review, ...]`, or `[main → infra followers, ...]` where only a follow brings it.
+The filing seat's own shelf is never a recipient. A received entry stands with the seat's own: in
+its brief, in a search without `--seat` or `--all-seats`, and in prompt recall at the own seat's
+bar. Ownership stays the filing shelf's: only its seats retire, retain, retitle or tag the entry,
+while any seat may supersede or confirm it. An entry line names its recipients after the filer:
+`[main → all, ...]`, `[main → idea, row-7ah, ...]`, or `[main → infra followers, ...]` where only a
+follow brings it.
 
 A seat hears about every entry it receives, once, as the lines `agentic-memory: new for <seat> (<n>):`
 and one entry line each: at the next prompt, at the agent's next tool call, and, for a session idle
@@ -165,7 +198,7 @@ similar-entry hint offers both fixes: `replaces it → agentic-memory supersede 
 longer matter: they leave the brief and stay in search, flagged `retired <stamp>: <why>`, the reason
 standing after the stamp where one was given. `supersede <id>... --by <id>` replaces entries and
 `supersede <id>... --because '<why>'` marks them wrong; `revive <id>` undoes the latest of either
-within 14 days. Only the filing seat retires or retains its own entries; any seat may supersede or
+within 14 days. Only the seats on an entry's shelf retire or retain it; any seat may supersede or
 confirm.
 
 `supersede`, `confirm <id>...`, `retain <id>... <level>` and `retire` take several ids, and land all
@@ -175,7 +208,7 @@ id, with nothing written:
 
     agentic-memory: nothing superseded:
       m-b is already superseded
-      m-c belongs to main
+      m-c is on shelf main
 
 Otherwise every change lands in one append and the reply names each id:
 `superseded m-a, m-b, m-c by m-d`. Over MCP, `supersede`, `confirm` and `retain` take `ids`, an

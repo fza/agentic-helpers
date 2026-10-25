@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -111,16 +112,30 @@ func newSeatName(name string) string {
 }
 
 func (mem *memory) claim(ctx context.Context, req request) result {
-	why := newSeatName(req.Name)
-	if why != "" {
-		return refused("%s", why)
+	if req.Name == "" && req.Shelf == "" {
+		return refused("claim names a seat, or a shelf with --shelf to claim a new seat on it")
+	}
+
+	if req.Shelf != "" {
+		why := newShelfName(req.Shelf)
+		if why != "" {
+			return refused("%s", why)
+		}
+	}
+
+	if req.Name != "" {
+		why := newSeatName(req.Name)
+		if why != "" {
+			return refused("%s", why)
+		}
 	}
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
 
 	current, _ := mem.ownSeat(ctx)
 	if current != "" && current != req.Name {
-		return refused("this session already holds %s; release that seat before claiming %s", current, req.Name)
+		return refused("this session already holds %s; release that seat before claiming %s", current,
+			cmp.Or(req.Name, "another"))
 	}
 
 	if !mem.storeExists() {
@@ -130,8 +145,24 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		}
 	}
 
-	dir := mem.seatsDir()
+	if req.Name == "" {
+		name, err := mem.mintShared(ctx, req.Shelf)
+		if err != nil {
+			return refused("%v", err)
+		}
+
+		req.Name = name
+	}
+
 	key := mem.seatKey(req.Name)
+	if key != "" && req.Shelf != "" {
+		on := mem.shelfName(mem.shelfOfKey(key))
+		if on != req.Shelf {
+			return refused("%s is on shelf %s", req.Name, on)
+		}
+	}
+
+	dir := mem.seatsDir()
 	existing, found := seat.Read(dir, key)
 	previous, hadPrevious := existing, found
 
@@ -170,7 +201,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		held.Started = seat.FormatStarted(started)
 	}
 
-	key, err := mem.ensureSeat(ctx, req.Name)
+	key, err := mem.ensureSeat(ctx, req.Name, req.Shelf)
 	if err != nil {
 		return refused("%v", err)
 	}
@@ -376,12 +407,39 @@ func (mem *memory) rename(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
+	shelves, _, err := seat.LoadShelves(mem.store())
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	other, carried := shelves.IDOf(req.Name)
+	shelf := registry.Seats[id].Shelf
+
+	if carried && other != shelf {
+		return refused("%s already names a shelf", req.Name)
+	}
+
+	// A seat's own shelf carries its name and goes with it; a shared shelf keeps
+	// its own.
+	if shelves.NameOf(shelf) == own {
+		err = shelves.Rename(shelf, req.Name)
+		if err != nil {
+			return refused("%v", err)
+		}
+
+		err = shelves.Save()
+		if err != nil {
+			return refused("%v", err)
+		}
+	}
+
 	err = registry.Save()
 	if err != nil {
 		return refused("%v", err)
 	}
 
 	mem.forgetRegistry()
+	mem.forgetShelves()
 
 	return done(fmt.Sprintf("%s is now %s", own, req.Name))
 }

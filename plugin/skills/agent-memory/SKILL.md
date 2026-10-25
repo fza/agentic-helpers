@@ -33,10 +33,13 @@ Memory works in the background. The user hears about it only when something goes
 
 ## Seat
 
-Seat = named job, one session at a time. Entries carry the seat that filed them.
+Seat = named job, one session at a time. Every seat files onto a **shelf**: its own unless claimed
+onto another. Entries carry the seat that filed them and belong to its shelf.
 
 ```bash
 agentic-memory claim <seat>             # free seat; prints brief + last turns of the previous session
+agentic-memory claim <seat> --shelf <s> # a new seat onto shelf s, made where none exists
+agentic-memory claim --shelf <s>        # a new seat <s>-<n> onto shelf s
 agentic-memory release [<seat>]
 agentic-memory rename '<new name>'      # the seat this session holds; id and entries stay
 agentic-memory holder <seat> [--json]   # exit 0 held, 1 free
@@ -51,13 +54,36 @@ agentic-memory who                      # every live seated session, every proje
   principal") → run `agentic-memory sweep` for the current seats, map the words onto the seat whose
   name means the same, claim it. No seat or several fit → ask the user which, naming the seats.
   Never coin a new seat from a translation without asking.
+- **"<seat>, shared"** ("main, shared", "Haupt-Session, geteilt") → a seat on `<seat>`'s memory,
+  without asking wherever one reading fits:
+  - `<seat>` exists and is free → `claim <seat>`;
+  - `<seat>` exists and is held → `claim --shelf <its shelf>`, a new seat beside it;
+  - `<seat>` is new and the store holds exactly one shelf → `claim <seat> --shelf <that shelf>`;
+  - `<seat>` is new and several shelves, or none, exist → ask the user which shelf, naming them.
 - **Held by a running session → refused, always.** Nothing seizes it. It frees when its holder runs
   `release` or its session ends. Stuck holder → the user's to close, or ask its agent to release.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
 - **Only inside a git work tree.** Outside: every call refuses, `<dir> is not inside a git work
   tree; memory works only in one`. Plugin option `memory_require_git: false` lifts it, machine-wide.
-- **A seat has an id** (`s-` + 6), its name a label: `rename` changes only the name, the old name
-  frees. A name in an id's shape is refused.
+- **A seat has an id** (`s-` + 6), its name a label: `rename` changes only the name (and a shelf of
+  its own with it), the old name frees. A name in an id's shape is refused.
+
+## Shelf
+
+Shelf = the memory seats share. Several seats on one shelf (agents on one board row) read and write
+one memory; each still holds its own seat.
+
+- **A seat stays on its shelf for good.** `claim <seat> --shelf <other>` → refused
+  `<seat> is on shelf <name>`. New seat named like a shelf, no `--shelf` → refused
+  `<name> names a shelf; claim it with --shelf <name>`.
+- **The shelf is the seat's memory**: brief, search, recall cover every entry on it.
+  `search --seat <s>` narrows to one filer. Brief opens `seat <seat> on shelf <shelf>` where the
+  shelf has another name.
+- **Every seat on the shelf may `retire`, `retain`, `retitle`, `tag` its entries.** Seat on another
+  shelf → refused `<id> is on shelf <name>`.
+- **`agentic-memory: changed on shelf <name> (<n>):`** → a shelf mate retired, retained, retitled
+  or tagged an entry. One line each, `<id> <title>: <what> by <seat>`. Act on it, say nothing about
+  the mechanism.
 - Store → `~/.claude/agentic-memory/<project>/`, outside the repo. Project = `.sdd/config.yaml`
   `repo_id`, else a hash of the main checkout. Worktrees share it.
 
@@ -101,16 +127,18 @@ Graph holds the decision → never a second copy: memory points at its id. **No 
 ## Shared entries
 
 ```bash
-agentic-memory new --title '...' --topic infra --for idea --for review <<'EOF'   # named seats
+agentic-memory new --title '...' --topic infra --for idea --for row-7ah <<'EOF'  # a seat's shelf, a shelf
 agentic-memory new --title '...' --topic infra --for all <<'EOF'                 # every seat
-agentic-memory follow infra        # this seat receives everything filed under infra
+agentic-memory follow infra        # this seat's shelf receives everything filed under infra
 agentic-memory unfollow infra
 ```
 
-- **Handover, blocker, changed fact another seat needs → `--for`.** It lands in their brief, their
-  search and their recall as if their own. Only you retire it.
+- **Handover, blocker, changed fact another seat needs → `--for`.** A seat name stands for its
+  shelf. It lands in every seat on it: brief, search, recall, as if their own. Only your shelf
+  retires it.
 - **`agentic-memory: new for <seat> (<n>):`** at a prompt, a tool call, or as a turn that wakes an
-  idle session → entries filed for this seat. Read them, act on them, say nothing about the mechanism.
+  idle session → entries filed for this seat, or by a shelf mate. Read them, act on them, say
+  nothing about the mechanism.
 
 ## Retention = how long it stays in view
 
@@ -188,8 +216,8 @@ agentic-memory merge <from> <into>                    # every seat's topic
   Send it again without them. `new --absorbs` over a failing id → `nothing filed:`, same shape.
   MCP: `supersede`, `confirm`, `retain` take `ids` (an array), never `id`; `new` takes `absorbs`.
 - **Folding notes into one → `new --absorbs`**, never a `new` then a `supersede` per note.
-- Another seat's entry: `supersede`, `confirm` allowed, owner's next brief lists them. `retire`,
-  `retain`, `retitle`, `tag` → refused `<id> belongs to <seat>`.
+- Another shelf's entry: `supersede`, `confirm` allowed, its seats' next brief lists them.
+  `retire`, `retain`, `retitle`, `tag` → refused `<id> is on shelf <name>`.
 - Nothing is ever rewritten or deleted by an agent. Superseded bodies drop 14 days on, retired ones
   `retired_body_days` on (90 unless set). Dropped body → `revive` refused, file it again.
 - `show`'s event list keeps 14 days. Older events fold into the entry's current state.

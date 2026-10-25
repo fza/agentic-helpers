@@ -119,9 +119,9 @@ func TestABatchWithAFailingIDLandsNothing(t *testing.T) {
 			[]string{superseded + " is already superseded"}},
 		{"retire over a retired id", []string{"retire", live, retired}, "retired", []string{retired + " is already retired"}},
 		{"retain over another seat's id", []string{"retain", live, foreign, "long"}, "retained",
-			[]string{foreign + " belongs to drive"}},
+			[]string{foreign + " is on shelf drive"}},
 		{"every failing id", []string{"retire", live, retired, foreign, "m-zzzz99"}, "retired",
-			[]string{retired + " is already retired", foreign + " belongs to drive", "m-zzzz99: no such entry"}},
+			[]string{retired + " is already retired", foreign + " is on shelf drive", "m-zzzz99: no such entry"}},
 		{"confirm over a missing id", []string{"confirm", live, "m-zzzz99"}, "confirmed", []string{"m-zzzz99"}},
 	}
 

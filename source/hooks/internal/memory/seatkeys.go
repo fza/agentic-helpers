@@ -58,44 +58,6 @@ func (mem *memory) seatName(key string) string {
 	return registry.NameOf(key)
 }
 
-// ensureSeat is the key of the seat named name, minting it where the store
-// has no seat by that name yet.
-func (mem *memory) ensureSeat(ctx context.Context, name string) (string, error) {
-	key := mem.seatKey(name)
-	if key != "" {
-		return key, nil
-	}
-
-	unlock, err := mem.lockStore(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer unlock()
-
-	mem.forgetRegistry()
-
-	registry, _ := mem.registry()
-
-	id, found := registry.IDOf(name)
-	if found {
-		return id, nil
-	}
-
-	id, err = registry.Mint(name, mem.env.Random)
-	if err != nil {
-		return "", fmt.Errorf("minting the seat %s: %w", name, err)
-	}
-
-	err = registry.Save()
-	if err != nil {
-		return "", err
-	}
-
-	mem.forgetRegistry()
-
-	return id, nil
-}
-
 // lockStore holds the store's lock until the returned function runs: the
 // registry and the format migration are written under it.
 func (mem *memory) lockStore(ctx context.Context) (func(), error) {

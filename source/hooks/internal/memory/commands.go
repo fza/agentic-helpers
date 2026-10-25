@@ -58,6 +58,10 @@ type request struct {
 	FromTopic      string   `json:"from_topic,omitempty"`
 	Name           string   `json:"name,omitempty"`
 	Session        string   `json:"session,omitempty"`
+	Shelf          string   `json:"shelf,omitempty"`
+	Lifetime       string   `json:"lifetime,omitempty"`
+	Value          string   `json:"value,omitempty"`
+	All            bool     `json:"all,omitempty"`
 	JSON           bool     `json:"json,omitempty"`
 	NoHeat         bool     `json:"no_heat,omitempty"`
 
@@ -75,6 +79,10 @@ type result struct {
 func (req *request) normalize() {
 	if req.Name != "" {
 		req.Name = seat.Normal(req.Name)
+	}
+
+	if req.Shelf != "" {
+		req.Shelf = seat.Normal(req.Shelf)
 	}
 
 	for index, name := range req.Seats {
@@ -209,7 +217,8 @@ func (req *request) set(spec flagSpec, value string) error {
 
 	texts := map[string]*string{
 		"title": &req.Title, "retention": &req.Retention, "from": &req.From, "query": &req.Query,
-		"by": &req.By, "because": &req.Because, "session": &req.Session,
+		"by": &req.By, "because": &req.Because, "session": &req.Session, "shelf": &req.Shelf,
+		"lifetime": &req.Lifetime,
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
@@ -217,7 +226,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
-		"no-heat": &req.NoHeat,
+		"no-heat": &req.NoHeat, "all": &req.All,
 	}
 
 	switch spec.kind {
@@ -462,11 +471,13 @@ func commands() []command {
 				`"json":{"type":"boolean"}}}`,
 		},
 		{
-			name: "claim", usage: "claim <seat>", description: "take a seat; prints the brief and the slice",
-			positional: func(req *request) error { return exactly(1, &req.Name)(req) },
-			run:        (*memory).claim,
-			schema: `{"type":"object","properties":{"name":{"type":"string"}},` +
-				`"required":["name"]}`,
+			name: "claim", usage: "claim <seat> [--shelf <shelf>] | claim --shelf <shelf>",
+			description: "take a seat, on a shelf with --shelf, or a new seat on that shelf with no name; prints the brief and the slice",
+			flags:       []flagSpec{{"shelf", flagText}},
+			positional:  optionalName,
+			run:         (*memory).claim,
+			schema: `{"type":"object","properties":{"name":{"type":"string"},` +
+				`"shelf":{"type":"string","description":"the shelf a new seat files onto; alone, claims a new seat on it"}}}`,
 		},
 		{
 			name: "rename", usage: "rename '<new name>'", description: "give the seat this session holds a new name; its id and entries stay",

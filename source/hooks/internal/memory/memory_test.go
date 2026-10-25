@@ -79,6 +79,18 @@ func seatID(t *testing.T, store string, name string) string {
 	return id
 }
 
+// shelfID is the id of the shelf the seat named name files onto.
+func shelfID(t *testing.T, store string, name string) string {
+	t.Helper()
+
+	registry, _, err := seat.LoadRegistry(store)
+	if err != nil {
+		t.Fatalf("the store should carry a seat registry: %v", err)
+	}
+
+	return registry.Seats[seatID(t, store, name)].Shelf
+}
+
 // seatFile is the path of the seat's file with the given suffix, `.json` for
 // its claim.
 func (h *harness) seatFile(name string, suffix string) string {
@@ -426,7 +438,7 @@ func TestOtherSeatsRights(t *testing.T) {
 		{"retire", id}, {"retain", id, "long"}, {"retitle", id, "A new title for it"}, {"tag", id, "x"},
 	} {
 		got := other.run("", args...)
-		if got.code != 1 || !strings.Contains(got.err, id+" belongs to main") {
+		if got.code != 1 || !strings.Contains(got.err, id+" is on shelf main") {
 			t.Errorf("%s on another seat's entry should be refused, got %d %q", args[0], got.code, got.err)
 		}
 	}
@@ -434,7 +446,7 @@ func TestOtherSeatsRights(t *testing.T) {
 	retired := h.file("Gate finding retired by its owner", "finding")
 	h.must("", "retire", retired)
 
-	if got := other.run("", "revive", retired); got.code != 1 || !strings.Contains(got.err, retired+" belongs to main") {
+	if got := other.run("", "revive", retired); got.code != 1 || !strings.Contains(got.err, retired+" is on shelf main") {
 		t.Errorf("only the owner should revive its retire, got %d %q", got.code, got.err)
 	}
 

@@ -90,11 +90,14 @@ type change struct {
 	at   time.Time
 	seat string
 	text string
+	kind memorylog.Kind
 }
 
 type entry struct {
-	id        string
-	seat      string
+	id   string
+	seat string
+	// seatKey is the filing seat's key in the store, which a shelf is found by.
+	seatKey   string
 	session   string
 	filed     time.Time
 	title     string
@@ -112,6 +115,8 @@ type entry struct {
 	transitions []transition
 	history     []string
 	changes     []change
+	// events is every change made to the entry after it was filed, by any seat.
+	events []change
 
 	// forAll and forKeys are the seats the entry was filed for, by seat key;
 	// recipients is how a line names them, filled in once the registry is known.
@@ -242,7 +247,8 @@ func fold(snapshot *memorylog.Snapshot, seatName func(key string) string) (*stat
 	folded := &state{entries: map[string]*entry{}}
 
 	for index, row := range snapshot.Rows() {
-		row.Seat = seatName(row.Seat)
+		key := row.Seat
+		row.Seat = seatName(key)
 
 		payload, err := snapshot.Payload(index)
 		if err != nil {
@@ -252,6 +258,10 @@ func fold(snapshot *memorylog.Snapshot, seatName func(key string) string) (*stat
 		err = folded.apply(row, payload)
 		if err != nil {
 			return nil, fmt.Errorf("folding %s %s: %w", row.Kind, row.Entry, err)
+		}
+
+		if row.Kind == memorylog.KindNew {
+			folded.entries[row.Entry].seatKey = key
 		}
 	}
 
@@ -315,8 +325,9 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 	other := row.Seat != held.seat
 	note := func(text string) {
 		held.history = append(held.history, fmt.Sprintf("%s %s by %s", stamp(row.Time), text, row.Seat))
+		held.events = append(held.events, change{at: row.Time, seat: row.Seat, text: text, kind: row.Kind})
 		if other {
-			held.changes = append(held.changes, change{at: row.Time, seat: row.Seat, text: text})
+			held.changes = append(held.changes, change{at: row.Time, seat: row.Seat, text: text, kind: row.Kind})
 		}
 	}
 

@@ -25,11 +25,16 @@ var idPattern = regexp.MustCompile(`^s-[0-9a-z]{6}$`)
 
 var ErrNameTaken = errors.New("another seat already has that name")
 
-// Entry is one seat of the registry: its current name, and the topics it
-// follows.
+// Entry is one seat of the registry: its current name and the shelf it files
+// onto. Follows is what a store of an earlier format kept per seat; its shelf
+// keeps them now. An expired seat was purged with its temporary shelf and is
+// kept only while an entry that survived the purge still names it: its name is
+// free for a new seat.
 type Entry struct {
 	Name    string   `json:"name"`
+	Shelf   string   `json:"shelf,omitempty"`
 	Follows []string `json:"follows,omitempty"`
+	Expired bool     `json:"expired,omitempty"`
 }
 
 // Registry maps every seat id of a store to its one entry. It is the whole of
@@ -73,10 +78,10 @@ func LoadRegistry(store string) (Registry, bool, error) {
 	return registry, true, nil
 }
 
-// IDOf is the id of the seat now named name.
+// IDOf is the id of the live seat now named name.
 func (registry Registry) IDOf(name string) (string, bool) {
 	for _, id := range registry.IDs() {
-		if registry.Seats[id].Name == name {
+		if registry.Seats[id].Name == name && !registry.Seats[id].Expired {
 			return id, true
 		}
 	}
@@ -84,12 +89,16 @@ func (registry Registry) IDOf(name string) (string, bool) {
 	return "", false
 }
 
-// NameOf is the current name of the seat id, or the id itself where the
-// registry holds none for it.
+// NameOf is the current name of the seat id, marked where the seat expired,
+// or the id itself where the registry holds none for it.
 func (registry Registry) NameOf(id string) string {
 	held, found := registry.Seats[id]
 	if !found || held.Name == "" {
 		return id
+	}
+
+	if held.Expired {
+		return held.Name + " (expired)"
 	}
 
 	return held.Name
@@ -114,7 +123,7 @@ func (registry *Registry) Mint(name string, random io.Reader) (string, error) {
 	}
 
 	for range 64 {
-		id, err := drawID(random)
+		id, err := drawID("s-", random)
 		if err != nil {
 			return "", err
 		}
@@ -171,14 +180,14 @@ func (registry Registry) Save() error {
 	return nil
 }
 
-func drawID(random io.Reader) (string, error) {
+func drawID(prefix string, random io.Reader) (string, error) {
 	id := make([]byte, 0, idLength)
 	buffer := make([]byte, 1)
 
 	for len(id) < idLength {
 		_, err := io.ReadFull(random, buffer)
 		if err != nil {
-			return "", fmt.Errorf("drawing a seat id: %w", err)
+			return "", fmt.Errorf("drawing an id: %w", err)
 		}
 
 		// 252 is the largest multiple of the alphabet's size below 256: a byte
@@ -190,5 +199,5 @@ func drawID(random io.Reader) (string, error) {
 		id = append(id, idAlphabet[int(buffer[0])%len(idAlphabet)])
 	}
 
-	return "s-" + string(id), nil
+	return prefix + string(id), nil
 }

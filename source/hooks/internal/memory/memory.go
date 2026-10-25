@@ -80,6 +80,8 @@ type memory struct {
 
 	seatRegistry  *seat.Registry
 	registryFound bool
+	shelfRegistry *seat.Shelves
+	shelvesFound  bool
 
 	// unreadable says why the store is of a format newer than this release
 	// reads: nothing is read or written then.

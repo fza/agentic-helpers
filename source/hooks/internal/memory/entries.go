@@ -618,13 +618,8 @@ func (mem *memory) search(ctx context.Context, req request) result {
 
 	own, _ := mem.seated(ctx)
 
-	scope := req.Seats
-	if !req.AllSeats && len(scope) == 0 {
-		if own == "" {
-			return refused("a search covers the own seat by default: claim a seat first, or name --seat or --all-seats")
-		}
-
-		scope = []string{own}
+	if !req.AllSeats && len(req.Seats) == 0 && own == "" {
+		return refused("a search covers the own shelf by default: claim a seat first, or name --seat or --all-seats")
 	}
 
 	var patterns []*regexp.Regexp
@@ -657,8 +652,8 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	var candidates []*entry
 
 	for _, held := range folded.entryList() {
-		inScope := req.AllSeats || slices.Contains(scope, held.seat) ||
-			(len(req.Seats) == 0 && mem.receives(folded, held, own))
+		inScope := req.AllSeats || slices.Contains(req.Seats, held.seat) ||
+			(len(req.Seats) == 0 && mem.ownOrReceived(folded, held, own))
 		if !inScope {
 			continue
 		}

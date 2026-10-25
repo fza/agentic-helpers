@@ -43,9 +43,9 @@ func TestAnEntryNamesWhoItIsFor(t *testing.T) {
 	everyone := h.file("Staging DB moved to db2", "a changed fact", "--for", "all")
 
 	tail, _ := os.ReadFile(filepath.Join(h.store(), "log", "tail.jsonl"))
-	if !strings.Contains(string(tail), `"for":["`+seatID(t, h.store(), "idea")+`","`+seatID(t, h.store(), "review")+`"]`) ||
+	if !strings.Contains(string(tail), `"for":["`+shelfID(t, h.store(), "idea")+`","`+shelfID(t, h.store(), "review")+`"]`) ||
 		!strings.Contains(string(tail), `"for":"all"`) {
-		t.Errorf("--for should store the named seats by id, and all as all, got %s", tail)
+		t.Errorf("--for should store the named seats' shelves by id, and all as all, got %s", tail)
 	}
 
 	if out := h.must("", "show", named); !strings.Contains(out, "[main → idea, review, ") {
@@ -57,7 +57,7 @@ func TestAnEntryNamesWhoItIsFor(t *testing.T) {
 	}
 
 	if got := h.run("note", "new", "--title", "For a seat that does not exist", "--topic", "gate", "--for", "nobody"); got.code != 1 ||
-		!strings.Contains(got.err, "--for names no seat called nobody") {
+		!strings.Contains(got.err, "--for names no seat or shelf called nobody") {
 		t.Errorf("--for should refuse a seat name no seat has, got %d %q", got.code, got.err)
 	}
 
@@ -88,7 +88,7 @@ func TestAReceivedEntryStandsWithTheSeatsOwn(t *testing.T) {
 		t.Errorf("the filer should keep the entry as its own, got:\n%s", out)
 	}
 
-	if got := other.run("", "retire", id); got.code != 1 || !strings.Contains(got.err, id+" belongs to main") {
+	if got := other.run("", "retire", id); got.code != 1 || !strings.Contains(got.err, id+" is on shelf main") {
 		t.Errorf("a receiver should not retire an entry it did not file, got %d %q", got.code, got.err)
 	}
 
@@ -119,9 +119,9 @@ func TestAFollowedTopicBringsItsEntries(t *testing.T) {
 		t.Errorf("follow should say what the seat follows, got %q", out)
 	}
 
-	registry, _ := os.ReadFile(filepath.Join(h.store(), "seats.json"))
-	if !strings.Contains(string(registry), `"follows": [`) || !strings.Contains(string(registry), `"infra"`) {
-		t.Errorf("a follow should be kept in the seat's registry entry, got %s", registry)
+	shelves, _ := os.ReadFile(filepath.Join(h.store(), "shelves.json"))
+	if !strings.Contains(string(shelves), `"follows": [`) || !strings.Contains(string(shelves), `"infra"`) {
+		t.Errorf("a follow should be kept with the seat's shelf, got %s", shelves)
 	}
 
 	id := h.file("Staging DB moved to db2", "infra news", "--topic", "infra")

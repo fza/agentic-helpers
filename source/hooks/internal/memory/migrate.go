@@ -41,10 +41,9 @@ func (mem *memory) prepare(ctx context.Context) error {
 	return mem.migrate(ctx)
 }
 
-// migrate turns a format-1 store, keyed by seat name, into the current one,
-// keyed by seat id, holding the store lock throughout so no other call reads a
-// half-migrated store. format.json is written last: until it exists, the store
-// reads as format 1, and every step before it is undone on failure.
+// migrate brings an older store to the current format one step at a time,
+// holding the store lock throughout so no other call reads a half-migrated
+// store.
 func (mem *memory) migrate(ctx context.Context) error {
 	unlock, err := mem.lockStore(ctx)
 	if err != nil {
@@ -57,7 +56,21 @@ func (mem *memory) migrate(ctx context.Context) error {
 		return err
 	}
 
-	err = mem.backUpFormat1()
+	if version == 1 {
+		err = mem.migrateFormat1(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return mem.migrateFormat2()
+}
+
+// migrateFormat1 turns a format-1 store, keyed by seat name, into format 2,
+// keyed by seat id. format.json is written last: until it exists, the store
+// reads as format 1, and every step before it is undone on failure.
+func (mem *memory) migrateFormat1(ctx context.Context) error {
+	err := mem.backUpFormat1()
 	if err != nil {
 		return err
 	}
@@ -142,7 +155,7 @@ func (mem *memory) rewrite(ctx context.Context, events []memorylog.Event, regist
 
 	undo.add(func() { _ = os.Remove(seat.RegistryPath(mem.store())) })
 
-	err = writeFormat(mem.store())
+	err = writeFormat(mem.store(), 2)
 	if err != nil {
 		return err
 	}
@@ -357,4 +370,90 @@ func copyTree(from string, to string) error {
 
 		return copied.Close()
 	})
+}
+
+// migrateFormat2 gives every seat of a format-2 store a shelf of its own under
+// its name and moves the topics it follows there. The log is untouched: an
+// entry's shelf is its filing seat's. seats.json is backed up first, and
+// format.json written last, every step before it undone on failure.
+func (mem *memory) migrateFormat2() error {
+	registryPath := seat.RegistryPath(mem.store())
+
+	backup := filepath.Join(mem.store(), "backup", "format-2-"+mem.now().Format("20060102T150405.000000000Z"))
+
+	err := os.MkdirAll(backup, 0o700)
+	if err != nil {
+		return fmt.Errorf("backing up the seat registry: %w", err)
+	}
+
+	original, err := os.ReadFile(registryPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("backing up the seat registry: %w", err)
+	}
+
+	err = os.WriteFile(filepath.Join(backup, "seats.json"), original, 0o600)
+	if err != nil {
+		return fmt.Errorf("backing up the seat registry: %w", err)
+	}
+
+	registry, _, err := seat.LoadRegistry(mem.store())
+	if err != nil {
+		return err
+	}
+
+	shelves, _, err := seat.LoadShelves(mem.store())
+	if err != nil {
+		return err
+	}
+
+	for _, id := range registry.IDs() {
+		held := registry.Seats[id]
+		if held.Shelf != "" {
+			continue
+		}
+
+		shelf, err := shelves.Mint(held.Name, mem.env.Random)
+		if err != nil {
+			return fmt.Errorf("making the shelf of %s: %w", held.Name, err)
+		}
+
+		onShelf := shelves.Shelves[shelf]
+		onShelf.Follows = held.Follows
+		shelves.Shelves[shelf] = onShelf
+
+		held.Shelf, held.Follows = shelf, nil
+		registry.Seats[id] = held
+	}
+
+	undo := &rollback{}
+
+	err = mem.placeShelves(registry, shelves, original, undo)
+	if err != nil {
+		undo.run()
+
+		return fmt.Errorf("migrating the store failed: %w; the store is unchanged and the next call tries again", err)
+	}
+
+	mem.forgetRegistry()
+	mem.forgetShelves()
+
+	return nil
+}
+
+func (mem *memory) placeShelves(registry seat.Registry, shelves seat.Shelves, original []byte, undo *rollback) error {
+	err := shelves.Save()
+	if err != nil {
+		return err
+	}
+
+	undo.add(func() { _ = os.Remove(seat.ShelvesPath(mem.store())) })
+
+	err = registry.Save()
+	if err != nil {
+		return err
+	}
+
+	undo.add(func() { _ = os.WriteFile(seat.RegistryPath(mem.store()), original, 0o600) })
+
+	return writeFormat(mem.store(), storeFormat)
 }

@@ -124,23 +124,30 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	retired := 0
 
 	for _, held := range folded.entryList() {
-		if held.seat == seatName && held.status == statusRetired {
+		if mem.onShelf(held, seatName) && held.status == statusRetired {
 			retired++
 		}
 	}
 
 	out := &budget{limit: briefBudget}
-	out.add(fmt.Sprintf("%s: seat %s, %d live, %d retired, entries in %s", self, seatName, len(live), retired, mem.language(ctx)))
+	seated := "seat " + seatName
+
+	shelf := mem.shelfName(mem.shelfOf(seatName))
+	if shelf != seatName {
+		seated += " on shelf " + shelf
+	}
+
+	out.add(fmt.Sprintf("%s: %s, %d live, %d retired, entries in %s", self, seated, len(live), retired, mem.language(ctx)))
 
 	var changed []string
 
 	for _, held := range folded.entryList() {
-		if held.seat != seatName {
+		if !mem.onShelf(held, seatName) {
 			continue
 		}
 
-		for _, other := range held.changes {
-			if other.at.After(since) {
+		for _, other := range held.events {
+			if other.seat != seatName && other.at.After(since) {
 				changed = append(changed, fmt.Sprintf("  %s %s by %s (%s)", held.id, other.text, other.seat, stamp(other.at)))
 			}
 		}
@@ -211,7 +218,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	var news []*entry
 
 	for _, held := range folded.entryList() {
-		if held.seat != seatName && held.status == statusLive && held.filed.After(since) {
+		if !mem.onShelf(held, seatName) && held.status == statusLive && held.filed.After(since) {
 			news = append(news, held)
 		}
 	}

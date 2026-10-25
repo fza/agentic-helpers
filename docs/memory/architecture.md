@@ -5,12 +5,13 @@
 ```
 ~/.claude/agentic-memory/<project>/
 ├── format.json                                         the store's one format version
-├── seats.json                                          seat id → its current name and follows
+├── seats.json                                          seat id → its current name and its shelf
+├── shelves.json                                        shelf id → its name, follows and lifetime
 ├── log/tail.jsonl, log/<hash>.seg, log/manifest.json   the append-only log: the truth
 ├── seats/<id>.json                                     who holds the seat, which process, which transcript
 ├── seats/<id>.last.json                                the claim of the seat's last holder
 ├── seats/<id>.slice                                    the last turns of the seat's last session
-└── backup/format-1-<UTC stamp>/                        the log and seats as they were before a migration
+└── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
 ~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ~/.claude/agentic-helpers/<project>/writers.json        the checkouts that may use the store, shared with agentic-tools
@@ -33,18 +34,34 @@ seat has now, so a `rename` shows everywhere at once. No seat may be named in an
 `seats.json` is written under the store's lock (`.lock` in the store root), through a temporary
 file renamed into place.
 
+## Shelves
+
+A shelf has an id, `h-` and 6 random characters from `0-9a-z`, and `shelves.json` maps it to its
+name, the topics its seats follow, and its lifetime. Each `seats.json` entry names its shelf
+(`"shelf": "<shelf id>"`), fixed when the seat is minted. An entry's shelf is its filing seat's, so
+the log names no shelf and gains no event kind: a `new` row's seat key leads to the seat, and the
+seat to its shelf. A `--for` stores shelf ids; one an earlier release stored as a seat id stands for
+that seat's shelf. Both files are written under the store lock, through a temporary file renamed
+into place, and a seat and a shelf minted together are minted under one hold of it.
+
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 2}`; a store without one is format 1, where
-events and seat files name the seat. The first call that meets a format-1 store migrates it, holding
-the store lock from the first step to the last, so another call waits and then reads the migrated
-store:
+`format.json` holds the store's format, `{"format": 3}`; a store without one is format 1, where
+events and seat files name the seat, and format 2 keeps seats by id without shelves. The first call
+that meets an older store migrates it a step at a time, holding the store lock from the first step
+to the last, so another call waits and then reads the migrated store. From format 1:
 
 1. copy `log/` and `seats/` to `backup/format-1-<UTC stamp>/`;
 2. mint an id for every seat name an event or a seat file mentions;
 3. write a new log beside the old one, every event's seat replaced by its id;
 4. rename every seat file to its id, swap the new log in, write `seats.json`;
 5. write `format.json` last: its presence marks the migration done.
+
+From format 2, the log untouched:
+
+1. copy `seats.json` to `backup/format-2-<UTC stamp>/`;
+2. give every seat a shelf of its own under its name, its follows moved there;
+3. write `shelves.json`, then `seats.json`, then `format.json`.
 
 A failure before `format.json` undoes every step, says
 `agentic-memory: migrating the store failed: <cause>; the store is unchanged and the next call tries again`
