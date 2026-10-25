@@ -58,7 +58,7 @@ func TestRefusalsSuggestTheReadCommand(t *testing.T) {
 	t.Run("a suffix without a command", func(t *testing.T) {
 		got := run(t, configured(t, "read-suffix.yaml"), "gate", ask("s1"))
 
-		refuses(t, got, "  sdd search --term '<literal>' --entry <entry>\n")
+		refuses(t, got, "  sdd search --term '<literal>' --limit 5 --max-citations 0 --entry <entry>\n")
 		refuses(t, got, `  sdd view --layout "active:as-counts" --entry <entry>`+"\n")
 	})
 
@@ -154,4 +154,31 @@ func TestAMalformedReadCommandIsAConfigError(t *testing.T) {
 			passes(t, run(t, env, "gate", bash("ls 2>/dev/null")))
 		})
 	}
+}
+
+func TestABareSearchKeepsToFiveHeaderLines(t *testing.T) {
+	got := run(t, bare(t), "gate", ask("s1"))
+
+	for _, line := range []string{
+		"  sdd search --term '<literal>' --limit 5 --max-citations 0\n",
+		"  sdd search --query '<subject>' --limit 5 --max-citations 0\n",
+	} {
+		refuses(t, got, line)
+	}
+
+	for _, fixture := range []string{"read-command.yaml", "gather-command.yaml"} {
+		if said := run(t, configured(t, fixture), "gate", ask("s1")).said; strings.Contains(said, "--max-citations") {
+			t.Errorf("a project with its own read command should get its reads spelled without sdd's flags, got: %s", said)
+		}
+	}
+}
+
+func TestALimitedSearchCountsAsAnyOther(t *testing.T) {
+	env := areaProject(t)
+	record(t, env,
+		bash("sdd search --query 'a subject' --limit 5 --max-citations 0"),
+		bash("sdd search --term 'x' --limit 5 --max-citations 0"),
+		bash(areaRead))
+
+	passes(t, run(t, env, "gate", ask("s1")))
 }

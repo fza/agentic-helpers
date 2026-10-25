@@ -2,8 +2,8 @@ GROUNDING GATE: let through, reads owed. No `--query` search ran this turn. No `
 
 Run both + the listing, then ask again:
 
-  sdd search --term '<literal>'
-  sdd search --query '<subject>'
+  sdd search --term '<literal>' --limit 5 --max-citations 0
+  sdd search --query '<subject>' --limit 5 --max-citations 0
   sdd view --layout "active:as-counts"
 
 Empty search ≠ absence; a listing settles membership.

@@ -23,11 +23,15 @@ Top-level `exempt_seats: [reviewer]` → a session holding that seat passes ever
 ## Three reads, before any question, draft edit, or capture
 
 ```bash
-sdd search --query "<how somebody would phrase it>"    # semantic
-sdd search --term  "<literal token: flag, command, id>"
+sdd search --query "<how somebody would phrase it>" --limit 5 --max-citations 0   # semantic
+sdd search --term  "<literal token: flag, command, id>" --limit 5 --max-citations 0
 sdd view --layout "active:as-counts"                   # every topic, no prefix set
 sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 ```
+
+- **Five header lines per search** (`--limit 5 --max-citations 0`): enough to see what the graph
+  holds on the subject. Broad subject → widen with a higher `--limit`. A body → `sdd show`. Any
+  limit counts as the read.
 
 - **Which listing → `.sdd/grounding.yaml`.** `listing_prefix: area-` there → list one topic
   carrying it, whole. No file, no key → the view of every topic. The refusal names the one owed.

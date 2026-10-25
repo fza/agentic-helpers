@@ -2,8 +2,8 @@ GROUNDING GATE: refused. {missing}
 
 {run}
 
-  {read} search --term '<literal>'{suffix}
-  {read} search --query '<subject>'{suffix}
+  {read} search --term '<literal>'{flags}{suffix}
+  {read} search --query '<subject>'{flags}{suffix}
   {read} {listing}{suffix}
 
 Empty search ≠ absence; a listing settles membership.

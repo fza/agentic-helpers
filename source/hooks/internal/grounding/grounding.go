@@ -430,7 +430,7 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 
 	reads := readsOf(config)
 
-	return refusal("reads.txt", "{run}", runLine(reads), "{read}", reads.command, "{suffix}", reads.suffix,
+	return refusal("reads.txt", "{run}", runLine(reads), "{read}", reads.command, "{suffix}", reads.suffix, "{flags}", reads.searchFlags,
 		"{listing}", listingCommand(prefix), "{have}", carries, "{missing}", strings.Join(missing, " "))
 }
 
@@ -612,7 +612,8 @@ func draftPaths(env Env, command string) []namedDraft {
 func discardsAStream(reads reads, texts []string, raw string) string {
 	for _, text := range texts {
 		if reads.reachedBy(text) && toNull.MatchString(text) {
-			return refusal("stream.txt", "{command}", strings.TrimSpace(raw), "{read}", reads.command, "{suffix}", reads.suffix)
+			return refusal("stream.txt", "{command}", strings.TrimSpace(raw), "{read}", reads.command, "{suffix}", reads.suffix,
+				"{flags}", reads.streamFlags)
 		}
 	}
 

@@ -23,6 +23,16 @@ a red error in its default view, while a note is never shown to the user. Every 
 refusal, exit 2 with the reason on stderr: a capture, a plain `sdd new`, a discarded stream, a short
 show and an MCP capture, each a call Claude Code folds into one grey line.
 
+The searches the gate suggests read five hits, header lines only, for a project on bare sdd:
+
+    sdd search --query '<subject>' --limit 5 --max-citations 0
+    sdd search --term '<literal>' --limit 5 --max-citations 0
+
+The header lines show what the graph holds on the subject; a body is `sdd show`'s. An agent widens
+with a higher `--limit` where the subject is broad, and a search counts as the read whatever its
+limit. A project naming a `read_command` or a `gather_command` gets its reads spelled without these
+flags, since its command need not take sdd's.
+
 A plain `sdd new` without `--dry-run` owes the reads too, and since it names no draft, nothing
 grounded stands in for them. A capture counts however the shell spells it: after a runner, in a
 subshell, inside `bash -c`, under any path.

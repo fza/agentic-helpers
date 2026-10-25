@@ -18,6 +18,11 @@ type reads struct {
 	suffix  string
 	tool    string
 	gather  string
+	// searchFlags keep a suggested search to five header lines; only bare sdd
+	// gets them, since a project's own read command need not take sdd's flags.
+	searchFlags string
+	// streamFlags are the stream refusal's example search flags.
+	streamFlags string
 
 	called         *regexp.Regexp
 	subshellCalled *regexp.Regexp
@@ -32,8 +37,16 @@ type reads struct {
 	everyTopic *regexp.Regexp
 }
 
+// bareSearchFlags is how a suggested search reads for bare sdd: five hits,
+// header lines only.
+const bareSearchFlags = " --limit 5 --max-citations 0"
+
 func readsOf(config graphconfig.Config) reads {
-	found := reads{command: "sdd", tool: "sdd"}
+	found := reads{command: "sdd", tool: "sdd", searchFlags: bareSearchFlags, streamFlags: bareSearchFlags}
+
+	if config.ReadCommand != "" || config.GatherCommand != "" {
+		found.searchFlags, found.streamFlags = "", " --limit 8"
+	}
 
 	if config.ReadSuffix != "" {
 		found.suffix = " " + config.ReadSuffix
