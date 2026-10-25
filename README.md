@@ -25,6 +25,10 @@ the agent loads to learn what the piece expects and what its refusals mean. Ever
 Claude Code plugin; the hooks and the command are Go binaries built from `source/hooks`, published
 with each release and fetched by the plugin.
 
+**Every piece is built and tested with Claude Code only.** The hooks read Claude Code's payloads,
+settings and transcripts, and answer in its hook protocol; no other agent harness is tested, and
+none is supported.
+
 ## Installing
 
 **agentic-helpers works only with sdd built from the fork [github.com/fza/sdd](https://github.com/fza/sdd)**,
