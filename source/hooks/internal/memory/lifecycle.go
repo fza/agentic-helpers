@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
@@ -58,25 +59,101 @@ func (mem *memory) change(ctx context.Context, id string, ownerOnly bool,
 	return name, held, result{}, true
 }
 
-func (mem *memory) retire(ctx context.Context, req request) result {
-	var lines []string
-
-	for _, id := range req.IDs {
-		_, _, failure, ok := mem.change(ctx, id, true, func(_ *state, held *entry) error {
-			if held.status != statusLive {
-				return fmt.Errorf("%s is already %s", id, held.status)
-			}
-
-			return nil
-		}, memorylog.KindRetire, "", retirement(req.Because))
-		if !ok {
-			return failure
-		}
-
-		lines = append(lines, "retired "+id)
+// batch checks every id against one load of the log and lands one event per
+// id in a single append, or refuses the whole call naming every id that fails:
+// nothing ever lands half.
+func (mem *memory) batch(ctx context.Context, verb string, ids []string, ownerOnly bool,
+	check func(folded *state, held *entry) error,
+	event func(folded *state, held *entry, seat string) (memorylog.Event, error),
+) (*state, []string, result, bool) {
+	name, isSeated := mem.seated(ctx)
+	if !isSeated {
+		return nil, nil, refused("%s", ErrNoSeat), false
 	}
 
-	return done(strings.Join(lines, "\n"))
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return nil, nil, refused("%v", err), false
+	}
+
+	var unique, failures []string
+
+	for _, id := range ids {
+		if slices.Contains(unique, id) {
+			continue
+		}
+
+		unique = append(unique, id)
+
+		held, found := folded.entries[id]
+
+		switch {
+		case !found:
+			failures = append(failures, fmt.Sprintf("%s: %s", id, ErrNoEntry))
+		case ownerOnly && held.seat != name:
+			failures = append(failures, fmt.Sprintf("%s belongs to %s", id, held.seat))
+		case check != nil:
+			err = check(folded, held)
+			if err != nil {
+				failures = append(failures, err.Error())
+			}
+		}
+	}
+
+	if len(failures) > 0 {
+		return nil, nil, refused("nothing %s:\n  %s", verb, strings.Join(failures, "\n  ")), false
+	}
+
+	events := make([]memorylog.Event, 0, len(unique))
+
+	for _, id := range unique {
+		next, err := event(folded, folded.entries[id], name)
+		if err != nil {
+			return nil, nil, refused("%v", err), false
+		}
+
+		events = append(events, next)
+	}
+
+	err = mem.appendEvents(ctx, events...)
+	if err != nil {
+		return nil, nil, refused("%v", err), false
+	}
+
+	return folded, unique, result{}, true
+}
+
+// simpleEvent is an event of kind with payload, on the entry, by the seat.
+func (mem *memory) simpleEvent(kind memorylog.Kind, target string, payload any) func(*state, *entry, string) (memorylog.Event, error) {
+	return func(_ *state, held *entry, seat string) (memorylog.Event, error) {
+		raw := []byte("{}")
+
+		if payload != nil {
+			var err error
+
+			raw, err = json.Marshal(payload)
+			if err != nil {
+				return memorylog.Event{}, fmt.Errorf("encoding the %s: %w", kind, err)
+			}
+		}
+
+		return memorylog.Event{Kind: kind, Entry: held.id, Time: mem.now(), Seat: seat, Target: target, Payload: raw}, nil
+	}
+}
+
+func (mem *memory) retire(ctx context.Context, req request) result {
+	_, ids, failure, ok := mem.batch(ctx, "retired", req.IDs, true, func(_ *state, held *entry) error {
+		if held.status != statusLive {
+			return fmt.Errorf("%s is already %s", held.id, held.status)
+		}
+
+		return nil
+	}, mem.simpleEvent(memorylog.KindRetire, "", retirement(req.Because)))
+	if !ok {
+		return failure
+	}
+
+	return done("retired " + strings.Join(ids, ", "))
 }
 
 // retirement is a retire's payload: its reason where one is given, and no
@@ -94,37 +171,42 @@ func (mem *memory) supersede(ctx context.Context, req request) result {
 		return refused("supersede takes exactly one of --by <id> or --because '<why>'")
 	}
 
-	payload := supersedePayload{By: req.By, Because: req.Because}
-
-	_, _, failure, ok := mem.change(ctx, req.ID, false, func(folded *state, held *entry) error {
-		if held.status == statusSuperseded {
-			return fmt.Errorf("%s is already superseded", held.id)
-		}
-
-		if req.By == "" {
-			return nil
-		}
-
-		if req.By == held.id {
-			return fmt.Errorf("%s cannot supersede itself", held.id)
-		}
-
-		_, found := folded.entries[req.By]
-		if !found {
-			return fmt.Errorf("--by %s: %w", req.By, ErrNoEntry)
-		}
-
-		return nil
-	}, memorylog.KindSupersede, req.By, payload)
+	_, ids, failure, ok := mem.batch(ctx, "superseded", req.IDs, false, mem.supersedable(req.By),
+		mem.simpleEvent(memorylog.KindSupersede, req.By, supersedePayload{By: req.By, Because: req.Because}))
 	if !ok {
 		return failure
 	}
 
 	if req.By != "" {
-		return done(fmt.Sprintf("superseded %s by %s", req.ID, req.By))
+		return done(fmt.Sprintf("superseded %s by %s", strings.Join(ids, ", "), req.By))
 	}
 
-	return done(fmt.Sprintf("superseded %s: %s", req.ID, req.Because))
+	return done(fmt.Sprintf("superseded %s: %s", strings.Join(ids, ", "), req.Because))
+}
+
+// supersedable says why an entry cannot be superseded by successor, if it
+// cannot; an empty successor is a supersede --because.
+func (mem *memory) supersedable(successor string) func(folded *state, held *entry) error {
+	return func(folded *state, held *entry) error {
+		if held.status == statusSuperseded {
+			return fmt.Errorf("%s is already superseded", held.id)
+		}
+
+		if successor == "" {
+			return nil
+		}
+
+		if successor == held.id {
+			return fmt.Errorf("%s cannot supersede itself", held.id)
+		}
+
+		_, found := folded.entries[successor]
+		if !found {
+			return fmt.Errorf("--by %s: %w", successor, ErrNoEntry)
+		}
+
+		return nil
+	}
 }
 
 func (mem *memory) revive(ctx context.Context, req request) result {
@@ -158,12 +240,13 @@ func (mem *memory) retain(ctx context.Context, req request) result {
 		return refused("retain takes %s, not %q", strings.Join(retentionLevels, ", "), req.Level)
 	}
 
-	_, _, failure, ok := mem.change(ctx, req.ID, true, nil, memorylog.KindRetain, "", retainPayload{Level: req.Level})
+	_, ids, failure, ok := mem.batch(ctx, "retained", req.IDs, true, nil,
+		mem.simpleEvent(memorylog.KindRetain, "", retainPayload{Level: req.Level}))
 	if !ok {
 		return failure
 	}
 
-	return done(fmt.Sprintf("%s retained %s", req.ID, req.Level))
+	return done(fmt.Sprintf("%s retained %s", strings.Join(ids, ", "), req.Level))
 }
 
 func (mem *memory) retitle(ctx context.Context, req request) result {

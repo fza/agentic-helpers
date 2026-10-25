@@ -142,9 +142,27 @@ similar-entry hint offers both fixes: `replaces it → agentic-memory supersede 
 
 `retire <id>... [--because '<why>']` (MCP `retire`, key `because`) ends entries that are done or no
 longer matter: they leave the brief and stay in search, flagged `retired <stamp>: <why>`, the reason
-standing after the stamp where one was given. `supersede <id> --by <id>` replaces an entry and
-`supersede <id> --because '<why>'` marks it wrong; `revive <id>` undoes the latest of either within
-14 days. Only the filing seat retires its own entries; any seat may supersede or confirm.
+standing after the stamp where one was given. `supersede <id>... --by <id>` replaces entries and
+`supersede <id>... --because '<why>'` marks them wrong; `revive <id>` undoes the latest of either
+within 14 days. Only the filing seat retires or retains its own entries; any seat may supersede or
+confirm.
+
+`supersede`, `confirm <id>...`, `retain <id>... <level>` and `retire` take several ids, and land all
+or nothing: every id is checked against one load of the log (it exists, the seat may change it, its
+state allows the change), and one failing id refuses the whole call, exit 1, naming every failing
+id, with nothing written:
+
+    agentic-memory: nothing superseded:
+      m-b is already superseded
+      m-c belongs to main
+
+Otherwise every change lands in one append and the reply names each id:
+`superseded m-a, m-b, m-c by m-d`. Over MCP, `supersede`, `confirm` and `retain` take `ids`, an
+array, and refuse `id`.
+
+`new --absorbs <id>`, repeatable (MCP key `absorbs`, an array), files a summary and supersedes each
+named entry by it, in the same append as the filing. An absorbed id that fails refuses the filing
+the same way, as `nothing filed:`.
 
 ## Search
 

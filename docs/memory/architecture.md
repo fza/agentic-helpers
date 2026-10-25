@@ -64,7 +64,10 @@ abbreviation.
 
 ## The log
 
-Events append to `log/tail.jsonl`. The tail seals past 64 KiB into an immutable segment, named for
+Events append to `log/tail.jsonl`. A call changing several entries (`supersede`, `confirm`,
+`retain` and `retire` over several ids, `new --absorbs`) checks every id against one fold of the log
+and writes all its events in one append under the log's lock, or none: a refused batch leaves the
+log byte-identical. The tail seals past 64 KiB into an immutable segment, named for
 its content hash, and eight segments merge into one. A merge bounds what history it keeps: every
 event older than 14 days, the revive window, folds into the shortest run of existing event kinds
 that rebuilds its entry (one `new` row carrying the title, topics and retention as they stood, the

@@ -48,6 +48,7 @@ type request struct {
 	Statuses       []string `json:"status,omitempty"`
 	For            []string `json:"for,omitempty"`
 	Links          []string `json:"link,omitempty"`
+	Absorbs        []string `json:"absorbs,omitempty"`
 	Target         string   `json:"target,omitempty"`
 	By             string   `json:"by,omitempty"`
 	Because        string   `json:"because,omitempty"`
@@ -211,7 +212,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
-		"for": &req.For, "link": &req.Links,
+		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs,
 	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
@@ -302,11 +303,11 @@ func commands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--for <seat>|all]... [--link <id>]... [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
 			description: "file an entry; body on stdin; --for shares it with other seats",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"retention", flagText}, {"from", flagText},
-				{"about", flagList}, {"for", flagList}, {"link", flagList},
+				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList},
 			},
 			readsBody: true,
 			schema: `{"type":"object","properties":{` +
@@ -317,7 +318,8 @@ func commands() []command {
 				`"from":{"type":"string","enum":["user","agent","tool"]},` +
 				`"about":{"type":"array","items":{"type":"string"}},` +
 				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"},` +
-				`"link":{"type":"array","items":{"type":"string"},"description":"full graph ids or memory ids the entry links to"}},` +
+				`"link":{"type":"array","items":{"type":"string"},"description":"full graph ids or memory ids the entry links to"},` +
+				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"entries the new one supersedes"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
@@ -355,29 +357,37 @@ func commands() []command {
 			run: (*memory).topics, schema: `{"type":"object","properties":{}}`,
 		},
 		{
-			name: "confirm", usage: "confirm <id>", description: "re-anchor a verified entry to the tree",
-			positional: oneID, run: (*memory).confirm,
-			schema: `{"type":"object","properties":{"id":` + idSchema + `},"required":["id"]}`,
+			name: "confirm", usage: "confirm <id>...", description: "re-anchor verified entries to the tree, all or none",
+			positional: someIDs, run: (*memory).confirm,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `}},"required":["ids"]}`,
 		},
 		{
-			name: "retain", usage: "retain <id> <level>", description: "change an entry's retention",
-			positional: func(req *request) error { return exactly(2, &req.ID, &req.Level)(req) },
-			run:        (*memory).retain,
-			schema: `{"type":"object","properties":{"id":` + idSchema + `,"level":{"type":"string",` +
-				`"enum":["standing","long","normal","short","scratch"]}},"required":["id","level"]}`,
+			name: "retain", usage: "retain <id>... <level>", description: "change entries' retention, all or none",
+			positional: func(req *request) error {
+				if len(req.Positional) < 2 {
+					return errors.New("at least one entry id and a level expected")
+				}
+
+				req.IDs, req.Level = req.Positional[:len(req.Positional)-1], req.Positional[len(req.Positional)-1]
+
+				return nil
+			},
+			run: (*memory).retain,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},"level":{"type":"string",` +
+				`"enum":["standing","long","normal","short","scratch"]}},"required":["ids","level"]}`,
 		},
 		{
-			name: "retire", usage: "retire <id>... [--because '<why>']", description: "keep entries in results, flagged, out of the brief; --because says why they ended",
+			name: "retire", usage: "retire <id>... [--because '<why>']", description: "keep entries in results, flagged, out of the brief, all or none; --because says why they ended",
 			flags: []flagSpec{{"because", flagText}}, positional: someIDs, run: (*memory).retire,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},` +
 				`"because":{"type":"string","description":"what finished the entries, or why they stopped mattering"}},"required":["ids"]}`,
 		},
 		{
-			name: "supersede", usage: "supersede <id> --by <id> | --because '<why>'",
-			description: "take an entry out of results",
-			flags:       []flagSpec{{"by", flagText}, {"because", flagText}}, positional: oneID, run: (*memory).supersede,
-			schema: `{"type":"object","properties":{"id":` + idSchema + `,"by":` + idSchema +
-				`,"because":{"type":"string"}},"required":["id"]}`,
+			name: "supersede", usage: "supersede <id>... --by <id> | --because '<why>'",
+			description: "take entries out of results, all or none",
+			flags:       []flagSpec{{"by", flagText}, {"because", flagText}}, positional: someIDs, run: (*memory).supersede,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},"by":` + idSchema +
+				`,"because":{"type":"string"}},"required":["ids"]}`,
 		},
 		{
 			name: "revive", usage: "revive <id>", description: "reverse the latest retire or supersede",

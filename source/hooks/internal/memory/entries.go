@@ -85,6 +85,27 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	textLinks, unlinked := mem.textLinks(ctx, folded, req.Title+"\n"+req.Body, id)
 
+	var failures []string
+
+	for _, absorbed := range req.Absorbs {
+		held, found := folded.entries[absorbed]
+		if !found {
+			failures = append(failures, fmt.Sprintf("%s: %s", absorbed, ErrNoEntry))
+
+			continue
+		}
+
+		// The successor is the entry being filed, which the log does not hold yet.
+		err = mem.supersedable("")(folded, held)
+		if err != nil {
+			failures = append(failures, err.Error())
+		}
+	}
+
+	if len(failures) > 0 {
+		return refused("nothing filed:\n  %s", strings.Join(failures, "\n  "))
+	}
+
 	filed := newPayload{
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
 		Retention: retention, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
@@ -99,7 +120,20 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	at := mem.now()
 
-	err = mem.appendEvents(ctx, memorylog.Event{Kind: memorylog.KindNew, Entry: id, Time: at, Seat: name, Payload: raw})
+	events := []memorylog.Event{{Kind: memorylog.KindNew, Entry: id, Time: at, Seat: name, Payload: raw}}
+
+	absorbing, err := json.Marshal(supersedePayload{By: id})
+	if err != nil {
+		return refused("encoding the supersede: %v", err)
+	}
+
+	for _, absorbed := range slices.Compact(slices.Clone(req.Absorbs)) {
+		events = append(events, memorylog.Event{
+			Kind: memorylog.KindSupersede, Entry: absorbed, Time: at, Seat: name, Target: id, Payload: absorbing,
+		})
+	}
+
+	err = mem.appendEvents(ctx, events...)
 	if err != nil {
 		return refused("%v", err)
 	}
@@ -118,6 +152,10 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	mem.warm(folded, 0, id)
 
 	lines := []string{"filed " + line(here, held)}
+	if len(req.Absorbs) > 0 {
+		lines = append(lines, fmt.Sprintf("superseded %s by %s", strings.Join(slices.Compact(slices.Clone(req.Absorbs)), ", "), id))
+	}
+
 	if len(unlinked) > 0 {
 		lines = append(lines, "not linked (no such entry): "+strings.Join(unlinked, ", "))
 	}
@@ -834,38 +872,32 @@ func fuse(arms [][]string, limit int) []string {
 }
 
 func (mem *memory) confirm(ctx context.Context, req request) result {
-	name, isSeated := mem.seated(ctx)
-	if !isSeated {
-		return refused("%s", ErrNoSeat)
-	}
-
-	folded, err := mem.load(ctx)
-	if err != nil {
-		return refused("%v", err)
-	}
-
-	held, found := folded.entries[req.ID]
-	if !found {
-		return refused("%s: %s", req.ID, ErrNoEntry)
-	}
-
 	here := mem.checkout(ctx)
-	confirmed := confirmPayload{Anchors: rehash(here.root, held.anchors), Commit: here.commit, Branch: here.branch}
+	rehashed := map[string]confirmPayload{}
 
-	raw, err := json.Marshal(confirmed)
-	if err != nil {
-		return refused("encoding the confirm: %v", err)
+	folded, ids, failure, ok := mem.batch(ctx, "confirmed", req.IDs, false, nil,
+		func(_ *state, held *entry, seat string) (memorylog.Event, error) {
+			confirmed := confirmPayload{Anchors: rehash(here.root, held.anchors), Commit: here.commit, Branch: here.branch}
+			rehashed[held.id] = confirmed
+
+			raw, err := json.Marshal(confirmed)
+			if err != nil {
+				return memorylog.Event{}, fmt.Errorf("encoding the confirm: %w", err)
+			}
+
+			return memorylog.Event{Kind: memorylog.KindConfirm, Entry: held.id, Time: mem.now(), Seat: seat, Payload: raw}, nil
+		})
+	if !ok {
+		return failure
 	}
 
-	err = mem.appendEvents(ctx, memorylog.Event{
-		Kind: memorylog.KindConfirm, Entry: held.id, Time: mem.now(), Seat: name, Payload: raw,
-	})
-	if err != nil {
-		return refused("%v", err)
+	mem.warm(folded, heatConfirm, ids...)
+
+	lines := make([]string, 0, len(ids))
+	for _, id := range ids {
+		lines = append(lines, fmt.Sprintf("confirmed %s: %d of %d anchors re-hashed against %s", id, len(rehashed[id].Anchors),
+			len(folded.entries[id].anchors), cmp.Or(here.commit, "the tree")))
 	}
 
-	mem.warm(folded, heatConfirm, held.id)
-
-	return done(fmt.Sprintf("confirmed %s: %d of %d anchors re-hashed against %s", held.id, len(confirmed.Anchors),
-		len(held.anchors), cmp.Or(here.commit, "the tree")))
+	return done(strings.Join(lines, "\n"))
 }
