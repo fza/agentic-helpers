@@ -6,8 +6,8 @@ loads [`source/AGENTS.md`](source/AGENTS.md) too** whenever a session touches `s
 
 ## Project overview
 
-`agentic-helpers` is a set of machine-wide Claude Code hooks and the commands `agentic-capture` and
-`agentic-memory`, each paired with a skill that tells the agent what it is doing. The grounding gate
+`agentic-helpers` is a set of machine-wide Claude Code hooks and the commands `agentic-capture`,
+`agentic-memory` and `agentic-tools`, each paired with a skill that tells the agent what it is doing. The grounding gate
 and `agentic-capture` exist for [sdd](https://github.com/fza/sdd): sdd's decision graph under
 `.sdd/` motivates them and drives what they check. They install once for every project on the
 machine and stay silent where a hook has nothing to work on: a project without the directory it
@@ -16,9 +16,9 @@ how to install it; [`docs/`](docs/index.md) says how each piece is used and how 
 
 | Path | Holds |
 |---|---|
-| `source/hooks/` | one Go module: a binary per hook, `agentic-capture` and `agentic-memory` under `cmd/`, everything else under `internal/` |
+| `source/hooks/` | one Go module: a binary per hook, `agentic-capture`, `agentic-memory` and `agentic-tools` under `cmd/`, everything else under `internal/` |
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
-| `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` MCP server), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
+| `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` and `tools` MCP servers), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
 | `docs/` | one folder per piece, each with `usage.md` and `architecture.md` |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 

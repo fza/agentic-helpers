@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"os"
 	"path/filepath"
 	"slices"
@@ -560,6 +561,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 
 	held = mem.track(name, held, payload)
 	removeIfThere(mem.shownPath(held.SessionID))
+	promptvector.Remove(promptvector.Dir(mem.env.CacheRoot), held.SessionID)
 
 	text := mem.recentTurns(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath))
 	if text == "" {
@@ -614,7 +616,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	bounded, cancel := context.WithTimeout(ctx, recallLimit)
 	defer cancel()
 
-	scores, err := mem.semantic(bounded, folded, prompt)
+	scores, err := mem.semanticFor(bounded, folded, prompt, session)
 	if err != nil {
 		if shown.Notified {
 			return ""

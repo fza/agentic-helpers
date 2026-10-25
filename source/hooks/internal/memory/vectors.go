@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"os"
 	"path/filepath"
 	"time"
@@ -171,6 +172,13 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Embedder, store *vec
 
 // semantic scores entries against a phrase by their best chunk.
 func (mem *memory) semantic(ctx context.Context, folded *state, phrase string) (map[string]float32, error) {
+	return mem.semanticFor(ctx, folded, phrase, "")
+}
+
+// semanticFor scores every live entry against phrase. A prompt names its
+// session: the prompt's vector then comes from, or goes to, the slot
+// agentic-tools shares, so the prompt is embedded once between them.
+func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string, session string) (map[string]float32, error) {
 	embedder, err := mem.embedder()
 	if err != nil {
 		return nil, err
@@ -183,16 +191,27 @@ func (mem *memory) semantic(ctx context.Context, folded *state, phrase string) (
 		return nil, err
 	}
 
-	bounded, cancel := context.WithTimeout(ctx, embedLimit)
-	defer cancel()
+	slots := promptvector.Dir(mem.env.CacheRoot)
 
-	query, err := embedder.Embed(bounded, []string{phrase})
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
-	}
+	cached, hit := promptvector.Load(slots, session, phrase, embedder.Fingerprint())
 
-	if len(query) != 1 {
-		return nil, fmt.Errorf("%w: the embedder answered no vector for the query", ErrNoEmbedder)
+	query := [][]float32{cached}
+	if !hit {
+		bounded, cancel := context.WithTimeout(ctx, embedLimit)
+		defer cancel()
+
+		query, err = embedder.Embed(bounded, []string{phrase})
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
+		}
+
+		if len(query) != 1 {
+			return nil, fmt.Errorf("%w: the embedder answered no vector for the query", ErrNoEmbedder)
+		}
+
+		if session != "" {
+			_ = promptvector.Save(slots, session, phrase, embedder.Fingerprint(), query[0])
+		}
 	}
 
 	scores := map[string]float32{}

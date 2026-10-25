@@ -108,11 +108,11 @@ Every hook exits at once in a project without a store.
 |---|---|
 | SessionStart (`session-start`) | for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path |
-| UserPromptSubmit (`prompt`) | adds up to three related entries, and the nudge near compaction |
+| UserPromptSubmit (`prompt`) | adds up to three related entries, and the nudge near compaction; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares |
 | PostToolUse (`tool`) | tells the seat about arrivals as `additionalContext`; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls and nothing more |
 | Stop (`stop`) | blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
-| SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice |
+| SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice, and empties the session's prompt vector slot |
 
 ## Links
 

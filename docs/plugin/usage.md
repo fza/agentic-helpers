@@ -10,9 +10,10 @@ nothing is asked, and a project carrying none of it never hears from any hook.
 | Memory | a seat claimed with `agentic-memory claim <seat>`; where a project has memory but this session holds no seat, one line names the seats | exits 0, silently |
 | Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
+| Tool library | a git work tree, on a machine whose library `~/.claude/agentic-tools/` the first `agentic-tools add` created | exits 0, silently |
 
-So opting a project in is one command, `mkdir .tmp` or `agentic-memory claim <seat>`, and opting
-out is removing the directory or releasing the seat. A project using none needs no configuration, no
+So opting a project in is one command, `mkdir .tmp`, `agentic-memory claim <seat>` or a first
+`agentic-tools add`, and opting out is removing the directory or releasing the seat. A project using none needs no configuration, no
 allowlist entry and no marker file.
 
 ## sdd
@@ -24,7 +25,7 @@ grounding gate says the same once as a session starts, then stays off for that s
 
 ## Commands
 
-Claude Code's Bash tool finds `agentic-capture` and `agentic-memory` through the plugin's `bin/`,
+Claude Code's Bash tool finds `agentic-capture`, `agentic-memory` and `agentic-tools` through the plugin's `bin/`,
 which hands each call to the launcher, so `agentic-capture --help` is answered by the real binary.
 With no binary installed and none fetchable, a command from `bin/` or the MCP server exits 1 and
 says why on stderr, where a hook stays silent. A script outside Claude Code has no plugin on its
@@ -33,8 +34,8 @@ PATH and builds the binaries itself: `go install -C source/hooks ./cmd/...` from
 ## Options
 
 The plugin's configuration dialog (`/plugin`, or `pluginConfigs` in the user or managed settings)
-carries agentic-memory's options; no project overrides them. [`../memory/usage.md`](../memory/usage.md)
-lists each.
+carries agentic-memory's options and agentic-tools' `tools_duplicate_floor`; no project overrides
+them. [`../memory/usage.md`](../memory/usage.md) and [`../tools/usage.md`](../tools/usage.md) list each.
 
 ## The skills
 
@@ -46,6 +47,7 @@ skill carrying what it cannot say in a one-line refusal.
 | `agentic-helpers:agent-memory` | what a seat is, how to claim one, how to file, find, retire and supersede, what belongs in memory against what belongs in the graph (and that a project without a graph files its decisions and defects in memory), and what comes back after a compaction |
 | `agentic-helpers:agent-grounding` | the sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
 | `agentic-helpers:agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
+| `agentic-helpers:agent-tools` | looking for a tool before writing one, taking and registering tools, what each duplicate refusal means, and what each `tool library:` line asks |
 | `agentic-helpers:agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
 
 Each skill is the whole of its rules. A global instruction file names the skill and says to load it;

@@ -49,6 +49,16 @@ func TestRead(t *testing.T) {
 			}),
 		},
 		{
+			name: "the tool duplicate floor reads as a number or the dialog's string",
+			user: own + `{"tools_duplicate_floor":"0.9"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ToolsDuplicateFloor = 0.9 }),
+		},
+		{
+			name:    "a tool duplicate floor above 1 is refused",
+			user:    own + `{"tools_duplicate_floor":1.5}}}}`,
+			wantErr: true,
+		},
+		{
 			name: "another plugin's options are ignored",
 			user: `{"pluginConfigs":{"other@market":{"options":{"embedding_model":"x"}}}}`,
 			want: pluginconfig.Defaults(),

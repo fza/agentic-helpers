@@ -1,5 +1,5 @@
 {
-  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; register.ts writes agentic-memory's context reading",
+  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; agentic-tools offers tools near a prompt and notes newer versions and unregistered scripts; register.ts writes agentic-memory's context reading",
   "modules": ["./register.ts"],
   "hooks": {
     "SessionStart": [
@@ -19,7 +19,8 @@
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory prompt", "timeout": 30 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory prompt", "timeout": 30 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-tools prompt", "timeout": 30 }
         ]
       }
     ],
@@ -27,6 +28,7 @@
       {
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory stop", "timeout": 15 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-tools stop", "timeout": 15 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory wait", "asyncRewake": true, "timeout": 1860 }
         ]
       }
@@ -54,7 +56,8 @@
       },
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory tool", "timeout": 15 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory tool", "timeout": 15 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-tools notice", "timeout": 15 }
         ]
       }
     ],
@@ -63,7 +66,8 @@
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory session-end", "timeout": 15 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-scratch end", "timeout": 15 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate end", "timeout": 15 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate end", "timeout": 15 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-tools end", "timeout": 15 }
         ]
       }
     ]

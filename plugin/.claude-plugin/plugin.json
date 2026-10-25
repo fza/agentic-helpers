@@ -71,6 +71,13 @@
       "title": "Memory entry language",
       "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; empty means en",
       "required": false
+    },
+    "tools_duplicate_floor": {
+      "type": "number",
+      "title": "Tool duplicate floor",
+      "description": "Cosine at or above which agentic-tools refuses a new tool's description as another tool's, unless --distinct says how it differs",
+      "default": 0.85,
+      "required": false
     }
   }
 }

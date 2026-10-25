@@ -18,6 +18,10 @@ const PluginID = "agentic-helpers@agentic-helpers"
 
 const DefaultEntryMaxWords = 500
 
+// DefaultToolsDuplicateFloor is the cosine at or above which agentic-tools
+// holds a new tool's description to be another tool's.
+const DefaultToolsDuplicateFloor = 0.85
+
 // DefaultRetiredBodyDays / MinRetiredBodyDays bound how long a retired entry
 // keeps its body. The floor is the revive window: a body never goes before a
 // revive could still want it.
@@ -46,6 +50,7 @@ type Options struct {
 	EntryIDLength       int
 	MemoryLanguage      string
 	MemoryRequireGit    bool
+	ToolsDuplicateFloor float64
 }
 
 type settings struct {
@@ -107,7 +112,7 @@ func Read(paths []string) (Options, error) {
 func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
-		MemoryRequireGit: true,
+		MemoryRequireGit: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 	}
 }
 
@@ -153,6 +158,16 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
+	raw, found := values["tools_duplicate_floor"]
+	if found {
+		value, err := fraction(raw)
+		if err != nil {
+			return fmt.Errorf("tools_duplicate_floor: %w", err)
+		}
+
+		options.ToolsDuplicateFloor = value
+	}
+
 	switches := map[string]*bool{"memory_require_git": &options.MemoryRequireGit}
 
 	for key, target := range switches {
@@ -193,6 +208,37 @@ func boolean(raw json.RawMessage) (bool, error) {
 
 // number accepts a JSON number or a numeric string: the dialog stores what the
 // user typed, and a hand-edited settings file may quote it.
+// fraction accepts a number above 0 and at most 1, or the string the dialog
+// may store for one; an empty string keeps the default.
+func fraction(raw json.RawMessage) (float64, error) {
+	var value float64
+
+	err := json.Unmarshal(raw, &value)
+	if err != nil {
+		var text string
+
+		err = json.Unmarshal(raw, &text)
+		if err != nil {
+			return 0, fmt.Errorf("not a number: %s", raw)
+		}
+
+		if text == "" {
+			return DefaultToolsDuplicateFloor, nil
+		}
+
+		value, err = strconv.ParseFloat(text, 64)
+		if err != nil {
+			return 0, fmt.Errorf("not a number: %q", text)
+		}
+	}
+
+	if value <= 0 || value > 1 {
+		return 0, fmt.Errorf("%v lies outside (0, 1]", value)
+	}
+
+	return value, nil
+}
+
 func number(raw json.RawMessage) (int, error) {
 	var value float64
 

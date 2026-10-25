@@ -10,6 +10,7 @@ and commands the agent calls itself:
 | Piece | Binary | What it keeps the agent doing |
 |---|---|---|
 | memory | `agentic-memory` | filing what it learns as it works, and getting back what a fresh context needs after a compaction or a new session |
+| tool library | `agentic-tools` | taking a helper tool another agent already wrote instead of writing it again, and registering the ones it writes |
 | scratch sweep | `agentic-scratch` | keeping throwaway work in one place per session, and clearing it when the session ends |
 | grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing |
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |

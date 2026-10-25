@@ -9,7 +9,7 @@
 | `plugin/hooks/hooks.json` | every hook the plugin wires, each through `plugin/hooks/run` |
 | `plugin/hooks/run` | the launcher |
 | `plugin/hooks/register.ts` | the hooks module, writing agentic-memory's context reading |
-| `plugin/.mcp.json` | the `memory` MCP server, started through the launcher |
+| `plugin/.mcp.json` | the `memory` and `tools` MCP servers, each started through the launcher |
 | `plugin/bin/` | the commands the Bash tool finds, each handing its call to the launcher |
 | `plugin/skills/` | one skill per hook |
 | `source/hooks/` | one Go module: a binary per hook and command under `cmd/`, everything else under `internal/` |
@@ -22,12 +22,12 @@ files goes into `plugin/`.
 | Event | Binaries |
 |---|---|
 | SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-grounding-gate start` |
-| UserPromptSubmit | `agentic-memory prompt` |
+| UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt` |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `agentic-grounding-gate gate` |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `Write`, `Edit` | `agentic-grounding-gate record` |
-| PostToolUse on every tool | `agentic-memory tool` |
-| Stop | `agentic-memory stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
-| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end` |
+| PostToolUse on every tool | `agentic-memory tool`, `agentic-tools notice` |
+| Stop | `agentic-memory stop`, `agentic-tools stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
+| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end` |
 
 ## Where the binaries come from
 
@@ -37,7 +37,7 @@ the release named by the plugin's own `version`, kept under the plugin's data di
 
 1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched.
 2. The plugin's version is there: it runs.
-3. At SessionStart, or for a command an agent runs (a `bin/` shim, the `memory` MCP server), the
+3. At SessionStart, or for a command an agent runs (a `bin/` shim, the `memory` or `tools` MCP server), the
    release archive for this machine and the release's `checksums.txt` are downloaded; the archive
    is unpacked only where its sha256 matches. A prompt or a tool-call hook never downloads.
 4. Otherwise the newest version already there runs. A session that cannot write the data directory,

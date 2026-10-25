@@ -28,6 +28,10 @@ builds:
     id: agentic-scratch
     main: ./cmd/agentic-scratch
     binary: agentic-scratch
+  - <<: *binary
+    id: agentic-tools
+    main: ./cmd/agentic-tools
+    binary: agentic-tools
 
 # hooks/run fetches agentic-helpers_<version>_<os>_<arch>.tar.gz and checks it
 # against checksums.txt; both names are part of its contract.

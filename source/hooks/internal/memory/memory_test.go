@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1590,5 +1591,31 @@ func TestAnMCPClaimNormalisesTheSeatName(t *testing.T) {
 
 	if got := h.run("", "holder", "café"); got.code != 0 {
 		t.Errorf("the seat claimed over MCP should be held under its normal spelling, got %d %q", got.code, got.err)
+	}
+}
+
+func TestRecallLeavesThePromptVectorForAgenticTools(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	for _, word := range unrelated[:19] {
+		h.file("Unrelated finding about "+word, word+" "+word+" "+word)
+	}
+
+	h.file("Tail seal manifest rename", "the tail seal writes the manifest by rename")
+
+	question := "how does the tail seal manifest rename work"
+	h.must(hookPayload("", "", question), "prompt")
+
+	_, held := promptvector.Load(promptvector.Dir(h.cache), h.session, question, h.embedder.Fingerprint())
+	if !held {
+		t.Error("recall should leave the prompt's vector in the session's slot")
+	}
+
+	h.must(hookPayload("", "", ""), "session-end")
+
+	_, held = promptvector.Load(promptvector.Dir(h.cache), h.session, question, h.embedder.Fingerprint())
+	if held {
+		t.Error("the session's end should empty its slot")
 	}
 }
