@@ -84,9 +84,40 @@ sha256() {
 
 # fetch downloads, checks and unpacks the release into $data/$version. The
 # SessionStart hooks run in parallel, so a lock directory lets one of them
-# fetch while the rest wait for it; a lock older than five minutes belonged to
-# a fetch that died and is taken over. The archive is unpacked inside the lock
-# and renamed into place, so the version directory is complete or absent.
+# fetch while the rest wait for it. The archive is unpacked inside the lock and
+# renamed into place, so the version directory is complete or absent.
+#
+# A fetch must never die holding the lock: Claude Code kills an MCP server that
+# has not connected within 30 seconds, and the memory server fetches first. The
+# fetching process writes its pid to the lock's owner file and removes the lock
+# on any signal it can catch, the download running in the background so `wait`
+# lets the trap run at once. A waiter finding the owner gone, as after SIGKILL,
+# takes the lock over; a lock with no owner file is one an earlier launcher
+# wrote, and is taken over once older than five minutes.
+child=''
+
+unlock() {
+	rm -rf "$lock"
+	trap - HUP INT TERM
+}
+
+download() {
+	curl -fsSL --max-time 60 -o "$1" "$2" &
+	child=$!
+	wait "$child"
+}
+
+# take_over removes a lock whose owner is gone, once: the mkdir guards against
+# two waiters both seeing the dead owner and one removing the lock the other
+# has just taken.
+take_over() {
+	mkdir "$lock.takeover" 2>/dev/null || return 0
+	if [ "$(cat "$lock/owner" 2>/dev/null)" = "$1" ]; then
+		rm -rf "$lock"
+	fi
+	rmdir "$lock.takeover"
+}
+
 fetch() {
 	lock="$data/.fetch-$version"
 
@@ -95,7 +126,7 @@ fetch() {
 		return 1
 	}
 
-	if [ -n "$(find "$lock" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then
+	if [ ! -f "$lock/owner" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then
 		rm -rf "$lock"
 	fi
 
@@ -107,6 +138,12 @@ fetch() {
 
 		waited=0
 		while [ -d "$lock" ] && [ "$waited" -lt 100 ]; do
+			owner=$(cat "$lock/owner" 2>/dev/null)
+			if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
+				take_over "$owner"
+				fetch
+				return
+			fi
 			sleep 1
 			waited=$((waited + 1))
 		done
@@ -115,17 +152,22 @@ fetch() {
 		return
 	fi
 
+	echo $$ >"$lock/owner"
+	trap 'unlock; [ -n "$child" ] && kill "$child" 2>/dev/null; exit 129' HUP
+	trap 'unlock; [ -n "$child" ] && kill "$child" 2>/dev/null; exit 130' INT
+	trap 'unlock; [ -n "$child" ] && kill "$child" 2>/dev/null; exit 143' TERM
+
 	target=$(platform) || {
-		rm -rf "$lock"
+		unlock
 		reason="no release for $(uname -s) $(uname -m)"
 		return 1
 	}
 
 	archive="agentic-helpers_${version}_${target}.tar.gz"
 
-	if ! curl -fsSL --max-time 60 -o "$lock/checksums.txt" "$releases/v$version/checksums.txt" ||
-		! curl -fsSL --max-time 60 -o "$lock/$archive" "$releases/v$version/$archive"; then
-		rm -rf "$lock"
+	if ! download "$lock/checksums.txt" "$releases/v$version/checksums.txt" ||
+		! download "$lock/$archive" "$releases/v$version/$archive"; then
+		unlock
 		reason="downloading release v$version failed"
 		return 1
 	fi
@@ -134,19 +176,19 @@ fetch() {
 	actual=$(sha256 "$lock/$archive")
 
 	if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-		rm -rf "$lock"
+		unlock
 		reason="$archive does not match the release's checksums.txt"
 		return 1
 	fi
 
 	mkdir "$lock/unpacked" && tar -xzf "$lock/$archive" -C "$lock/unpacked" || {
-		rm -rf "$lock"
+		unlock
 		reason="unpacking $archive failed"
 		return 1
 	}
 
 	mv "$lock/unpacked" "$data/$version"
-	rm -rf "$lock"
+	unlock
 }
 
 reason=''

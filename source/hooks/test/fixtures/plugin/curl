@@ -1,6 +1,7 @@
 #!/bin/sh
 # Stands in for curl: serves a release asset from $FAKE_RELEASES by the path
-# after /releases/download/, and logs every URL asked for to $FAKE_CURL_LOG.
+# after /releases/download/, logs every URL asked for to $FAKE_CURL_LOG, and
+# its own pid beside it, so a test can tell whether a download still runs.
 out=''
 url=''
 while [ $# -gt 0 ]; do
@@ -12,6 +13,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 echo "$url" >>"$FAKE_CURL_LOG"
+echo $$ >>"$FAKE_CURL_LOG.pids"
 sleep "${FAKE_CURL_DELAY:-0}"
 asset="$FAKE_RELEASES/${url#*/releases/download/}"
 [ -f "$asset" ] || exit 22

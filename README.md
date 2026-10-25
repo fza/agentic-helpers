@@ -78,7 +78,11 @@ release named by the plugin's own `version`, kept under the plugin's data direct
    release archive for this machine and the release's `checksums.txt` are downloaded; the archive
    is unpacked only where its sha256 matches. A prompt or a tool-call hook never downloads. Claude
    Code starts the MCP server alongside the SessionStart hooks, so the first to fetch holds a lock
-   and the other waits for it.
+   (`.fetch-<version>/` in the data directory, its pid in `owner`) and the rest wait for it, up to
+   100 seconds. A fetch that is signalled removes its lock as it goes: Claude Code kills an MCP
+   server that has not connected within 30 seconds, and the server fetches first. A waiter finding
+   the owner's process gone, as after `SIGKILL`, takes the lock over at once; a lock with no
+   `owner` file is taken over once older than five minutes.
 4. Otherwise the newest version already there runs. A session that cannot write the data directory,
    such as a sandboxed job, runs what an earlier session fetched.
 5. No binary at all: the grounding gate refuses every call it guards, with a message naming the fix,

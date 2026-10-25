@@ -6,10 +6,13 @@ package plugin_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -205,6 +208,189 @@ func TestAStaleLockIsTakenOver(t *testing.T) {
 	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
 	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-scratch")) {
 		t.Errorf("a lock left by a dead fetch should not hold the release back, got: %+v", got)
+	}
+}
+
+func TestAFetchSignalledMidDownloadLeavesNothingBehind(t *testing.T) {
+	for _, signal := range []syscall.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP} {
+		t.Run(signal.String(), func(t *testing.T) {
+			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+			plugin.Release(t, "1.4.0", "", "agentic-memory")
+
+			lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
+			launcher := plugin.Start(t, "hooks/run", []string{"FAKE_CURL_DELAY=30"}, "--command", "agentic-memory", "mcp")
+
+			deadline := time.Now().Add(10 * time.Second)
+			for len(plugin.CurlCalls(t)) == 0 && time.Now().Before(deadline) {
+				time.Sleep(20 * time.Millisecond)
+			}
+
+			err := launcher.Process.Signal(signal)
+			if err != nil {
+				t.Fatalf("signalling the launcher: %v", err)
+			}
+
+			waited := make(chan struct{})
+			go func() {
+				_ = launcher.Wait()
+				close(waited)
+			}()
+
+			select {
+			case <-waited:
+			case <-time.After(10 * time.Second):
+				_ = launcher.Process.Kill()
+				t.Fatal("a signalled fetch should end without waiting for its download")
+			}
+
+			if test.Exists(t, lock) {
+				t.Error("a fetch signalled mid-download should take its lock with it")
+			}
+
+			if downloadRunning(t, plugin.CurlLog+".pids") {
+				t.Error("a fetch signalled mid-download should stop its download too")
+			}
+		})
+	}
+}
+
+// downloadRunning reports whether a fake curl the log names still runs, given
+// a moment to receive the signal it was sent.
+func downloadRunning(t *testing.T, pids string) bool {
+	t.Helper()
+
+	content, err := os.ReadFile(pids)
+	if err != nil {
+		t.Fatalf("reading the fake curl's pids: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		running := false
+
+		for _, field := range strings.Fields(string(content)) {
+			pid, _ := strconv.Atoi(field)
+			if pid > 0 && syscall.Kill(pid, 0) == nil {
+				running = true
+			}
+		}
+
+		if !running || time.Now().After(deadline) {
+			return running
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestALockWhoseOwnerIsGoneIsTakenOverAtOnce(t *testing.T) {
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+	plugin.Release(t, "1.4.0", "", "agentic-scratch")
+
+	gone := exec.Command("true")
+
+	err := gone.Run()
+	if err != nil {
+		t.Fatalf("running a process to outlive: %v", err)
+	}
+
+	lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
+	test.WriteFile(t, filepath.Join(lock, "checksums.txt"), "left by a fetch that was killed\n")
+	test.WriteFile(t, filepath.Join(lock, "owner"), strconv.Itoa(gone.Process.Pid)+"\n")
+
+	started := time.Now()
+
+	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
+	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-scratch")) {
+		t.Errorf("a lock whose owner is gone should not hold the release back, got: %+v", got)
+	}
+
+	if time.Since(started) > 20*time.Second {
+		t.Errorf("a dead owner's lock should be taken over at once, not waited out, took %v", time.Since(started))
+	}
+
+	if test.Exists(t, lock) || test.Exists(t, lock+".takeover") {
+		t.Error("the takeover should leave no lock behind")
+	}
+}
+
+func TestAFetchKilledUncaughtIsTakenOver(t *testing.T) {
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+	plugin.Release(t, "1.4.0", "", "agentic-scratch")
+
+	lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
+	first := plugin.Start(t, "hooks/run", []string{"FAKE_CURL_DELAY=30"}, "--session-start", "agentic-scratch", "start")
+
+	deadline := time.Now().Add(10 * time.Second)
+	for !test.Exists(t, filepath.Join(lock, "owner")) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	err := first.Process.Kill()
+	if err != nil {
+		t.Fatalf("killing the first fetch: %v", err)
+	}
+
+	_ = first.Wait()
+
+	started := time.Now()
+
+	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
+	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-scratch")) {
+		t.Errorf("a fetch killed beyond any trap should not hold the release back, got: %+v", got)
+	}
+
+	if time.Since(started) > 20*time.Second {
+		t.Errorf("the lock of a fetch killed beyond any trap should be taken over at once, took %v", time.Since(started))
+	}
+}
+
+func TestALockOfALiveFetchIsWaitedOn(t *testing.T) {
+	cases := []struct {
+		name  string
+		owner bool
+		age   time.Duration
+	}{
+		{name: "an owner still running, the lock old", owner: true, age: 10 * time.Minute},
+		{name: "no owner file, the lock young"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+			plugin.Release(t, "1.4.0", "", "agentic-scratch")
+
+			lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
+			test.WriteFile(t, filepath.Join(lock, "checksums.txt"), "a fetch in progress\n")
+
+			if tc.owner {
+				test.WriteFile(t, filepath.Join(lock, "owner"), strconv.Itoa(os.Getpid())+"\n")
+			}
+
+			if tc.age > 0 {
+				test.Age(t, lock, tc.age)
+			}
+
+			waiter := plugin.Start(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
+			time.Sleep(2 * time.Second)
+
+			if len(plugin.CurlCalls(t)) != 0 {
+				t.Error("a lock held by a live fetch should be waited on, never fetched past")
+			}
+
+			plugin.Installed(t, "1.4.0", "agentic-scratch")
+
+			err := os.RemoveAll(lock)
+			if err != nil {
+				t.Fatalf("finishing the other fetch: %v", err)
+			}
+
+			_ = waiter.Wait()
+
+			if len(plugin.CurlCalls(t)) != 0 {
+				t.Error("the waiter should run what the other fetch unpacked")
+			}
+		})
 	}
 }
 

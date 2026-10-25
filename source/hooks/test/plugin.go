@@ -133,6 +133,39 @@ type Ran struct {
 func (plugin *Plugin) Run(t *testing.T, script string, extra []string, args ...string) Ran {
 	t.Helper()
 
+	command := plugin.command(script, extra, args)
+
+	var stdout, stderr bytes.Buffer
+
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+
+	err := command.Run()
+
+	var exited *exec.ExitError
+	if err != nil && !errors.As(err, &exited) {
+		t.Fatalf("running %s: %v", script, err)
+	}
+
+	return Ran{Code: command.ProcessState.ExitCode(), Stdout: stdout.String(), Stderr: stderr.String()}
+}
+
+// Start launches the script as Run does and returns at once, for a test that
+// signals the launcher mid-run.
+func (plugin *Plugin) Start(t *testing.T, script string, extra []string, args ...string) *exec.Cmd {
+	t.Helper()
+
+	command := plugin.command(script, extra, args)
+
+	err := command.Start()
+	if err != nil {
+		t.Fatalf("starting %s: %v", script, err)
+	}
+
+	return command
+}
+
+func (plugin *Plugin) command(script string, extra []string, args []string) *exec.Cmd {
 	env := map[string]string{
 		"PATH":               plugin.Tools + ":/usr/bin:/bin:/usr/sbin:/sbin",
 		"HOME":               filepath.Join(filepath.Dir(plugin.Root), "home"),
@@ -158,19 +191,7 @@ func (plugin *Plugin) Run(t *testing.T, script string, extra []string, args ...s
 		command.Env = append(command.Env, name+"="+value)
 	}
 
-	var stdout, stderr bytes.Buffer
-
-	command.Stdout = &stdout
-	command.Stderr = &stderr
-
-	err := command.Run()
-
-	var exited *exec.ExitError
-	if err != nil && !errors.As(err, &exited) {
-		t.Fatalf("running %s: %v", script, err)
-	}
-
-	return Ran{Code: command.ProcessState.ExitCode(), Stdout: stdout.String(), Stderr: stderr.String()}
+	return command
 }
 
 func (plugin *Plugin) CurlCalls(t *testing.T) []string {
