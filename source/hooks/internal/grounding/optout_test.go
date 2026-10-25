@@ -101,3 +101,13 @@ func TestOutsideGitNoSeatIsExempt(t *testing.T) {
 
 	refuses(t, run(t, env, "gate", ask(test.Session)), "neither read")
 }
+
+func TestAnExemptSeatIsNamedInAnySpelling(t *testing.T) {
+	env := configured(t, "exempt-seats.yaml")
+	test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), "exempt_seats: [Café]\n")
+	processes := test.NewProcesses()
+	env.Processes, env.OwnerName = processes, "claude"
+	test.ClaimSeat(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "café", test.Session)
+
+	passes(t, run(t, env, "gate", ask(test.Session)))
+}

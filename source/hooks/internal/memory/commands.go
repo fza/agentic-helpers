@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"io"
 	"slices"
 	"strconv"
@@ -62,6 +63,18 @@ type result struct {
 	text   string
 	code   int
 	failed bool
+}
+
+// normalize spells every seat name a request carries the one way the store
+// keeps it, whichever path the request came by.
+func (req *request) normalize() {
+	if req.Name != "" {
+		req.Name = seat.Normal(req.Name)
+	}
+
+	for index, name := range req.Seats {
+		req.Seats[index] = seat.Normal(name)
+	}
 }
 
 func done(text string) result {

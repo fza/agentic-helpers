@@ -300,6 +300,8 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return mem.refuse(err)
 	}
 
+	request.normalize()
+
 	result := command.run(mem, ctx, request)
 	if result.failed {
 		_, _ = fmt.Fprintln(streams.Err, self+": "+result.text)

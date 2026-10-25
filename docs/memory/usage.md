@@ -31,6 +31,15 @@ agentic-memory search --term mcp --query 'gate blind to tool calls'
 agentic-memory supersede m-7q2k4f --by m-9xq0b1
 ```
 
+A seat name is a word in any script: a letter, then up to 23 letters, combining marks, digits or
+dashes, counted in characters (`main`, `haupt`, `главная`, `メイン`, `मुख्य`). Every name agentic-memory
+reads (`claim`, `release`, `holder`, `--seat`, the MCP keys carrying a seat, `exempt_seats` in
+`.sdd/grounding.yaml`) is normalised to Unicode NFC and lower-cased first, so `Café` typed
+precomposed or decomposed names one seat with one file.
+
+An agent asked for a seat in words that are not its exact name ("Haupt-Session") lists the seats
+with `sweep`, maps the words onto the seat meaning the same, and asks when none or several fit.
+
 A seat whose holder still runs is refused to every other session, always: nothing tells a stuck
 holder from a busy one, and a busy one losing its seat would find every write refused without
 noticing. The seat frees when its holder runs `release` or its session ends; a seat whose holder has

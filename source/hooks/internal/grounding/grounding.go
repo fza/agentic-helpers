@@ -740,7 +740,7 @@ func (env Env) exempt(ctx context.Context, seats []string) bool {
 	dir := seat.Dir(projectkey.Dir(seat.StoreRoot(env.Home), key))
 	name, _ := seat.Of(ctx, dir, env.Processes, env.OwnerName)
 
-	return name != "" && slices.Contains(seats, name)
+	return name != "" && slices.ContainsFunc(seats, func(exempt string) bool { return seat.Normal(exempt) == name })
 }
 
 // elsewhere reports whether the command starts by walking into another

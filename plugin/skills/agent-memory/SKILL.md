@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: 'agentic-memory: seats, filing entries, search, the brief, retention, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, and when deciding what belongs in memory versus the graph versus docs.'
+description: 'agentic-memory: seats, filing entries, search, the brief, retention, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, and when deciding what belongs in memory versus the graph versus docs.'
 ---
 
 # Memory
@@ -41,7 +41,12 @@ agentic-memory holder --session <id> --json
 agentic-memory sweep                    # list seats, free dead holders
 ```
 
-- Name → `^[a-z][a-z0-9-]{0,23}$`. One seat per session.
+- Name → any script: a letter, then up to 23 letters, marks, digits or dashes. Normalised (NFC,
+  lower-cased): `Café` = `café`. One seat per session.
+- **User asks for a seat without its exact name** ("main seat", "Haupt-Session", "sesión
+  principal") → run `agentic-memory sweep` for the current seats, map the words onto the seat whose
+  name means the same, claim it. No seat or several fit → ask the user which, naming the seats.
+  Never coin a new seat from a translation without asking.
 - **Held by a running session → refused, always.** Nothing seizes it. It frees when its holder runs
   `release` or its session ends. Stuck holder → the user's to close, or ask its agent to release.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.

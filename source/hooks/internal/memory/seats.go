@@ -51,7 +51,7 @@ func (mem *memory) holder(ctx context.Context, req request) result {
 	}
 
 	if !seat.ValidName(req.Name) {
-		return refused("%v, %q does not", seat.ErrBadName, req.Name)
+		return refused("%v, %q is not one", seat.ErrBadName, req.Name)
 	}
 
 	held, found := seat.Read(mem.seatsDir(), req.Name)
@@ -91,7 +91,7 @@ func (mem *memory) holderAnswer(view holderView, asJSON bool) result {
 
 func (mem *memory) claim(ctx context.Context, req request) result {
 	if !seat.ValidName(req.Name) {
-		return refused("a seat name matches ^[a-z][a-z0-9-]{0,23}$, %q does not", req.Name)
+		return refused("%v, %q is not one", seat.ErrBadName, req.Name)
 	}
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
@@ -244,7 +244,7 @@ func (mem *memory) release(ctx context.Context, req request) result {
 	}
 
 	if !seat.ValidName(name) {
-		return refused("%v, %q does not", seat.ErrBadName, name)
+		return refused("%v, %q is not one", seat.ErrBadName, name)
 	}
 
 	held, found := seat.Read(mem.seatsDir(), name)

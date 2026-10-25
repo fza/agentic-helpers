@@ -865,7 +865,7 @@ func TestSeatNamesStayInsideTheStore(t *testing.T) {
 
 	for _, args := range [][]string{{"release", "../main"}, {"holder", "../main"}, {"claim", "../x"}} {
 		got := h.run("", args...)
-		if got.code != 1 || !strings.Contains(got.err, "a seat name matches") {
+		if got.code != 1 || !strings.Contains(got.err, "a seat name is a letter") {
 			t.Errorf("%v should be refused for its seat name, got %d %q", args, got.code, got.err)
 		}
 	}
@@ -1517,5 +1517,40 @@ func TestAContextReadingIsReadInEitherForm(t *testing.T) {
 				t.Error("a reading written as RFC 3339 or as Unix seconds should count")
 			}
 		})
+	}
+}
+
+func TestASeatNameInAnyScriptIsOneSeat(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "café")
+
+	if got := h.run("", "holder", "café"); got.code != 0 {
+		t.Errorf("a seat claimed decomposed should be held under its precomposed spelling, got %d %q", got.code, got.err)
+	}
+
+	if got := h.run("", "holder", "CAFÉ"); got.code != 0 {
+		t.Errorf("a seat name should be found whatever its case, got %d %q", got.code, got.err)
+	}
+
+	files, err := filepath.Glob(filepath.Join(h.store(), "seats", "*.json"))
+	if err != nil || len(files) != 1 || filepath.Base(files[0]) != "café.json" {
+		t.Errorf("one seat should keep one file, under its normal spelling, got %v %v", files, err)
+	}
+}
+
+func TestAnMCPClaimNormalisesTheSeatName(t *testing.T) {
+	h := newHarness(t)
+
+	lines := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"claim","arguments":{"name":"Café"}}}`,
+	}, "\n") + "\n"
+
+	if out := h.must(lines, "mcp"); strings.Contains(out, `"isError":true`) {
+		t.Errorf("an MCP claim should normalise the seat name before checking it, got:\n%s", out)
+	}
+
+	if got := h.run("", "holder", "café"); got.code != 0 {
+		t.Errorf("the seat claimed over MCP should be held under its normal spelling, got %d %q", got.code, got.err)
 	}
 }

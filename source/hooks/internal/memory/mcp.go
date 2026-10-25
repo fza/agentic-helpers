@@ -59,6 +59,8 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 		req.IDs = []string{req.ID}
 	}
 
+	req.normalize()
+
 	answer := held.run(mem, ctx, req)
 	if answer.failed {
 		return mcpserver.Result{Text: self + ": " + answer.text, IsError: true}

@@ -14,8 +14,9 @@ Go rules, loaded when a session touches code under `source/`.
 - **No CGO. No `/pkg`.** Every non-`cmd` package lives under `internal/`, except the module's own
   `test/` package: fakes, shared helpers and fixtures, never inline in a `_test.go`.
 - **Standard library first.** A dependency earns its place by removing a mechanism the hooks would
-  otherwise carry and test themselves. `github.com/goccy/go-yaml` is the one taken: it reads a
-  draft's header and `.sdd/grounding.yaml`, and the standard library parses no YAML.
+  otherwise carry and test themselves. `github.com/goccy/go-yaml` reads a draft's header and
+  `.sdd/grounding.yaml`, since the standard library parses no YAML; `golang.org/x/text` normalises
+  seat names to NFC, which the standard library cannot.
 
 ## Hooks
 

@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
@@ -25,11 +27,19 @@ import (
 // shell, so the immediate parent is not reliably the Claude process.
 const ancestorDepth = 12
 
-var namePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,23}$`)
+// A seat name is a word in any script, counted in runes. Letters only, never a
+// separator or a dot, so a name is always a plain path segment.
+var namePattern = regexp.MustCompile(`^\p{L}[\p{L}\p{M}\p{N}-]{0,23}$`)
 
 // ErrBadName refuses a seat name that is no plain path segment, so no caller
 // can read, write or remove a file outside the seats directory.
-var ErrBadName = errors.New("a seat name matches ^[a-z][a-z0-9-]{0,23}$")
+var ErrBadName = errors.New(`a seat name is a letter, then up to 23 letters, marks, digits or dashes, in any script`)
+
+// Normal is the one spelling of a seat name: NFC, so a letter typed precomposed
+// or decomposed names one seat with one file, then lower-cased.
+func Normal(name string) string {
+	return strings.ToLower(norm.NFC.String(strings.TrimSpace(name)))
+}
 
 type Claim struct {
 	SessionID      string `json:"session_id"`
@@ -47,8 +57,9 @@ type Processes interface {
 	StartTime(ctx context.Context, pid int) (time.Time, bool)
 }
 
+// ValidName holds a name already in its Normal spelling to the name rule.
 func ValidName(name string) bool {
-	return namePattern.MatchString(name)
+	return Normal(name) == name && namePattern.MatchString(name)
 }
 
 // StoreRoot holds every project's memory store on the machine, whatever
@@ -105,7 +116,7 @@ func readClaim(path string) (Claim, bool) {
 
 func Write(dir string, name string, held Claim) error {
 	if !ValidName(name) {
-		return fmt.Errorf("%w, %q does not", ErrBadName, name)
+		return fmt.Errorf("%w, %q is not one", ErrBadName, name)
 	}
 
 	return writeClaim(Path(dir, name), held)
@@ -140,7 +151,7 @@ func writeClaim(path string, held Claim) error {
 // Remove frees a seat, keeping what its holder left as the seat's last claim.
 func Remove(dir string, name string) error {
 	if !ValidName(name) {
-		return fmt.Errorf("%w, %q does not", ErrBadName, name)
+		return fmt.Errorf("%w, %q is not one", ErrBadName, name)
 	}
 
 	held, found := Read(dir, name)

@@ -3,6 +3,7 @@ package seat_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -134,13 +135,46 @@ func TestRemoveKeepsTheLastClaim(t *testing.T) {
 }
 
 func TestValidName(t *testing.T) {
-	for name, want := range map[string]bool{
-		"main": true, "fdbox-main": true, "a": true, "Main": false, "1st": false, "": false,
-		"abcdefghijklmnopqrstuvwxy": false, "abcdefghijklmnopqrstuvwx": true,
-	} {
-		if seat.ValidName(name) != want {
-			t.Errorf("seat names should match ^[a-z][a-z0-9-]{0,23}$, judged %q wrong", name)
-		}
+	cases := []struct {
+		name  string
+		valid bool
+	}{
+		{name: "main", valid: true},
+		{name: "drive-2", valid: true},
+		{name: "haupt", valid: true},
+		{name: "главная", valid: true},
+		{name: "メイン", valid: true},
+		{name: "मुख्य", valid: true},
+		{name: "café", valid: true},
+		{name: "a" + strings.Repeat("b", 23), valid: true},
+		{name: "a" + strings.Repeat("b", 24)},
+		{name: "2main"},
+		{name: "-main"},
+		{name: "main seat"},
+		{name: "main/x"},
+		{name: "../main"},
+		{name: "Main"},
+		{name: ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if seat.ValidName(tc.name) != tc.valid {
+				t.Errorf("a seat name should be a letter then up to 23 letters, marks, digits or dashes in any script, spelled normal")
+			}
+		})
+	}
+}
+
+func TestNormalSpellsANameOneWay(t *testing.T) {
+	decomposed := "cafe\u0301"
+
+	if seat.Normal(decomposed) != "café" || seat.Normal("  Café ") != "café" || seat.Normal("ГЛАВНАЯ") != "главная" {
+		t.Error("a name typed decomposed, padded or in capitals should normalise to one spelling")
+	}
+
+	if !seat.ValidName(seat.Normal(decomposed)) {
+		t.Error("a decomposed name should be valid once normalised")
 	}
 }
 
