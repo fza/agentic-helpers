@@ -2,12 +2,15 @@
 // so both tools agree on one identity per repository on the machine: the
 // `repo_id` the project's `.sdd/config.yaml` declares, else `local/` and a hash
 // of the git common directory, which every worktree of a repository shares.
+// Outside git there is no project identity; a caller wanting one anyway asks
+// for the directory's own.
 package projectkey
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,24 +24,32 @@ type config struct {
 	RepoID string `yaml:"repo_id"`
 }
 
-// Key is the project's identity for a session working in base. Outside git the
-// hash covers base itself.
-func Key(ctx context.Context, base string, lookup project.CommonDirLookup) string {
-	root := project.Root(ctx, base, lookup)
+var ErrNoRepository = errors.New("not inside a git repository")
 
-	id := declaredRepoID(root)
-	if id != "" {
-		return id
+// Key is the project's identity for a session working in base: the declared
+// `repo_id`, else `local/` and a hash of the git common directory.
+func Key(ctx context.Context, base string, lookup project.CommonDirLookup) (string, error) {
+	common, err := lookup.CommonDir(ctx, base)
+	if err != nil || common == "" {
+		return "", ErrNoRepository
 	}
 
+	id := declaredRepoID(filepath.Dir(common))
+	if id != "" {
+		return id, nil
+	}
+
+	sum := sha256.Sum256([]byte(filepath.Clean(common)))
+
+	return "local/" + hex.EncodeToString(sum[:])[:12], nil
+}
+
+// DirectoryKey is the identity of a directory outside git: `local/` and a hash
+// of its absolute path, as earlier releases keyed one.
+func DirectoryKey(base string) string {
 	stable, err := filepath.Abs(base)
 	if err != nil {
 		stable = base
-	}
-
-	common, err := lookup.CommonDir(ctx, base)
-	if err == nil && common != "" {
-		stable = filepath.Clean(common)
 	}
 
 	sum := sha256.Sum256([]byte(stable))

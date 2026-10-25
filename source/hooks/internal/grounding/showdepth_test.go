@@ -1,7 +1,6 @@
 package grounding_test
 
 import (
-	"errors"
 	"path/filepath"
 	"testing"
 
@@ -12,12 +11,12 @@ import (
 const shownEntry = "sdd show 20260907-164635-d-tac-vkm"
 
 // configured is a project carrying a graph and the named grounding.yaml
-// fixture, outside any repository, so its seats live in the project itself.
+// fixture, the main checkout of its own repository.
 func configured(t *testing.T, fixture string) grounding.Env {
 	t.Helper()
 
 	env := bare(t)
-	env.Checkout = test.CommonDir{Err: errors.New("not a git repository")}
+	env.Checkout = test.CommonDir{Dir: filepath.Join(env.ProjectDir, ".git")}
 	test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), test.Fixture(t, "grounding/"+fixture))
 
 	return env

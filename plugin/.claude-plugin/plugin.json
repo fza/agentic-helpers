@@ -58,6 +58,13 @@
       "description": "Characters after m- in a new entry id, 6 to 16; ids already filed keep working",
       "default": 6,
       "required": false
+    },
+    "memory_require_git": {
+      "type": "boolean",
+      "title": "Memory only inside git",
+      "description": "Keep agentic-memory to git work trees; off lets a directory outside git keep a store keyed by its own path",
+      "default": true,
+      "required": false
     }
   }
 }

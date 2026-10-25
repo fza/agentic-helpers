@@ -45,6 +45,8 @@ agentic-memory sweep                    # list seats, free dead holders
 - **Held by a running session → refused, always.** Nothing seizes it. It frees when its holder runs
   `release` or its session ends. Stuck holder → the user's to close, or ask its agent to release.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
+- **Only inside a git work tree.** Outside: every call refuses, `<dir> is not inside a git work
+  tree; memory works only in one`. Plugin option `memory_require_git: false` lifts it, machine-wide.
 - Store → `~/.claude/agentic-memory/<project>/`, outside the repo. Project = `.sdd/config.yaml`
   `repo_id`, else a hash of the main checkout. Worktrees share it.
 

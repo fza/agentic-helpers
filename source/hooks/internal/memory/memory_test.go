@@ -16,6 +16,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -1351,5 +1352,83 @@ func TestFileNamesInAnyScriptAnchorAnEntry(t *testing.T) {
 
 	if strings.Contains(anchors[1], "Fehlt") || strings.Contains(anchors[1], "z.B") || strings.Contains(anchors[1], ":12") {
 		t.Errorf("only existing files, without a line suffix, should anchor, got %q", anchors[1])
+	}
+}
+
+func outsideGit(h *harness) {
+	h.git.OutsideWorkTree = true
+}
+
+func TestOutsideAGitWorkTreeMemoryRefusesAndCreatesNothing(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.file("A finding in the project", "the project's own store exists beside the root")
+	h.must("", "release")
+
+	root := filepath.Join(h.home, ".claude", "agentic-memory")
+	before := test.Tree(t, root)
+
+	outsideGit(h)
+
+	for _, args := range [][]string{{"claim", "main"}, {"new", "--title", "A finding outside git", "--topic", "gate"}, {"search", "--term", "x"}} {
+		got := h.run("a body", args...)
+		if got.code != 1 || !strings.Contains(got.err, "agentic-memory: "+h.repo+" is not inside a git work tree; memory works only in one") {
+			t.Errorf("%v outside a work tree should be refused naming the directory, got %d %q", args, got.code, got.err)
+		}
+	}
+
+	for _, event := range []string{"session-start", "prompt", "stop", "session-end"} {
+		got := h.run(hookPayload("startup", "", "hello"), event)
+		if got.code != 0 || got.out != "" || got.err != "" {
+			t.Errorf("the %s hook outside a work tree should stay silent, got %d %q %q", event, got.code, got.out, got.err)
+		}
+	}
+
+	if after := test.Tree(t, root); after != before {
+		t.Errorf("nothing should change under the store root outside a work tree, got:\n%s\nbefore:\n%s", after, before)
+	}
+
+	if got := h.run("", "help"); got.code != 0 {
+		t.Errorf("help should answer anywhere, got %d %q", got.code, got.err)
+	}
+
+	lines := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"claim","arguments":{"name":"main"}}}`,
+	}, "\n") + "\n"
+
+	out := h.must(lines, "mcp")
+	if !strings.Contains(out, `"id":1,"result"`) || !strings.Contains(out, `is not inside a git work tree; memory works only in one`) ||
+		!strings.Contains(out, `"isError":true`) {
+		t.Errorf("the MCP server should start and answer every tool with the refusal as an error, got:\n%s", out)
+	}
+}
+
+func TestTheGitLimitLiftsThroughTheOption(t *testing.T) {
+	h := newHarness(t)
+	outsideGit(h)
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"memory_require_git":false}}}}`)
+
+	h.must("", "claim", "main")
+	id := h.file("A finding outside git", "kept in a store keyed by the directory")
+
+	if !strings.Contains(h.must("", "search", "--term", "outside"), id) {
+		t.Error("with the limit lifted, a session outside git should file and find")
+	}
+
+	store := filepath.Join(h.home, ".claude", "agentic-memory", filepath.FromSlash(projectkey.DirectoryKey(h.repo)))
+	if !test.Exists(t, filepath.Join(store, "seats", "main.json")) {
+		t.Errorf("the store should be keyed by the directory's own hash, nothing under %s", store)
+	}
+}
+
+func TestInsideGitTheOptionChangesNothing(t *testing.T) {
+	h := newHarness(t)
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"memory_require_git":false}}}}`)
+
+	h.must("", "claim", "main")
+
+	if !test.Exists(t, filepath.Join(h.store(), "seats", "main.json")) {
+		t.Error("inside a work tree the store should keep the project's key whatever the option says")
 	}
 }

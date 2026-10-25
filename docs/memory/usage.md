@@ -5,6 +5,15 @@ files what it learns as it works, one entry per finding, and the tool stamps, in
 it. Nothing is ever rewritten: an entry is retired or superseded, and the tool chooses what returns
 to a fresh context.
 
+## Where it works
+
+agentic-memory works only inside a git work tree, a fresh `git init` without commits included.
+Outside one, every subcommand and every tool of the `memory` MCP server refuses with
+`agentic-memory: <dir> is not inside a git work tree; memory works only in one`, every hook stays
+silent, and nothing is read or created. `help` answers anywhere. The plugin option
+`memory_require_git: false` lifts the limit for the whole machine: a directory outside git then
+keeps a store keyed by its own path.
+
 ## Seats
 
 A **seat** is a named job, held by one session at a time; claiming one is what turns memory on for
@@ -105,6 +114,7 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `retired_body_days` | how long a retired entry keeps its body, 90 unless set, never under 14 |
 | `entry_id_length` | the characters after `m-` in a new entry id |
+| `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.

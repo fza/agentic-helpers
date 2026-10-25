@@ -11,9 +11,12 @@
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ```
 
-`<project>` is the `repo_id` the project's `.sdd/config.yaml` declares, else a hash of its git
-common directory, the key sdd gives its own search index, so every worktree of a repository shares
-one store. Outside git the hash covers the working directory itself.
+`<project>` is the `repo_id` the project's `.sdd/config.yaml` declares, else `local/` and a hash of
+its git common directory, the key sdd gives its own search index, so every worktree of a repository
+shares one store. A directory counts as inside git when `git rev-parse --is-inside-work-tree` says
+`true`; a `.git` directory and a bare repository do not. Outside git there is no project key; with
+`memory_require_git` set to `false`, the store is keyed `local/` and a hash of the directory's
+absolute path.
 
 ## The log
 

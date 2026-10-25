@@ -41,21 +41,28 @@ func TestKey(t *testing.T) {
 			lookup: test.CommonDir{Dir: filepath.Join(root, ".git")},
 			want:   local(filepath.Join(root, ".git")),
 		},
-		{
-			name:   "outside git the directory itself is hashed",
-			base:   root,
-			lookup: test.CommonDir{Err: errors.New("not a git repository")},
-			want:   local(root),
-		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := projectkey.Key(context.Background(), tc.base, tc.lookup)
-			if got != tc.want {
-				t.Errorf("the key should follow sdd's index key, got %s", got)
+			got, err := projectkey.Key(context.Background(), tc.base, tc.lookup)
+			if err != nil || got != tc.want {
+				t.Errorf("the key should follow sdd's index key, got %s %v", got, err)
 			}
 		})
+	}
+}
+
+func TestOutsideGitThereIsNoKey(t *testing.T) {
+	root := t.TempDir()
+
+	_, err := projectkey.Key(context.Background(), root, test.CommonDir{Err: errors.New("not a git repository")})
+	if !errors.Is(err, projectkey.ErrNoRepository) {
+		t.Errorf("a directory outside git should have no project key, got %v", err)
+	}
+
+	if got := projectkey.DirectoryKey(root); got != local(root) {
+		t.Errorf("a directory's own key should hash its path, as earlier releases did, got %s", got)
 	}
 }
 
@@ -68,8 +75,8 @@ func TestARepoIDThatWouldLeaveTheStoreIsRefused(t *testing.T) {
 			base := t.TempDir()
 			test.WriteFile(t, filepath.Join(base, ".sdd", "config.yaml"), "repo_id: \""+id+"\"\n")
 
-			got := projectkey.Key(context.Background(), base, test.CommonDir{Err: errors.New("not a git repository")})
-			if got != local(base) {
+			got, err := projectkey.Key(context.Background(), base, test.CommonDir{Dir: filepath.Join(base, ".git")})
+			if err != nil || got != local(filepath.Join(base, ".git")) {
 				t.Errorf("a repo_id outside sdd's shape should fall back to the hashed key, got %s", got)
 			}
 		})

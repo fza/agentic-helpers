@@ -91,3 +91,13 @@ func TestASeatExemptFromTheWholeGate(t *testing.T) {
 		refuses(t, run(t, other, "gate", ask(test.OtherSession)), "search")
 	})
 }
+
+func TestOutsideGitNoSeatIsExempt(t *testing.T) {
+	env := configured(t, "exempt-seats.yaml")
+	processes := test.NewProcesses()
+	env.Processes, env.OwnerName = processes, "claude"
+	test.ClaimSeat(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "reviewer", test.Session)
+	env.Checkout = test.CommonDir{Err: errors.New("not a git repository")}
+
+	refuses(t, run(t, env, "gate", ask(test.Session)), "neither read")
+}

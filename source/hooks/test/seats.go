@@ -50,7 +50,12 @@ func ClaimOtherSeat(t *testing.T, store string, seat string, session string) {
 // MemoryStore is the agentic-memory store of the project a session works on in
 // base, under home.
 func MemoryStore(base string, home string, lookup project.CommonDirLookup) string {
-	return projectkey.Dir(seat.StoreRoot(home), projectkey.Key(context.Background(), base, lookup))
+	key, err := projectkey.Key(context.Background(), base, lookup)
+	if err != nil {
+		key = projectkey.DirectoryKey(base)
+	}
+
+	return projectkey.Dir(seat.StoreRoot(home), key)
 }
 
 // ClaimDeadSeat writes a claim whose holder process is gone.

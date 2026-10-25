@@ -732,7 +732,11 @@ func (env Env) exempt(ctx context.Context, seats []string) bool {
 		return false
 	}
 
-	key := projectkey.Key(ctx, env.project(), env.Checkout)
+	key, err := projectkey.Key(ctx, env.project(), env.Checkout)
+	if err != nil {
+		return false
+	}
+
 	dir := seat.Dir(projectkey.Dir(seat.StoreRoot(env.Home), key))
 	name, _ := seat.Of(ctx, dir, env.Processes, env.OwnerName)
 

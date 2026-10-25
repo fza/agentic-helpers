@@ -79,6 +79,25 @@ func TestRead(t *testing.T) {
 			want: defaultsWith(func(options *pluginconfig.Options) { options.EntryIDLength = pluginconfig.MaxEntryIDLength }),
 		},
 		{
+			name: "memory works only inside git unless switched",
+			want: defaultsWith(func(options *pluginconfig.Options) { options.MemoryRequireGit = true }),
+		},
+		{
+			name: "the git limit lifts",
+			user: own + `{"memory_require_git":false}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.MemoryRequireGit = false }),
+		},
+		{
+			name: "the git limit lifts from a stored string",
+			user: own + `{"memory_require_git":"false"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.MemoryRequireGit = false }),
+		},
+		{
+			name:    "a git limit that is no boolean is an error",
+			user:    own + `{"memory_require_git":"sometimes"}}}}`,
+			wantErr: true,
+		},
+		{
 			name:    "a malformed settings file is an error",
 			user:    `{`,
 			wantErr: true,

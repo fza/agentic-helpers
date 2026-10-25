@@ -4,8 +4,13 @@ package test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -67,4 +72,36 @@ func Exists(t *testing.T, path string) bool {
 	_, err := os.Lstat(path)
 
 	return err == nil
+}
+
+// Tree describes every file under root by path and content hash, so a test can
+// tell whether anything under it changed.
+func Tree(t *testing.T, root string) string {
+	t.Helper()
+
+	var lines []string
+
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		relative, _ := filepath.Rel(root, path)
+		sum := sha256.Sum256(content)
+		lines = append(lines, relative+" "+hex.EncodeToString(sum[:8]))
+
+		return nil
+	})
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("walking %s: %v", root, err)
+	}
+
+	slices.Sort(lines)
+
+	return strings.Join(lines, "\n")
 }

@@ -13,16 +13,24 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 )
 
-// Git answers the three questions agentic-memory asks git: the checkout's top
-// level, its HEAD commit and its branch.
+// Git answers the questions agentic-memory asks git: whether the directory is
+// a work tree, the checkout's top level, its HEAD commit and its branch.
 type Git struct {
 	Top    string
 	Commit string
 	Branch string
+	// OutsideWorkTree answers as git does in a directory that is no work tree.
+	OutsideWorkTree bool
 }
 
 func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, error) {
 	switch strings.Join(args, " ") {
+	case "rev-parse --is-inside-work-tree":
+		if fake.OutsideWorkTree {
+			return "", errors.New("fatal: not a git repository")
+		}
+
+		return "true\n", nil
 	case "rev-parse --show-toplevel":
 		return fake.Top + "\n", nil
 	case "rev-parse --short=8 HEAD":

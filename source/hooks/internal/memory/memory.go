@@ -67,6 +67,9 @@ type memory struct {
 	env     Env
 	streams hookio.Streams
 	key     string
+	// outsideGit is set where the session works outside a git work tree and
+	// the plugin keeps memory to git: nothing is read and nothing is created.
+	outsideGit bool
 }
 
 func (mem *memory) root() string      { return seat.StoreRoot(mem.env.Home) }
@@ -82,6 +85,35 @@ func (mem *memory) storeExists() bool {
 	info, err := os.Stat(mem.store())
 
 	return err == nil && info.IsDir()
+}
+
+// locate keys the store: the project's own key inside a git work tree, and
+// outside one the directory's own key where the plugin allows memory there.
+func (mem *memory) locate(ctx context.Context) {
+	key, err := projectkey.Key(ctx, mem.env.Base, mem.env.Checkout)
+	if err == nil && mem.insideWorkTree(ctx) {
+		mem.key = key
+
+		return
+	}
+
+	if !mem.options().MemoryRequireGit {
+		mem.key = projectkey.DirectoryKey(mem.env.Base)
+
+		return
+	}
+
+	mem.outsideGit = true
+}
+
+func (mem *memory) insideWorkTree(ctx context.Context) bool {
+	answer, err := mem.env.Git.Output(ctx, mem.env.Base, "rev-parse", "--is-inside-work-tree")
+
+	return err == nil && strings.TrimSpace(answer) == "true"
+}
+
+func (mem *memory) outsideGitRefusal() string {
+	return fmt.Sprintf("%s is not inside a git work tree; memory works only in one", mem.env.Base)
 }
 
 func (mem *memory) now() time.Time {
@@ -221,17 +253,27 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	mem := &memory{env: env, streams: streams}
-	mem.key = projectkey.Key(ctx, env.Base, env.Checkout)
+	mem.locate(ctx)
 
 	name, rest := args[0], args[1:]
 
 	hookEvent, isHook := hookEvents[name]
 	if isHook {
+		if mem.outsideGit {
+			return 0
+		}
+
 		return hookEvent(mem, ctx, rest)
 	}
 
 	if name == "mcp" {
 		return mem.serveMCP(ctx)
+	}
+
+	if mem.outsideGit && name != "help" && name != "--help" && name != "-h" {
+		_, _ = fmt.Fprintln(streams.Err, self+": "+mem.outsideGitRefusal())
+
+		return 1
 	}
 
 	if name == "dump" {

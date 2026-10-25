@@ -44,6 +44,7 @@ type Options struct {
 	EntryMaxWords       int
 	RetiredBodyDays     int
 	EntryIDLength       int
+	MemoryRequireGit    bool
 }
 
 type settings struct {
@@ -105,6 +106,7 @@ func Read(paths []string) (Options, error) {
 func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
+		MemoryRequireGit: true,
 	}
 }
 
@@ -149,7 +151,42 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
+	switches := map[string]*bool{"memory_require_git": &options.MemoryRequireGit}
+
+	for key, target := range switches {
+		raw, found := values[key]
+		if !found {
+			continue
+		}
+
+		value, err := boolean(raw)
+		if err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+
+		*target = value
+	}
+
 	return nil
+}
+
+// boolean accepts a JSON boolean or the string the dialog may store for one.
+func boolean(raw json.RawMessage) (bool, error) {
+	var value bool
+
+	err := json.Unmarshal(raw, &value)
+	if err == nil {
+		return value, nil
+	}
+
+	var text string
+
+	err = json.Unmarshal(raw, &text)
+	if err == nil && (text == "true" || text == "false") {
+		return text == "true", nil
+	}
+
+	return false, fmt.Errorf("%s is not a boolean", raw)
 }
 
 // number accepts a JSON number or a numeric string: the dialog stores what the
