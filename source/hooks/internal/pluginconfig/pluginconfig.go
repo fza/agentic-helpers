@@ -65,6 +65,9 @@ type Options struct {
 	EntryIDLength       int
 	MemoryLanguage      string
 	MemoryRequireGit    bool
+	// MemoryTurnsOffAuto has a seat claim turn Claude Code's own auto memory
+	// off for the project through its `.claude/settings.local.json`.
+	MemoryTurnsOffAuto bool
 	// TemporarySeatLifetime is how long a closed temporary shelf keeps its
 	// entries, as `lifetime` spells a span; empty takes agentic-memory's default.
 	TemporarySeatLifetime string
@@ -93,6 +96,7 @@ type Options struct {
 var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
 	"entry_max_words", "retired_body_days", "entry_id_length", "memory_require_git", "memory_language",
+	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp",
@@ -240,7 +244,7 @@ func (options *Options) clamp() {
 func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
-		MemoryRequireGit: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
+		MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor:          DefaultToolsQueryFloor,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
@@ -332,6 +336,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 
 	switches := map[string]*bool{
 		"memory_require_git":       &options.MemoryRequireGit,
+		"memory_turns_off_auto":    &options.MemoryTurnsOffAuto,
 		"shell_guard_lone_removal": &options.ShellGuardLoneRemoval,
 		"shell_guard_expansion":    &options.ShellGuardExpansion,
 		"shell_guard_nested_code":  &options.ShellGuardNestedCode,

@@ -94,6 +94,8 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 
 	lines := []string{reply}
 
+	lines = append(lines, mem.turnOffAutoMemory(ctx)...)
+
 	described, err := mem.claimLifetime(ctx, req)
 	if err != nil {
 		return refused("%v", err)

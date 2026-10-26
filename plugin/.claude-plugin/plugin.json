@@ -66,6 +66,13 @@
       "default": true,
       "required": false
     },
+    "memory_turns_off_auto": {
+      "type": "boolean",
+      "title": "Seat claim turns off Claude Code's auto memory",
+      "description": "A seat claim writes autoMemoryEnabled: false into the project's .claude/settings.local.json, from the next session; off leaves the file alone",
+      "default": true,
+      "required": false
+    },
     "memory_language": {
       "type": "string",
       "title": "Memory entry language",

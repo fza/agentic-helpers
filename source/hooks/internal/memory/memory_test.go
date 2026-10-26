@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -42,6 +43,10 @@ type harness struct {
 	waitDeadline time.Duration
 	graph        *test.Graph
 	sdd          *sddcaps.Probe
+	// base is where the session works when it is not the repository's root,
+	// and worktrees maps a worktree to its main checkout.
+	base      string
+	worktrees map[string]string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -107,9 +112,9 @@ func (h *harness) store() string {
 
 func (h *harness) env() memory.Env {
 	return memory.Env{
-		Base: h.repo, Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
+		Base: cmp.Or(h.base, h.repo), Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now,
-		Random: test.Random(), Processes: h.processes, Checkout: test.GitDirOf{},
+		Random: test.Random(), Processes: h.processes, Checkout: test.GitDirOf{Worktrees: h.worktrees},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
 	}

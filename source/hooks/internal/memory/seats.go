@@ -233,6 +233,8 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 
 	lines := []string{fmt.Sprintf("%s: %s (pid %d)", req.Name, short(held.SessionID), held.PID)}
 
+	lines = append(lines, mem.turnOffAutoMemory(ctx)...)
+
 	described, err := mem.claimLifetime(ctx, req)
 	if err != nil {
 		return refused("%v", err)

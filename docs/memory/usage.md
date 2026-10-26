@@ -91,6 +91,25 @@ holder from a busy one, and a busy one losing its seat would find every write re
 noticing. The seat frees when its holder runs `release` or its session ends, which closes it; a
 seat whose holder has gone is free to claim, and `who` frees every such seat of the project.
 
+### Claude Code's own auto memory
+
+A claim turns Claude Code's own auto memory off for the project, so agentic-memory is the one memory
+an agent there files into and reads back. It adds `"autoMemoryEnabled": false` to
+`.claude/settings.local.json` at the main checkout's root, the file Claude Code reads for the
+project and every worktree of it, and says so once:
+
+    agentic-memory: Claude Code's own auto memory is off for this project from the next session (.claude/settings.local.json); plugin option memory_turns_off_auto: false leaves it on
+
+The setting takes effect from the next session; the claiming session keeps the memory it started
+with. Every other key and the file's text stay as they were. A file already setting
+`autoMemoryEnabled`, to either value, is the owner's setting and stays untouched, and a file that
+does not parse is left alone with a line saying so. Where git does not ignore the file already,
+`**/.claude/settings.local.json` is appended to git's global excludes file (`core.excludesFile`,
+else `$XDG_CONFIG_HOME/git/ignore`, else `~/.config/git/ignore`), said once:
+`agentic-memory: added **/.claude/settings.local.json to <file>, so git ignores it in every
+repository`. A claim for another session (below) does the same, before that session starts.
+`memory_turns_off_auto: false` leaves the file alone.
+
 ## Claiming for another session
 
 A launcher seats the sessions it starts or keeps from outside them, by the session id it gives
@@ -368,6 +387,7 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 | `entry_id_length` | the characters after `m-` in a new entry id |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
+| `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |
 | `temporary_seat_lifetime` | how long a closed temporary shelf keeps its entries, a span as `lifetime` takes one (`12h`, `1d`, `0`); `1d` unless set, and `1d`, with a note in the reply, where it holds no span |
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,

@@ -97,6 +97,7 @@ user or managed settings; no project overrides them.
 | `entry_id_length` | `6` | the characters after `m-` in a new memory entry id, 6 to 16 |
 | `memory_language` | `en` | the language memory entries are written in where `.sdd/config.yaml` names none |
 | `memory_require_git` | `true` | memory only inside a git work tree |
+| `memory_turns_off_auto` | `true` | a seat claim turns Claude Code's own auto memory off for the project, through its `.claude/settings.local.json`, from the next session |
 | `temporary_seat_lifetime` | `1d` | how long a closed temporary shelf keeps its entries before they are purged |
 | `tools_query_floor` | `0.45` | the cosine at or above which the tool library counts a tool as near a search or a prompt |
 | `tools_duplicate_floor` | `0.85` | the cosine at or above which the tool library refuses a new tool as another's duplicate |

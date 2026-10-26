@@ -59,6 +59,11 @@ agentic-memory who [--all]              # every seat of this project + shelf + s
   - `<seat>` exists and is held → `claim --shelf <its shelf>`, a new seat beside it;
   - `<seat>` is new and the store holds exactly one shelf → `claim <seat> --shelf <that shelf>`;
   - `<seat>` is new and several shelves, or none, exist → ask the user which shelf, naming them.
+- **A claim turns Claude Code's own auto memory off** for the project, from the next session:
+  `autoMemoryEnabled: false` in the main checkout's `.claude/settings.local.json`, and
+  `**/.claude/settings.local.json` in git's global excludes file. Both said once. An owner's own
+  `autoMemoryEnabled` stays. Plugin option `memory_turns_off_auto: false` → nothing written. Quiet
+  rule holds: relay nothing beyond what the claim printed.
 - **Held by a running session → refused, always.** Nothing seizes it. It frees when its holder runs
   `release` or its session ends. Stuck holder → the user's to close, or ask its agent to release.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
