@@ -1,0 +1,8 @@
+cpu  1048 0 2133 984213 109 0 31 0 0 0
+cpu0 1048 0 2133 984213 109 0 31 0 0 0
+intr 512331 0 9 0
+ctxt 1049133
+btime 1761000000
+processes 5121
+procs_running 1
+procs_blocked 0

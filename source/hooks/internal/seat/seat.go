@@ -282,19 +282,18 @@ func Names(held map[string]Claim) []string {
 // Owner is the nearest ancestor running the owner process, or the immediate
 // parent where none does.
 func Owner(ctx context.Context, processes Processes, ownerName string) int {
-	pid := processes.Self()
+	parent, _ := processes.ParentAndName(ctx, processes.Self())
 	for range ancestorDepth {
-		parent, _ := processes.ParentAndName(ctx, pid)
 		if parent <= 1 {
 			break
 		}
 
-		_, name := processes.ParentAndName(ctx, parent)
+		grandparent, name := processes.ParentAndName(ctx, parent)
 		if name == ownerName {
 			return parent
 		}
 
-		pid = parent
+		parent = grandparent
 	}
 
 	return processes.Parent()

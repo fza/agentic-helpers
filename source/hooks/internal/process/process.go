@@ -1,13 +1,11 @@
-// Package process runs commands and reads the process table, the latter through
-// `ps`, the one reader present on every machine these hooks run on without CGO.
+// Package process runs commands and reads the process table, the latter
+// through the kernel: sysctl on darwin, /proc on Linux. A `ps` spawn costs
+// milliseconds on every ancestor of every seat lookup, and its text follows the
+// caller's locale.
 package process
 
 import (
-	"context"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -22,49 +20,11 @@ func (Table) Parent() int {
 	return os.Getppid()
 }
 
-// ParentAndName is the parent pid and the executable's base name, or zero and
-// an empty name where the process is gone.
-func (Table) ParentAndName(ctx context.Context, pid int) (int, string) {
-	output, err := exec.CommandContext(ctx, "ps", "-p", strconv.Itoa(pid), "-o", "ppid=,comm=").Output()
-	if err != nil {
-		return 0, ""
-	}
-
-	fields := strings.Fields(strings.TrimSpace(string(output)))
-	if len(fields) < 2 {
-		return 0, ""
-	}
-
-	parent, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return 0, ""
-	}
-
-	command := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(output)), fields[0]))
-
-	return parent, filepath.Base(command)
-}
-
 // LstartLayout is how `ps -o lstart=` prints a start time under the C locale,
-// in the machine's local zone. Under any other locale `ps` translates the day
-// and month names, which no layout here can read.
+// in the machine's local zone. Claims written by earlier releases hold it.
+// Under any other locale `ps` translates the day and month names, which no
+// layout here can read.
 const LstartLayout = "Mon Jan _2 15:04:05 2006"
-
-// StartTime identifies one run of a pid, so a reused pid never passes for the
-// process that held it before. `ps` runs under LC_ALL=C: its text follows the
-// caller's locale otherwise, and two callers in different locales would read
-// one process as two.
-func (Table) StartTime(ctx context.Context, pid int) (time.Time, bool) {
-	command := exec.CommandContext(ctx, "ps", "-p", strconv.Itoa(pid), "-o", "lstart=")
-	command.Env = append(os.Environ(), "LC_ALL=C")
-
-	output, err := command.Output()
-	if err != nil {
-		return time.Time{}, false
-	}
-
-	return ParseLstart(string(output), time.Local)
-}
 
 func ParseLstart(text string, zone *time.Location) (time.Time, bool) {
 	started, err := time.ParseInLocation(LstartLayout, strings.Join(strings.Fields(text), " "), zone)

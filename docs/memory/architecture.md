@@ -116,11 +116,14 @@ session's next hook reports it. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.
 
 A holder is alive while its pid runs `claude` and that process started at the recorded instant, so a
-reused pid never passes. The start time comes from `ps -o lstart=` run under `LC_ALL=C`: `ps` prints
-it in the caller's locale otherwise, and callers in two locales would read one process as two. A
-claim written by an earlier release may hold `ps` text in another locale, which cannot be read back
-into an instant; such a claim is judged by the process alone, and its holder's next claim rewrites
-it.
+reused pid never passes. The process table is read from the kernel, never through a `ps` spawn:
+`sysctl kern.proc.pid` on darwin (parent pid, name and start time in one call), and on Linux
+`/proc/<pid>/stat` with the boot time from `/proc/stat`, ticks counted at 100 a second. The name is
+the kernel's, truncated to 16 bytes, which `claude` fits. Start times are whole seconds, the same
+instant earlier releases read from `ps -o lstart=`, so their claims still compare. A claim written
+by an earlier release may hold `ps` text: in the C locale it reads back as an instant; in another
+locale it cannot, so such a claim is judged by the process alone, and its holder's next claim
+rewrites it.
 
 ## The purge
 

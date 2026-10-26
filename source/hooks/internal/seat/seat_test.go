@@ -197,6 +197,45 @@ func TestANameOutsideTheSeatsDirectoryIsRefused(t *testing.T) {
 	}
 }
 
+// The earlier releases read `started` from `ps -o lstart=`, whole seconds of
+// the same kernel start time: RFC 3339 in UTC, and before that C locale text.
+func TestAClaimOfAnEarlierReleaseReadsAgainstTheKernel(t *testing.T) {
+	ctx := context.Background()
+	processes := process.Table{}
+	self := processes.Self()
+
+	_, name := processes.ParentAndName(ctx, self)
+
+	started, found := processes.StartTime(ctx, self)
+	if !found {
+		t.Fatal("the kernel should report this process's start")
+	}
+
+	cases := []struct {
+		name  string
+		pid   int
+		start string
+		alive bool
+	}{
+		{name: "RFC 3339 at the process start", pid: self, start: started.UTC().Format(time.RFC3339), alive: true},
+		{name: "C locale ps text at the process start", pid: self, start: started.Local().Format(process.LstartLayout), alive: true},
+		{name: "RFC 3339 a second later", pid: self, start: started.Add(time.Second).UTC().Format(time.RFC3339)},
+		{name: "C locale ps text a second earlier", pid: self, start: started.Add(-time.Second).Local().Format(process.LstartLayout)},
+		{name: "ps text in another locale", pid: self, start: "Do. 25 Sep. 14:00:00 2026", alive: true},
+		{name: "the pid gone", pid: test.DeadPID, start: started.UTC().Format(time.RFC3339)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			held := seat.Claim{SessionID: test.Session, PID: tc.pid, Started: tc.start}
+
+			if seat.Alive(ctx, processes, name, held) != tc.alive {
+				t.Error("a claim an earlier release wrote should read alive exactly while its process runs from that start")
+			}
+		})
+	}
+}
+
 func TestAliveReadsStartedAsAnInstant(t *testing.T) {
 	processes := test.NewProcesses()
 	inC := test.OwnerStart.In(time.Local).Format(process.LstartLayout)

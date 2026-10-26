@@ -45,9 +45,9 @@ func TestParseLstart(t *testing.T) {
 	}
 }
 
-func TestStartTimeAsksPsInTheCLocale(t *testing.T) {
+func TestTheTableReadsTheKernelNeverPs(t *testing.T) {
 	bin := t.TempDir()
-	test.WriteFile(t, filepath.Join(bin, "ps"), test.Fixture(t, "process/ps.sh"))
+	test.WriteFile(t, filepath.Join(bin, "ps"), test.Fixture(t, "process/failing-ps.sh"))
 
 	err := os.Chmod(filepath.Join(bin, "ps"), 0o755)
 	if err != nil {
@@ -55,12 +55,73 @@ func TestStartTimeAsksPsInTheCLocale(t *testing.T) {
 	}
 
 	t.Setenv("PATH", bin)
-	t.Setenv("LC_ALL", "de_DE.UTF-8")
 
-	got, found := process.Table{}.StartTime(context.Background(), os.Getpid())
+	ctx := context.Background()
 
-	want, _ := process.ParseLstart("Sat Oct 24 14:35:50 2026", time.Local)
-	if !found || !got.Equal(want) {
-		t.Errorf("ps should run under the C locale whatever the caller's, got %v %v", got, found)
+	parent, name := process.Table{}.ParentAndName(ctx, os.Getpid())
+	if parent != os.Getppid() || name == "" {
+		t.Errorf("the table should name this process and its parent without ps, got %d %q", parent, name)
+	}
+
+	started, found := process.Table{}.StartTime(ctx, os.Getpid())
+	if !found || started.After(time.Now()) || time.Since(started) > time.Hour || started.Nanosecond() != 0 {
+		t.Errorf("the table should read this process's start in whole seconds without ps, got %v %v", started, found)
+	}
+
+	parent, name = process.Table{}.ParentAndName(ctx, test.DeadPID)
+	_, found = process.Table{}.StartTime(ctx, test.DeadPID)
+
+	if parent != 0 || name != "" || found {
+		t.Error("a pid nothing runs should read as gone")
+	}
+}
+
+func TestProcfsReadsTheProcTree(t *testing.T) {
+	booted := int64(1_761_000_000)
+
+	cases := []struct {
+		name    string
+		tree    string
+		pid     int
+		parent  int
+		command string
+		started time.Time
+		found   bool
+	}{
+		{
+			name: "a plain name", tree: "process/proc", pid: 4242,
+			parent: 4000, command: "bash", started: time.Unix(booted+1234, 0), found: true,
+		},
+		{
+			name: "a name with spaces and parentheses", tree: "process/proc", pid: 4343,
+			parent: 4242, command: "tmux: (a) b) c", started: time.Unix(booted+2500, 0), found: true,
+		},
+		{name: "a stat cut inside the name", tree: "process/proc", pid: 4444},
+		{name: "a stat cut before the start time", tree: "process/proc", pid: 4646},
+		{name: "a name never closed", tree: "process/proc", pid: 4848},
+		{name: "a parent that is no number", tree: "process/proc", pid: 4747, started: time.Unix(booted+50, 0), found: true},
+		{name: "a start time that is no number", tree: "process/proc", pid: 4545, parent: 4242, command: "zombie"},
+		{name: "a pid not in the tree", tree: "process/proc", pid: 999},
+		{name: "no boot time", tree: "process/proc-without-btime", pid: 4242, parent: 4000, command: "bash"},
+		{name: "a boot time that is no number", tree: "process/proc-with-bad-btime", pid: 4242, parent: 4000, command: "bash"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			test.FixtureTree(t, tc.tree, root)
+
+			procfs := process.Procfs{Root: os.DirFS(root)}
+
+			parent, command := procfs.ParentAndName(tc.pid)
+			if parent != tc.parent || command != tc.command {
+				t.Errorf("the parent and the whole name should read from the stat, got %d %q", parent, command)
+			}
+
+			started, found := procfs.StartTime(tc.pid)
+			if found != tc.found || !started.Equal(tc.started) {
+				t.Errorf("the start should be the boot time plus whole seconds of ticks, or none, got %v %v", started, found)
+			}
+		})
 	}
 }
