@@ -6,6 +6,7 @@ import (
 	"errors"
 	"hash/fnv"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,10 @@ type Git struct {
 	Branch string
 	// OutsideWorkTree answers as git does in a directory that is no work tree.
 	OutsideWorkTree bool
+	// Ignored lists the paths `git check-ignore` reports as ignored, and
+	// ExcludesFile answers `core.excludesFile` from the global config.
+	Ignored      []string
+	ExcludesFile string
 }
 
 func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, error) {
@@ -37,6 +42,22 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 		return fake.Commit + "\n", nil
 	case "rev-parse --abbrev-ref HEAD":
 		return fake.Branch + "\n", nil
+	}
+
+	if strings.Join(args, " ") == "config --global --get core.excludesFile" {
+		if fake.ExcludesFile == "" {
+			return "", errors.New("exit status 1")
+		}
+
+		return fake.ExcludesFile + "\n", nil
+	}
+
+	if len(args) == 3 && args[0] == "check-ignore" && args[1] == "-q" {
+		if slices.Contains(fake.Ignored, args[2]) {
+			return "", nil
+		}
+
+		return "", errors.New("exit status 1")
 	}
 
 	return "", errors.New("unexpected git call")

@@ -18,7 +18,10 @@ identifier is somebody's deliberate keep, and survives whatever its age.
 └── <the project's own>    never touched
 ```
 
-A project opts in by carrying `.tmp/`, which should be gitignored.
+A project opts in by carrying `.tmp/`. As a session starts there, the sweep keeps `.tmp/` out of every
+repository: where git does not ignore it already, `.tmp/` is appended to git's global excludes file
+(`core.excludesFile`, else `$XDG_CONFIG_HOME/git/ignore`, else `~/.config/git/ignore`), said once:
+`agentic-scratch: added .tmp/ to <file>, so git ignores it in every repository`.
 
 ## Off on the machine
 

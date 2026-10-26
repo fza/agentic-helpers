@@ -32,7 +32,9 @@ so before reaching for `/tmp`.
 - **Anything a later session reads → a named directory.** `.tmp/claude/<name>/` or `.tmp/<name>/`.
   Same for anything a memory entry or a graph entry points at.
 - **Delete your own throwaway when the turn that made it ends.** Sweep is the backstop, not the plan.
-- **`.tmp/` must be gitignored.** Not ignored → say so rather than creating it.
+- **`.tmp/` must be gitignored.** Session start adds `.tmp/` to git's global excludes file where git
+  does not ignore it: `agentic-scratch: added .tmp/ to <file>, ...`. Creating `.tmp/` in a project
+  that has none → say so first; the next session start ignores it.
 - **Never a credential, in any of it.**
 
 ## What the sweep does

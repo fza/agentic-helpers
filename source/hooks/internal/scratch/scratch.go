@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/gitignore"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
@@ -42,10 +43,14 @@ func isSession(name string) bool {
 // in by carrying `.tmp/`; without it nothing is read, created or said.
 // Env is the project the sweep works in, and where the plugin's options are
 // read: the sweep's own switch.
+// Git, run in the project, and Home find git's global excludes file, where
+// `.tmp/` is added unless git ignores it already; a nil Git adds nothing.
 type Env struct {
 	Root     string
 	Settings []string
 	Getenv   func(string) string
+	Git      gitignore.Git
+	Home     string
 }
 
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
@@ -74,7 +79,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	if args[0] == "end" {
 		err = end(ctx, root, payload.SessionID, streams.Out)
 	} else {
-		err = start(ctx, root, streams.Out)
+		err = start(ctx, env, streams.Out)
 	}
 
 	if err != nil {
@@ -108,12 +113,26 @@ func end(ctx context.Context, root string, session string, out io.Writer) error 
 	return nil
 }
 
-func start(ctx context.Context, root string, out io.Writer) error {
+func start(ctx context.Context, env Env, out io.Writer) error {
 	var said []string
 
-	gone := reap(ctx, root, time.Now())
+	gone := reap(ctx, env.Root, time.Now())
 	if gone > 0 {
 		said = append(said, fmt.Sprintf("Scratch: reaped %d session directory(s) nobody came back to.", gone))
+	}
+
+	// The scratch directory holds a session's throwaway and drafts, wrong in
+	// any commit of any repository.
+	if env.Git != nil {
+		ignored, err := gitignore.Global{Git: env.Git, Home: env.Home, Getenv: env.Getenv}.
+			Ensure(ctx, "agentic-scratch", env.Root, ".tmp", ".tmp/")
+
+		switch {
+		case err != nil:
+			said = append(said, fmt.Sprintf("agentic-scratch: .tmp/ stays unignored by git: %v", err))
+		case ignored != "":
+			said = append(said, ignored)
+		}
 	}
 
 	if len(said) == 0 {

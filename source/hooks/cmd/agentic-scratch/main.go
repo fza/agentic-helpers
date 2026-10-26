@@ -10,6 +10,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/scratch"
 )
@@ -36,6 +37,8 @@ func main() {
 		Root:     project.Root(ctx, base, project.GitCommonDir{}),
 		Settings: pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
 		Getenv:   os.Getenv,
+		Git:      process.Git{},
+		Home:     home,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
