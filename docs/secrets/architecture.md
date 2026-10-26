@@ -77,6 +77,19 @@ scan (standard input, a file not on disk, input it cannot decode), and leaves th
   file right before it runs `sdd new`, and sdd then reads the file itself: a file changed in
   between is never scanned. The grounding gate's earlier scan of a plain `sdd new` has the same
   window, wider.
+- **What a launcher or an expansion would change.** The grounding gate does not resolve a path the
+  shell would rewrite or a launcher would run elsewhere: it refuses it. An attachment path holding
+  `$` or `~`, or a relative one after a directory change or behind a launcher, is refused rather
+  than guessed at, and so is a write it cannot place behind a launcher's options. A path written so
+  that sdd reads one file and the gate another would need the gate to follow the shell, which it
+  does not try to do; refusing those spellings closes that class instead.
+
+A file is scanned by its name, so path rules fire, and as nameless text too: gitleaks' global
+allowlist skips whole files by name (`.bin`, images, fonts, office files), and a credential renamed
+to one would otherwise pass. agentic-tools scans every tool file both ways; the grounding gate and
+agentic-capture's rescan scan an attached or staged file by its name in the entry, and as nameless
+text where that finds nothing, since a name the allowlist does not skip finds all the nameless scan
+would.
 
 ## Prompts
 

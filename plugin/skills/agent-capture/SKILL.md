@@ -29,6 +29,9 @@ license: MIT
   credential` (the gate adds `; it must exist before the Bash call that captures it`). An
   `attach: ['-:<name>']` → `... The capture attaches standard input as <name>, which cannot be
   scanned for a credential; attach a file instead`. Write the file first, attach it by path.
+  A path with `$` or `~`, or a relative one with a `cd` or a launcher (`env`, `sudo`, `xargs`,
+  ...) in the command → `... which cannot be read to scan for a credential: <why>; attach it by a
+  literal absolute path`. Run the capture as its own plain call.
 - **`sdd-engine` is deprecated.** The `sdd` skill is the engine flow.
 
 ## agentic-capture

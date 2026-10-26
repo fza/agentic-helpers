@@ -2,6 +2,7 @@ package grounding_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
@@ -184,7 +185,7 @@ func TestWhereADraftAndItsFilesAreRead(t *testing.T) {
 
 				return "sdd new d tac body --attach ~/deploy.key"
 			},
-			says: leaked + "private-key, ~/deploy.key, line 1)",
+			says: "GROUNDING GATE: refused. The capture names ~/deploy.key, which cannot be read to scan for a credential: it holds a shell expansion",
 		},
 		{
 			name: "a draft relative to the project, not the working directory",
@@ -326,41 +327,72 @@ func TestAStagedFileIsScanned(t *testing.T) {
 	})
 }
 
-func TestARelativeAttachmentAfterADirectoryChangeIsRefused(t *testing.T) {
-	const relative = "GROUNDING GATE: refused. The capture names run.log, a relative path after a directory change, " +
-		"which cannot be read to scan for a credential; attach it by an absolute path"
+func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
+	const (
+		expansion = "it holds a shell expansion"
+		moved     = "it is relative after a directory change"
+		launched  = "it is relative behind a launcher"
+	)
 
-	for _, command := range []string{
-		"cd sub && sdd new d tac body --attach run.log",
-		"(cd sub; sdd new d tac body --attach=run.log:copy.log)",
-		"pushd sub && sdd new d tac body --attach run.log",
-		"env -C sub sdd new d tac body --attach run.log",
-		"env --chdir=sub sdd new d tac body --attach run.log",
-		"env -u HOME -Csub sdd new d tac body --attach run.log",
-		"sudo -D sub sdd new d tac body --attach run.log",
-		"bash -c 'cd sub && sdd new d tac body --attach run.log'",
-	} {
-		t.Run(command, func(t *testing.T) {
+	cases := []struct {
+		command string
+		where   string
+		why     string
+	}{
+		{command: "cd sub && sdd new d tac body --attach run.log", where: "run.log", why: moved},
+		{command: "(cd sub; sdd new d tac body --attach=run.log:copy.log)", where: "run.log", why: moved},
+		{command: "pushd sub && sdd new d tac body --attach run.log", where: "run.log", why: moved},
+		{command: "bash -c 'cd sub && sdd new d tac body --attach run.log'", where: "run.log", why: moved},
+		{command: "sdd new d tac body --attach run.log; cd sub", where: "run.log", why: moved},
+		{command: "env -C sub sdd new d tac body --attach run.log", where: "run.log", why: launched},
+		{command: "env FOO=1 sdd new d tac body --attach run.log", where: "run.log", why: launched},
+		{command: "sudo -iD sub sdd new d tac body --attach run.log", where: "run.log", why: launched},
+		{command: "nice -n 5 sdd new d tac body --attach run.log", where: "run.log", why: launched},
+		{command: "timeout 5 sdd new d tac body --attach run.log", where: "run.log", why: launched},
+		{command: "echo x | xargs sdd new d tac body --attach run.log", where: "run.log", why: launched},
+		{command: "flock /tmp/lock sdd new d tac body --attach run.log", where: "run.log", why: launched},
+		{command: "env agentic-capture {draft}", where: "run.log", why: launched},
+		{command: "cd sub && agentic-capture {draft}", where: "run.log", why: moved},
+		{command: "sdd new d tac body --attach '$HOME/run.log'", where: "$HOME/run.log", why: expansion},
+		{command: `sdd new d tac body --attach "$PWD/run.log"`, where: "$PWD/run.log", why: expansion},
+		{command: "sdd new d tac body --attach ~/run.log", where: "~/run.log", why: expansion},
+		{command: "sdd new d tac body --attach 'logs~/run.log'", where: "logs~/run.log", why: expansion},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
 			env := areaProject(t)
 			test.WriteFile(t, filepath.Join(env.WorkingDir, "run.log"), test.SecretFixture(t, "clean.txt"))
+			headed(t, env, "attach: [run.log]\n")
+			command := strings.ReplaceAll(tc.command, "{draft}", ".sdd/tmp/drafts/attached.md")
 
 			refuses(t, run(t, env, "gate", bash(command)), "neither read")
 
 			ground(t, env)
-			refuses(t, run(t, env, "gate", bash(command)), relative)
+			refuses(t, run(t, env, "gate", bash(command)),
+				"GROUNDING GATE: refused. The capture names "+tc.where+", which cannot be read to scan for a credential: "+tc.why+
+					"; attach it by a literal absolute path")
 		})
 	}
 
-	t.Run("an absolute one is read", func(t *testing.T) {
+	t.Run("a literal absolute path is read wherever the command goes", func(t *testing.T) {
 		env := areaProject(t)
 		attached := filepath.Join(env.WorkingDir, "run.log")
 		test.WriteFile(t, attached, test.SecretFixture(t, "clean.txt"))
 		ground(t, env)
 
 		passes(t, run(t, env, "gate", bash("cd sub && sdd new d tac body --attach "+attached)))
+		passes(t, run(t, env, "gate", bash("env -C sub sdd new d tac body --attach "+attached)))
+	})
 
-		test.WriteFile(t, filepath.Join(env.Home, "home.log"), test.SecretFixture(t, "clean.txt"))
-		passes(t, run(t, env, "gate", bash("cd sub && sdd new d tac body --attach ~/home.log")))
+	t.Run("a literal relative path with no move and no launcher is read", func(t *testing.T) {
+		env := areaProject(t)
+		test.WriteFile(t, filepath.Join(env.WorkingDir, "run.log"), test.SecretFixture(t, "clean.txt"))
+		ground(t, env)
+
+		passes(t, run(t, env, "gate", bash("sdd new d tac body --attach run.log")))
+		passes(t, run(t, env, "gate", bash("time sdd new d tac body --attach run.log")))
+		passes(t, run(t, env, "gate", bash("flock /tmp/lock cd sub; sdd new d tac body --attach run.log")))
 	})
 
 	t.Run("standard input is refused as standard input", func(t *testing.T) {
@@ -370,12 +402,25 @@ func TestARelativeAttachmentAfterADirectoryChangeIsRefused(t *testing.T) {
 		refuses(t, run(t, env, "gate", bash("cd sub && sdd new d tac body --attach -:pasted.txt")), "standard input as pasted.txt")
 	})
 
-	t.Run("without a directory change a relative one is read", func(t *testing.T) {
-		env := areaProject(t)
-		test.WriteFile(t, filepath.Join(env.WorkingDir, "run.log"), test.SecretFixture(t, "clean.txt"))
-		ground(t, env)
-
-		passes(t, run(t, env, "gate", bash("env -u HOME sdd new d tac body --attach run.log")))
-		passes(t, run(t, env, "gate", bash("env sdd new d tac body --attach run.log -C")))
+	t.Run("a staged file named through an expansion", func(t *testing.T) {
+		refuses(t, run(t, areaProject(t), "gate", mcp("stage_attachment", map[string]any{"name": "a.txt", "path": "$HOME/a.txt"})),
+			"The capture names $HOME/a.txt, which cannot be read to scan for a credential: "+expansion)
 	})
+}
+
+func TestACredentialUnderANameTheAllowlistSkipsIsStillFound(t *testing.T) {
+	pem := test.SecretFixture(t, "positive/private-key.txt")
+
+	for _, name := range []string{"deploy.bin", "logo.png"} {
+		t.Run(name, func(t *testing.T) {
+			env := areaProject(t)
+			test.WriteFile(t, filepath.Join(env.WorkingDir, "key.txt"), pem)
+			ground(t, env)
+
+			refuses(t, run(t, env, "gate", bash("sdd new d tac body --attach key.txt:"+name)), leaked+"private-key, key.txt, line 1)")
+			refuses(t, run(t, env, "gate", bash("agentic-capture "+headed(t, env, "attach: ['key.txt:"+name+"']\n"))), leaked+"private-key, key.txt, line 1)")
+			refuses(t, run(t, env, "gate", mcp("stage_attachment", map[string]any{"name": name, "content": pem})), leaked+"private-key, the staged "+name)
+			refuses(t, run(t, env, "gate", mcp("stage_attachment", map[string]any{"name": name, "path": "key.txt"})), leaked+"private-key, key.txt, line 1)")
+		})
+	}
 }

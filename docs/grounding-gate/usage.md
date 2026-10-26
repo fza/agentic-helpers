@@ -43,9 +43,14 @@ that could not finish refuses as `scan-incomplete`.
 - `GROUNDING GATE: refused. The capture names no draft that can be read to scan for a credential; name the draft file in the call`:
   an `agentic-capture` handed its draft in a way the gate cannot read, through `xargs` with no
   `.md` name in the command.
-- `GROUNDING GATE: refused. The capture names <file>, a relative path after a directory change, which cannot be read to scan for a credential; attach it by an absolute path`:
-  a plain `sdd new` attaching a relative path in a command that changes directory (`cd`, `pushd`,
-  `popd`, `env -C`, `sudo -D`), wherever in the command: the gate does not follow directories.
+- `GROUNDING GATE: refused. The capture names <file>, which cannot be read to scan for a credential: <why>; attach it by a literal absolute path`:
+  an attached file (a plain `sdd new`'s `--attach`, a draft's `attach`, a staged `path`) the gate
+  will not place. It reads a literal absolute path, or a literal relative one in a command that
+  neither changes directory nor puts a launcher in front of the call; `<why>` is
+  `it holds a shell expansion` (any `$` or `~`), `it is relative after a directory change` (`cd`,
+  `pushd`, `popd`, a launcher's chdir option, anywhere in the command), or
+  `it is relative behind a launcher` (`env`, `sudo`, `xargs`, `nice`, `timeout`, `flock`,
+  `ionice`, and every other launcher the shell walk knows).
 - `GROUNDING GATE: refused. The <tool> call's input cannot be read to scan for a credential`:
   an engine call whose input is no JSON object.
 

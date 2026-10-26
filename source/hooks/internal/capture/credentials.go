@@ -71,16 +71,31 @@ func (run *capture) attachmentLeaks(ctx context.Context, value string) string {
 		path = filepath.Join(run.root, path)
 	}
 
-	content, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Sprintf("%sThe capture names %s, which cannot be read to scan for a credential", refusedPrefix, attached.Path)
 	}
 
-	return scanned(ctx, string(content), attached.Name, attached.Path)
+	// By its name, so path rules fire on it, and where that finds nothing, again
+	// as text that is no file: gitleaks' global allowlist skips whole files by
+	// name (`.bin`, images, fonts), and a credential attached under such a name
+	// would go unscanned. A scan by a name it does not skip finds all the
+	// nameless scan would.
+	content := string(raw)
+
+	findings := secrets.Scan(ctx, content, attached.Name)
+	if len(findings) == 0 {
+		findings = secrets.Scan(ctx, content, "")
+	}
+
+	return described(findings, attached.Path)
 }
 
 func scanned(ctx context.Context, text string, name string, where string) string {
-	findings := secrets.Scan(ctx, text, name)
+	return described(secrets.Scan(ctx, text, name), where)
+}
+
+func described(findings []secrets.Finding, where string) string {
 	if len(findings) == 0 {
 		return ""
 	}

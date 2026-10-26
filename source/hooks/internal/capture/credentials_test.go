@@ -183,6 +183,20 @@ func TestAnAttachmentIsScannedByItsNameInTheEntry(t *testing.T) {
 	}
 }
 
+func TestACredentialUnderANameTheAllowlistSkipsIsStillFound(t *testing.T) {
+	for _, name := range []string{"deploy.bin", "logo.png"} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t, "")
+			test.WriteFile(t, filepath.Join(f.root, "key.txt"), test.SecretFixture(t, "positive/private-key.txt"))
+
+			got := f.run(f.writeDraft("attach: ['key.txt:"+name+"']\n", "A body."))
+			if got.code != 1 || !strings.Contains(got.stderr, captureLeaked+"private-key, key.txt, line 1)") {
+				t.Errorf("a credential attached under a name gitleaks skips should still refuse the capture, got: %+v", got)
+			}
+		})
+	}
+}
+
 func TestAnAttachmentByAbsolutePathIsReadThere(t *testing.T) {
 	f := newFixture(t, "")
 	elsewhere := filepath.Join(t.TempDir(), "run.log")

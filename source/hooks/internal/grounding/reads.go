@@ -74,6 +74,10 @@ func readsOf(config graphconfig.Config) reads {
 // reachedBy reports whether the call runs the graph's tool, bare or through
 // the project's read command, naming a subcommand.
 func (reads reads) reachedBy(called call) bool {
+	if !called.certain {
+		return false
+	}
+
 	rest, isBare := callsAs(called, []string{"sdd"})
 	if isBare && opensSubcommand(rest) {
 		return true
@@ -118,7 +122,7 @@ func (reads reads) gatheringsIn(calls []call) []gathering {
 
 	for _, called := range calls {
 		rest, gathers := callsAs(called, reads.gatherWords)
-		if gathers {
+		if gathers && called.certain {
 			found = append(found, gatheringOf(rest))
 		}
 	}

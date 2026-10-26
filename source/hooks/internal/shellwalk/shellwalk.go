@@ -41,16 +41,62 @@ var longFlags = []string{
 	"--dump-strings", "--no-config", "--private", "--interactive", "--no-execute", "--emulate-sh",
 }
 
-// valueOptions are a launcher's options that take the next word as their
-// value, so that word is no command: `env -C dir sdd` runs sdd.
-var valueOptions = map[string][]string{
-	"env":     {"-C", "--chdir", "-u", "--unset"},
-	"sudo":    {"-u", "--user", "-g", "--group", "-C", "--close-from", "-D", "--chdir", "-h", "--host", "-p", "--prompt", "-r", "--role", "-t", "--type", "-T", "--command-timeout", "-U", "--other-user"},
-	"xargs":   {"-I", "-L", "-d", "--delimiter", "-E", "-a", "--arg-file", "-s", "--max-chars", "-n", "--max-args", "-P", "--max-procs"},
-	"nice":    {"-n", "--adjustment"},
-	"timeout": {"-s", "--signal", "-k", "--kill-after"},
-	"flock":   {"-w", "--timeout", "-E", "--conflict-exit-code"},
-	"ionice":  {"-c", "--class", "-n", "--classdata", "-p", "--pid"},
+// LauncherOptions / Value / Chdir are the options of a launcher the walk
+// knows: Value those taking the next word as their value, so that word is no
+// command (`env -C dir sdd` runs sdd); Chdir those running the command in
+// another directory (`env -C`, `sudo -D`, and `sudo -i`, a login shell in the
+// target user's home). It is the one table both the walk and its callers read.
+type LauncherOptions struct {
+	Value []string
+	Chdir []string
+}
+
+var Options = map[string]LauncherOptions{
+	"env": {Value: []string{"-C", "--chdir", "-u", "--unset"}, Chdir: []string{"-C", "--chdir"}},
+	"sudo": {
+		Value: []string{
+			"-u", "--user", "-g", "--group", "-C", "--close-from", "-D", "--chdir", "-h", "--host", "-p", "--prompt",
+			"-r", "--role", "-t", "--type", "-T", "--command-timeout", "-U", "--other-user",
+		},
+		Chdir: []string{"-D", "--chdir", "-i", "--login"},
+	},
+	"xargs": {Value: []string{
+		"-I", "-L", "-d", "--delimiter", "-E", "-a", "--arg-file", "-s", "--max-chars", "-n", "--max-args", "-P", "--max-procs",
+	}},
+	"nice":    {Value: []string{"-n", "--adjustment"}},
+	"timeout": {Value: []string{"-s", "--signal", "-k", "--kill-after"}},
+	"flock":   {Value: []string{"-w", "--timeout", "-E", "--conflict-exit-code"}},
+	"ionice":  {Value: []string{"-c", "--class", "-n", "--classdata", "-p", "--pid"}},
+}
+
+// MovesDirectory reports whether a call runs in another directory than the
+// shell's: `cd`, `pushd` and `popd` move the shell itself, and a launcher's
+// chdir option moves what it runs. It reads every word, a short option grouped
+// with others (`-iD`) and a long option carrying its value (`--chdir=dir`)
+// included, so an option it misplaces still counts.
+func MovesDirectory(words []string) bool {
+	if len(words) == 0 {
+		return false
+	}
+
+	name := strings.ToLower(path.Base(words[0]))
+	if slices.Contains([]string{"cd", "pushd", "popd"}, name) {
+		return true
+	}
+
+	for _, word := range words[1:] {
+		for _, option := range Options[name].Chdir {
+			long := strings.HasPrefix(option, "--")
+			grouped := !long && strings.HasPrefix(word, "-") && !strings.HasPrefix(word, "--") &&
+				strings.Contains(word[1:], option[1:])
+
+			if word == option || long && strings.HasPrefix(word, option+"=") || grouped {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 var (
@@ -180,7 +226,7 @@ func launchedAt(args []*syntax.Word) int {
 			return -1
 		case value == "--":
 			return index + 1
-		case slices.Contains(valueOptions[launcher], value):
+		case slices.Contains(Options[launcher].Value, value):
 			index++
 		case strings.HasPrefix(value, "-") || assignment.MatchString(value) || count.MatchString(value):
 		default:

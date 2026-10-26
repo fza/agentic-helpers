@@ -72,6 +72,7 @@ func TestAGatherCallCreditsWhatItCarries(t *testing.T) {
 		{name: "a word before the parenthesis", fixture: "gather-command.yaml", command: "printf %s Bash(" + gather + " s --query q --term x --entry " + subject + ")", want: credited{Listings: []string{}}},
 		{name: "a longer command word", fixture: "gather-command.yaml", command: gather + "er s --query q --term x --entry " + subject, want: credited{Listings: []string{}}},
 		{name: "no gather command configured", fixture: "read-command.yaml", command: full, want: credited{Listings: []string{}}},
+		{name: "a word a launcher may hand an option", fixture: "gather-command.yaml", command: "echo f | xargs grep -rl " + full, want: credited{Listings: []string{}}},
 	}
 
 	for _, tc := range cases {

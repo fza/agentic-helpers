@@ -95,8 +95,17 @@ a write into another repository's graph is scanned too. What it scans:
   `xargs`), every `.md` name in the command; read against the working directory, else the project.
   Then every file its header's `attach` names, read from the directory holding the governing
   `.sdd/`, where agentic-capture runs sdd.
-- **An attach value** splits as sdd splits it, on the last colon: `source:target` reads `source`
-  and scans it by `target`, so path-scoped rules apply; `-:target` reads standard input.
+- **An attach value** splits as sdd splits it, on the last colon: `source:target` reads `source`;
+  `-:target` reads standard input. Every attached or staged file is scanned by its name in
+  the entry, so path rules fire, and where that finds nothing, as nameless text, since gitleaks' global allowlist skips whole
+  files by name (`.bin`, images, fonts, office files) and `secret.txt:secret.bin` would otherwise
+  pass unscanned. Only a literal path is read, never expanded: an absolute one, or a relative one
+  in a command with no directory change anywhere and no launcher in front of the call (the
+  launchers and their chdir options are `shellwalk.Options`, the table the walk reads too).
+  Anything a launcher or an expansion would change is refused, not resolved.
+- **A call behind a launcher's options** the walk cannot place (`sudo -iD dir sdd new`,
+  `flock lockfile agentic-capture d.md`) still counts as a write: `sdd new`, or `agentic-capture`
+  handed an argument. It credits and checks no read.
 - **For `mcp__sdd__next` the `report`, for `mcp__sdd__start_procedure` the `params`**, decoded,
   every key and string in them one per line in key order: the JSON text itself is not scanned,
   since its escapes hide a token from the rules. The session `label` and the other fields naming
@@ -114,10 +123,10 @@ finding refuses like any other.
 The gate fails closed: what it cannot scan refuses. Standard input (`refusals/credential-stdin.txt`),
 a file that cannot be read or a draft header that does not parse
 (`refusals/credential-unreadable.txt`), a capture naming no draft
-(`refusals/credential-no-draft.txt`), a plain `sdd new`'s relative `--attach` in a command that
-changes directory anywhere (`cd`, `pushd`, `popd`, a launcher's chdir option, `env -C` or
-`sudo -D`; `refusals/credential-relative.txt`), since the gate does not track directories, and an
-engine input that is no JSON object (`refusals/credential-undecodable.txt`) refuse once no other
+(`refusals/credential-no-draft.txt`), an attachment path it will not place, holding `$` or `~`,
+or relative after a directory change or behind a launcher (`refusals/credential-unresolved.txt`,
+naming why), and an engine input that is no JSON object
+(`refusals/credential-undecodable.txt`) refuse once no other
 check does, so a turn still owing reads
 hears that first; an exempt seat is refused too. A credential anywhere in the write outranks what
 could not be scanned.

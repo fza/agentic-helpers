@@ -39,7 +39,7 @@ files the call may change, a draft written by the same command or a file rewritt
 pre-flight runs. So `agentic-capture` scans again what it hands `sdd new` itself
 (`internal/capture/credentials.go`, the shared `internal/secrets` scanner): the body, counted in
 the draft's own lines; every header value as its flag carries it, after YAML decoded any escape;
-and the bytes of every attached file, read from the directory sdd runs in, by its name in the entry
+and the bytes of every attached file, read from the directory sdd runs in, by its name in the entry and, where that finds nothing, as nameless text (a path allowlist skips a file by name)
 (`source:target` splits on the last colon, as sdd splits it). The scan runs after the header check,
 before the lint and the pre-flight, since the pre-flight hands the draft to a model provider; again
 right before the write; and, where one `sdd new` checks and writes, right before that call. A

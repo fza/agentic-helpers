@@ -2,6 +2,7 @@ package shellwalk_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -121,6 +122,39 @@ func TestSpelledRemovesQuotingAndKeepsExpansions(t *testing.T) {
 
 			if !slices.Equal(recorder.Events, []string{"call echo " + tc.want}) {
 				t.Errorf("the word should read with its quoting removed, got: %q", recorder.Events)
+			}
+		})
+	}
+}
+
+func TestWhatMovesToAnotherDirectory(t *testing.T) {
+	cases := []struct {
+		words []string
+		moves bool
+	}{
+		{words: []string{"cd", "sub"}, moves: true},
+		{words: []string{"pushd", "sub"}, moves: true},
+		{words: []string{"popd"}, moves: true},
+		{words: []string{"/usr/bin/env", "-C", "sub", "sdd"}, moves: true},
+		{words: []string{"env", "--chdir=sub", "sdd"}, moves: true},
+		{words: []string{"env", "--chdir", "sub", "sdd"}, moves: true},
+		{words: []string{"env", "-iC", "sub", "sdd"}, moves: true},
+		{words: []string{"sudo", "-D", "sub", "sdd"}, moves: true},
+		{words: []string{"sudo", "-iu", "bob", "sdd"}, moves: true},
+		{words: []string{"sudo", "--login", "sdd"}, moves: true},
+		{words: []string{"env", "-u", "HOME", "sdd"}},
+		{words: []string{"sudo", "-u", "bob", "sdd"}},
+		{words: []string{"nice", "-n", "5", "sdd"}},
+		{words: []string{"git", "-C", "sub", "status"}},
+		{words: []string{"sudo", "--list", "sdd"}},
+		{words: []string{"sdd", "new"}},
+		{},
+	}
+
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.words, " "), func(t *testing.T) {
+			if shellwalk.MovesDirectory(tc.words) != tc.moves {
+				t.Error("a call should move only where it or its launcher's option changes directory")
 			}
 		})
 	}

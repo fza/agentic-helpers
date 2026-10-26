@@ -26,6 +26,7 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 		{name: "a launched command's argument", command: "git ls-files | xargs grep -l agentic-capture", writes: false},
 		{name: "a name find looks for", command: "find . -name agentic-capture", writes: false},
 		{name: "a name command looks up", command: "command -v agentic-capture", writes: false},
+		{name: "a capture past options the walk does not know", command: "flock /tmp/lock agentic-capture d.md", writes: true},
 		{name: "an unparseable command naming sdd", command: "sdd new d tac 'body", writes: true},
 		{name: "unparseable code bash -c runs", command: `bash -c "sdd new d tac 'body"`, writes: true},
 		{name: "an unparseable command naming agentic-capture", command: "agentic-capture d.md )", writes: true},
@@ -65,6 +66,7 @@ func TestOnlyTheShellsOwnCallsAreCredited(t *testing.T) {
 		{name: "a read bash -c runs", command: "bash -c 'sdd search --term x'", want: credited{}},
 		{name: "a read fed to a shell", command: "bash <<'EOF'\nsdd search --term x\nEOF", want: credited{}},
 		{name: "a read that does not parse", command: "sdd search --term 'x", want: credited{}},
+		{name: "a word a launcher may hand an option", command: "echo f | xargs grep -rl sdd search --term x --query q", want: credited{}},
 	}
 
 	for _, tc := range cases {

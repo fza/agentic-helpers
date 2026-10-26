@@ -22,46 +22,25 @@ type spoken struct {
 }
 
 // call is one command's words, quoting removed; name is the base name of the
-// first, lower-cased.
+// first, lower-cased. launched is a call a launcher before it runs, whose
+// directory and environment the launcher may change; certain is false for a
+// word after a launcher that may be an option's value rather than the command.
 type call struct {
-	words []string
-	name  string
+	words    []string
+	name     string
+	launched bool
+	certain  bool
 }
 
 func (called call) text() string {
 	return strings.Join(called.words, " ")
 }
 
-// changesDirectory reports a call moving the shell, or the command it
-// launches, to another directory: `cd`, `pushd`, `popd`, or a launcher's
-// chdir option (`env -C`, `sudo -D`).
+// changesDirectory reports a call the shell runs that moves it, or what it
+// launches, elsewhere. An uncertain word after a launcher never moves the
+// shell: a launched `cd` changes nothing for the commands after it.
 func (called call) changesDirectory() bool {
-	if slices.Contains([]string{"cd", "pushd", "popd"}, called.name) {
-		return true
-	}
-
-	chdir := map[string]string{"env": "-C", "sudo": "-D"}[called.name]
-	if chdir == "" {
-		return false
-	}
-
-	// The launcher's own options end at the command it runs: the first word
-	// that is no option, no option's value and no assignment.
-	for index := 1; index < len(called.words); index++ {
-		arg := called.words[index]
-
-		switch {
-		case strings.HasPrefix(arg, chdir) || arg == "--chdir" || strings.HasPrefix(arg, "--chdir="):
-			return true
-		case slices.Contains([]string{"-u", "--unset", "-g", "--group", "--user"}, arg):
-			index++
-		case strings.HasPrefix(arg, "-") || strings.Contains(arg, "="):
-		default:
-			return false
-		}
-	}
-
-	return false
+	return called.certain && shellwalk.MovesDirectory(called.words)
 }
 
 // namesTool finds `sdd` or `agentic-capture` as a word in code that does not
@@ -93,17 +72,18 @@ type listener struct {
 	code  []string
 }
 
+// Command keeps every call the walk offers. One a launcher may run, past
+// options the walk does not know, stays uncertain: no read is credited or
+// checked through it, but a write through it still owes what any write owes.
 func (heard *listener) Command(found shellwalk.Call) {
-	if !found.Certain {
-		return
-	}
-
 	words := make([]string, 0, len(found.Args))
 	for _, word := range found.Args {
 		words = append(words, shellwalk.Spelled(word))
 	}
 
-	heard.calls = append(heard.calls, call{words: words, name: strings.ToLower(path.Base(words[0]))})
+	heard.calls = append(heard.calls, call{
+		words: words, name: strings.ToLower(path.Base(words[0])), launched: found.Launched, certain: found.Certain,
+	})
 }
 
 func (heard *listener) Code(_ string, words []*syntax.Word) {
@@ -146,8 +126,11 @@ var toStream = []syntax.RedirOperator{
 	syntax.RdrAllClob, syntax.AppAllClob,
 }
 
+// callsCapture reports a call of `agentic-capture`. An uncertain one counts
+// where it is handed an argument: `xargs grep -l agentic-capture` names the
+// tool as a search term, `sudo -iD dir agentic-capture d.md` runs it.
 func callsCapture(called call) bool {
-	return called.name == "agentic-capture" && !writesNoEntry(called.words[1:])
+	return called.name == "agentic-capture" && (called.certain || len(called.words) > 1) && !writesNoEntry(called.words[1:])
 }
 
 func callsNew(called call) bool {

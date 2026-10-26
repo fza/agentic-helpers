@@ -43,7 +43,24 @@ func (held *scan) cannot(refused string) {
 }
 
 func (held *scan) text(ctx context.Context, text string, name string, where string) {
-	findings := secrets.Scan(ctx, text, name)
+	held.report(secrets.Scan(ctx, text, name), where)
+}
+
+// file scans a file by its name, so path rules fire on it, and where that finds
+// nothing, again as text that is no file: gitleaks' global allowlist skips
+// whole files by name (`.bin`, images, fonts, office files), and a credential
+// attached under such a name would otherwise go unscanned. A scan by a name it
+// does not skip finds all the nameless scan would.
+func (held *scan) file(ctx context.Context, content string, name string, where string) {
+	found := secrets.Scan(ctx, content, name)
+	if len(found) == 0 {
+		found = secrets.Scan(ctx, content, "")
+	}
+
+	held.report(found, where)
+}
+
+func (held *scan) report(findings []secrets.Finding, where string) {
 	if len(findings) == 0 {
 		return
 	}
@@ -97,44 +114,33 @@ func (held *scan) command(ctx context.Context, env Env, command string) {
 		for _, called := range stretch.calls {
 			switch {
 			case callsCapture(called):
-				held.capture(ctx, env, command, called.words[1:])
+				held.capture(ctx, env, command, called.words[1:], unanchored(called, moved))
 			case callsNew(called):
-				values := attachValues(called.words[2:])
-				if moved {
-					values = held.anchored(env, values)
-				}
-
-				held.attached(ctx, env, values, env.WorkingDir)
+				held.attached(ctx, attachValues(called.words[2:]), env.WorkingDir, unanchored(called, moved))
 			}
 		}
 	}
 }
 
-// anchored keeps the `--attach` values whose file does not depend on the
-// shell's directory. Where the command changes directory, sdd reads a relative
-// one from wherever the command moved to, which the gate does not follow; it
-// cannot be read here, so it is refused rather than read from the wrong place.
-func (held *scan) anchored(env Env, values []string) []string {
-	var kept []string
-
-	for _, value := range values {
-		attached := sddcaps.Attachment(value)
-		if !attached.Stdin && !filepath.IsAbs(expand(env, attached.Path)) {
-			held.cannot(refusal("credential-relative.txt", "{where}", attached.Path))
-
-			continue
-		}
-
-		kept = append(kept, value)
+// unanchored says why a relative attachment of the call cannot be placed, or
+// nothing where it can: a launcher in front of the call may run it elsewhere
+// or change what it reads, and a directory change anywhere in the command may
+// move the shell first. The gate refuses rather than follows either.
+func unanchored(called call, moved bool) string {
+	switch {
+	case called.launched:
+		return "it is relative behind a launcher"
+	case moved:
+		return "it is relative after a directory change"
 	}
 
-	return kept
+	return ""
 }
 
 // capture scans the draft an `agentic-capture` call names and the files its
 // header attaches. A draft handed in some other way, as through `xargs`, is
 // looked for among the command's `.md` names.
-func (held *scan) capture(ctx context.Context, env Env, command string, args []string) {
+func (held *scan) capture(ctx context.Context, env Env, command string, args []string, unplaced string) {
 	var names []string
 
 	draft := draftArgument(args)
@@ -176,7 +182,7 @@ func (held *scan) capture(ctx context.Context, env Env, command string, args []s
 			governing = graphconfig.GraphDir(env.WorkingDir)
 		}
 
-		held.attached(ctx, env, values, filepath.Dir(governing))
+		held.attached(ctx, values, filepath.Dir(governing), unplaced)
 	}
 }
 
@@ -239,19 +245,31 @@ func attachValues(args []string) []string {
 	return values
 }
 
-// attached scans every file the `--attach` values name, by its name in the
-// entry, reading a relative one from base. Standard input, and a file that
-// cannot be read, cannot be scanned here.
-func (held *scan) attached(ctx context.Context, env Env, values []string, base string) {
+// attached scans every file the `--attach` values name, reading a relative
+// one from base. Only a literal path is read: one holding `$` or `~` is
+// whatever the shell expands it to, and a relative one is refused where
+// unplaced says why it cannot be placed. Standard input, and a file that
+// cannot be read, cannot be scanned here either.
+func (held *scan) attached(ctx context.Context, values []string, base string, unplaced string) {
 	for _, value := range values {
 		attached := sddcaps.Attachment(value)
-		if attached.Stdin {
+
+		switch {
+		case attached.Stdin:
 			held.cannot(refusal("credential-stdin.txt", "{name}", attached.Name))
+
+			continue
+		case expands(attached.Path):
+			held.cannot(refusal("credential-unresolved.txt", "{where}", attached.Path, "{why}", "it holds a shell expansion"))
+
+			continue
+		case !filepath.IsAbs(attached.Path) && unplaced != "":
+			held.cannot(refusal("credential-unresolved.txt", "{where}", attached.Path, "{why}", unplaced))
 
 			continue
 		}
 
-		path := expand(env, attached.Path)
+		path := attached.Path
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(base, path)
 		}
@@ -263,8 +281,12 @@ func (held *scan) attached(ctx context.Context, env Env, values []string, base s
 			continue
 		}
 
-		held.text(ctx, string(content), attached.Name, attached.Path)
+		held.file(ctx, string(content), attached.Name, attached.Path)
 	}
+}
+
+func expands(path string) bool {
+	return strings.ContainsAny(path, "$~")
 }
 
 // headerAttachments lists the `attach` values of a draft's header, as
@@ -350,10 +372,16 @@ func (held *scan) staged(ctx context.Context, env Env, payload hookio.Payload) {
 
 	name, _ := input["name"].(string)
 
-	held.text(ctx, strings.Join(texts(input), "\n"), name, "the staged "+name)
+	held.file(ctx, strings.Join(texts(input), "\n"), name, "the staged "+name)
 
 	path, _ := input["path"].(string)
 	if path == "" {
+		return
+	}
+
+	if expands(path) {
+		held.cannot(refusal("credential-unresolved.txt", "{where}", path, "{why}", "it holds a shell expansion"))
+
 		return
 	}
 
@@ -364,7 +392,7 @@ func (held *scan) staged(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
-	held.text(ctx, string(content), name, path)
+	held.file(ctx, string(content), name, path)
 }
 
 func texts(value any) []string {
