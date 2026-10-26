@@ -56,6 +56,14 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 			events: []string{"call find . -name x", "launched . -name x", "launched -name x", "launched x"},
 		},
 		{
+			name: "past an option's value", command: "env -C /work sdd",
+			events: []string{"call env -C /work sdd", "launched -C /work sdd", "launched /work sdd", "launched sdd (certain)"},
+		},
+		{
+			name: "an option's value is another launcher's own", command: "sudo -u bob sdd",
+			events: []string{"call sudo -u bob sdd", "launched -u bob sdd", "launched bob sdd", "launched sdd (certain)"},
+		},
+		{
 			name: "a lookup runs nothing", command: "command -v sdd",
 			events: []string{"call command -v sdd", "launched -v sdd", "launched sdd"},
 		},

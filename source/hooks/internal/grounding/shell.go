@@ -32,6 +32,38 @@ func (called call) text() string {
 	return strings.Join(called.words, " ")
 }
 
+// changesDirectory reports a call moving the shell, or the command it
+// launches, to another directory: `cd`, `pushd`, `popd`, or a launcher's
+// chdir option (`env -C`, `sudo -D`).
+func (called call) changesDirectory() bool {
+	if slices.Contains([]string{"cd", "pushd", "popd"}, called.name) {
+		return true
+	}
+
+	chdir := map[string]string{"env": "-C", "sudo": "-D"}[called.name]
+	if chdir == "" {
+		return false
+	}
+
+	// The launcher's own options end at the command it runs: the first word
+	// that is no option, no option's value and no assignment.
+	for index := 1; index < len(called.words); index++ {
+		arg := called.words[index]
+
+		switch {
+		case strings.HasPrefix(arg, chdir) || arg == "--chdir" || strings.HasPrefix(arg, "--chdir="):
+			return true
+		case slices.Contains([]string{"-u", "--unset", "-g", "--group", "--user"}, arg):
+			index++
+		case strings.HasPrefix(arg, "-") || strings.Contains(arg, "="):
+		default:
+			return false
+		}
+	}
+
+	return false
+}
+
 // namesTool finds `sdd` or `agentic-capture` as a word in code that does not
 // parse: a path may lead to it, and nothing path-like may follow.
 var namesTool = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.-])(?:sdd|agentic-capture)(?:[^A-Za-z0-9_./-]|$)`)

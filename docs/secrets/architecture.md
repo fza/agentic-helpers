@@ -59,6 +59,25 @@ finding of rule `scan-incomplete`, so a caller refusing on any finding refuses r
 unscanned text. The vendored rules decode and compile in a test, so in a released binary only an
 ended context reaches it.
 
+## What it guards against
+
+The scanner guards against a credential written by accident: a token pasted into a draft, an
+environment dump captured into a log, a key file attached by mistake. It does not stand against an
+agent working to get a credential past it; a credential in a shape no rule knows, or one the agent
+encodes, passes as it always would. Every caller fails closed where it cannot read what it would
+scan (standard input, a file not on disk, input it cannot decode), and leaves these accepted limits:
+
+- **A staged file built from patches.** The grounding gate scans each `mcp__sdd__stage_attachment`
+  call's text, a patch's `new` text among it, not the file the patches leave behind: that file is
+  the sdd engine's staged state, which the gate does not hold. A credential split across patches
+  passes. A staged file's `path` is read against the session's working directory, which in every
+  supported setup is the project root the sdd MCP server runs in, so it names the file the engine
+  reads.
+- **The last instant before sdd reads an attached file.** `agentic-capture` scans every attached
+  file right before it runs `sdd new`, and sdd then reads the file itself: a file changed in
+  between is never scanned. The grounding gate's earlier scan of a plain `sdd new` has the same
+  window, wider.
+
 ## Prompts
 
 `internal/promptvector`, where both prompt hooks share a prompt's vector, scans the prompt with

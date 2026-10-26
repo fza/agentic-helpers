@@ -101,8 +101,11 @@ a write into another repository's graph is scanned too. What it scans:
   every key and string in them one per line in key order: the JSON text itself is not scanned,
   since its escapes hide a token from the rules. The session `label` and the other fields naming
   the dialogue are not scanned: they never reach the graph.
-- **`mcp__sdd__stage_attachment`**: its inline `content`, each patch's `new` text, and the local
-  file its `path` names, by the staged `name`.
+- **`mcp__sdd__stage_attachment`**: every key and string of the call, one per line in key order (its
+  inline `content` and each patch's `old` and `new` text among them), and the local file its `path`
+  names, read against the session's working directory; all by the staged `name`. A patch is scanned
+  as the text it writes, not the file it leaves (see the scanner's
+  [accepted limits](../secrets/architecture.md#what-it-guards-against)).
 
 A finding refuses with `refusals/credential.txt`, naming the rules on the first line found and that
 line (`secrets.Describe`), never the matched text, ahead of every other check. A `scan-incomplete`
@@ -110,8 +113,12 @@ finding refuses like any other.
 
 The gate fails closed: what it cannot scan refuses. Standard input (`refusals/credential-stdin.txt`),
 a file that cannot be read or a draft header that does not parse
-(`refusals/credential-unreadable.txt`), and a capture naming no draft
-(`refusals/credential-no-draft.txt`) refuse once no other check does, so a turn still owing reads
+(`refusals/credential-unreadable.txt`), a capture naming no draft
+(`refusals/credential-no-draft.txt`), a plain `sdd new`'s relative `--attach` in a command that
+changes directory anywhere (`cd`, `pushd`, `popd`, a launcher's chdir option, `env -C` or
+`sudo -D`; `refusals/credential-relative.txt`), since the gate does not track directories, and an
+engine input that is no JSON object (`refusals/credential-undecodable.txt`) refuse once no other
+check does, so a turn still owing reads
 hears that first; an exempt seat is refused too. A credential anywhere in the write outranks what
 could not be scanned.
 

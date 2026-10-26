@@ -271,14 +271,14 @@ func TestAStagedFileIsScanned(t *testing.T) {
 			input: func(*testing.T, grounding.Env) map[string]any {
 				return map[string]any{"name": "env.txt", "content": sample}
 			},
-			says: leaked + "generic-api-key, github-pat, the staged env.txt, line 1)",
+			says: leaked + "generic-api-key, github-pat, the staged env.txt, line 2)",
 		},
 		{
 			name: "a patch",
 			input: func(*testing.T, grounding.Env) map[string]any {
 				return map[string]any{"name": "env.txt", "patches": []any{map[string]any{"old": "a", "new": sample}}}
 			},
-			says: leaked + "generic-api-key, github-pat, the staged env.txt, line 1)",
+			says: leaked + "generic-api-key, github-pat, the staged env.txt, line 5)",
 		},
 		{
 			name: "a local file",
@@ -288,6 +288,22 @@ func TestAStagedFileIsScanned(t *testing.T) {
 				return map[string]any{"name": "env.txt", "path": "env.txt"}
 			},
 			says: leaked + "generic-api-key, github-pat, env.txt, line 1)",
+		},
+		{
+			name: "any other field",
+			input: func(*testing.T, grounding.Env) map[string]any {
+				return map[string]any{"name": "env.txt", "content": "plain", "note": sample}
+			},
+			says: leaked + "generic-api-key, github-pat, the staged env.txt, line 6)",
+		},
+		{
+			name: "a local file, by its staged name",
+			input: func(t *testing.T, env grounding.Env) map[string]any {
+				test.WriteFile(t, filepath.Join(env.WorkingDir, "vars.txt"), `administrator_login_password = "thisIsDog11"`)
+
+				return map[string]any{"name": "main.tf", "path": "vars.txt"}
+			},
+			says: leaked + "hashicorp-tf-password, vars.txt, line 1)",
 		},
 		{
 			name: "a local file not on disk",
@@ -307,5 +323,59 @@ func TestAStagedFileIsScanned(t *testing.T) {
 
 	t.Run("a clean file passes", func(t *testing.T) {
 		passes(t, run(t, areaProject(t), "gate", mcp("stage_attachment", map[string]any{"name": "notes.txt", "content": "plain notes"})))
+	})
+}
+
+func TestARelativeAttachmentAfterADirectoryChangeIsRefused(t *testing.T) {
+	const relative = "GROUNDING GATE: refused. The capture names run.log, a relative path after a directory change, " +
+		"which cannot be read to scan for a credential; attach it by an absolute path"
+
+	for _, command := range []string{
+		"cd sub && sdd new d tac body --attach run.log",
+		"(cd sub; sdd new d tac body --attach=run.log:copy.log)",
+		"pushd sub && sdd new d tac body --attach run.log",
+		"env -C sub sdd new d tac body --attach run.log",
+		"env --chdir=sub sdd new d tac body --attach run.log",
+		"env -u HOME -Csub sdd new d tac body --attach run.log",
+		"sudo -D sub sdd new d tac body --attach run.log",
+		"bash -c 'cd sub && sdd new d tac body --attach run.log'",
+	} {
+		t.Run(command, func(t *testing.T) {
+			env := areaProject(t)
+			test.WriteFile(t, filepath.Join(env.WorkingDir, "run.log"), test.SecretFixture(t, "clean.txt"))
+
+			refuses(t, run(t, env, "gate", bash(command)), "neither read")
+
+			ground(t, env)
+			refuses(t, run(t, env, "gate", bash(command)), relative)
+		})
+	}
+
+	t.Run("an absolute one is read", func(t *testing.T) {
+		env := areaProject(t)
+		attached := filepath.Join(env.WorkingDir, "run.log")
+		test.WriteFile(t, attached, test.SecretFixture(t, "clean.txt"))
+		ground(t, env)
+
+		passes(t, run(t, env, "gate", bash("cd sub && sdd new d tac body --attach "+attached)))
+
+		test.WriteFile(t, filepath.Join(env.Home, "home.log"), test.SecretFixture(t, "clean.txt"))
+		passes(t, run(t, env, "gate", bash("cd sub && sdd new d tac body --attach ~/home.log")))
+	})
+
+	t.Run("standard input is refused as standard input", func(t *testing.T) {
+		env := areaProject(t)
+		ground(t, env)
+
+		refuses(t, run(t, env, "gate", bash("cd sub && sdd new d tac body --attach -:pasted.txt")), "standard input as pasted.txt")
+	})
+
+	t.Run("without a directory change a relative one is read", func(t *testing.T) {
+		env := areaProject(t)
+		test.WriteFile(t, filepath.Join(env.WorkingDir, "run.log"), test.SecretFixture(t, "clean.txt"))
+		ground(t, env)
+
+		passes(t, run(t, env, "gate", bash("env -u HOME sdd new d tac body --attach run.log")))
+		passes(t, run(t, env, "gate", bash("env sdd new d tac body --attach run.log -C")))
 	})
 }

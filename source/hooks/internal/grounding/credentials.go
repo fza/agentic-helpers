@@ -86,16 +86,49 @@ func (held *scan) command(ctx context.Context, env Env, command string) {
 
 	held.text(ctx, command, "", "the command")
 
-	for _, stretch := range spokenIn(command, false) {
+	heard := spokenIn(command, false)
+	moved := false
+
+	for _, stretch := range heard {
+		moved = moved || slices.ContainsFunc(stretch.calls, call.changesDirectory)
+	}
+
+	for _, stretch := range heard {
 		for _, called := range stretch.calls {
 			switch {
 			case callsCapture(called):
 				held.capture(ctx, env, command, called.words[1:])
 			case callsNew(called):
-				held.attached(ctx, env, attachValues(called.words[2:]), env.WorkingDir)
+				values := attachValues(called.words[2:])
+				if moved {
+					values = held.anchored(env, values)
+				}
+
+				held.attached(ctx, env, values, env.WorkingDir)
 			}
 		}
 	}
+}
+
+// anchored keeps the `--attach` values whose file does not depend on the
+// shell's directory. Where the command changes directory, sdd reads a relative
+// one from wherever the command moved to, which the gate does not follow; it
+// cannot be read here, so it is refused rather than read from the wrong place.
+func (held *scan) anchored(env Env, values []string) []string {
+	var kept []string
+
+	for _, value := range values {
+		attached := sddcaps.Attachment(value)
+		if !attached.Stdin && !filepath.IsAbs(expand(env, attached.Path)) {
+			held.cannot(refusal("credential-relative.txt", "{where}", attached.Path))
+
+			continue
+		}
+
+		kept = append(kept, value)
+	}
+
+	return kept
 }
 
 // capture scans the draft an `agentic-capture` call names and the files its
@@ -277,62 +310,61 @@ func headerAttachments(draft []byte) ([]string, error) {
 // session `label`, and every other field naming the dialogue rather than the
 // entry, stays out of the graph and so out of the scan.
 func (held *scan) engine(ctx context.Context, payload hookio.Payload, field string) {
-	var fields map[string]json.RawMessage
-
-	err := json.Unmarshal(payload.ToolInput.Raw, &fields)
-	if err != nil {
+	input, decoded := held.decode(payload)
+	if !decoded {
 		return
 	}
 
-	var carried any
-
-	err = json.Unmarshal(fields[field], &carried)
-	if err != nil {
+	carried, found := input[field]
+	if !found {
 		return
 	}
 
 	held.text(ctx, strings.Join(texts(carried), "\n"), "", fmt.Sprintf("the %s %s", payload.ToolName, field))
 }
 
-type stagedFile struct {
-	Name    string `json:"name"`
-	Content string `json:"content"`
-	Path    string `json:"path"`
-	Patches []struct {
-		New string `json:"new"`
-	} `json:"patches"`
-}
-
-// staged scans a file staged for an engine entry, by its name: its inline
-// content, the text each patch writes, and the local file it names.
-func (held *scan) staged(ctx context.Context, env Env, payload hookio.Payload) {
-	var input stagedFile
+// decode reads an engine call's input. Input it cannot read cannot be scanned,
+// so it is refused rather than let through unscanned.
+func (held *scan) decode(payload hookio.Payload) (map[string]any, bool) {
+	var input map[string]any
 
 	err := json.Unmarshal(payload.ToolInput.Raw, &input)
 	if err != nil {
+		held.cannot(refusal("credential-undecodable.txt", "{tool}", payload.ToolName))
+
+		return nil, false
+	}
+
+	return input, true
+}
+
+// staged scans a file staged for an engine entry by its name: every key and
+// string of the call, its inline content and patches among them, and the
+// local file its `path` names. A patch is scanned as the text it writes, not
+// as the file it leaves: the staged file itself is the engine's state.
+func (held *scan) staged(ctx context.Context, env Env, payload hookio.Payload) {
+	input, decoded := held.decode(payload)
+	if !decoded {
 		return
 	}
 
-	where := "the staged " + input.Name
+	name, _ := input["name"].(string)
 
-	held.text(ctx, input.Content, input.Name, where)
+	held.text(ctx, strings.Join(texts(input), "\n"), name, "the staged "+name)
 
-	for _, patch := range input.Patches {
-		held.text(ctx, patch.New, input.Name, where)
-	}
-
-	if input.Path == "" {
+	path, _ := input["path"].(string)
+	if path == "" {
 		return
 	}
 
-	_, content, read := readNamed(env, input.Path)
+	_, content, read := readNamed(env, path)
 	if !read {
-		held.cannot(refusal("credential-unreadable.txt", "{where}", input.Path))
+		held.cannot(refusal("credential-unreadable.txt", "{where}", path))
 
 		return
 	}
 
-	held.text(ctx, string(content), input.Name, input.Path)
+	held.text(ctx, string(content), name, path)
 }
 
 func texts(value any) []string {

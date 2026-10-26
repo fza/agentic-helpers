@@ -13,10 +13,12 @@ func TestTheSkillQuotesEveryCredentialRefusal(t *testing.T) {
 	}
 
 	for name, placeholders := range map[string][]string{
-		"credential.txt":            {"{rules}", "<rule ids>", "{where}", "<where>", "{line}", "<n>"},
-		"credential-unreadable.txt": {"{where}", "<file>"},
-		"credential-stdin.txt":      {"{name}", "<name>"},
-		"credential-no-draft.txt":   {},
+		"credential.txt":             {"{rules}", "<rule ids>", "{where}", "<where>", "{line}", "<n>"},
+		"credential-unreadable.txt":  {"{where}", "<file>"},
+		"credential-stdin.txt":       {"{name}", "<name>"},
+		"credential-no-draft.txt":    {},
+		"credential-relative.txt":    {"{where}", "<file>"},
+		"credential-undecodable.txt": {"{tool}", "<tool>"},
 	} {
 		quoted := strings.TrimSpace(refusal(name, placeholders...))
 		if !strings.Contains(string(skill), quoted) {

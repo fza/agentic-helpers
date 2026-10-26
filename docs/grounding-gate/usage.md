@@ -43,6 +43,14 @@ that could not finish refuses as `scan-incomplete`.
 - `GROUNDING GATE: refused. The capture names no draft that can be read to scan for a credential; name the draft file in the call`:
   an `agentic-capture` handed its draft in a way the gate cannot read, through `xargs` with no
   `.md` name in the command.
+- `GROUNDING GATE: refused. The capture names <file>, a relative path after a directory change, which cannot be read to scan for a credential; attach it by an absolute path`:
+  a plain `sdd new` attaching a relative path in a command that changes directory (`cd`, `pushd`,
+  `popd`, `env -C`, `sudo -D`), wherever in the command: the gate does not follow directories.
+- `GROUNDING GATE: refused. The <tool> call's input cannot be read to scan for a credential`:
+  an engine call whose input is no JSON object.
+
+The scanner stands against a credential written by accident, not an agent working around it; its
+accepted limits are listed in the [scanner's architecture](../secrets/architecture.md#what-it-guards-against).
 
 `agentic-capture` scans the exact bytes it hands sdd once more, right before each `sdd new`, so a
 file changed after the gate's scan is still caught ([capture](../capture/architecture.md#credentials)).
