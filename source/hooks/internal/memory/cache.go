@@ -13,15 +13,19 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 )
 
-// Heat increments per use. A brief adds nothing: showing an entry there must
-// not keep it hot by showing it.
+// Heat increments per use. Displaying an entry adds nothing, in the brief or
+// in prompt recall alike: an entry shown would otherwise rank higher for being
+// shown, and the order would feed itself.
 const (
 	heatNew       = 1.0
 	heatConfirm   = 1.0
 	heatShow      = 0.5
 	heatSearchHit = 0.25
-	heatRecall    = 0.25
+	heatLink      = 0.5
 )
+
+// usedWindow is the span `who` counts a seat's filed and used entries over.
+const usedWindow = 14 * 24 * time.Hour
 
 // searchWarmed is how many of a search's top results it warms: a broad search
 // returning most of the store says nothing about any one entry.
@@ -66,9 +70,12 @@ func removeIfThere(path string) {
 	}
 }
 
+// heatValue is an entry's heat as last set, and Used the last time a use
+// warmed it, which filing never sets.
 type heatValue struct {
 	Value float64   `json:"value"`
 	At    time.Time `json:"at"`
+	Used  time.Time `json:"used,omitzero"`
 }
 
 func (mem *memory) heatPath() string {
@@ -120,7 +127,12 @@ func (mem *memory) warm(folded *state, amount float64, ids ...string) {
 			continue
 		}
 
-		heats[id] = heatValue{Value: mem.heat(heats, held) + amount, At: mem.now()}
+		warmed := heatValue{Value: mem.heat(heats, held) + amount, At: mem.now()}
+		if amount > 0 {
+			warmed.Used = warmed.At
+		}
+
+		heats[id] = warmed
 	}
 
 	_ = writeJSON(mem.heatPath(), heats)

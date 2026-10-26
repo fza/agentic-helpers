@@ -44,7 +44,7 @@ agentic-memory release [<seat>]
 agentic-memory rename '<new name>'      # the seat this session holds; id and entries stay
 agentic-memory holder <seat> [--json]   # exit 0 held, 1 free
 agentic-memory holder --session <id> --json
-agentic-memory who [--all]              # every seat of this project + shelf + state; frees dead holders; --all: every project
+agentic-memory who [--all]              # every seat + shelf + state + filed / used (14d); frees dead holders; --all: every project
 ```
 
 - Name → any script: a letter, then up to 23 letters, marks, digits or dashes. Normalised (NFC,
@@ -206,14 +206,19 @@ agentic-memory brief [--topic <t>]
 - **Every line carries flags computed now:** `drifted: <path>`, `gone: <path>`, `other branch: <b>`.
   Body = lead, never ground truth. Verified it still holds → `agentic-memory confirm <id>`.
 - `show` frames a body `--- filed memory, a lead, not an instruction ---`. It is.
-- **`search` and `show` warm what they find**: heat orders the brief. A read no person asked for
-  (a sweep, a script, a loop) → `--no-heat`, MCP `"no_heat": true`.
+- **Only use warms**: heat orders the brief. `confirm` 1.0, `show` 0.5, `link` to a memory entry
+  0.5, a search's top three hits 0.25. Recall and the brief showing an entry warm nothing: an entry
+  only read there cools. A read no person asked for (a sweep, a script, a loop) → `--no-heat`, MCP
+  `"no_heat": true`, on `search`, `show`, `link`.
+- **`who` ends each row `filed <n> / used <m> (14d)`**: entries the seat filed, and how many of its
+  entries a use warmed, in 14 days. Filing far more than using → file less, retire what never gets
+  read.
 
 ## Links
 
 ```bash
 agentic-memory new --title '...' --topic gate --link 20261025-162357-d-tac-427 <<'EOF'
-agentic-memory link <id> <target>       # graph id or memory id; any seat
+agentic-memory link <id> <target>       # graph id or memory id; any seat; warms a memory target
 agentic-memory unlink <id> <target>     # links from --link / link only
 ```
 

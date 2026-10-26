@@ -760,7 +760,6 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 
 	shown.IDs = append(shown.IDs, ids...)
 	_ = writeJSON(mem.shownPath(session), shown)
-	mem.warm(folded, heatRecall, ids...)
 
 	return strings.Join(lines, "\n")
 }

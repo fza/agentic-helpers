@@ -272,7 +272,8 @@ A memory entry can link to a graph entry and to another memory entry: a full gra
 - **`new --link <id>`**, repeatable (MCP key `link`): an id resolving to nothing refuses the filing,
   `agentic-memory: <id>: no such entry`.
 - **`link <id> <target>`** and **`unlink <id> <target>`** (MCP `link` and `unlink`, keys `id` and
-  `target`) add or drop a link later. Any seat may; the owner's brief lists it under changes by
+  `target`) add or drop a link later. A `link` to a memory entry warms it by 0.5;
+  `--no-heat` (MCP `no_heat`) links without. Any seat may; the owner's brief lists it under changes by
   other seats. A link from the text holds as long as the text does: `unlink` on it refuses with
   `<target> is named in <id>'s text; supersede the entry instead`.
 
@@ -315,9 +316,14 @@ the same way, as `nothing filed:`.
 Search is sdd's: `--term` is a case-insensitive regex, every term required, matched against the
 title, the body and the reason an ended entry gives; `--query` searches by
 meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or `other branch` as
-computed against the tree right then, and `confirm` re-anchors a verified entry. A `show` and a
-search's top three hits add heat, which orders the brief; `--no-heat` (MCP `"no_heat": true`) reads
-without it, for a sweep or a script no person is behind.
+computed against the tree right then, and `confirm` re-anchors a verified entry.
+
+Heat orders the brief, and only using an entry adds it: `confirm` 1.0, `show` 0.5, `link <id>
+<target>` 0.5 to a memory target, and each of a search's top three hits 0.25. Showing an entry adds
+nothing: not prompt recall, not the brief, so an entry never ranks higher for having been shown.
+Each use also records when the entry was last used; filing records none. `--no-heat` (MCP
+`"no_heat": true`) on `search`, `show` and `link` answers without heat, for a sweep or a script no
+person is behind.
 
 `--status live|retired|superseded` (MCP `status`, an array), repeatable, keeps only entries in the
 named statuses; `--status superseded` includes superseded entries as `--with-superseded` does. Given
@@ -370,10 +376,13 @@ value, so none has two accepted spellings; the schema lists every value a key wi
 `agentic-memory who` (MCP `who`) lists every seat of the current project, one row each, grouped by
 shelf, then by seat:
 
-    impl   shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET
-    rev    shelf row-7ah  reserved a1b2c3d4
-    main   shelf main     free
-    gone   shelf gone     free (holder a1b2c3d4 gone, freed)
+    impl   shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET  filed 6 / used 2 (14d)
+    rev    shelf row-7ah  reserved a1b2c3d4  filed 0 / used 0 (14d)
+    main   shelf main     free  filed 3 / used 5 (14d)
+    gone   shelf gone     free (holder a1b2c3d4 gone, freed)  filed 0 / used 0 (14d)
+
+Each row ends with the seat's entries filed in the last 14 days and how many of all its entries a
+use warmed in that time (see [Search](#search)), so a seat filing far more than it uses shows it.
 
 It frees the project's claims whose holder is gone and its reservations nobody took over in 10
 minutes, saying `freed` on their row; from a checkout not listed for the project it frees nothing.

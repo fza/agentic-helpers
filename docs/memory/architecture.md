@@ -96,6 +96,15 @@ go back. The binary segments keep their little-endian Unix nanoseconds. A log ro
 wrote with Unix nanoseconds reads as that. Printed stamps turn every time local, with the zone's
 abbreviation.
 
+## Heat
+
+`heat.json` in the cache keeps, per entry, the heat as last set (`value`), when (`at`), and when a
+use last warmed it (`used`). Heat halves per retention half-life from `at`; an entry with no record
+reads as 1.0 from its filing. Filing writes a record with no `used`; `confirm`, `show`, `link` to a
+memory entry and a search's top three hits add heat and set `used`, and nothing that only displays an
+entry writes the file. `who` counts a seat's used entries from `used`, so a lost cache reads as no
+use, as it reads as no heat.
+
 ## The log
 
 Events append to `log/tail.jsonl`. A call changing several entries (`supersede`, `confirm`,

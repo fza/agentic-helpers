@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -115,6 +116,60 @@ func (mem *memory) storeKeys() []string {
 
 type seatRow struct {
 	shelf, seat, state string
+	usage              seatUse
+}
+
+// seatUse is how many entries a seat filed within usedWindow, and how many of
+// all its entries a use warmed within it.
+type seatUse struct {
+	filed, used int
+}
+
+// seatUsage is every seat's use, by seat key, read from the log and the heat
+// cache without a lock; a log that cannot be read counts nothing.
+func (mem *memory) seatUsage(ctx context.Context) map[string]seatUse {
+	usage := map[string]seatUse{}
+
+	_, err := os.Stat(mem.logDir())
+	if err != nil {
+		return usage
+	}
+
+	log, err := mem.openLog()
+	if err != nil {
+		return usage
+	}
+
+	snapshot, err := log.Snapshot(ctx)
+	if err != nil {
+		return usage
+	}
+
+	defer func() { _ = snapshot.Close() }()
+
+	folded, err := fold(snapshot, func(key string) string { return key })
+	if err != nil {
+		return usage
+	}
+
+	heats := mem.heats()
+	since := mem.now().Add(-usedWindow)
+
+	for _, held := range folded.entryList() {
+		counted := usage[held.seatKey]
+
+		if held.filed.After(since) {
+			counted.filed++
+		}
+
+		if heats[held.id].Used.After(since) {
+			counted.used++
+		}
+
+		usage[held.seatKey] = counted
+	}
+
+	return usage
 }
 
 // seatRows is one row per seat of the store, grouped by shelf, freeing the
@@ -125,9 +180,11 @@ func (mem *memory) seatRows(ctx context.Context, free bool) []string {
 
 	var rows []seatRow
 
+	usage := mem.seatUsage(ctx)
+
 	for _, key := range keys {
 		claim, found := held[key]
-		row := seatRow{shelf: mem.shelfName(mem.shelfOfKey(key)), seat: mem.seatName(key), state: "free"}
+		row := seatRow{shelf: mem.shelfName(mem.shelfOfKey(key)), seat: mem.seatName(key), state: "free", usage: usage[key]}
 
 		switch {
 		case !found:
@@ -164,8 +221,9 @@ func (mem *memory) seatRows(ctx context.Context, free bool) []string {
 
 	lines := make([]string, 0, len(rows))
 	for _, row := range rows {
-		lines = append(lines, fmt.Sprintf("%s%s  shelf %s%s  %s", row.seat, strings.Repeat(" ", seats-len([]rune(row.seat))),
-			row.shelf, strings.Repeat(" ", shelves-len([]rune(row.shelf))), row.state))
+		lines = append(lines, fmt.Sprintf("%s%s  shelf %s%s  %s  filed %d / used %d (14d)", row.seat,
+			strings.Repeat(" ", seats-len([]rune(row.seat))), row.shelf, strings.Repeat(" ", shelves-len([]rune(row.shelf))),
+			row.state, row.usage.filed, row.usage.used))
 	}
 
 	return lines

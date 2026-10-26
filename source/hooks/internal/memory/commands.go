@@ -443,9 +443,11 @@ func commands() []command {
 				`,"topics":{"type":"array","items":{"type":"string"}}},"required":["id","topics"]}`,
 		},
 		{
-			name: "link", usage: "link <id> <target>", description: "link an entry to a graph entry or another memory entry",
+			name: "link", usage: "link <id> <target> [--no-heat]", description: "link an entry to a graph entry or another memory entry",
+			flags:      []flagSpec{{"no-heat", flagSwitch}},
 			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).link,
-			schema: `{"type":"object","properties":{"id":` + idSchema + `,"target":{"type":"string"}},"required":["id","target"]}`,
+			schema: `{"type":"object","properties":{"id":` + idSchema + `,"target":{"type":"string"},` +
+				`"no_heat":{"type":"boolean","description":"link without adding heat to a memory target"}},"required":["id","target"]}`,
 		},
 		{
 			name: "unlink", usage: "unlink <id> <target>", description: "drop a link made by --link or link",

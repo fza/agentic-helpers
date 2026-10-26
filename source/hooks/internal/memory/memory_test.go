@@ -676,7 +676,7 @@ func TestMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 		{name: "a negative skip", tool: "search", arguments: `{"term":["Gate"],"skip":-1}`,
 			refusal: `--skip takes a number of 0 or more, not -1`},
 		{name: "link's keys", tool: "link", arguments: `{"id":"` + id + `","target":"m-zzzz99","seat":"main"}`,
-			refusal: `link takes no key \"seat\"; it takes id, target`},
+			refusal: `link takes no key \"seat\"; it takes id, target, no_heat`},
 		{name: "unlink's keys", tool: "unlink", arguments: `{"id":"` + id + `","to":"m-zzzz99"}`,
 			refusal: `unlink takes no key \"to\"; it takes id, target`},
 		{name: "claim's removed force", tool: "claim", arguments: `{"name":"main","force":true}`,

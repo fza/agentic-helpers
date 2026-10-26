@@ -24,11 +24,11 @@ func TestWhoListsEveryProjectSeatWithItsShelf(t *testing.T) {
 	out := h.must("", "who")
 
 	for _, pattern := range []string{
-		`(?m)^gone\s+shelf gone\s+free \(holder a1b2c3d4 gone, freed\)$`,
-		`(?m)^impl\s+shelf row-7ah\s+free$`,
-		`(?m)^main\s+shelf main\s+c3fb65eb pid 200  since \d{4}-\d{2}-\d{2} \d{2}:\d{2} \S+$`,
-		`(?m)^rev\s+shelf row-7ah\s+free$`,
-		`(?m)^spare\s+shelf spare\s+reserved f00dbabe$`,
+		`(?m)^gone\s+shelf gone\s+free \(holder a1b2c3d4 gone, freed\)  filed \d+ / used \d+ \(14d\)$`,
+		`(?m)^impl\s+shelf row-7ah\s+free  filed \d+ / used \d+ \(14d\)$`,
+		`(?m)^main\s+shelf main\s+c3fb65eb pid 200  since \d{4}-\d{2}-\d{2} \d{2}:\d{2} \S+  filed \d+ / used \d+ \(14d\)$`,
+		`(?m)^rev\s+shelf row-7ah\s+free  filed \d+ / used \d+ \(14d\)$`,
+		`(?m)^spare\s+shelf spare\s+reserved f00dbabe  filed \d+ / used \d+ \(14d\)$`,
 	} {
 		if !regexp.MustCompile(pattern).MatchString(out) {
 			t.Errorf("who should list every seat of the project with its shelf and state, %s missing, got:\n%s", pattern, out)
@@ -45,7 +45,7 @@ func TestWhoListsEveryProjectSeatWithItsShelf(t *testing.T) {
 
 	h.clock.Advance(11 * time.Minute)
 
-	if out := h.must("", "who"); !regexp.MustCompile(`(?m)^spare\s+shelf spare\s+free \(holder f00dbabe gone, freed\)$`).MatchString(out) {
+	if out := h.must("", "who"); !regexp.MustCompile(`(?m)^spare\s+shelf spare\s+free \(holder f00dbabe gone, freed\)  filed \d+ / used \d+ \(14d\)$`).MatchString(out) {
 		t.Errorf("who should free a reservation nobody took over in 10 minutes, got:\n%s", out)
 	}
 
@@ -69,8 +69,8 @@ func TestWhoAllAddsEveryOtherProjectReadOnly(t *testing.T) {
 	}
 
 	out := h.must("", "who", "--all")
-	if !strings.Contains(out, "gitlab.com/acme/tool:\n") || !regexp.MustCompile(`(?m)^  drive\s+shelf drive\s+a1b2c3d4 pid 300$`).MatchString(out) ||
-		!regexp.MustCompile(`(?m)^  left\s+shelf left\s+free$`).MatchString(out) || strings.Contains(out, "ghost") {
+	if !strings.Contains(out, "gitlab.com/acme/tool:\n") || !regexp.MustCompile(`(?m)^  drive\s+shelf drive\s+a1b2c3d4 pid 300  filed \d+ / used \d+ \(14d\)$`).MatchString(out) ||
+		!regexp.MustCompile(`(?m)^  left\s+shelf left\s+free  filed \d+ / used \d+ \(14d\)$`).MatchString(out) || strings.Contains(out, "ghost") {
 		t.Errorf("who --all should add every other project's seats under its name, backups aside, got:\n%s", out)
 	}
 

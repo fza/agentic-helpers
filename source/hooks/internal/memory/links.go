@@ -104,7 +104,11 @@ func (mem *memory) unlink(ctx context.Context, req request) result {
 // owner's brief lists it. A link from the entry's text holds as long as the
 // text does.
 func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.Kind) result {
+	var loaded *state
+
 	_, _, failure, ok := mem.change(ctx, req.ID, false, func(folded *state, held *entry) error {
+		loaded = folded
+
 		switch {
 		case kind == memorylog.KindLink:
 			return mem.requireTarget(ctx, folded, req.Target)
@@ -121,6 +125,10 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 	}
 
 	if kind == memorylog.KindLink {
+		if !req.NoHeat {
+			mem.warm(loaded, heatLink, req.Target)
+		}
+
 		return done(fmt.Sprintf("%s linked to %s", req.ID, req.Target))
 	}
 
