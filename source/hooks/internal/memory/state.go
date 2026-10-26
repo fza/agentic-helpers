@@ -157,6 +157,7 @@ type entry struct {
 	on          []string
 	proof       []string
 	forbids     []string
+	attachments []attachPayload
 }
 
 type explicitLink struct {
@@ -470,6 +471,16 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 
 		held.retention, held.override = retained.Level, retained.Level
 		note("retention set to " + retained.Level)
+	case memorylog.KindAttach:
+		var attached attachPayload
+
+		err := json.Unmarshal(payload, &attached)
+		if err != nil {
+			return err
+		}
+
+		held.attachments = append(held.attachments, attached)
+		note("attached " + attached.Name)
 	case memorylog.KindSettle:
 		var settled settlePayload
 
@@ -554,6 +565,8 @@ type horizonRun struct {
 	// links is, per target, the index of the link event a net explicit link
 	// rests on; an unlink drops it with its link.
 	links map[string]int
+	// attaches are the attach rows of the run, kept while the body is.
+	attaches []int
 }
 
 // mergePolicy decides what a merge keeps. Each entry's leading run of events
@@ -678,6 +691,12 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 			}
 
 			kept = append(kept, run.keptLinks(rows, payloads)...)
+
+			if !bodyDue(folded.entries[row.Entry], now, retiredKeep) {
+				for _, attached := range run.attaches {
+					keep(attached, payloads[attached])
+				}
+			}
 		}
 
 		return kept, nil
@@ -686,6 +705,8 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 
 func (run *horizonRun) record(kind memorylog.Kind, index int) {
 	switch kind {
+	case memorylog.KindAttach:
+		run.attaches = append(run.attaches, index)
 	case memorylog.KindConfirm:
 		run.confirm = index
 	case memorylog.KindRetire, memorylog.KindSupersede:

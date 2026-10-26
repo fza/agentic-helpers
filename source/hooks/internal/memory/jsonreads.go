@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -138,6 +139,13 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 
 	for _, other := range held.linkedFrom(false) {
 		object.LinkedFrom = append(object.LinkedFrom, other.id)
+	}
+
+	for _, attached := range held.attachments {
+		_, err := os.Stat(mem.attachmentPath(attached))
+		object.Attachments = append(object.Attachments, jsonAttachment{
+			Name: attached.Name, SHA256: attached.SHA256, Size: attached.Size, Stored: err == nil,
+		})
 	}
 
 	if withBody {

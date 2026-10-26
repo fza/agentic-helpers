@@ -126,6 +126,11 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("nothing filed:\n  %s", strings.Join(failures, "\n  "))
 	}
 
+	prepared, err := mem.prepareFiles(ctx, folded, nil, req.Attach)
+	if err != nil {
+		return refused("%v", err)
+	}
+
 	filed := newPayload{
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
 		Kind: kind, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
@@ -154,6 +159,13 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		})
 	}
 
+	attached, err := mem.attachEvents(id, name, at, prepared)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	events = append(events, attached...)
+
 	err = mem.appendEvents(ctx, events...)
 	if err != nil {
 		return refused("%v", err)
@@ -173,6 +185,10 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	mem.warm(folded, 0, id)
 
 	lines := []string{"filed " + line(here, held)}
+	for _, file := range prepared {
+		lines = append(lines, attachedLine(id, file.attachPayload))
+	}
+
 	if len(req.Absorbs) > 0 {
 		lines = append(lines, fmt.Sprintf("superseded %s by %s", strings.Join(slices.Compact(slices.Clone(req.Absorbs)), ", "), id))
 	}
@@ -539,6 +555,15 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withS
 		}
 
 		lines = append(lines, "anchors: "+strings.Join(paths, ", "))
+	}
+
+	if len(held.attachments) > 0 {
+		var files []string
+		for _, attached := range held.attachments {
+			files = append(files, fmt.Sprintf("%s (%s, %s)", attached.Name, size(attached.Size), attached.SHA256[:8]))
+		}
+
+		lines = append(lines, "attachments: "+strings.Join(files, ", "))
 	}
 
 	if links := held.links(); len(links) > 0 {

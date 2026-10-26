@@ -11,8 +11,11 @@
 ├── seats/<id>.json                                     who holds the seat, which process, which transcript
 ├── seats/<id>.last.json                                the claim of the seat's last holder
 ├── seats/<id>.slice                                    the last turns of the seat's last session
+├── attachments.refs                                    the attachment hashes its entries still holding a body name
+├── credentials-found.json                              what the migration scan found, until each seat's brief tells it
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
 ~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
+~/.claude/agentic-memory/attachments/<sha256>[.gz]      every project's attached files, once each
 ~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
 ~/.claude/agentic-helpers/<project>/writers.json        the checkouts that may use the store, shared with agentic-tools
 ```
@@ -254,6 +257,22 @@ graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a
 graph resolver), that directory's modification time and size, and the entry files it held, in
 `graph-seen/<session>.json` in the cache. A call `stat`s the directory; only a changed stamp lists
 it, and an entry file not listed before is a gain. A session's first look records and says nothing.
+
+## Attachments
+
+One attachment store serves every project on the machine: `~/.claude/agentic-memory/attachments/`,
+each file named for the SHA-256 of its original bytes, gzip-compressed as `<sha256>.gz` where that
+shrinks it and raw otherwise, written through a temporary file renamed into place. A hash already
+stored is left as it is, so one file attached to entries of several projects is stored once. An
+`attach` row carries the entry, the file's base name, its hash, size and storage form; a merge keeps
+it while its entry holds its body and drops it with the body.
+
+Every SessionStart, after the purges, sweeps the store: each store at the current format writes the
+hashes its entries still holding their body name to `<store>/attachments.refs`; a store this release
+cannot read keeps the refs it last wrote; then, under `attachments/.lock`, every stored file no refs
+list names is removed. A `drop` sweeps the same way. A body counts as held until its drop is due by
+time, so a file outlives a retire by `retired_body_days` and a supersede by 14 days whether or not a
+merge has run.
 
 ## Tool-call triggers
 

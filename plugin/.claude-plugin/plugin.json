@@ -66,6 +66,20 @@
       "default": 10,
       "required": false
     },
+    "attachment_max_mb": {
+      "type": "number",
+      "title": "Attachment size limit",
+      "description": "Megabytes one file attached to a memory entry may hold",
+      "default": 10,
+      "required": false
+    },
+    "attachment_budget_mb": {
+      "type": "number",
+      "title": "Attachment budget per project",
+      "description": "Megabytes the files attached to a project's memory entries may hold together, each file counted once",
+      "default": 500,
+      "required": false
+    },
     "memory_require_git": {
       "type": "boolean",
       "title": "Memory only inside git",

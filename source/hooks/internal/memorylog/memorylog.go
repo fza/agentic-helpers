@@ -46,12 +46,14 @@ const (
 	// KindSettle settles a do-now item a rule owed: done by proof or ack, or
 	// declined.
 	KindSettle Kind = "settle"
+	// KindAttach keeps a file with an entry: its name, hash, size and form.
+	KindAttach Kind = "attach"
 )
 
 // kinds is the segment encoding of a kind: its index here. Only ever append.
 var kinds = []Kind{
 	KindNew, KindRetire, KindSupersede, KindMerge, KindConfirm, KindRetain, KindRevive, KindRetitle, KindTag,
-	KindLink, KindUnlink, KindUntag, KindState, KindRekind, KindSettle,
+	KindLink, KindUnlink, KindUntag, KindState, KindRekind, KindSettle, KindAttach,
 }
 
 const (

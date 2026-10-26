@@ -106,6 +106,8 @@ type Embedder struct {
 	Err   error
 	mutex sync.Mutex
 	calls int
+	// texts is every text it was asked to embed.
+	texts []string
 }
 
 const embedDims = 64
@@ -113,6 +115,7 @@ const embedDims = 64
 func (fake *Embedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
 	fake.mutex.Lock()
 	fake.calls++
+	fake.texts = append(fake.texts, texts...)
 	fake.mutex.Unlock()
 
 	if fake.Err != nil {
@@ -125,6 +128,14 @@ func (fake *Embedder) Embed(_ context.Context, texts []string) ([][]float32, err
 	}
 
 	return vectors, nil
+}
+
+// Texts is every text the embedder was asked to embed.
+func (fake *Embedder) Texts() []string {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	return append([]string(nil), fake.texts...)
 }
 
 func (fake *Embedder) Calls() int {

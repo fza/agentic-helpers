@@ -96,6 +96,8 @@ user or managed settings; no project overrides them.
 | `retired_body_days` | `90` | how long a retired memory entry keeps its body, never under 14 |
 | `entry_id_length` | `6` | the characters after `m-` in a new memory entry id, 6 to 16 |
 | `brief_note_limit` | `10` | the notes a memory brief prints, hottest first; `agentic-memory brief --kind note` lists the rest |
+| `attachment_max_mb` | `10` | the megabytes one file attached to a memory entry may hold |
+| `attachment_budget_mb` | `500` | the megabytes a project's memory attachments may hold together, each file counted once |
 | `memory_language` | `en` | the language memory entries are written in where `.sdd/config.yaml` names none |
 | `memory_require_git` | `true` | memory only inside a git work tree |
 | `memory_turns_off_auto` | `true` | a seat claim turns Claude Code's own auto memory off for the project, through its `.claude/settings.local.json`, from the next session |

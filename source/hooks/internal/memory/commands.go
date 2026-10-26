@@ -51,6 +51,12 @@ type request struct {
 	Links          []string `json:"link,omitempty"`
 	Absorbs        []string `json:"absorbs,omitempty"`
 	Until          []string `json:"until,omitempty"`
+	Attach         []string `json:"attach,omitempty"`
+	Paths          []string `json:"paths,omitempty"`
+	File           string   `json:"file,omitempty"`
+	Offset         int      `json:"offset,omitempty"`
+	MaxBytes       int      `json:"max_bytes,omitempty"`
+	To             string   `json:"to,omitempty"`
 	When           []string `json:"when,omitempty"`
 	On             []string `json:"on,omitempty"`
 	Proof          []string `json:"proof,omitempty"`
@@ -233,13 +239,14 @@ func (req *request) set(spec flagSpec, value string) error {
 	texts := map[string]*string{
 		"title": &req.Title, "kind": &req.Kind, "from": &req.From, "query": &req.Query,
 		"by": &req.By, "because": &req.Because, "session": &req.Session, "shelf": &req.Shelf,
-		"lifetime": &req.Lifetime, "decline": &req.Decline,
+		"lifetime": &req.Lifetime, "decline": &req.Decline, "to": &req.To,
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
-		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs, "until": &req.Until,
+		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs, "until": &req.Until, "attach": &req.Attach,
 		"when": &req.When, "on": &req.On, "proof": &req.Proof, "forbids": &req.Forbids,
 	}
+	numbers := map[string]*int{"limit": &req.Limit, "skip": &req.Skip, "offset": &req.Offset, "max-bytes": &req.MaxBytes}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done,
@@ -258,14 +265,14 @@ func (req *request) set(spec flagSpec, value string) error {
 			return fmt.Errorf("--%s takes a positive number, not %q", spec.name, value)
 		}
 
-		req.Limit = number
+		*numbers[spec.name] = number
 	case flagCount:
 		number, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("--%s takes a number of 0 or more, not %q", spec.name, value)
 		}
 
-		req.Skip = number
+		*numbers[spec.name] = number
 	}
 
 	return nil
@@ -353,11 +360,11 @@ func allCommands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
 			description: "file an entry; body on stdin; --kind sets its decay and brief section (note unless given); --for shares it with other seats",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
-				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList},
+				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList}, {"attach", flagList},
 				{"when", flagList}, {"on", flagList}, {"proof", flagList}, {"forbids", flagList},
 			},
 			readsBody: true,
@@ -376,7 +383,8 @@ func allCommands() []command {
 				`"when":{"type":"array","items":{"type":"string"},"description":"a trap's tool-call triggers: ` + triggerForms + `"},` +
 				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"moments a rule is owed at"},` +
 				`"proof":{"type":"array","items":{"type":"string"},"description":"tool calls settling an owed rule: ` + triggerForms + `"},` +
-				`"forbids":{"type":"array","items":{"type":"string"},"description":"a rule's RE2 patterns no later entry should match"}},` +
+				`"forbids":{"type":"array","items":{"type":"string"},"description":"a rule's RE2 patterns no later entry should match"},` +
+				`"attach":{"type":"array","items":{"type":"string"},"description":"paths of files to keep with the entry; read from disk, never content"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
@@ -436,6 +444,44 @@ func allCommands() []command {
 			run: (*memory).retain,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},"level":{"type":"string",` +
 				`"enum":["standing","long","normal","short","scratch"]}},"required":["ids","level"]}`,
+		},
+		{
+			name: "attach", usage: "attach <id> <path>...",
+			description: "keep files with an entry, read from disk by path, ending when its body ends",
+			positional: func(req *request) error {
+				if len(req.Positional) < 2 {
+					return errors.New("an entry id and at least one path expected")
+				}
+
+				req.ID, req.Paths = req.Positional[0], req.Positional[1:]
+
+				return nil
+			},
+			run: (*memory).attach,
+			schema: `{"type":"object","properties":{"id":` + idSchema +
+				`,"paths":{"type":"array","items":{"type":"string"},"description":"paths of files to keep; never content"}},` +
+				`"required":["id","paths"]}`,
+		},
+		{
+			name: "read", usage: "read <id> [<name>] [--offset <n>] [--max-bytes <n>] [--to <path>]",
+			description: "page a text attachment, framed as data, or write any attachment's bytes to a new path with --to",
+			flags:       []flagSpec{{"offset", flagCount}, {"max-bytes", flagNumber}, {"to", flagText}},
+			positional: func(req *request) error {
+				if len(req.Positional) < 1 || len(req.Positional) > 2 {
+					return errors.New("an entry id and at most one attachment name expected")
+				}
+
+				req.ID = req.Positional[0]
+				if len(req.Positional) == 2 {
+					req.File = req.Positional[1]
+				}
+
+				return nil
+			},
+			run: (*memory).read,
+			schema: `{"type":"object","properties":{"id":` + idSchema + `,"file":{"type":"string","description":"the attachment's name"},` +
+				`"offset":{"type":"integer","minimum":0},"max_bytes":{"type":"integer","minimum":1},` +
+				`"to":{"type":"string","description":"a new path to write the attachment's bytes to"}},"required":["id"]}`,
 		},
 		{
 			name: "ack", usage: "ack <id>... --done | --decline '<why>'",

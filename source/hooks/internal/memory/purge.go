@@ -279,7 +279,8 @@ func (mem *memory) purgeEverywhere(ctx context.Context) {
 			return nil
 		}
 
-		if entry.Name() == "backup" || entry.Name() == "log" || entry.Name() == "seats" || path == mem.sensorDir() {
+		if entry.Name() == "backup" || entry.Name() == "log" || entry.Name() == "seats" || path == mem.sensorDir() ||
+			path == mem.attachmentsRoot() {
 			return filepath.SkipDir
 		}
 
@@ -300,6 +301,8 @@ func (mem *memory) purgeEverywhere(ctx context.Context) {
 
 		return filepath.SkipDir
 	})
+
+	mem.sweepAttachments(ctx)
 }
 
 // drop purges a temporary shelf no seat uses at once.
@@ -325,6 +328,8 @@ func (mem *memory) drop(ctx context.Context, req request) result {
 	if err != nil {
 		return refused("%v", err)
 	}
+
+	mem.sweepAttachments(ctx)
 
 	return done(fmt.Sprintf("dropped %s (%s, %s)", req.Shelf, plural(seats, "seat"), plural(entries, "entry")))
 }
