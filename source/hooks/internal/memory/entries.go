@@ -47,6 +47,17 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("%s", why)
 	}
 
+	if len(req.Until) > 0 && kind == kindRule {
+		return refused("%v", ErrRuleUntil)
+	}
+
+	here := mem.checkout(ctx)
+
+	until, untilHashes, err := mem.untilFor(ctx, here, req.Until)
+	if err != nil {
+		return refused("%v", err)
+	}
+
 	folded, err := mem.load(ctx)
 	if err != nil {
 		return refused("%v", err)
@@ -56,8 +67,6 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	if err != nil {
 		return refused("%v", err)
 	}
-
-	here := mem.checkout(ctx)
 
 	var topics []string
 
@@ -111,7 +120,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
 		Kind: kind, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
 		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
-		TextLinks: textLinks, Links: links,
+		TextLinks: textLinks, Links: links, Until: until, UntilHashes: untilHashes,
 	}
 
 	raw, err := json.Marshal(filed)

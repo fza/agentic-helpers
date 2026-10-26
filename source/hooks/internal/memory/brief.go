@@ -119,6 +119,7 @@ func (mem *memory) ownLive(folded *state, seatName string) []*entry {
 // heat, what other seats filed, then the topics. Claim and compaction share it.
 func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName string) string {
 	since := mem.previousBrief(seatName)
+	mem.reachEnds(ctx, folded, seatName, "", "")
 	live := mem.ownLive(folded, seatName)
 
 	retired := 0
@@ -171,6 +172,14 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 	}
 
+	if ended := mem.endedSince(folded, seatName, since); len(ended) > 0 {
+		out.add("ended since last brief (revive to undo):")
+
+		for _, text := range ended {
+			out.add(text)
+		}
+	}
+
 	byKind := map[string][]*entry{}
 	listed := map[string]bool{}
 
@@ -218,6 +227,14 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 			for _, cited := range citingLines(one, listed, "    ") {
 				out.add(cited)
 			}
+		}
+	}
+
+	if candidates := mem.retireCandidates(ctx, here, folded, seatName); len(candidates) > 0 {
+		out.add("retire?")
+
+		for _, text := range candidates {
+			out.add(text)
 		}
 	}
 

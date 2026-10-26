@@ -199,7 +199,7 @@ Every hook exits at once in a project without a store.
 | SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
 | UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
-| PostToolUse (`tool`) | tells the seat about arrivals as `additionalContext`; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls and nothing more |
+| PostToolUse (`tool`) | tells the seat about arrivals and graph gains, in one `additionalContext`; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
 | Stop (`stop`) | blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
 | SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
@@ -230,6 +230,28 @@ flags fall back to whether the file exists, and the read says once
 `agentic-memory: graph status unavailable (sdd export: <why>)`. Where the installed sdd lists no `export`
 command in `sdd --help` (no stock release carries it), no export runs and the read says nothing:
 flags fall back to the file quietly.
+
+## Declared ends
+
+A `new` row carries its `--until` conditions (`until`), each path relative to the work tree, and the
+content hash of each `changed:` path at filing (`until_hashes`, empty where no file was there). Every
+brief runs the end check over the live entries on the checking seat's shelf, rules aside, before it
+counts them: `closed:` reads the graph statuses links read, cached the same way; `merged:` asks git
+`rev-parse --verify --quiet refs/heads/<branch>` and `merge-base --is-ancestor refs/heads/<branch>
+<into>`, `<into>` defaulting to `symbolic-ref --quiet refs/remotes/origin/HEAD`, else `main`, once
+per branch per check; `claim` reads the filing seat's claim and last claim for a session other than
+the filing one claimed after the filing; `captured` reads the stamp a linked graph id carries. A
+reached end takes the store lock, re-reads the log, and appends a `retire` row by the checking seat
+with `because` `end reached: <condition>` for every entry still live. `ended since last brief` lists
+the retires with that reason after the seat's previous brief mark; `retire?` is computed from the
+link flags, the anchors and the `merged:` branches, and writes nothing. `link` to a graph id runs the
+check for that entry's `captured` condition alone.
+
+The tool hook finds graph gains without reading a capture's output: it keeps, per session, the
+graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a month through the
+graph resolver), that directory's modification time and size, and the entry files it held, in
+`graph-seen/<session>.json` in the cache. A call `stat`s the directory; only a changed stamp lists
+it, and an entry file not listed before is a gain. A session's first look records and says nothing.
 
 ## Arrivals
 

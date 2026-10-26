@@ -173,6 +173,7 @@ func (mem *memory) housekeep() {
 		filepath.Join(mem.sensorDir(), "*.ctx"),
 		filepath.Join(mem.cacheDir(), "shown", "*.json"),
 		filepath.Join(mem.cacheDir(), "ladder", "*.json"),
+		filepath.Join(mem.cacheDir(), "graph-seen", "*.json"),
 	} {
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
@@ -488,31 +489,50 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		return 0
 	}
 
+	var notes []string
+
 	movedHere := mem.moved(ctx, name, held)
 	if movedHere != "" {
-		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", movedHere)
+		notes = append(notes, movedHere)
 	}
 
+	captured := mem.captureNotice(ctx, name, cmp.Or(payload.SessionID, held.SessionID))
+	if captured != "" {
+		notes = append(notes, captured)
+	}
+
+	notes = append(notes, mem.arrivalsAtTool(ctx, name)...)
+
+	if len(notes) > 0 {
+		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", strings.Join(notes, "\n"))
+	}
+
+	return 0
+}
+
+// arrivalsAtTool is what arrived for the seat since its last look; where the
+// log stands as it stood then, two stats and nothing more.
+func (mem *memory) arrivalsAtTool(ctx context.Context, name string) []string {
 	signature := mem.logSignature()
 
 	var mark seenMark
 	if readJSON(mem.seenPath(name), &mark) && mark.Log == signature {
-		return 0
+		return nil
 	}
 
 	folded, err := mem.load(ctx)
 	if err != nil {
-		return 0
+		return nil
 	}
 
 	arrived := mem.announce(ctx, folded, name)
 	mem.noteLog(name, signature)
 
-	if arrived != "" {
-		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", arrived)
+	if arrived == "" {
+		return nil
 	}
 
-	return 0
+	return []string{arrived}
 }
 
 // logSignature changes whenever the log gains an event: the tail's size and

@@ -224,7 +224,7 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 		}
 	}
 
-	_, _, failure, ok := mem.change(ctx, req.ID, false, func(folded *state, held *entry) error {
+	name, _, failure, ok := mem.change(ctx, req.ID, false, func(folded *state, held *entry) error {
 		loaded = folded
 
 		switch {
@@ -249,7 +249,16 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 			mem.warm(loaded, heatLink, target)
 		}
 
-		return done(fmt.Sprintf("%s linked to %s", req.ID, target))
+		lines := []string{fmt.Sprintf("%s linked to %s", req.ID, target)}
+
+		// A link to a graph entry filed after an entry waiting for its capture
+		// is the capture, and ends it.
+		folded, err := mem.load(ctx)
+		if err == nil && !strings.HasPrefix(target, "m-") {
+			lines = append(lines, mem.reachEnds(ctx, folded, name, req.ID, "captured")...)
+		}
+
+		return done(strings.Join(lines, "\n"))
 	}
 
 	return done(fmt.Sprintf("%s unlinked from %s", req.ID, req.Target))

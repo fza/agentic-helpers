@@ -125,6 +125,16 @@ EOF
   output is `--from tool` and never a rule. `--kind rule` without `--from user` → refused.
 - **`--retention` is gone** → refused naming `--kind`. `retain <id>... <level>` still overrides a
   kind's decay; a line names an override as `retain <level>`.
+- **Name what ends it → `--until <condition>`**, repeatable, any one ends it; the tool retires it
+  then, reason `end reached: <condition>`. Not on a rule. Forms: `closed:<graph id>`,
+  `merged:<branch>[@<into>]`, `changed:<path>`, `gone:<path>`, `claim` (next claim by another
+  session), `at:<RFC 3339 or date>`, `captured`. A todo with a handle to watch gets one; none to
+  name → none, it decays. `closed:` refused `closed: needs sdd export, which this sdd lacks` → pick
+  another form.
+- **Owner decision waiting for capture → `--kind todo --until captured`.** Once captured,
+  `link <todo> <graph id>` ends it. `agentic-memory: graph gained <id>...; open todos waiting for a
+  capture: ...; link the one it settles: agentic-memory link <todo> <graph id>` at a tool call → link
+  the one the new entry settles, nothing else.
 - **Language → the one the brief names** (`entries in de`), whatever language the conversation
   runs in. **Domain terms keep the project's spelling, never translated**: "the Lieferschein export
   skips cancelled orders", never "the delivery note export". A gloss in parentheses may follow.
@@ -286,9 +296,12 @@ agentic-memory merge <from> <into>                    # every seat's topic
 
 ## What comes back
 
-- **Claim and every compaction → brief:** header, state, changed by other seats, rules, traps,
-  todos, notes (each by heat), new from other seats, topics. Plus the turns since the seat's newest
-  entry or state write.
+- **Claim and every compaction → brief:** header, state, changed by other seats, ended since last
+  brief, rules, traps, todos, notes (each by heat), retire?, new from other seats, topics. Plus the
+  turns since the seat's newest entry or state write.
+- **`ended since last brief (revive to undo):`** → the tool retired these at a reached end. Wrong
+  one → `revive <id>`. **`retire?`** → entries that look ended (every link ended, every anchor gone,
+  branch gone); nothing was retired: check each, `retire` what ended.
 - **Every prompt → up to three related entries** that stand out from the rest. Not repeated until the
   next compaction.
 - **`agentic-memory: this prompt looks like it holds a credential (<rule ids>); it was not sent to

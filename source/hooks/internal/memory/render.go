@@ -44,11 +44,25 @@ func line(here tree, held *entry) string {
 		flags = append(flags, fmt.Sprintf("← %d", len(held.inbound)))
 	}
 
+	flags = append(flags, declared(held)...)
+
 	if len(flags) > 0 {
 		text += "  " + strings.Join(flags, "; ")
 	}
 
 	return text
+}
+
+// declared is what the filer declared about the entry's life, as a full line
+// names it: the conditions that end it.
+func declared(held *entry) []string {
+	var flags []string
+
+	if len(held.until) > 0 {
+		flags = append(flags, "until: "+strings.Join(held.until, ", "))
+	}
+
+	return flags
 }
 
 func statusFlags(held *entry) []string {

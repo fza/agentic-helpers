@@ -44,6 +44,10 @@ type newPayload struct {
 	// entry was filed; Links the ones `new --link` named.
 	TextLinks []string `json:"text_links,omitempty"`
 	Links     []string `json:"links,omitempty"`
+	// Until is the conditions that end the entry, any one of them; UntilHashes
+	// the content hash of each `changed:` path at filing, empty where none was.
+	Until       []string          `json:"until,omitempty"`
+	UntilHashes map[string]string `json:"until_hashes,omitempty"`
 }
 
 // retirePayload is why an entry ended. A retire from an earlier release
@@ -139,6 +143,9 @@ type entry struct {
 	explicit  []explicitLink
 	linkFlags []string
 	inbound   []*entry
+
+	until       []string
+	untilHashes map[string]string
 }
 
 type explicitLink struct {
@@ -339,6 +346,7 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 		}
 
 		folded.entries[row.Entry].textLinks = filed.TextLinks
+		folded.entries[row.Entry].until, folded.entries[row.Entry].untilHashes = filed.Until, filed.UntilHashes
 		for _, target := range filed.Links {
 			folded.entries[row.Entry].explicit = append(folded.entries[row.Entry].explicit, explicitLink{target: target, seat: row.Seat})
 		}

@@ -372,6 +372,50 @@ array, and refuse `id`.
 named entry by it, in the same append as the filing. An absorbed id that fails refuses the filing
 the same way, as `nothing filed:`.
 
+### Declared ends
+
+An entry may name what ends it, and the tool retires it when that happens. `new --until
+<condition>`, repeatable (MCP key `until`, an array), declares conditions, any one of which ends the
+entry. Every kind but `rule` may carry them; a rule ends only when someone retires it, and `--until`
+on one is refused.
+
+| Condition | Reached when |
+|---|---|
+| `closed:<graph id>` | the graph entry is closed or superseded, as the cached `sdd export` says; a connected repo's entry is named `<repo_id>:<id>`, or bare where exactly one connected repo holds it, and kept qualified as a link is |
+| `merged:<branch>` | the branch's tip is an ancestor of the default branch: the target of `refs/remotes/origin/HEAD`, else `main` |
+| `merged:<branch>@<into>` | the branch's tip is an ancestor of `<into>` |
+| `changed:<path>` | the path's content hash differs from its hash at filing |
+| `gone:<path>` | the path no longer exists |
+| `claim` | another session claims the filing seat after the filing |
+| `at:<time>` | the time has come: RFC 3339, or a date meaning its start in local time |
+| `captured` | the entry links a graph entry filed after it |
+
+A path is relative to the work tree's root. A malformed condition is refused naming the forms:
+`--until takes closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim,
+at:<time> or captured, not "<condition>"`. Where the installed sdd lacks `export` (no stock release
+carries it), `closed:` is refused, `closed: needs sdd export, which this sdd lacks`, and an entry
+already carrying one ends by its other conditions only. A line names the conditions as
+`until: <condition>, ...`.
+
+`captured` is for an owner decision waiting for its capture into the graph, which has no graph id to
+watch while it waits. Once the graph holds the decision, `link <todo> <graph id>` links the todo to
+it, and that link ends it: the reply adds `retired <todo>: end reached: captured`. When a tool call
+adds graph entries while the seat holds open `captured` entries, the next tool call's answer names
+them once:
+
+    agentic-memory: graph gained <id>, ...; open todos waiting for a capture: <id> <title>, ...; link the one it settles: agentic-memory link <todo> <graph id>
+
+The check runs whenever a brief is built, at a claim, after a compaction and on `brief`, over the
+entries on the checking seat's shelf, never another shelf's. A reached end retires the entry as any
+retire does, by the checking seat, with the reason `end reached: <condition>`; `revive` undoes it.
+The brief lists each such retire once, under `ended since last brief (revive to undo):`, as
+`<id> <title>: <condition>`.
+
+`retire?` in the brief lists live entries on the shelf, rules aside, whose end the tool infers but
+nobody declared, with why: `(every link ended)` where every link target is closed, superseded,
+retired or gone, `(every anchor gone)`, `(branch <b> is gone)` for a `merged:` branch that no longer
+exists, merged or abandoned. Nothing is retired from it.
+
 ## Search
 
 Search is sdd's: `--term` is a case-insensitive regex, every term required, matched against the
@@ -406,8 +450,9 @@ to three entries a prompt touches that stand out from the rest. A session's last
 end for the next claim. There is no handoff to write.
 
 The brief runs, in order: its first line, the state slot, `changed by other seats:`,
-`rules (from the user, verify before relying):`, `traps:`, `todos:`, `notes:`, each kind's live
-entries by heat, `new from other seats:`, and the topics. It stays within 9,000 characters; rules
+`ended since last brief (revive to undo):`, `rules (from the user, verify before relying):`,
+`traps:`, `todos:`, `notes:`, each kind's live entries by heat, `retire?`, `new from other seats:`,
+and the topics. It stays within 9,000 characters; rules
 take at most a third of that, and past it the brief says
 `rules exceed a third of the brief: <n>; retire or rekind some`.
 

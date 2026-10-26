@@ -26,6 +26,10 @@ type Git struct {
 	// ExcludesFile answers `core.excludesFile` from the global config.
 	Ignored      []string
 	ExcludesFile string
+	// Branches maps each local branch to the revisions its tip is an ancestor
+	// of; OriginHead answers `symbolic-ref refs/remotes/origin/HEAD`.
+	Branches   map[string][]string
+	OriginHead string
 }
 
 func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, error) {
@@ -52,6 +56,11 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 		return fake.ExcludesFile + "\n", nil
 	}
 
+	answer, answered, err := fake.branches(args)
+	if answered {
+		return answer, err
+	}
+
 	if len(args) == 3 && args[0] == "check-ignore" && args[1] == "-q" {
 		if slices.Contains(fake.Ignored, args[2]) {
 			return "", nil
@@ -61,6 +70,34 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 	}
 
 	return "", errors.New("unexpected git call")
+}
+
+// branches answers the calls a `merged:` end condition makes, and reports
+// whether the call was one of them.
+func (fake *Git) branches(args []string) (string, bool, error) {
+	switch {
+	case slices.Equal(args, []string{"symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"}):
+		if fake.OriginHead == "" {
+			return "", true, errors.New("exit status 1")
+		}
+
+		return fake.OriginHead + "\n", true, nil
+	case len(args) == 4 && args[0] == "rev-parse" && args[1] == "--verify" && args[2] == "--quiet":
+		_, exists := fake.Branches[strings.TrimPrefix(args[3], "refs/heads/")]
+		if !exists {
+			return "", true, errors.New("exit status 1")
+		}
+
+		return "0123456789abcdef\n", true, nil
+	case len(args) == 4 && args[0] == "merge-base" && args[1] == "--is-ancestor":
+		if !slices.Contains(fake.Branches[strings.TrimPrefix(args[2], "refs/heads/")], args[3]) {
+			return "", true, errors.New("exit status 1")
+		}
+
+		return "", true, nil
+	}
+
+	return "", false, nil
 }
 
 // Embedder maps a text to a bag of its words hashed into a small vector, so

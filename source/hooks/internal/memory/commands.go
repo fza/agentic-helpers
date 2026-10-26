@@ -50,6 +50,7 @@ type request struct {
 	For            []string `json:"for,omitempty"`
 	Links          []string `json:"link,omitempty"`
 	Absorbs        []string `json:"absorbs,omitempty"`
+	Until          []string `json:"until,omitempty"`
 	Target         string   `json:"target,omitempty"`
 	Path           string   `json:"path,omitempty"`
 	By             string   `json:"by,omitempty"`
@@ -230,7 +231,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
-		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs,
+		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs, "until": &req.Until,
 	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
@@ -321,11 +322,11 @@ func commands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
 			description: "file an entry; body on stdin; --kind sets its decay and brief section (note unless given); --for shares it with other seats",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
-				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList},
+				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList},
 			},
 			readsBody: true,
 			replaced:  map[string]string{"retention": retentionReplaced},
@@ -338,7 +339,8 @@ func commands() []command {
 				`"about":{"type":"array","items":{"type":"string"}},` +
 				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"},` +
 				`"link":{"type":"array","items":{"type":"string"},"description":"full graph ids or memory ids the entry links to"},` +
-				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"entries the new one supersedes"}},` +
+				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"entries the new one supersedes"},` +
+				`"until":{"type":"array","items":{"type":"string"},"description":"conditions ending the entry: ` + untilForms + `"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
