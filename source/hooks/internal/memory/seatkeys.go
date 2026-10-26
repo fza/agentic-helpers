@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -71,7 +71,7 @@ func (mem *memory) lockStore(ctx context.Context) (func(), error) {
 		return nil, fmt.Errorf("opening the store lock: %w", err)
 	}
 
-	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
+	err = filelock.Exclusive(file)
 	if err != nil {
 		_ = file.Close()
 
@@ -80,14 +80,14 @@ func (mem *memory) lockStore(ctx context.Context) (func(), error) {
 
 	err = ctx.Err()
 	if err != nil {
-		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		_ = filelock.Unlock(file)
 		_ = file.Close()
 
 		return nil, fmt.Errorf("holding the store lock: %w", err)
 	}
 
 	return func() {
-		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		_ = filelock.Unlock(file)
 		_ = file.Close()
 	}, nil
 }

@@ -3,23 +3,18 @@
 package memorylog
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"syscall"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 )
 
 func lockFile(file *os.File) error {
-	for {
-		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
-		if !errors.Is(err, syscall.EINTR) {
-			return err
-		}
-	}
+	return filelock.Exclusive(file)
 }
 
 func unlockFile(file *os.File) error {
-	return syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	return filelock.Unlock(file)
 }
 
 func syncDir(dir string) error {
