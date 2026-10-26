@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 )
 
 const (
@@ -165,14 +167,7 @@ func (registry Registry) Save() error {
 		return fmt.Errorf("creating the store: %w", err)
 	}
 
-	temporary := registry.path + ".tmp"
-
-	err = os.WriteFile(temporary, append(data, '\n'), 0o600)
-	if err != nil {
-		return fmt.Errorf("writing the seat registry: %w", err)
-	}
-
-	err = os.Rename(temporary, registry.path)
+	err = atomicfile.Write(registry.path, append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("placing the seat registry: %w", err)
 	}

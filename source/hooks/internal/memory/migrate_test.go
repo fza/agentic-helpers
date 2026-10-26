@@ -224,8 +224,8 @@ func TestAFailedMigrationLeavesTheStoreAsItWas(t *testing.T) {
 		before[part] = test.Tree(t, filepath.Join(h.store(), part))
 	}
 
-	blocker := filepath.Join(h.store(), "format.json.tmp")
-	test.WriteFile(t, filepath.Join(blocker, "keeps the format from being written"), "")
+	blocker := filepath.Join(h.store(), "log.format-1")
+	test.WriteFile(t, filepath.Join(blocker, "keeps the old log from being set aside"), "")
 
 	first := h.run("", "topics")
 	second := h.run("", "topics")

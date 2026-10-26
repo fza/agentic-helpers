@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 )
 
@@ -90,26 +92,14 @@ func (store *vectorStore) save() error {
 		return fmt.Errorf("creating the vector store: %w", err)
 	}
 
-	temp := store.path + ".tmp"
+	var encoded bytes.Buffer
 
-	file, err := os.Create(temp)
+	err = gob.NewEncoder(&encoded).Encode(store.rows)
 	if err != nil {
-		return fmt.Errorf("writing the vector store: %w", err)
-	}
-
-	err = gob.NewEncoder(file).Encode(store.rows)
-	if err != nil {
-		_ = file.Close()
-
 		return fmt.Errorf("encoding the vector store: %w", err)
 	}
 
-	err = file.Close()
-	if err != nil {
-		return fmt.Errorf("writing the vector store: %w", err)
-	}
-
-	err = os.Rename(temp, store.path)
+	err = atomicfile.Write(store.path, encoded.Bytes(), 0o600)
 	if err != nil {
 		return fmt.Errorf("replacing the vector store: %w", err)
 	}

@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 )
 
 // Heat increments per use. A brief adds nothing: showing an entry there must
@@ -54,19 +56,7 @@ func writeJSON(path string, value any) error {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
-	temp := path + ".tmp"
-
-	err = os.WriteFile(temp, data, 0o600)
-	if err != nil {
-		return fmt.Errorf("writing %s: %w", temp, err)
-	}
-
-	err = os.Rename(temp, path)
-	if err != nil {
-		return fmt.Errorf("replacing %s: %w", path, err)
-	}
-
-	return nil
+	return atomicfile.Write(path, data, 0o600)
 }
 
 func removeIfThere(path string) {

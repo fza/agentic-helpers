@@ -24,6 +24,14 @@ list's own `.lock`; a read claims nothing. A hook of a checkout not listed exits
 MCP server checks each call, and starts without migrating where its checkout is not listed. A call
 on a project with no store yet, other than `claim` and `trust`, makes no list.
 
+Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
+`shelves.json`, a claim, `vectors.gob`, `heat.json` and the cache's other JSON files) is written to
+a temporary file named for that one writer, `.<name>.<random>.tmp` beside it, then renamed over it
+(`internal/atomicfile`). The hooks of one event run in parallel, and a temporary name every writer
+shares would let two of them interleave in it and the second rename publish the mix; a reader sees
+the old file or the new one. Unlike the log, these files are not synced: a sync on darwin is a full
+flush of the drive, paid inside hook calls.
+
 ## Seat ids
 
 A seat has an id, `s-` and 6 random characters from `0-9a-z`, minted the first time its name is

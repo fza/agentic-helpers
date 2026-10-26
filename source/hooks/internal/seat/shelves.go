@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 )
 
 const shelvesName = "shelves.json"
@@ -145,14 +147,7 @@ func (shelves Shelves) Save() error {
 		return fmt.Errorf("creating the store: %w", err)
 	}
 
-	temporary := shelves.path + ".tmp"
-
-	err = os.WriteFile(temporary, append(data, '\n'), 0o600)
-	if err != nil {
-		return fmt.Errorf("writing the shelves: %w", err)
-	}
-
-	err = os.Rename(temporary, shelves.path)
+	err = atomicfile.Write(shelves.path, append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("placing the shelves: %w", err)
 	}

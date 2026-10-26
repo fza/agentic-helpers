@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
@@ -140,19 +141,7 @@ func writeClaim(path string, held Claim) error {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
-	temp := path + ".tmp"
-
-	err = os.WriteFile(temp, append(data, '\n'), 0o600)
-	if err != nil {
-		return fmt.Errorf("writing %s: %w", temp, err)
-	}
-
-	err = os.Rename(temp, path)
-	if err != nil {
-		return fmt.Errorf("replacing %s: %w", path, err)
-	}
-
-	return nil
+	return atomicfile.Write(path, append(data, '\n'), 0o600)
 }
 
 // Remove frees a seat, keeping what its holder left as the seat's last claim.

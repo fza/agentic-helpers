@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 )
 
@@ -190,7 +191,7 @@ func saveEvidence(ctx context.Context, path string, held evidence) error {
 		return fmt.Errorf("saving the ledger: %w", err)
 	}
 
-	err = os.WriteFile(path, data, 0o644)
+	err = atomicfile.Write(path, data, 0o644)
 	if err != nil {
 		return fmt.Errorf("saving the ledger: %w", err)
 	}

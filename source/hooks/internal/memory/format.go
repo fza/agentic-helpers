@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -51,14 +52,7 @@ func writeFormat(store string, version int) error {
 		return fmt.Errorf("encoding the store's format: %w", err)
 	}
 
-	temporary := filepath.Join(store, formatName+".tmp")
-
-	err = os.WriteFile(temporary, append(data, '\n'), 0o600)
-	if err != nil {
-		return fmt.Errorf("writing the store's format: %w", err)
-	}
-
-	err = os.Rename(temporary, filepath.Join(store, formatName))
+	err = atomicfile.Write(filepath.Join(store, formatName), append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("placing the store's format: %w", err)
 	}
