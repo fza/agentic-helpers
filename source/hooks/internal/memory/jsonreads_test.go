@@ -182,7 +182,7 @@ func TestBriefAnswersJSON(t *testing.T) {
 
 			answer := decoded(t, text)
 			if !slices.Equal(keysOf(answer), []string{
-				"changed", "do_now", "language", "live", "news", "notes", "retired", "rules", "seat", "shelf", "state", "todos",
+				"changed", "do_now", "language", "live", "news", "notes", "notice", "retired", "rules", "seat", "shelf", "state", "todos",
 				"topics", "traps",
 			}) {
 				t.Errorf("the brief should carry every section key, got %v", keysOf(answer))

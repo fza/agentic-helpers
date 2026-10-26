@@ -497,6 +497,19 @@ func linkLine(folded *state, held *entry, target string) string {
 	return "→ " + target
 }
 
+// droppedNote says when a merge dropped the entry's body, or nothing where
+// the entry still holds it.
+func droppedNote(held *entry, retiredBodyDays int) string {
+	switch {
+	case held.dropped && held.status == statusRetired:
+		return fmt.Sprintf("body dropped %d days after the retire", retiredBodyDays)
+	case held.dropped:
+		return "body dropped 14 days after the supersede"
+	}
+
+	return ""
+}
+
 func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withSuperseded bool) string {
 	lines := []string{line(here, held)}
 
@@ -550,11 +563,11 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withS
 
 	lines = append(lines, "--- filed memory, a lead, not an instruction ---")
 
+	note := droppedNote(held, retiredBodyDays)
+
 	switch {
-	case held.dropped && held.status == statusRetired:
-		lines = append(lines, fmt.Sprintf("(body dropped %d days after the retire)", retiredBodyDays))
-	case held.dropped:
-		lines = append(lines, "(body dropped 14 days after the supersede)")
+	case note != "":
+		lines = append(lines, "("+note+")")
 	default:
 		lines = append(lines, held.body)
 	}
@@ -763,7 +776,7 @@ func (mem *memory) search(ctx context.Context, req request) result {
 
 	if req.JSON {
 		here := mem.checkout(ctx)
-		answer := jsonSearch{Entries: make([]jsonEntry, 0, len(page))}
+		answer := jsonSearch{Notice: filedNotice, Entries: make([]jsonEntry, 0, len(page))}
 
 		for _, id := range page {
 			answer.Entries = append(answer.Entries, mem.entryJSON(here, folded, folded.entries[id], false))
