@@ -438,6 +438,10 @@ func (mem *memory) show(ctx context.Context, req request) result {
 
 	here := mem.checkout(ctx)
 
+	if req.JSON {
+		return mem.showJSON(here, folded, req)
+	}
+
 	var blocks []string
 
 	var shown []string
@@ -570,7 +574,7 @@ func short(session string) string {
 	return session
 }
 
-func (mem *memory) topics(ctx context.Context, _ request) result {
+func (mem *memory) topics(ctx context.Context, req request) result {
 	folded, err := mem.load(ctx)
 	if err != nil {
 		return refused("%v", err)
@@ -590,6 +594,10 @@ func (mem *memory) topics(ctx context.Context, _ request) result {
 
 			perSeat[topic][held.seat]++
 		}
+	}
+
+	if req.JSON {
+		return jsonAnswer(map[string]any{"topics": perSeat})
 	}
 
 	counts := mem.topicCounts(folded)
@@ -738,6 +746,33 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	ranked := fuse(arms, window)
 	page := ranked[min(req.Skip, len(ranked)):]
 
+	next := req.Skip + len(page)
+
+	// The top three a search warms are the top of its ranking, which only the
+	// first page shows; a listing matches nothing, so it warms nothing.
+	warm := func() {
+		if !req.NoHeat && req.Skip == 0 && !listing && len(page) > 0 {
+			mem.warm(folded, heatSearchHit, page[:min(searchWarmed, len(page))]...)
+		}
+	}
+
+	if req.JSON {
+		here := mem.checkout(ctx)
+		answer := jsonSearch{Entries: make([]jsonEntry, 0, len(page))}
+
+		for _, id := range page {
+			answer.Entries = append(answer.Entries, mem.entryJSON(here, folded, folded.entries[id], false))
+		}
+
+		if (total < 0 && len(ranked) == window) || total > next {
+			answer.More = &jsonMore{Skip: next}
+		}
+
+		warm()
+
+		return jsonAnswer(answer)
+	}
+
 	if len(page) == 0 {
 		return done("no entry matches")
 	}
@@ -749,8 +784,6 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		lines = append(lines, line(here, folded.entries[id]))
 	}
 
-	next := req.Skip + len(page)
-
 	switch {
 	case total < 0 && len(ranked) == window:
 		lines = append(lines, fmt.Sprintf("more: --skip %d", next))
@@ -758,11 +791,7 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		lines = append(lines, fmt.Sprintf("%d more: --skip %d", total-next, next))
 	}
 
-	// The top three a search warms are the top of its ranking, which only the
-	// first page shows; a listing matches nothing, so it warms nothing.
-	if !req.NoHeat && req.Skip == 0 && !listing {
-		mem.warm(folded, heatSearchHit, page[:min(searchWarmed, len(page))]...)
-	}
+	warm()
 
 	return done(strings.Join(lines, "\n"))
 }

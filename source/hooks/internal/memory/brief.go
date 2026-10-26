@@ -62,6 +62,10 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 
 	here := mem.checkout(ctx)
 
+	if req.JSON {
+		return mem.briefJSON(ctx, here, folded, name)
+	}
+
 	if req.Kind != "" {
 		if !slices.Contains(entryKinds, req.Kind) {
 			return refused("--kind takes %s, not %q", strings.Join(entryKinds, ", "), req.Kind)

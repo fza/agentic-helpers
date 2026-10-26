@@ -622,6 +622,35 @@ Other tools read seats through `agentic-memory holder <seat> --json` and
 with `"reserved": true` beside `"alive": false` for a seat reserved for a session that has not yet
 taken it over.
 
+Every read command, `show`, `search`, `brief`, `who` and `topics`, takes `--json` (MCP key `json`)
+and answers one JSON object on stdout in place of its text:
+
+| Command | Answer |
+|---|---|
+| `show --json` | `{"entries": [entry...]}`, each entry carrying `body`; `--with-superseded` lists superseded entries in `linked_from` |
+| `search --json` | `{"entries": [entry...], "more": {"skip": n}}`, no `body`, `more` absent on the last page |
+| `brief --json` | `{"seat", "shelf", "language", "live", "retired", "state": {"body", "at", "branch", "commit"}, "changed": [{"id", "change", "seat", "at"}], "rules", "traps", "todos", "notes", "news": [entry...], "topics": {name: count}, "do_now": [{"id", "title", "trigger", "proof"}]}` |
+| `who --json` | `{"seats": [{"name", "shelf", "state", "holder", "filed", "used"}]}`, `state` being `held`, `reserved` or `free`, `holder` the claim's `session_id`, `pid` and `claimed` or `null`, `filed` and `used` counting the last 14 days; `--all` adds `project` to every seat |
+| `topics --json` | `{"topics": {name: {seat: count}}}` |
+
+The entry object: `id`, `title`, `seat`, `shelf`, `for` (shelf names, or `["all"]`), `topics`,
+`kind`, `until`, `when`, `on`, `proof`, `forbids`, `retention` (the decay in force, the kind's or a
+`retain` override), `from`, `filed`, `branch`, `other_branch` (filed on a branch other than the
+checkout's), `commit`, `status`, `status_change` (`at`, `by` the seat, `because`, `superseded_by`;
+`null` for a live entry), `anchors` (`path`, `state`: `ok`, `drifted` or `gone`), `links`
+(`target`, `state`: `ok` or what became of it, as `closed by <id>`, `by` the seat that made it),
+`linked_from` (ids, superseded entries aside) and `attachments`, empty until entries carry any.
+Lists are never `null`.
+
+- Times are RFC 3339 in UTC, as the store keeps them.
+- Keys are only ever added; renaming or removing one ships as a breaking change. No version field.
+- `brief --json` has no character budget and lists every live entry, leaves the brief mark where it
+  was, so the seat's next brief counts its changes and news from its own last one, and retires
+  nothing: the end check runs only when a brief is printed.
+- `--json` changes no heat rule: `search` and `show` warm as before, `--no-heat` still lifts it.
+- A refused read stays text on stderr with exit 1 and nothing on stdout: check the exit status before
+  decoding. Text output is unchanged by `--json`.
+
 ## Options
 
 Set once per machine in the plugin's configuration dialog; no project overrides them.

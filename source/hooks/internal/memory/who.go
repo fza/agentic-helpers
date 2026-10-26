@@ -22,6 +22,10 @@ import (
 // seats on the machine under a heading naming the project, and never writes
 // to another project. It runs from anywhere and migrates no store.
 func (mem *memory) who(ctx context.Context, req request) result {
+	if req.JSON {
+		return mem.whoJSON(ctx, req)
+	}
+
 	var blocks []string
 
 	here := ""
@@ -57,6 +61,41 @@ func (mem *memory) who(ctx context.Context, req request) result {
 	}
 
 	return done(strings.Join(blocks, "\n\n"))
+}
+
+// whoJSON is who's answer for a program: every seat of this project, and
+// with --all every other project's, each naming its project.
+func (mem *memory) whoJSON(ctx context.Context, req request) result {
+	seats := []jsonSeat{}
+	here := ""
+
+	if mem.key != "" && mem.storeExists() {
+		here = mem.key
+
+		project := ""
+		if req.All {
+			project = mem.key
+		}
+
+		for _, row := range mem.seatRecords(ctx, mem.mayFree(ctx)) {
+			seats = append(seats, seatJSON(row, project))
+		}
+	}
+
+	if req.All {
+		for _, key := range mem.storeKeys() {
+			if key == here {
+				continue
+			}
+
+			other := &memory{env: mem.env, streams: mem.streams, key: key}
+			for _, row := range other.seatRecords(ctx, false) {
+				seats = append(seats, seatJSON(row, key))
+			}
+		}
+	}
+
+	return jsonAnswer(map[string]any{"seats": seats})
 }
 
 func indent(rows []string) string {
@@ -117,7 +156,17 @@ func (mem *memory) storeKeys() []string {
 type seatRow struct {
 	shelf, seat, state string
 	usage              seatUse
+	// status is held, reserved or free, and holder the claim of a held or
+	// reserved seat.
+	status string
+	holder *seat.Claim
 }
+
+const (
+	seatHeld     = "held"
+	seatReserved = "reserved"
+	seatFree     = "free"
+)
 
 // seatUse is how many entries a seat filed within usedWindow, and how many of
 // all its entries a use warmed within it.
@@ -172,9 +221,9 @@ func (mem *memory) seatUsage(ctx context.Context) map[string]seatUse {
 	return usage
 }
 
-// seatRows is one row per seat of the store, grouped by shelf, freeing the
-// claims nobody uses any more where free is set.
-func (mem *memory) seatRows(ctx context.Context, free bool) []string {
+// seatRecords is every seat of the store, sorted by shelf and seat, freeing
+// the claims nobody uses any more where free is set.
+func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 	keys := seat.Known(mem.seatsDir())
 	held := seat.Held(mem.seatsDir())
 
@@ -184,11 +233,13 @@ func (mem *memory) seatRows(ctx context.Context, free bool) []string {
 
 	for _, key := range keys {
 		claim, found := held[key]
-		row := seatRow{shelf: mem.shelfName(mem.shelfOfKey(key)), seat: mem.seatName(key), state: "free", usage: usage[key]}
+		row := seatRow{shelf: mem.shelfName(mem.shelfOfKey(key)), seat: mem.seatName(key), state: "free", usage: usage[key],
+			status: seatFree}
 
 		switch {
 		case !found:
 		case mem.alive(ctx, claim):
+			row.status, row.holder = seatHeld, &claim
 			row.state = fmt.Sprintf("%s pid %d", short(claim.SessionID), claim.PID)
 
 			at, err := time.Parse(time.RFC3339Nano, claim.Claimed)
@@ -196,6 +247,7 @@ func (mem *memory) seatRows(ctx context.Context, free bool) []string {
 				row.state += "  since " + stamp(at)
 			}
 		case mem.freshReservation(claim):
+			row.status, row.holder = seatReserved, &claim
 			row.state = "reserved " + short(claim.SessionID)
 		case free:
 			_ = seat.Remove(mem.seatsDir(), key)
@@ -208,6 +260,14 @@ func (mem *memory) seatRows(ctx context.Context, free bool) []string {
 	slices.SortFunc(rows, func(a, b seatRow) int {
 		return cmp.Or(strings.Compare(a.shelf, b.shelf), strings.Compare(a.seat, b.seat))
 	})
+
+	return rows
+}
+
+// seatRows is one line per seat of the store, grouped by shelf, freeing the
+// claims nobody uses any more where free is set.
+func (mem *memory) seatRows(ctx context.Context, free bool) []string {
+	rows := mem.seatRecords(ctx, free)
 
 	seats := 0
 	for _, row := range rows {

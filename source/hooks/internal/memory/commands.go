@@ -326,6 +326,30 @@ func validRetention(level string) bool {
 const idSchema = `{"type":"string","pattern":"^m-[a-z0-9]{4,16}$"}`
 
 func commands() []command {
+	return readsAsJSON(allCommands())
+}
+
+// jsonReads are the read commands that answer one JSON object under --json;
+// each schema lists the MCP key json, as jsonKey spells it.
+var jsonReads = []string{"show", "search", "brief", "who", "topics"}
+
+const jsonKey = `"json":{"type":"boolean","description":"answer one JSON object in place of the text"}`
+
+func readsAsJSON(held []command) []command {
+	for index, one := range held {
+		if !slices.Contains(jsonReads, one.name) {
+			continue
+		}
+
+		one.usage += " [--json]"
+		one.flags = append(slices.Clone(one.flags), flagSpec{"json", flagSwitch})
+		held[index] = one
+	}
+
+	return held
+}
+
+func allCommands() []command {
 	return []command{
 		{
 			name:        "new",
@@ -371,7 +395,7 @@ func commands() []command {
 				`"all_seats":{"type":"boolean"},"with_superseded":{"type":"boolean"},"limit":{"type":"integer","minimum":1},` +
 				`"status":{"type":"array","items":{"type":"string","enum":["live","retired","superseded"]}},` +
 				`"skip":{"type":"integer","minimum":0},` +
-				`"no_heat":{"type":"boolean","description":"answer without adding heat"}}}`,
+				`"no_heat":{"type":"boolean","description":"answer without adding heat"},` + jsonKey + `}}`,
 			run: (*memory).search,
 		},
 		{
@@ -380,18 +404,18 @@ func commands() []command {
 			flags:       []flagSpec{{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}}, positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},` +
 				`"no_heat":{"type":"boolean","description":"answer without adding heat"},` +
-				`"with_superseded":{"type":"boolean","description":"list superseded entries under linked from"}},"required":["ids"]}`,
+				`"with_superseded":{"type":"boolean","description":"list superseded entries under linked from"},` + jsonKey + `},"required":["ids"]}`,
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note]",
 			description: "the brief, one topic's entries, or one kind's live entries whole",
 			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}}, run: (*memory).briefCommand,
 			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"}},` +
-				`"kind":{"type":"string","enum":["rule","trap","todo","note"]}}}`,
+				`"kind":{"type":"string","enum":["rule","trap","todo","note"]},` + jsonKey + `}}`,
 		},
 		{
 			name: "topics", usage: "topics", description: "every topic with live counts per seat",
-			run: (*memory).topics, schema: `{"type":"object","properties":{}}`,
+			run: (*memory).topics, schema: `{"type":"object","properties":{` + jsonKey + `}}`,
 		},
 		{
 			name: "confirm", usage: "confirm <id>...", description: "re-anchor verified entries to the tree, all or none",
@@ -511,7 +535,7 @@ func commands() []command {
 			description: "every seat of this project, held, reserved or free, with its shelf, freeing those whose holder is gone; " +
 				"--all adds every other project's seats",
 			flags: []flagSpec{{"all", flagSwitch}}, run: (*memory).who,
-			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add every other project's seats"}}}`,
+			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add every other project's seats"},` + jsonKey + `}}`,
 		},
 		{
 			name: "follow", usage: "follow <topic>...", description: "receive every entry filed under these topics",

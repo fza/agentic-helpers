@@ -355,6 +355,16 @@ once, file each finding as its own entry (own title, topics, kind), where work s
 then delete **that one
 file**. Never any other file under `.memory/`: a project keeps its own files there.
 
+## JSON
+
+A script or tool reading memory → `--json` (MCP `"json": true`) on `show`, `search`, `brief`, `who`,
+`topics`: one JSON object, never the text, which changes as features land. `show` → `{"entries":
+[...]}` with `body`; `search` → `{"entries", "more": {"skip"}}`; `brief` → `seat`, `shelf`,
+`language`, `live`, `retired`, `state`, `changed`, `rules`, `traps`, `todos`, `notes`, `news`,
+`topics`, `do_now`; `who` → `{"seats": [{"name", "shelf", "state", "holder", "filed", "used"}]}`;
+`topics` → `{"topics": {name: {seat: n}}}`. Exit non-zero → refusal text on stderr, nothing to
+decode. `brief --json` moves no brief mark and retires nothing.
+
 ## MCP
 
 Every command above is also a tool: `mcp__plugin_agentic-helpers_memory__<subcommand>`, same
