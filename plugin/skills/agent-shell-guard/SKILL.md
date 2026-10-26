@@ -1,6 +1,6 @@
 ---
 name: agent-shell-guard
-description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete and bans mktemp. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
+description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
 license: MIT
 ---
 
@@ -39,7 +39,16 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 
 ## Questions → the user decides
 
-`ask` puts the call to the user, labelled `[plugin:agentic-helpers]`, in every permission mode:
+`ask` puts the call to the user, labelled `[plugin:agentic-helpers]`. The session's permission mode
+decides how:
+
+| Mode | The ask |
+|---|---|
+| `default`, `acceptEdits`, `plan` | a prompt with no time limit |
+| `auto`, `bypassPermissions` | a prompt with a countdown (`shell_guard_ask_timeout`, 120 s unless set); nobody answering → denied |
+| `dontAsk` | denied at once, with the reason below |
+
+Questions it asks:
 
 | Reason | Means |
 |---|---|
@@ -49,6 +58,13 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 | `no target` | a removal naming nothing |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | a guard the user switched off no longer denies it; its target cannot be placed |
 | `find -delete` | `find ... -delete` anywhere |
+
+A countdown that runs out comes back as a deny:
+
+| Reason (after `agentic-shell-guard: `) | Do |
+|---|---|
+| `nobody answered within <n>s; <reason>` | nobody was at the prompt; go on without the call, and report it |
+| `3 countdowns ran out unanswered since the last prompt; <reason>` | every ask now denies at once until the user prompts again; stop retrying, report what waits on them |
 
 The user may set these to `deny`. Then a removal outside the project is theirs: suggest they run
 `! rm ...` themselves. Never route around a refusal (another interpreter, a wrapper, a script): the

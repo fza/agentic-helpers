@@ -27,6 +27,15 @@ const (
 	ShellGuardOff  = "off"
 )
 
+// DefaultShellGuardAskTimeout / MaxShellGuardAskTimeout bound the seconds
+// shell-guard's ask waits for an answer in auto and bypassPermissions mode. The
+// ceiling stays under the PermissionRequest hook's own timeout in hooks.json,
+// past which Claude Code stops the hook before it can deny.
+const (
+	DefaultShellGuardAskTimeout = 120
+	MaxShellGuardAskTimeout     = 3600
+)
+
 // DefaultToolsDuplicateFloor is the cosine at or above which agentic-tools
 // holds a new tool's description to be another tool's.
 const DefaultToolsDuplicateFloor = 0.85
@@ -79,8 +88,11 @@ type Options struct {
 	ShellGuardExpansion      bool
 	ShellGuardNestedCode     bool
 	ShellGuardMktemp         bool
-	ToolsDuplicateFloor      float64
-	ToolsQueryFloor          float64
+	// ShellGuardAskTimeout is the seconds an ask waits in auto and
+	// bypassPermissions mode before it denies; 0 waits without limit.
+	ShellGuardAskTimeout int
+	ToolsDuplicateFloor  float64
+	ToolsQueryFloor      float64
 	// MemoryEnabled ... ShellGuardEnabled switch each piece on or off for the
 	// machine; every one is on unless set.
 	MemoryEnabled        bool
@@ -99,7 +111,7 @@ var Keys = []string{
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
-	"shell_guard_nested_code", "shell_guard_mktemp",
+	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout",
 	"memory_enabled", "tools_enabled", "scratch_enabled", "grounding_gate_enabled", "capture_enabled",
 	"shell_guard_enabled",
 }
@@ -239,6 +251,7 @@ func (options *Options) fold(paths []string) error {
 func (options *Options) clamp() {
 	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
 	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
+	options.ShellGuardAskTimeout = min(max(options.ShellGuardAskTimeout, 0), MaxShellGuardAskTimeout)
 }
 
 func Defaults() Options {
@@ -248,7 +261,8 @@ func Defaults() Options {
 		ToolsQueryFloor:          DefaultToolsQueryFloor,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
-		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
+		ShellGuardAskTimeout: DefaultShellGuardAskTimeout,
+		MemoryEnabled:        true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
 		ShellGuardEnabled: true,
 	}
 }
@@ -276,10 +290,11 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 	}
 
 	numbers := map[string]*int{
-		"embedding_dimensions": &options.EmbeddingDimensions,
-		"entry_max_words":      &options.EntryMaxWords,
-		"retired_body_days":    &options.RetiredBodyDays,
-		"entry_id_length":      &options.EntryIDLength,
+		"embedding_dimensions":    &options.EmbeddingDimensions,
+		"entry_max_words":         &options.EntryMaxWords,
+		"retired_body_days":       &options.RetiredBodyDays,
+		"entry_id_length":         &options.EntryIDLength,
+		"shell_guard_ask_timeout": &options.ShellGuardAskTimeout,
 	}
 
 	for key, target := range numbers {

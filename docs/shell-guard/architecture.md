@@ -5,7 +5,8 @@
 `/tmp` and the settings files, and `internal/shellguard` decides. It reads the call's `cwd` and
 `tool_input.command`, and answers `permissionDecision` `deny` or `ask` with a reason, or nothing to
 let the call run. A call it cannot read, and a panic, exit 2, which blocks the call; any other exit
-would let it run.
+would let it run. `agentic-shell-guard permission` is its `PermissionRequest` hook on `Bash`, which
+ends an ask in `auto` and `bypassPermissions` mode (see Permission modes).
 
 ## Parsing
 
@@ -60,6 +61,35 @@ reason given for the strongest stands.
 
 ## Options
 
-`internal/pluginconfig` reads the six `shell_guard_*` options from the user and managed settings
-files, as every other piece does. A mode other than `ask`, `deny` or `off`, or a file it cannot read,
+`internal/pluginconfig` reads every `shell_guard_*` option from the user and managed settings
+files, as every other piece does. `shell_guard_ask_timeout` below 0 reads as 0 and above 3600 as
+3600, under the hook's own `timeout` in `hooks.json` (3660 seconds), past which Claude Code would
+stop the hook before it denies. A mode other than `ask`, `deny` or `off`, or a file it cannot read,
 leaves every option at its default, so a typo never switches a guard off.
+
+## Permission modes
+
+A hook's `ask` forces a prompt in every mode and Claude Code gives it no time limit, so a session
+nobody watches stalls on it. The hook input's `permission_mode` decides how an ask is put; a
+missing one reads as `default`.
+
+- `default`, `acceptEdits`, `plan`: the `PreToolUse` hook answers `ask`, and the prompt waits for
+  the person.
+- `dontAsk`: the `PreToolUse` hook answers `deny` with the ask's reason. Claude Code would turn the
+  prompt into a deny the agent cannot act on.
+- `auto`, `bypassPermissions`: the `PreToolUse` hook answers `ask`. When the prompt is about to
+  show, Claude Code runs the `PermissionRequest` hook, `agentic-shell-guard permission`. It judges
+  the call again with the same options; for a call shell-guard asks about, it waits
+  `shell_guard_ask_timeout` seconds and answers `deny`, message
+  `agentic-shell-guard: nobody answered within <n>s; <reason>`. Whichever of the person and the hook
+  answers first decides, and a hook stopped by a signal before its countdown ends answers nothing. Claude Code's own prompt for a critical-path removal takes the same shape in
+  these modes. With the option at `0`, for a call shell-guard did not ask about, or in any other
+  mode, the hook answers nothing and the prompt is the person's.
+
+A countdown that ran out is noted per session under
+`$XDG_CACHE_HOME/agentic-helpers/shell-guard/<session>.json` (`~/.cache` where the variable is
+unset). The session's last prompt is the newest typed prompt in its transcript (`transcript_path`):
+with three countdowns run out since it, the hook denies at once, message
+`agentic-shell-guard: 3 countdowns ran out unanswered since the last prompt; <reason>`, until the
+person prompts again. A note it cannot read or write counts nothing, which costs only the
+deny-at-once.

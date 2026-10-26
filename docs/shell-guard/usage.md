@@ -36,6 +36,7 @@ user or managed settings):
 | `shell_guard_expansion` | boolean | `true` | a removal target built from a variable or command substitution |
 | `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it |
 | `shell_guard_mktemp` | boolean | `true` | `mktemp` anywhere in the command |
+| `shell_guard_ask_timeout` | seconds, at most 3600 | `120` | how long an ask waits in `auto` and `bypassPermissions` mode before it denies; `0` waits without limit |
 
 A boolean guard denies when on. **A command that does not parse as bash is denied whatever the
 options say**: the guard cannot judge it.
@@ -43,7 +44,21 @@ options say**: the guard cannot judge it.
 - **`ask` or `deny` for removals outside the project is the user's choice.** A hook's `deny` holds in
   every permission mode, `bypassPermissions` included; its `ask` forces a prompt even in auto mode,
   labelled `[plugin:agentic-helpers]`. `ask` keeps a cleanup outside the project possible with the
-  user's approval; `deny` suits unattended runs, where the user runs such a removal as `! rm ...`.
+  user's approval; `deny` suits runs nobody watches, where the user runs such a removal as `! rm ...`.
+- **An ask follows the session's permission mode**, for every guard set to `ask`:
+
+  | Mode | The ask |
+  |---|---|
+  | `default`, `acceptEdits`, `plan`, or none given | a prompt with no time limit: a person approves each call |
+  | `auto`, `bypassPermissions` | a prompt with a countdown of `shell_guard_ask_timeout` seconds; nobody answering by then denies it |
+  | `dontAsk` | a deny at once, with the guard's reason |
+
+  The countdown is the `PermissionRequest` hook `agentic-shell-guard permission`, which judges the
+  call again and answers only a call shell-guard asks about. A person answering first decides the
+  call. After three countdowns ran out in a session with no prompt since, an ask denies at once
+  until the next prompt: nobody is watching. With `shell_guard_ask_timeout` at `0` the prompt waits
+  as in `default` mode. An unattended session in `default`, `acceptEdits` or `plan` mode still
+  stalls on an ask.
 - **A switched-off supporting guard falls to the outside-project verdict.** The lone-removal,
   expansion and nested-code guards are what let a removal's target be placed before it runs. With one
   of them off, a removal it no longer denies takes `shell_guard_outside_project`'s verdict, reason
@@ -66,6 +81,10 @@ Every reason starts `agentic-shell-guard: `:
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | outside project, for a supporting guard switched off |
 | `find -delete` | find -delete |
 | `cannot parse the command; refusing` | always |
+| `nobody answered within <n>s; <reason>` | an ask in `auto` or `bypassPermissions` mode whose countdown ran out |
+| `3 countdowns ran out unanswered since the last prompt; <reason>` | an ask in `auto` or `bypassPermissions` mode after three countdowns ran out |
+
+In `dontAsk` mode an ask comes back as a deny carrying the ask's own reason.
 
 A call the hook cannot read is blocked, exit 2, with `agentic-shell-guard: could not read the
 command; refusing` on stderr. With no `agentic-shell-guard` binary installed, the plugin's launcher
@@ -97,7 +116,8 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
         "shell_guard_lone_removal": true,
         "shell_guard_expansion": true,
         "shell_guard_nested_code": true,
-        "shell_guard_mktemp": true
+        "shell_guard_mktemp": true,
+        "shell_guard_ask_timeout": 120
       }
     }
   }

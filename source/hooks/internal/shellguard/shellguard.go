@@ -49,13 +49,16 @@ type Verdict struct {
 // Env / ProjectDir is $CLAUDE_PROJECT_DIR, the directory the session started
 // in. The payload's cwd follows every cd, so it only anchors relative targets
 // and never widens the project. Settings are the files the plugin's options
-// are read from.
+// are read from. StateDir holds each session's countdowns that ran out, and
+// Clock times them; only the PermissionRequest hook reads either.
 type Env struct {
 	ProjectDir string
 	Home       string
 	Tmp        string
 	Settings   []string
 	Getenv     func(string) string
+	StateDir   string
+	Clock      Clock
 }
 
 type Streams struct {
@@ -112,9 +115,15 @@ var (
 	namesMktemp = regexp.MustCompile(`(^|[^A-Za-z0-9_-])mktemp([^A-Za-z0-9_-]|$)`)
 )
 
+// payload / PermissionMode is the session's permission mode, which decides
+// how an ask is put: `dontAsk` turns it into a deny with the guard's reason,
+// since Claude Code would deny the prompt without one.
 type payload struct {
-	Cwd       string `json:"cwd"`
-	ToolInput struct {
+	Cwd            string `json:"cwd"`
+	SessionID      string `json:"session_id"`
+	TranscriptPath string `json:"transcript_path"`
+	PermissionMode string `json:"permission_mode"`
+	ToolInput      struct {
 		Command *string `json:"command"`
 	} `json:"tool_input"`
 }
@@ -157,13 +166,7 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 		return 2
 	}
 
-	options := optionsFrom(read)
-	options.Mktemp = options.Mktemp && pieces.MktempBan.Holds(read)
-
-	info, err := os.Stat(filepath.Join(env.ProjectDir, ".tmp"))
-	options.Scratch = env.ProjectDir != "" && err == nil && info.IsDir()
-
-	verdict := Judge(ctx, *call.ToolInput.Command, call.Cwd, env, options)
+	verdict := judgeCall(ctx, env, read, call)
 	if verdict.Decision == Allow {
 		return 0
 	}
@@ -172,7 +175,7 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 
 	reply.HookSpecificOutput.HookEventName = "PreToolUse"
 	reply.HookSpecificOutput.PermissionDecision = "ask"
-	if verdict.Decision == Deny {
+	if verdict.Decision == Deny || call.PermissionMode == modeDontAsk {
 		reply.HookSpecificOutput.PermissionDecision = "deny"
 	}
 	reply.HookSpecificOutput.PermissionDecisionReason = self + ": " + verdict.Reason
@@ -185,6 +188,16 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 	}
 
 	return 0
+}
+
+func judgeCall(ctx context.Context, env Env, read pluginconfig.Options, call payload) Verdict {
+	options := optionsFrom(read)
+	options.Mktemp = options.Mktemp && pieces.MktempBan.Holds(read)
+
+	info, err := os.Stat(filepath.Join(env.ProjectDir, ".tmp"))
+	options.Scratch = env.ProjectDir != "" && err == nil && info.IsDir()
+
+	return Judge(ctx, *call.ToolInput.Command, call.Cwd, env, options)
 }
 
 // verdicts gathers what each guard found; the strongest decision wins, with

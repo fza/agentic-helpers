@@ -47,7 +47,7 @@ PATH and builds the binaries itself: `go install -C source/hooks ./cmd/...` from
 
 The plugin's configuration dialog (`/plugin`, or `pluginConfigs` in the user or managed settings)
 carries agentic-memory's options, agentic-tools' `tools_query_floor` and `tools_duplicate_floor`, and
-shell-guard's six `shell_guard_*` options; no project overrides them.
+every one of shell-guard's `shell_guard_*` options; no project overrides them.
 [`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md) and
 [`../shell-guard/usage.md`](../shell-guard/usage.md) list each.
 

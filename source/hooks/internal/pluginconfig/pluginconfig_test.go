@@ -125,6 +125,28 @@ func TestRead(t *testing.T) {
 			}),
 		},
 		{
+			name: "an ask timeout",
+			user: own + `{"shell_guard_ask_timeout":30}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ShellGuardAskTimeout = 30 }),
+		},
+		{
+			name: "an ask timeout of no limit",
+			user: own + `{"shell_guard_ask_timeout":0}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ShellGuardAskTimeout = 0 }),
+		},
+		{
+			name: "a negative ask timeout waits without limit",
+			user: own + `{"shell_guard_ask_timeout":-5}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ShellGuardAskTimeout = 0 }),
+		},
+		{
+			name: "an ask timeout past the hook's own stops at the ceiling",
+			user: own + `{"shell_guard_ask_timeout":99999}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) {
+				options.ShellGuardAskTimeout = pluginconfig.MaxShellGuardAskTimeout
+			}),
+		},
+		{
 			name: "an empty shell-guard mode keeps ask",
 			user: own + `{"shell_guard_outside_project":""}}}}`,
 			want: defaultsWith(func(*pluginconfig.Options) {}),
