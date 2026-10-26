@@ -54,6 +54,7 @@ type request struct {
 	When           []string `json:"when,omitempty"`
 	On             []string `json:"on,omitempty"`
 	Proof          []string `json:"proof,omitempty"`
+	Forbids        []string `json:"forbids,omitempty"`
 	Done           bool     `json:"done,omitempty"`
 	Decline        string   `json:"decline,omitempty"`
 	Target         string   `json:"target,omitempty"`
@@ -237,7 +238,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
 		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs, "until": &req.Until,
-		"when": &req.When, "on": &req.On, "proof": &req.Proof,
+		"when": &req.When, "on": &req.On, "proof": &req.Proof, "forbids": &req.Forbids,
 	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
@@ -328,12 +329,12 @@ func commands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
 			description: "file an entry; body on stdin; --kind sets its decay and brief section (note unless given); --for shares it with other seats",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
 				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList},
-				{"when", flagList}, {"on", flagList}, {"proof", flagList},
+				{"when", flagList}, {"on", flagList}, {"proof", flagList}, {"forbids", flagList},
 			},
 			readsBody: true,
 			replaced:  map[string]string{"retention": retentionReplaced},
@@ -350,7 +351,8 @@ func commands() []command {
 				`"until":{"type":"array","items":{"type":"string"},"description":"conditions ending the entry: ` + untilForms + `"},` +
 				`"when":{"type":"array","items":{"type":"string"},"description":"a trap's tool-call triggers: ` + triggerForms + `"},` +
 				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"moments a rule is owed at"},` +
-				`"proof":{"type":"array","items":{"type":"string"},"description":"tool calls settling an owed rule: ` + triggerForms + `"}},` +
+				`"proof":{"type":"array","items":{"type":"string"},"description":"tool calls settling an owed rule: ` + triggerForms + `"},` +
+				`"forbids":{"type":"array","items":{"type":"string"},"description":"a rule's RE2 patterns no later entry should match"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},

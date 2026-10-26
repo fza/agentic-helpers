@@ -280,6 +280,22 @@ only topic is a `tag`, then an `untag`.
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
 
+### What never belongs in memory
+
+A user rule may name what never belongs in memory: `new --kind rule --from user --forbids <regex>`
+(repeatable; MCP key `forbids`, an array) stores RE2 patterns, case-sensitive unless they say
+`(?i)`. Every later `new` on a seat receiving the rule, its shelf's own rules and those received
+through `--for` or a followed topic (`--for all` covers every seat), matches its title and body
+against them and, on a match, warns beside the similar-entry notes:
+
+    forbidden by <rule id> <rule title>
+      matched: "<matched text>"
+      → agentic-memory retire <new id> --because 'forbidden by <rule id>'
+
+The entry lands either way. `--forbids` on any kind but `rule` is refused,
+`--forbids is for a rule the user gave: what never belongs in memory`, as is an invalid pattern. A
+line names the patterns as `forbids: <pattern>, ...`.
+
 ## Traps at the tool call
 
 A trap reaches the agent when a tool call touches what it is about. The memory PostToolUse hook

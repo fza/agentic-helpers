@@ -107,7 +107,7 @@ func declared(held *entry) []string {
 	for _, part := range []struct {
 		name   string
 		values []string
-	}{{"until", held.until}, {"when", held.when}, {"on", held.on}, {"proof", held.proof}} {
+	}{{"until", held.until}, {"when", held.when}, {"on", held.on}, {"proof", held.proof}, {"forbids", held.forbids}} {
 		if len(part.values) > 0 {
 			flags = append(flags, part.name+": "+strings.Join(part.values, ", "))
 		}

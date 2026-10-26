@@ -216,6 +216,10 @@ agentic-memory ack <id>... --done | --decline '<why>'   # settle what no tool ca
   the call that proves it. `do now (<moment>):` then numbered items, before the brief → do each
   now, first. `proof: <trigger>` → the matching tool call settles it. `ack when done` → do it, then
   `ack <id> --done`; can't → `ack <id> --decline '<why>'`, and tell the user why.
+- **User says something never goes into memory** → a rule with `--forbids '<regex>'` (RE2,
+  `(?i)` for any case), quoting the user. `forbidden by <rule id> <rule title>` / `matched: "..."`
+  after a filing → the entry landed against the rule: run the `retire ... --because 'forbidden by
+  <rule id>'` it names, unless the match is a false hit.
 - **`agentic-memory: do-now items pending:`** at `Stop` → the turn is held for them; settle them.
   Twice per moment at most; what stays pending opens the next list as `skipped last session:`.
 

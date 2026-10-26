@@ -53,6 +53,8 @@ type newPayload struct {
 	When  []string `json:"when,omitempty"`
 	On    []string `json:"on,omitempty"`
 	Proof []string `json:"proof,omitempty"`
+	// Forbids is a rule's RE2 patterns no later entry should match.
+	Forbids []string `json:"forbids,omitempty"`
 }
 
 // retirePayload is why an entry ended. A retire from an earlier release
@@ -154,6 +156,7 @@ type entry struct {
 	when        []string
 	on          []string
 	proof       []string
+	forbids     []string
 }
 
 type explicitLink struct {
@@ -356,7 +359,7 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 		folded.entries[row.Entry].textLinks = filed.TextLinks
 		folded.entries[row.Entry].until, folded.entries[row.Entry].untilHashes = filed.Until, filed.UntilHashes
 		folded.entries[row.Entry].when, folded.entries[row.Entry].on = filed.When, filed.On
-		folded.entries[row.Entry].proof = filed.Proof
+		folded.entries[row.Entry].proof, folded.entries[row.Entry].forbids = filed.Proof, filed.Forbids
 		for _, target := range filed.Links {
 			folded.entries[row.Entry].explicit = append(folded.entries[row.Entry].explicit, explicitLink{target: target, seat: row.Seat})
 		}
