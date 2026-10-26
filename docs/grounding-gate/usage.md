@@ -20,6 +20,17 @@ the entry back for the owner's confirmation and checks its summary, which `agent
 not. `cli_capture: true` in `.sdd/grounding.yaml` lifts the refusal for a project capturing through
 `agentic-capture` on purpose. A plain `sdd new` keeps its own rule.
 
+**A graph write holding a credential is refused, whatever else holds.** A Bash `sdd new` or
+`agentic-capture` command's text, the `agentic-capture` draft and every file its header's `attach`
+names, the `report` of `mcp__sdd__next` and the `params` of `mcp__sdd__start_procedure` are
+scanned by the shared [credential scanner](../secrets/usage.md), with stock sdd and the fork alike.
+On a finding the call is refused before any read, grounded draft or exempt seat is weighed, since
+an entry is never edited and every session reads it:
+`GROUNDING GATE: refused. The capture holds what looks like a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable`.
+`<where>` is `the command`, the draft or attached file as the command or header names it, or
+`the mcp__sdd__next report` / `the mcp__sdd__start_procedure params`. A scan that could not finish
+refuses as `scan-incomplete`.
+
 **A question, a draft edit and a notebook edit under `drafts/` are let through, never refused.**
 With reads owed the call goes ahead and the agent gets a note, opening
 `GROUNDING GATE: let through, reads owed.` and naming what is still owed; a draft edit's note

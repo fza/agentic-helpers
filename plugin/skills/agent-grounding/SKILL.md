@@ -142,6 +142,7 @@ parse error. Fix the file.
 | `sdd new` without `--dry-run` or `--help`, three reads missing | same, by the path that skips the draft |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
 | `sdd show` short of the depth owed (`--down 2 --up 1` by default) | rename lives downstream; upstream says if it still applies |
+| a write holding what looks like a credential: `sdd new`'s command, an `agentic-capture` draft or a file its `attach` names, an `mcp__sdd__next` report, `mcp__sdd__start_procedure` params. `GROUNDING GATE: refused. The capture holds what looks like a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable` | an entry is never edited and every session reads it. Reads, a grounded draft or an exempt seat change nothing: take the credential out (name the variable or the file holding it), then capture again. `scan-incomplete` = the scan could not finish |
 
 ## Traps
 

@@ -23,7 +23,7 @@ files goes into `plugin/`.
 |---|---|
 | SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-grounding-gate start` |
 | UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt` |
-| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `agentic-grounding-gate gate` |
+| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next` | `agentic-grounding-gate gate` |
 | PreToolUse on `Bash` | `agentic-shell-guard` |
 | PermissionRequest on `Bash` | `agentic-shell-guard permission`, with a timeout past the longest countdown `shell_guard_ask_timeout` allows |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next`, `Write`, `Edit` | `agentic-grounding-gate record` |

@@ -18,6 +18,10 @@ license: MIT
 - **The gate holds it.** `agentic-capture` in a project whose `.mcp.json` declares `mcpServers.sdd`
   → refused, `GROUNDING GATE: refused. This project serves sdd's engine ...`. Switch to the engine.
   `cli_capture: true` in `.sdd/grounding.yaml` lifts it: the owner's setting, never yours.
+- **Never a credential in an entry.** Either path, a draft, an attached file or an engine report
+  holding what looks like one → refused, `GROUNDING GATE: refused. The capture holds what looks like
+  a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable`. Name the variable
+  or file instead, then capture again.
 - **`sdd-engine` is deprecated.** The `sdd` skill is the engine flow.
 
 ## agentic-capture

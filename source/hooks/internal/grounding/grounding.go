@@ -389,8 +389,13 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 }
 
 // gate returns the refusal this call earns, or nothing. A seat the project
-// exempts earns none.
+// exempts earns none, except for a graph write holding a credential.
 func gate(ctx context.Context, env Env, payload hookio.Payload) string {
+	leaked := leaksCredential(ctx, env, payload)
+	if leaked != "" {
+		return leaked
+	}
+
 	config, configErr := env.config()
 	if configErr == nil && env.exempt(ctx, config.ExemptSeats) {
 		return ""
@@ -558,6 +563,11 @@ func writing(env Env, raw string) graphWrite {
 		return writesNothing
 	}
 
+	return writeIn(raw)
+}
+
+// writeIn says how the command writes to a graph, this project's or another's.
+func writeIn(raw string) graphWrite {
 	heard := spokenIn(raw, false)
 
 	for _, stretch := range heard {
