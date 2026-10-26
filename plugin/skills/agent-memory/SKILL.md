@@ -290,6 +290,9 @@ arguments as JSON (`body` for the body, arrays for repeatable flags). Same seat,
 - Not loaded yet → `ToolSearch` `select:mcp__plugin_agentic-helpers_memory__<subcommand>` first.
 - **Keys exactly as the schema lists them.** Flag `--all-seats` → key `all_seats`. Wrong case, a typo,
   another tool's key → refused: `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
+- **Values exactly as the schema lists them.** `"from": "user"`, never `"\"user\""`: an extra layer
+  of quotes is refused, never repaired, `--from takes user, agent or tool, not "\"user\""`. Resend
+  the bare value.
 
 ## Traps
 

@@ -360,6 +360,11 @@ takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_
 schema says so with `additionalProperties: false`; any other key refuses the call with
 `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
 
+Every value is taken exactly as sent, on the command line and over MCP alike. A value in an extra
+layer of quotes, such as `from` sent as `"\"user\""`, is outside its set like any other and refused
+naming the accepted ones: `--from takes user, agent or tool, not "\"user\""`. Nothing repairs a
+value, so none has two accepted spellings; the schema lists every value a key with a set takes.
+
 ## Seats of the project, and of the machine
 
 `agentic-memory who` (MCP `who`) lists every seat of the current project, one row each, grouped by
