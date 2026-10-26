@@ -440,6 +440,16 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 		}
 
 		note("tagged " + strings.Join(tagged.Topics, ", "))
+	case memorylog.KindUntag:
+		var untagged tagPayload
+
+		err := json.Unmarshal(payload, &untagged)
+		if err != nil {
+			return err
+		}
+
+		held.topics = slices.DeleteFunc(held.topics, func(topic string) bool { return slices.Contains(untagged.Topics, topic) })
+		note("untagged " + strings.Join(untagged.Topics, ", "))
 	}
 
 	return nil

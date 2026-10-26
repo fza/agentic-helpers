@@ -35,6 +35,7 @@ type request struct {
 	Title          string   `json:"title,omitempty"`
 	Body           string   `json:"body,omitempty"`
 	Topics         []string `json:"topic,omitempty"`
+	Untagged       []string `json:"topics,omitempty"`
 	Retention      string   `json:"retention,omitempty"`
 	From           string   `json:"from,omitempty"`
 	About          []string `json:"about,omitempty"`
@@ -425,6 +426,21 @@ func commands() []command {
 			run: (*memory).tag,
 			schema: `{"type":"object","properties":{"id":` + idSchema +
 				`,"topic":{"type":"array","items":{"type":"string"}}},"required":["id","topic"]}`,
+		},
+		{
+			name: "untag", usage: "untag <id> <topic>...", description: "remove topics from an entry; its last topic stays",
+			positional: func(req *request) error {
+				if len(req.Positional) < 2 {
+					return errors.New("an entry id and at least one topic expected")
+				}
+
+				req.ID, req.Untagged = req.Positional[0], req.Positional[1:]
+
+				return nil
+			},
+			run: (*memory).untag,
+			schema: `{"type":"object","properties":{"id":` + idSchema +
+				`,"topics":{"type":"array","items":{"type":"string"}}},"required":["id","topics"]}`,
 		},
 		{
 			name: "link", usage: "link <id> <target>", description: "link an entry to a graph entry or another memory entry",

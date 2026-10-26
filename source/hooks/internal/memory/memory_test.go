@@ -1120,7 +1120,7 @@ func TestMCPServesEveryCommand(t *testing.T) {
 	}
 
 	for _, name := range []string{"new", "search", "show", "brief", "topics", "confirm", "retain", "retire",
-		"supersede", "revive", "retitle", "tag", "merge", "holder", "claim", "release", "who", "lifetime", "drop"} {
+		"supersede", "revive", "retitle", "tag", "untag", "merge", "holder", "claim", "release", "who", "lifetime", "drop"} {
 		if !strings.Contains(answers[2], `"name":"`+name+`"`) {
 			t.Errorf("the MCP server should offer %s as a tool", name)
 		}

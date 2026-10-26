@@ -107,7 +107,9 @@ event older than 14 days, the revive window, folds into the shortest run of exis
 that rebuilds its entry (one `new` row carrying the title, topics and retention as they stood, the
 latest `confirm`, and the `retire` or `supersede` still standing), so the log grows with the entries
 it holds rather than with every change ever made, and a binary of an earlier release still reads it.
-Topic merges and every younger event stay as they are. The same merge drops the body of an entry
+Topic merges and every younger event stay as they are. An `untag` row is a kind binaries before it
+do not read; it carries every name the entry was filed or tagged with that reads as a removed topic,
+so folding it needs no topic merge, and past the horizon it folds into the `new` row like any other. The same merge drops the body of an entry
 superseded more than 14 days earlier, or retired more than `retired_body_days` earlier; the entry
 stays in search, flagged, and `revive` refuses it.
 

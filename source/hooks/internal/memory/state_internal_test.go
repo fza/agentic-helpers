@@ -185,6 +185,7 @@ func TestMergePolicyFoldsEventsPastTheHorizon(t *testing.T) {
 				{memorylog.Row{Kind: memorylog.KindNew, Entry: "m-aaaa", Time: filed, Seat: "main"}, filedPayload},
 				{memorylog.Row{Kind: memorylog.KindRetitle, Entry: "m-aaaa", Time: at(1), Seat: "drive"}, retitlePayload{Title: "Gate reads every tool"}},
 				{memorylog.Row{Kind: memorylog.KindTag, Entry: "m-aaaa", Time: at(2), Seat: "main"}, tagPayload{Topics: []string{"mcp"}}},
+				{memorylog.Row{Kind: memorylog.KindUntag, Entry: "m-aaaa", Time: at(3), Seat: "main"}, tagPayload{Topics: []string{"gate"}}},
 				{memorylog.Row{Kind: memorylog.KindRetain, Entry: "m-aaaa", Time: at(3), Seat: "main"}, retainPayload{Level: "long"}},
 				{memorylog.Row{Kind: memorylog.KindConfirm, Entry: "m-aaaa", Time: at(4), Seat: "main"}, firstConfirm},
 				{memorylog.Row{Kind: memorylog.KindConfirm, Entry: "m-aaaa", Time: at(5), Seat: "drive"}, lastConfirm},

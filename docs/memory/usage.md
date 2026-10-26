@@ -155,10 +155,10 @@ agentic-memory claim --shelf row-7ah            # a new seat row-7ah-<n>, the lo
   prompt recall treat every entry on the shelf as the seat's own; `search --seat <s>` narrows to one
   filer. The brief of a seat on a shelf of another name opens `agentic-memory: seat rev on shelf
   row-7ah, ...`.
-- **Every seat on the shelf may retire, retain, retitle and tag its entries.** A seat on another
+- **Every seat on the shelf may retire, retain, retitle, tag and untag its entries.** A seat on another
   shelf is refused: `<id> is on shelf <name>`.
 - **The seats on a shelf are its subscribers.** A shelf mate's new entry arrives as
-  `agentic-memory: new for <seat> (<n>):`, and a retire, retain, retitle or tag a shelf mate made
+  `agentic-memory: new for <seat> (<n>):`, and a retire, retain, retitle, tag or untag a shelf mate made
   arrives as `agentic-memory: changed on shelf <name> (<n>):`, one line per change,
   `<id> <title>: <what> by <seat>`, both through the paths shared entries arrive by.
 
@@ -195,7 +195,7 @@ agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, a
   `0` purges inside the `release` or SessionEnd closing the last seat.
 - **What survives**: an entry filed `--for` a shelf outside the purge, or `--for all`. It stays in
   its recipients' brief and search, names its filer as `<seat> (expired)`, and every seat on a
-  shelf it was filed for may retire, retain, retitle and tag it. Entries other shelves filed for the
+  shelf it was filed for may retire, retain, retitle, tag and untag it. Entries other shelves filed for the
   purged one stay their filers'.
 - **`drop <shelf>`** (MCP `drop`, key `shelf`) purges a temporary shelf at once, from any process,
   and says `dropped <shelf> (<n> seats, <m> entries)`. It is refused while a seat on the shelf is in
@@ -225,6 +225,14 @@ in the project's code, documents or business, such as `Lieferschein`) keeps the 
 and is never translated, so `--term` still finds the word the code uses; a gloss in the entry's
 language may follow it in parentheses.
 
+`tag <id> <topic>...` (MCP `tag`, keys `id` and `topic`) adds topics to an entry, and
+`untag <id> <topic>...` (MCP `untag`, keys `id` and `topics`) removes them, naming each as the entry
+reads now, through topic merges. Every entry keeps at least one topic, which `brief --topic` and the
+topic counts rely on: removing the last one is refused,
+`<id> keeps at least one topic; tag the right one first: agentic-memory tag <id> <topic>`, and a
+topic the entry does not carry is refused as `<id> carries no topic <topic>`. Replacing an entry's
+only topic is a `tag`, then an `untag`.
+
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
 
@@ -243,7 +251,7 @@ holds:
 
 The filing seat's own shelf is never a recipient. A received entry stands with the seat's own: in
 its brief, in a search without `--seat` or `--all-seats`, and in prompt recall at the own seat's
-bar. Ownership stays the filing shelf's: only its seats retire, retain, retitle or tag the entry,
+bar. Ownership stays the filing shelf's: only its seats retire, retain, retitle, tag or untag the entry,
 while any seat may supersede or confirm it. An entry line names its recipients after the filer:
 `[main → all, ...]`, `[main → idea, row-7ah, ...]`, or `[main → infra followers, ...]` where only a
 follow brings it.

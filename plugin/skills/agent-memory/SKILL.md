@@ -87,10 +87,10 @@ one memory; each still holds its own seat.
 - **The shelf is the seat's memory**: brief, search, recall cover every entry on it.
   `search --seat <s>` narrows to one filer. Brief opens `seat <seat> on shelf <shelf>` where the
   shelf has another name.
-- **Every seat on the shelf may `retire`, `retain`, `retitle`, `tag` its entries.** Seat on another
+- **Every seat on the shelf may `retire`, `retain`, `retitle`, `tag`, `untag` its entries.** Seat on another
   shelf → refused `<id> is on shelf <name>`.
-- **`agentic-memory: changed on shelf <name> (<n>):`** → a shelf mate retired, retained, retitled
-  or tagged an entry. One line each, `<id> <title>: <what> by <seat>`. Act on it, say nothing about
+- **`agentic-memory: changed on shelf <name> (<n>):`** → a shelf mate retired, retained, retitled,
+  tagged or untagged an entry. One line each, `<id> <title>: <what> by <seat>`. Act on it, say nothing about
   the mechanism.
 - Store → `~/.claude/agentic-memory/<project>/`, outside the repo. Project = `.sdd/config.yaml`
   `repo_id` (the graph repo's where `project_dir` names one), else a hash of the main checkout.
@@ -234,8 +234,13 @@ agentic-memory new --title '...' --topic t --absorbs <id>... # file a summary, s
 agentic-memory revive <id>                            # undo the latest retire/supersede; 14 days
 agentic-memory retitle <id> '<title>'
 agentic-memory tag <id> <topic>...
+agentic-memory untag <id> <topic>...                  # MCP keys id, topics; the last topic stays
 agentic-memory merge <from> <into>                    # every seat's topic
 ```
+
+- **Wrong topic → `untag`**, never file the entry again. Its only topic → `tag` the right one first,
+  else refused `<id> keeps at least one topic; tag the right one first: agentic-memory tag <id> <topic>`.
+  A topic it lacks → refused `<id> carries no topic <topic>`.
 
 - **Retire = how work is recorded done.** Give `--because` whenever a reason exists: what finished
   it (`'released as v2.2.2, commit 81df9dd'`) or why it stopped mattering. Printed after the stamp,
@@ -246,7 +251,7 @@ agentic-memory merge <from> <into>                    # every seat's topic
   MCP: `supersede`, `confirm`, `retain` take `ids` (an array), never `id`; `new` takes `absorbs`.
 - **Folding notes into one → `new --absorbs`**, never a `new` then a `supersede` per note.
 - Another shelf's entry: `supersede`, `confirm` allowed, its seats' next brief lists them.
-  `retire`, `retain`, `retitle`, `tag` → refused `<id> is on shelf <name>`.
+  `retire`, `retain`, `retitle`, `tag`, `untag` → refused `<id> is on shelf <name>`.
 - Nothing is ever rewritten or deleted by an agent. Superseded bodies drop 14 days on, retired ones
   `retired_body_days` on (90 unless set). Dropped body → `revive` refused, file it again.
 - `show`'s event list keeps 14 days. Older events fold into the entry's current state.

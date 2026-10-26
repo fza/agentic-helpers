@@ -321,6 +321,58 @@ func (mem *memory) tag(ctx context.Context, req request) result {
 	return done(fmt.Sprintf("%s tagged %s", req.ID, strings.Join(topics, ", ")))
 }
 
+// untag removes topics as the entry reads them now, through topic merges: the
+// event carries every name the entry was filed or tagged with that reads as
+// one of them, so folding it needs no merge.
+func (mem *memory) untag(ctx context.Context, req request) result {
+	var named []string
+
+	for _, topic := range req.Untagged {
+		topic = normalTopic(topic)
+		if topic != "" && !slices.Contains(named, topic) {
+			named = append(named, topic)
+		}
+	}
+
+	if len(named) == 0 {
+		return refused("untag needs at least one topic")
+	}
+
+	removed := &tagPayload{}
+
+	_, _, failure, ok := mem.change(ctx, req.ID, true, func(folded *state, held *entry) error {
+		current := folded.topicsOf(held)
+
+		var wanted []string
+
+		for _, topic := range named {
+			resolved := folded.resolve(topic)
+			if !slices.Contains(current, resolved) {
+				return fmt.Errorf("%s carries no topic %s", held.id, topic)
+			}
+
+			wanted = append(wanted, resolved)
+		}
+
+		if !slices.ContainsFunc(current, func(topic string) bool { return !slices.Contains(wanted, topic) }) {
+			return fmt.Errorf("%s keeps at least one topic; tag the right one first: %s tag %s <topic>", held.id, self, held.id)
+		}
+
+		for _, topic := range held.topics {
+			if slices.Contains(wanted, folded.resolve(topic)) {
+				removed.Topics = append(removed.Topics, topic)
+			}
+		}
+
+		return nil
+	}, memorylog.KindUntag, "", removed)
+	if !ok {
+		return failure
+	}
+
+	return done(fmt.Sprintf("%s untagged %s", req.ID, strings.Join(named, ", ")))
+}
+
 func (mem *memory) merge(ctx context.Context, req request) result {
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
