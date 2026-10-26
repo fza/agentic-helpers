@@ -62,11 +62,37 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 
 	here := mem.checkout(ctx)
 
+	if req.Kind != "" {
+		if !slices.Contains(entryKinds, req.Kind) {
+			return refused("--kind takes %s, not %q", strings.Join(entryKinds, ", "), req.Kind)
+		}
+
+		return done(mem.kindBrief(here, folded, name, req.Kind))
+	}
+
 	if len(req.Topics) > 0 {
 		return done(mem.topicBrief(here, folded, name, req.Topics))
 	}
 
 	return done(mem.brief(ctx, here, folded, name))
+}
+
+// kindBrief is every live entry of one kind the seat holds, hottest first,
+// whole: the place a note the brief's cap left out is read.
+func (mem *memory) kindBrief(here tree, folded *state, seatName string, kind string) string {
+	var lines []string
+
+	for _, held := range mem.ownLive(folded, seatName) {
+		if held.kind == kind {
+			lines = append(lines, shortLine(here, held, seatName, mem.now()))
+		}
+	}
+
+	if len(lines) == 0 {
+		return fmt.Sprintf("no live %s of %s", kind, seatName)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics []string) string {
@@ -79,7 +105,7 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 
 	for _, entry := range mem.ownLive(folded, seatName) {
 		if slices.ContainsFunc(folded.topicsOf(entry), func(topic string) bool { return slices.Contains(wanted, topic) }) {
-			held.add(line(here, entry))
+			held.add(shortLine(here, entry, seatName, mem.now()))
 		}
 	}
 
@@ -120,6 +146,7 @@ func (mem *memory) ownLive(folded *state, seatName string) []*entry {
 func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName string) string {
 	since := mem.previousBrief(seatName)
 	mem.reachEnds(ctx, folded, seatName, "", "")
+	now := mem.now()
 	live := mem.ownLive(folded, seatName)
 
 	retired := 0
@@ -193,7 +220,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 		third := &budget{limit: briefBudget / 3}
 		for _, held := range rules {
-			third.add("  " + line(here, held))
+			third.add("  " + shortLine(here, held, seatName, now))
 		}
 
 		for _, text := range third.lines {
@@ -217,8 +244,15 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 		out.add(section.header)
 
+		// Notes are capped, hottest first; traps are rare and todos end through
+		// their declared conditions, so both print whole.
+		capped := 0
+		if limit := mem.options().BriefNoteLimit; section.kind == kindNote && len(held) > limit {
+			held, capped = held[:limit], len(held)-limit
+		}
+
 		for _, one := range held {
-			if !out.add("  " + line(here, one)) {
+			if !out.add("  " + shortLine(here, one, seatName, now)) {
 				missing++
 
 				continue
@@ -227,6 +261,10 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 			for _, cited := range citingLines(one, listed, "    ") {
 				out.add(cited)
 			}
+		}
+
+		if capped > 0 {
+			out.add(fmt.Sprintf("+%d more notes: %s brief --kind note", capped, self))
 		}
 	}
 
@@ -252,7 +290,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add("new from other seats:")
 
 		for _, held := range news {
-			out.add("  " + line(here, held))
+			out.add("  " + shortLine(here, held, seatName, now))
 		}
 	}
 

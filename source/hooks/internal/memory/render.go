@@ -36,21 +36,66 @@ func line(here tree, held *entry) string {
 
 	text := fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", "))
 
+	return withFlags(text, append(flagsOf(here, held), declared(held)...))
+}
+
+// shortLine is how an entry shows in the brief and in recall, read every
+// claim and compaction: id, title, its age, the filing seat where it is not
+// the reader, a retain override that differs from the kind's decay, then its
+// flags.
+func shortLine(here tree, held *entry, reader string, now time.Time) string {
+	parts := []string{age(now.Sub(held.filed))}
+	if held.seat != reader {
+		parts = append(parts, held.seat)
+	}
+
+	if retained := held.retainedOverride(); retained != "" {
+		parts = append(parts, "retain "+retained)
+	}
+
+	return withFlags(fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", ")), flagsOf(here, held))
+}
+
+// flagsOf is every flag an entry's line carries: its status, its staleness
+// against the checkout, its links, and how many live or retired entries link
+// to it.
+func flagsOf(here tree, held *entry) []string {
 	flags := statusFlags(held)
 	flags = append(flags, staleness(here, held)...)
 	flags = append(flags, held.linkFlags...)
 
-	if len(held.inbound) > 0 {
-		flags = append(flags, fmt.Sprintf("← %d", len(held.inbound)))
+	if inbound := held.linkedFrom(false); len(inbound) > 0 {
+		flags = append(flags, fmt.Sprintf("← %d", len(inbound)))
 	}
 
-	flags = append(flags, declared(held)...)
+	return flags
+}
 
+func withFlags(text string, flags []string) string {
 	if len(flags) > 0 {
 		text += "  " + strings.Join(flags, "; ")
 	}
 
 	return text
+}
+
+// linkedFrom is the entries linking to held: superseded ones only where
+// withSuperseded is set, since every older link of a supersede chain is one.
+// A retired one stays: it ended, and nothing replaced it.
+func (held *entry) linkedFrom(withSuperseded bool) []*entry {
+	if withSuperseded {
+		return held.inbound
+	}
+
+	var linked []*entry
+
+	for _, other := range held.inbound {
+		if other.status != statusSuperseded {
+			linked = append(linked, other)
+		}
+	}
+
+	return linked
 }
 
 // declared is what the filer declared about the entry's life, as a full line

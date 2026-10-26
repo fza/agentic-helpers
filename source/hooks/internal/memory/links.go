@@ -534,7 +534,7 @@ func graphLinkState(held graphState) string {
 func citing(held *entry, shown map[string]bool) []*entry {
 	var newer []*entry
 
-	for _, other := range held.inbound {
+	for _, other := range held.linkedFrom(false) {
 		if other.filed.After(held.filed) && !shown[other.id] {
 			newer = append(newer, other)
 		}

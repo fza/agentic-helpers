@@ -59,6 +59,13 @@
       "default": 6,
       "required": false
     },
+    "brief_note_limit": {
+      "type": "number",
+      "title": "Brief note limit",
+      "description": "Notes the memory brief prints, hottest first; the rest stay one agentic-memory brief --kind note away",
+      "default": 10,
+      "required": false
+    },
     "memory_require_git": {
       "type": "boolean",
       "title": "Memory only inside git",

@@ -63,6 +63,9 @@ const (
 	MaxEntryIDLength     = 16
 )
 
+// DefaultBriefNoteLimit is how many notes the brief prints, hottest first.
+const DefaultBriefNoteLimit = 10
+
 type Options struct {
 	EmbeddingProvider   string
 	EmbeddingModel      string
@@ -72,6 +75,7 @@ type Options struct {
 	EntryMaxWords       int
 	RetiredBodyDays     int
 	EntryIDLength       int
+	BriefNoteLimit      int
 	MemoryLanguage      string
 	MemoryRequireGit    bool
 	// MemoryTurnsOffAuto has a seat claim turn Claude Code's own auto memory
@@ -109,7 +113,7 @@ type Options struct {
 // and the hook environment spell it.
 var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
-	"entry_max_words", "retired_body_days", "entry_id_length", "memory_require_git", "memory_language",
+	"entry_max_words", "retired_body_days", "entry_id_length", "brief_note_limit", "memory_require_git", "memory_language",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -253,12 +257,14 @@ func (options *Options) fold(paths []string) error {
 func (options *Options) clamp() {
 	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
 	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
+	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
 	options.ShellGuardAskTimeout = min(max(options.ShellGuardAskTimeout, 0), MaxShellGuardAskTimeout)
 }
 
 func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
+		BriefNoteLimit:   DefaultBriefNoteLimit,
 		MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor:          DefaultToolsQueryFloor,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
@@ -296,6 +302,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		"entry_max_words":         &options.EntryMaxWords,
 		"retired_body_days":       &options.RetiredBodyDays,
 		"entry_id_length":         &options.EntryIDLength,
+		"brief_note_limit":        &options.BriefNoteLimit,
 		"shell_guard_ask_timeout": &options.ShellGuardAskTimeout,
 	}
 

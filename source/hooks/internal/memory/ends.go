@@ -433,7 +433,7 @@ func (mem *memory) retireCandidates(ctx context.Context, here tree, folded *stat
 
 		why := probe.inferredEnd(ctx, held)
 		if why != "" {
-			lines = append(lines, fmt.Sprintf("  %s  (%s)", line(here, held), why))
+			lines = append(lines, fmt.Sprintf("  %s  (%s)", shortLine(here, held, seatName, mem.now()), why))
 		}
 	}
 

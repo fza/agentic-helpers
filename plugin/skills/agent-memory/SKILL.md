@@ -217,8 +217,8 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
 agentic-memory search --term <regex>... --query '<phrase>' [--topic <t>]... \
   [--seat <s>]... [--all-seats] [--with-superseded] [--status <s>]... [--limit n] [--skip n] [--no-heat]
 agentic-memory search --status retired          # a listing: what ended, newest first, with its reason
-agentic-memory show <id>... [--no-heat]
-agentic-memory brief [--topic <t>]
+agentic-memory show <id>... [--no-heat] [--with-superseded]  # with superseded entries linking in
+agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]  # one topic, or one kind whole
 ```
 
 - **Own seat by default.** `--all-seats` → see what other seats hold: take over work, never do it
@@ -256,7 +256,8 @@ agentic-memory unlink <id> <target>     # links from --link / link only
   not connected, the user's to connect; `<id>: resolving another repository's entry needs sdd export,
   which this sdd lacks` → name it in the body, where it stays text; never retry. Lines name it
   `fdbox:<id>`, `show` the full id.
-- **Line flags:** `→ <target> closed by|superseded by|settled|retired|gone`, `← <n>` = linked from n.
+- **Line flags:** `→ <target> closed by|superseded by|settled|retired|gone`, `← <n>` = linked from n,
+  superseded ones aside.
   A lead whose target closed or was superseded → read the successor before relying on it.
 - **`← <id> <title>`** under a hit = a newer entry citing it. Often the fix or the follow-up.
 
@@ -298,7 +299,10 @@ agentic-memory merge <from> <into>                    # every seat's topic
 
 - **Claim and every compaction → brief:** header, state, changed by other seats, ended since last
   brief, rules, traps, todos, notes (each by heat), retire?, new from other seats, topics. Plus the
-  turns since the seat's newest entry or state write.
+  turns since the seat's newest entry or state write. Lines are short: `<id> <title>  [<age>[,
+  <seat>][, retain <level>]]  <flags>`, the seat only where another filed it. Need the stamp or the
+  commit → `show`. Notes capped at `brief_note_limit` (10): `+<n> more notes: agentic-memory brief
+  --kind note` → run it when the work needs a cold note.
 - **`ended since last brief (revive to undo):`** → the tool retired these at a reached end. Wrong
   one → `revive <id>`. **`retire?`** → entries that look ended (every link ended, every anchor gone,
   branch gone); nothing was retired: check each, `retire` what ended.

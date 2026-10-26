@@ -340,9 +340,12 @@ A link is read, never followed for bodies. A line flags each target that is no l
 open: `→ <target> closed by <id>`, `superseded by <id>`, `settled`, `retired`, or `gone` where the
 graph entry's file is missing from the checkout, or, for a connected repo's entry, where the export no
 longer carries it. A line names a connected repo's entry by the last path segment of its `repo_id`,
-`→ fdbox:20261024-120000-d-tac-k2m closed by <id>`, and `show` by its full qualified id. `← <n>` counts the entries linking to it. `show` adds
-`links:` and `linked from:`. Recall and the brief name, under a hit, up to two entries linking to it
-that were filed after it, newest first, title only: `← <id> <title> [<seat>, <date>]`. The
+`→ fdbox:20261024-120000-d-tac-k2m closed by <id>`, and `show` by its full qualified id. `← <n>` counts the entries linking to it, superseded ones aside. `show` adds
+`links:` and `linked from:`, which leaves out superseded entries too, every older link of a supersede
+chain being one; `show --with-superseded` (MCP `with_superseded`) lists them. A retired entry linking
+in stays listed: it ended, and nothing replaced it. Recall and the brief name, under a hit, up to two
+entries linking to it that were filed after it and not superseded, newest first, title only:
+`← <id> <title> [<seat>, <date>]`. The
 similar-entry hint offers both fixes: `replaces it → agentic-memory supersede <old> --by <new>` and
 `relates → agentic-memory link <new> <old>`.
 
@@ -454,7 +457,20 @@ The brief runs, in order: its first line, the state slot, `changed by other seat
 `traps:`, `todos:`, `notes:`, each kind's live entries by heat, `retire?`, `new from other seats:`,
 and the topics. It stays within 9,000 characters; rules
 take at most a third of that, and past it the brief says
-`rules exceed a third of the brief: <n>; retire or rekind some`.
+`rules exceed a third of the brief: <n>; retire or rekind some`. Notes print the hottest up to the
+plugin option `brief_note_limit`, 10 unless set, then
+`+<n> more notes: agentic-memory brief --kind note`; traps and todos print whole.
+`brief --kind rule|trap|todo|note` (MCP key `kind`) lists one kind's live entries whole, as
+`brief --topic <name>` lists one topic's.
+
+The brief and prompt recall print a short line, read at every claim and compaction:
+
+    m-h8pdp8 fdbox guard inventory  [20h, drive, retain long]  ← 1
+
+the id and title, the time since filing in its largest whole unit (`m`, `h`, `d`, `w`), the filing
+seat only where it is not the reader, `retain <level>` only where an override differs from the
+kind's decay, then the flags every line carries. `search`, `show` and `show`'s `linked from:` keep
+the full line, with seat, kind, source, filing time and commit.
 
 Near compaction a nudge asks for a state write first:
 
@@ -539,6 +555,7 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `retired_body_days` | how long a retired entry keeps its body, 90 unless set, never under 14 |
 | `entry_id_length` | the characters after `m-` in a new entry id |
+| `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note` |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |

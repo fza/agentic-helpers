@@ -783,7 +783,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	}
 
 	for _, held := range hits {
-		lines = append(lines, "  "+line(here, held))
+		lines = append(lines, "  "+shortLine(here, held, seatName, mem.now()))
 		lines = append(lines, citingLines(held, listed, "    ")...)
 		ids = append(ids, held.id)
 	}

@@ -444,7 +444,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		}
 
 		shown = append(shown, id)
-		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays))
+		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays, req.WithSuperseded))
 	}
 
 	if !req.NoHeat {
@@ -476,7 +476,7 @@ func linkLine(folded *state, held *entry, target string) string {
 	return "→ " + target
 }
 
-func showBlock(here tree, folded *state, held *entry, retiredBodyDays int) string {
+func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withSuperseded bool) string {
 	lines := []string{line(here, held)}
 
 	topics := folded.topicsOf(held)
@@ -520,9 +520,9 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyDays int) strin
 		}
 	}
 
-	if len(held.inbound) > 0 {
+	if inbound := held.linkedFrom(withSuperseded); len(inbound) > 0 {
 		lines = append(lines, "linked from:")
-		for _, other := range held.inbound {
+		for _, other := range inbound {
 			lines = append(lines, "  "+line(here, other))
 		}
 	}

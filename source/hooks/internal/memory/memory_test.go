@@ -771,7 +771,7 @@ func TestBrief(t *testing.T) {
 	h.must("", "claim", "main")
 
 	for index := range 40 {
-		h.must("grant text", "new", "--title", fmt.Sprintf("Standing grant number %d for main", index),
+		h.must("grant text", "new", "--title", fmt.Sprintf("Standing grant number %d permitting commits, quoting the owner's instructions verbatim", index),
 			"--topic", "grants", "--kind", "rule", "--from", "user")
 	}
 

@@ -363,15 +363,19 @@ func commands() []command {
 			run: (*memory).search,
 		},
 		{
-			name: "show", usage: "show <id>... [--no-heat]", description: "an entry in full: stamps, anchors, flags, events",
-			flags: []flagSpec{{"no-heat", flagSwitch}}, positional: someIDs, run: (*memory).show,
+			name: "show", usage: "show <id>... [--no-heat] [--with-superseded]",
+			description: "an entry in full: stamps, anchors, flags, events; --with-superseded adds superseded entries linking to it",
+			flags:       []flagSpec{{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}}, positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},` +
-				`"no_heat":{"type":"boolean","description":"answer without adding heat"}},"required":["ids"]}`,
+				`"no_heat":{"type":"boolean","description":"answer without adding heat"},` +
+				`"with_superseded":{"type":"boolean","description":"list superseded entries under linked from"}},"required":["ids"]}`,
 		},
 		{
-			name: "brief", usage: "brief [--topic <name>]", description: "the brief, or one topic's entries",
-			flags: []flagSpec{{"topic", flagList}}, run: (*memory).briefCommand,
-			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"}}}}`,
+			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note]",
+			description: "the brief, one topic's entries, or one kind's live entries whole",
+			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}}, run: (*memory).briefCommand,
+			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"}},` +
+				`"kind":{"type":"string","enum":["rule","trap","todo","note"]}}}`,
 		},
 		{
 			name: "topics", usage: "topics", description: "every topic with live counts per seat",
