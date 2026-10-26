@@ -99,12 +99,18 @@ func (held *entry) linkedFrom(withSuperseded bool) []*entry {
 }
 
 // declared is what the filer declared about the entry's life, as a full line
-// names it: the conditions that end it.
+// names it: the conditions that end it, a trap's triggers, the moments a rule
+// is owed at and the calls proving it.
 func declared(held *entry) []string {
 	var flags []string
 
-	if len(held.until) > 0 {
-		flags = append(flags, "until: "+strings.Join(held.until, ", "))
+	for _, part := range []struct {
+		name   string
+		values []string
+	}{{"until", held.until}, {"when", held.when}, {"on", held.on}, {"proof", held.proof}} {
+		if len(part.values) > 0 {
+			flags = append(flags, part.name+": "+strings.Join(part.values, ", "))
+		}
 	}
 
 	return flags

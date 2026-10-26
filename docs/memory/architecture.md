@@ -136,7 +136,7 @@ row like any other.
 A `state` row names a seat and no entry, and carries the seat's state slot: `body`, `session`,
 `branch`, `commit`, its time the row's. The newest `state` row of a seat is its slot. A merge keeps
 only each seat's newest `state` row, and a purge drops the `state` rows of the seats it purges. The
-`untag`, `state` and `rekind` rows are kinds binaries before format 4 do not read; the format bump
+`untag`, `state`, `rekind` and `settle` rows are kinds binaries before format 4 do not read; the format bump
 keeps those binaries off the store. The same merge drops the body of an entry
 superseded more than 14 days earlier, or retired more than `retired_body_days` earlier; the entry
 stays in search, flagged, and `revive` refuses it.
@@ -199,8 +199,8 @@ Every hook exits at once in a project without a store.
 | SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
 | UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
-| PostToolUse (`tool`) | tells the seat about arrivals and graph gains, in one `additionalContext`; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
-| Stop (`stop`) | blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
+| PostToolUse (`tool`) | tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
+| Stop (`stop`) | holds the turn while do-now items are pending, at most twice per moment; then blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
 | SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
@@ -252,6 +252,25 @@ graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a
 graph resolver), that directory's modification time and size, and the entry files it held, in
 `graph-seen/<session>.json` in the cache. A call `stat`s the directory; only a changed stamp lists
 it, and an entry file not listed before is a gain. A session's first look records and says nothing.
+
+## Tool-call triggers
+
+A `new` row carries a trap's `when`, and a rule's `on` and `proof`, each trigger spelled
+`<form>:<value>`. Globs are matched with `github.com/bmatcuk/doublestar/v4` (`doublestar.Match`),
+since `path.Match` has no `**`; command patterns are RE2.
+
+The tool hook keeps the seat's traps, its own and received, in `traps/<seat id>.json` in the cache:
+each trap's id, anchored paths and triggers, rebuilt whenever the hook finds the log changed, and
+removed where the seat holds none. The seat's seen mark records how many traps it held then
+(`traps`), so a seat holding none reads nothing more on a tool call than it did before. A trap told
+is added to the session's shown set (`shown/<session>.json`), which a compaction empties.
+
+Do-now items pending for a seat sit beside the nudge ladder, `ladder/<seat id>.do-now.json`: the
+session they are owed in, each item's rule, moment and proofs, and how often `Stop` held a turn per
+moment. A claim from a shell may not know its session yet, so the file is keyed by the seat and names
+the session inside; items of another session read as skipped. Skipped items wait in
+`briefs/<seat id>.skipped.json` until the seat's next do-now list prints them. A settlement is a
+`settle` row on the rule (`how`: `proof`, `ack` or `decline`, with `proof` or `because`).
 
 ## Arrivals
 

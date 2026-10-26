@@ -280,6 +280,67 @@ only topic is a `tag`, then an `untag`.
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
 
+## Traps at the tool call
+
+A trap reaches the agent when a tool call touches what it is about. The memory PostToolUse hook
+prints a trap, once per session, the first time a call matches it:
+
+    agentic-memory: trap for <what matched>:
+      <the trap's short brief line>
+
+A trap is matched by every file it anchors to, without being declared, and by every trigger
+`new --kind trap --when <trigger>` adds (repeatable; MCP key `when`, an array):
+
+| Trigger | Matches a call where |
+|---|---|
+| `path:<glob>` | a path the call names matches the glob, relative to the work tree's root; `**` crosses directories (doublestar's syntax), and a directory is reached as `<dir>/**` |
+| `command:<regex>` | a Bash call's command matches the RE2 pattern, case-sensitive |
+| `tool:<name>` | the call's tool is `<name>`, such as `Agent` or `mcp__sdd__start_procedure` |
+
+The paths a call names are its input's `file_path`, `notebook_path` and `path`, and a Bash command's
+path tokens, found as anchors are found. `<what matched>` is the path, the matched text of the
+command, or the tool name. The match runs after the call, so a Bash edit or a Write of a new file is
+told only once it ran; Claude Code's Edit refuses a file not read in the session, so for Edit the
+notice lands on the Read before it. A trap told in a session is told again after a compaction or in
+the next session. A trap received through `--for` or a followed topic triggers as the seat's own.
+`--when` on any kind but `trap` is refused, `--when is for a trap: a tool call touching what the trap
+is about`, as is a malformed trigger or an invalid pattern: `--when: a trigger takes path:<glob>,
+command:<regex> or tool:<name>, not "<trigger>"`. A line names the triggers as `when: <trigger>, ...`.
+
+## Do-now rules
+
+A rule may be an action owed at a moment. `new --kind rule --from user --on claim|compact`
+(repeatable; MCP key `on`, an array) makes it owed at every claim, or at the brief after every
+compaction, and `--proof <trigger>` (repeatable; MCP key `proof`), in the trigger form traps take,
+names the tool calls that prove it done. `--on` and `--proof` on any other kind are refused, `--on
+and --proof are for a rule the user gave: an action owed at a moment`, and `--proof` without `--on`
+too. A line names them as `on: <moment>, ...` and `proof: <trigger>, ...`.
+
+At the moment, before the brief, the list owed then, numbered:
+
+    do now (claim):
+    1. m-a1b2c3 Arm the monitor on the to-main channel  proof: tool:Monitor
+    2. m-d4e5f6 Read the board  ack when done
+
+Each item is pending for the session from then. A tool call matching one of its proofs marks it
+done; `agentic-memory ack <id>... --done` or `ack <id>... --decline '<why>'` (MCP `ack`, keys `ids`,
+`done`, `decline`, `no_heat`) settles items no call can prove, all or nothing: an id not pending in
+this session refuses the whole call, `agentic-memory: nothing acked:` then
+`<id> is not pending in this session`, one line per id. Every settlement is an event on the rule:
+`show` lists `done by proof <trigger>`, `done by ack` or `declined: <why>`, with the seat. An `ack`
+warms the rules it settles.
+
+While items are pending, `Stop` holds the turn ahead of the filing backstop:
+
+    agentic-memory: do-now items pending:
+    1. m-d4e5f6 Read the board  ack when done
+
+at most twice per moment per session. What stays pending past that, or when the session ends, opens
+the seat's next do-now list:
+
+    skipped last session:
+      m-d4e5f6 Read the board (claim)
+
 ## Shared entries
 
 An entry can reach seats besides the one that filed it. A seat receives an entry when any of these

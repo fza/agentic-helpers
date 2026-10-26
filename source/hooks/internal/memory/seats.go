@@ -244,6 +244,10 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		lines = append(lines, described)
 	}
 
+	if owed := mem.doNow(folded, req.Name, onClaim, cmp.Or(mem.env.SessionID, held.SessionID)); owed != "" {
+		lines = append(lines, owed)
+	}
+
 	lines = append(lines, mem.brief(ctx, here, folded, req.Name))
 
 	hint := mem.carryForwardHint(ctx, req.Name)

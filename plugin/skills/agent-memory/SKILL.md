@@ -200,6 +200,25 @@ agentic-memory unfollow infra
   idle session → entries filed for this seat, or by a shelf mate. Read them, act on them, say
   nothing about the mechanism.
 
+## Traps and do-now rules
+
+```bash
+agentic-memory new --kind trap --title '...' --topic t --when 'path:.autopilot/plan/parts/jobs/**' <<'EOF'
+agentic-memory new --kind rule --from user --title '...' --topic t --on claim --proof tool:Monitor <<'EOF'
+agentic-memory ack <id>... --done | --decline '<why>'   # settle what no tool call proves
+```
+
+- **A trap fires at the tool call.** Every file it names counts; `--when` adds `path:<glob>` (`**`
+  crosses directories), `command:<regex>` (Bash, case-sensitive), `tool:<name>`. Traps only.
+  `agentic-memory: trap for <what matched>:` then the trap's line → stop and read it before going
+  on. Once per session; again after a compaction.
+- **A rule owed at a moment → `--on claim|compact`**, the user's rules only, `--proof <trigger>` for
+  the call that proves it. `do now (<moment>):` then numbered items, before the brief → do each
+  now, first. `proof: <trigger>` → the matching tool call settles it. `ack when done` → do it, then
+  `ack <id> --done`; can't → `ack <id> --decline '<why>'`, and tell the user why.
+- **`agentic-memory: do-now items pending:`** at `Stop` → the turn is held for them; settle them.
+  Twice per moment at most; what stays pending opens the next list as `skipped last session:`.
+
 ## Kind and decay
 
 ```bash

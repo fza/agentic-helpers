@@ -119,6 +119,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 
 			folded, err := mem.load(ctx)
 			if err == nil {
+				mem.say(mem.doNow(folded, name, onCompact, held.SessionID))
 				mem.say(mem.brief(ctx, mem.checkout(ctx), folded, name))
 			}
 		}
@@ -501,7 +502,29 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		notes = append(notes, captured)
 	}
 
-	notes = append(notes, mem.arrivalsAtTool(ctx, name)...)
+	arrived, holdsTraps := mem.arrivalsAtTool(ctx, name)
+	notes = append(notes, arrived...)
+
+	session := cmp.Or(payload.SessionID, held.SessionID)
+
+	// The call is read only where a trap or a pending do-now item needs it:
+	// finding the work tree's root costs a git call.
+	var call *toolCall
+
+	callNow := func() toolCall {
+		if call == nil {
+			read := callOf(mem.checkout(ctx).root, payload)
+			call = &read
+		}
+
+		return *call
+	}
+
+	if holdsTraps {
+		notes = append(notes, mem.trapNotices(ctx, name, session, callNow())...)
+	}
+
+	mem.proveDoNow(ctx, name, session, callNow)
 
 	if len(notes) > 0 {
 		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", strings.Join(notes, "\n"))
@@ -510,29 +533,31 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	return 0
 }
 
-// arrivalsAtTool is what arrived for the seat since its last look; where the
-// log stands as it stood then, two stats and nothing more.
-func (mem *memory) arrivalsAtTool(ctx context.Context, name string) []string {
+// arrivalsAtTool is what arrived for the seat since its last look, and
+// whether the seat holds a trap; where the log stands as it stood then, two
+// stats and nothing more. A changed log re-indexes the seat's traps.
+func (mem *memory) arrivalsAtTool(ctx context.Context, name string) ([]string, bool) {
 	signature := mem.logSignature()
 
 	var mark seenMark
 	if readJSON(mem.seenPath(name), &mark) && mark.Log == signature {
-		return nil
+		return nil, mark.Traps > 0
 	}
 
 	folded, err := mem.load(ctx)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 
 	arrived := mem.announce(ctx, folded, name)
-	mem.noteLog(name, signature)
+	traps := mem.indexTraps(folded, name)
+	mem.noteLog(name, signature, traps)
 
 	if arrived == "" {
-		return nil
+		return nil, traps > 0
 	}
 
-	return []string{arrived}
+	return []string{arrived}, traps > 0
 }
 
 // logSignature changes whenever the log gains an event: the tail's size and
@@ -630,6 +655,13 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 	held = mem.track(name, held, payload)
 	session := cmp.Or(held.SessionID, payload.SessionID)
 
+	pending := mem.holdForDoNow(name, session)
+	if pending != "" {
+		_, _ = fmt.Fprintln(mem.streams.Err, pending)
+
+		return 2
+	}
+
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
 	_ = writeJSON(mem.ladderPath(session), steps)
 
@@ -684,13 +716,18 @@ func (mem *memory) closeAtEnd(ctx context.Context, seatName string, payload hook
 		return
 	}
 
+	mem.skipAtEnd(seatName)
+
 	_ = seat.Close(mem.seatsDir(), mem.seatKey(seatName), mem.now().Format(time.RFC3339Nano))
 	_ = mem.purgeExpired(ctx)
 }
 
+// shownSet is what a session was shown since its last compaction: recalled
+// entries, and the traps a tool call told it of.
 type shownSet struct {
 	IDs      []string `json:"ids"`
 	Notified bool     `json:"notified"`
+	Traps    []string `json:"traps,omitempty"`
 }
 
 func (mem *memory) shownPath(session string) string {

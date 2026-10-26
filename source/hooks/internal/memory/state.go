@@ -48,6 +48,11 @@ type newPayload struct {
 	// the content hash of each `changed:` path at filing, empty where none was.
 	Until       []string          `json:"until,omitempty"`
 	UntilHashes map[string]string `json:"until_hashes,omitempty"`
+	// When is a trap's tool-call triggers; On the moments a rule is owed at,
+	// and Proof the tool calls that settle it.
+	When  []string `json:"when,omitempty"`
+	On    []string `json:"on,omitempty"`
+	Proof []string `json:"proof,omitempty"`
 }
 
 // retirePayload is why an entry ended. A retire from an earlier release
@@ -146,6 +151,9 @@ type entry struct {
 
 	until       []string
 	untilHashes map[string]string
+	when        []string
+	on          []string
+	proof       []string
 }
 
 type explicitLink struct {
@@ -347,6 +355,8 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 
 		folded.entries[row.Entry].textLinks = filed.TextLinks
 		folded.entries[row.Entry].until, folded.entries[row.Entry].untilHashes = filed.Until, filed.UntilHashes
+		folded.entries[row.Entry].when, folded.entries[row.Entry].on = filed.When, filed.On
+		folded.entries[row.Entry].proof = filed.Proof
 		for _, target := range filed.Links {
 			folded.entries[row.Entry].explicit = append(folded.entries[row.Entry].explicit, explicitLink{target: target, seat: row.Seat})
 		}
@@ -457,6 +467,15 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 
 		held.retention, held.override = retained.Level, retained.Level
 		note("retention set to " + retained.Level)
+	case memorylog.KindSettle:
+		var settled settlePayload
+
+		err := json.Unmarshal(payload, &settled)
+		if err != nil {
+			return err
+		}
+
+		note(settled.describe())
 	case memorylog.KindRekind:
 		var rekinded rekindPayload
 

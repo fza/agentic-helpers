@@ -244,6 +244,8 @@ type seenMark struct {
 	At      time.Time `json:"at"`
 	Changed time.Time `json:"changed,omitzero"`
 	Log     string    `json:"log,omitempty"`
+	// Traps is how many traps the seat held when the log stood at Log.
+	Traps int `json:"traps,omitempty"`
 }
 
 func (mem *memory) seenPath(seatName string) string {
@@ -340,10 +342,10 @@ func (mem *memory) markChanged(seatName string, at time.Time) {
 	_ = writeJSON(mem.seenPath(seatName), mark)
 }
 
-func (mem *memory) noteLog(seatName string, signature string) {
+func (mem *memory) noteLog(seatName string, signature string, traps int) {
 	var mark seenMark
 	readJSON(mem.seenPath(seatName), &mark)
-	mark.Log = signature
+	mark.Log, mark.Traps = signature, traps
 	_ = writeJSON(mem.seenPath(seatName), mark)
 }
 

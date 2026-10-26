@@ -19,7 +19,8 @@ Go rules, loaded when a session touches code under `source/`.
   seat names to NFC, which the standard library cannot; `mvdan.cc/sh/v3` parses bash for
   shell-guard and the grounding gate, the only way to tell a call from text that names one;
   `golang.org/x/sys` reads darwin's process table through sysctl, which the standard library does
-  not expose and which saves a `ps` spawn per read.
+  not expose and which saves a `ps` spawn per read; `github.com/bmatcuk/doublestar/v4` matches
+  memory's `path:` triggers, since `path.Match` has no `**`.
 
 ## Hooks
 

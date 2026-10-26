@@ -51,6 +51,11 @@ type request struct {
 	Links          []string `json:"link,omitempty"`
 	Absorbs        []string `json:"absorbs,omitempty"`
 	Until          []string `json:"until,omitempty"`
+	When           []string `json:"when,omitempty"`
+	On             []string `json:"on,omitempty"`
+	Proof          []string `json:"proof,omitempty"`
+	Done           bool     `json:"done,omitempty"`
+	Decline        string   `json:"decline,omitempty"`
 	Target         string   `json:"target,omitempty"`
 	Path           string   `json:"path,omitempty"`
 	By             string   `json:"by,omitempty"`
@@ -227,15 +232,16 @@ func (req *request) set(spec flagSpec, value string) error {
 	texts := map[string]*string{
 		"title": &req.Title, "kind": &req.Kind, "from": &req.From, "query": &req.Query,
 		"by": &req.By, "because": &req.Because, "session": &req.Session, "shelf": &req.Shelf,
-		"lifetime": &req.Lifetime,
+		"lifetime": &req.Lifetime, "decline": &req.Decline,
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
 		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs, "until": &req.Until,
+		"when": &req.When, "on": &req.On, "proof": &req.Proof,
 	}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
-		"no-heat": &req.NoHeat, "all": &req.All,
+		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done,
 	}
 
 	switch spec.kind {
@@ -322,11 +328,12 @@ func commands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
 			description: "file an entry; body on stdin; --kind sets its decay and brief section (note unless given); --for shares it with other seats",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
 				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList},
+				{"when", flagList}, {"on", flagList}, {"proof", flagList},
 			},
 			readsBody: true,
 			replaced:  map[string]string{"retention": retentionReplaced},
@@ -340,7 +347,10 @@ func commands() []command {
 				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"},` +
 				`"link":{"type":"array","items":{"type":"string"},"description":"full graph ids or memory ids the entry links to"},` +
 				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"entries the new one supersedes"},` +
-				`"until":{"type":"array","items":{"type":"string"},"description":"conditions ending the entry: ` + untilForms + `"}},` +
+				`"until":{"type":"array","items":{"type":"string"},"description":"conditions ending the entry: ` + untilForms + `"},` +
+				`"when":{"type":"array","items":{"type":"string"},"description":"a trap's tool-call triggers: ` + triggerForms + `"},` +
+				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"moments a rule is owed at"},` +
+				`"proof":{"type":"array","items":{"type":"string"},"description":"tool calls settling an owed rule: ` + triggerForms + `"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
@@ -400,6 +410,15 @@ func commands() []command {
 			run: (*memory).retain,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},"level":{"type":"string",` +
 				`"enum":["standing","long","normal","short","scratch"]}},"required":["ids","level"]}`,
+		},
+		{
+			name: "ack", usage: "ack <id>... --done | --decline '<why>'",
+			description: "settle do-now items pending in this session that no tool call can prove, all or none",
+			flags:       []flagSpec{{"done", flagSwitch}, {"decline", flagText}, {"no-heat", flagSwitch}},
+			positional:  someIDs, run: (*memory).ack,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},` +
+				`"done":{"type":"boolean"},"decline":{"type":"string","description":"why the item is not done"},` +
+				`"no_heat":{"type":"boolean","description":"answer without adding heat"}},"required":["ids"]}`,
 		},
 		{
 			name: "rekind", usage: "rekind <id> rule|trap|todo|note", description: "give an entry another kind; rule only for an entry filed --from user",

@@ -43,12 +43,15 @@ const (
 	// KindState overwrites a seat's state slot and names no entry.
 	KindState  Kind = "state"
 	KindRekind Kind = "rekind"
+	// KindSettle settles a do-now item a rule owed: done by proof or ack, or
+	// declined.
+	KindSettle Kind = "settle"
 )
 
 // kinds is the segment encoding of a kind: its index here. Only ever append.
 var kinds = []Kind{
 	KindNew, KindRetire, KindSupersede, KindMerge, KindConfirm, KindRetain, KindRevive, KindRetitle, KindTag,
-	KindLink, KindUnlink, KindUntag, KindState, KindRekind,
+	KindLink, KindUnlink, KindUntag, KindState, KindRekind, KindSettle,
 }
 
 const (
