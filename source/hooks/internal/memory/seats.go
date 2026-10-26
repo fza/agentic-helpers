@@ -305,8 +305,10 @@ func (mem *memory) carryForwardHint(ctx context.Context, seatName string) string
 		relative, self)
 }
 
+// newestOwn is when the seat last filed an entry or wrote its state slot: the
+// point its replay, its nudges and its previous session's turns count from.
 func (mem *memory) newestOwn(folded *state, seatName string) time.Time {
-	var newest time.Time
+	newest := folded.states[seatName].at
 
 	for _, held := range folded.entryList() {
 		if held.seat == seatName && held.filed.After(newest) {

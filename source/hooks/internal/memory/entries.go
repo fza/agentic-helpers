@@ -15,11 +15,10 @@ import (
 )
 
 const (
-	defaultRetention = "normal"
-	defaultFrom      = "agent"
-	defaultLimit     = 10
-	rrfK             = 60
-	aidLimit         = 5 * time.Second
+	defaultFrom  = "agent"
+	defaultLimit = 10
+	rrfK         = 60
+	aidLimit     = 5 * time.Second
 )
 
 var sources = []string{"user", "agent", "tool"}
@@ -36,18 +35,16 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("%s", ErrNoSeat)
 	}
 
-	retention := cmp.Or(req.Retention, defaultRetention)
-	if !validRetention(retention) {
-		return refused("--retention takes %s, not %q", strings.Join(retentionLevels, ", "), retention)
-	}
+	kind := cmp.Or(req.Kind, kindNote)
 
 	from := cmp.Or(req.From, defaultFrom)
 	if !slices.Contains(sources, from) {
 		return refused("--from takes user, agent or tool, not %q", from)
 	}
 
-	if retention == "standing" && req.From == "" {
-		return refused("--retention standing needs --from user|agent|tool: where the grant or instruction came from")
+	why := kindRefusal(kind, from)
+	if why != "" {
+		return refused("%s", why)
 	}
 
 	folded, err := mem.load(ctx)
@@ -112,7 +109,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	filed := newPayload{
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
-		Retention: retention, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
+		Kind: kind, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
 		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
 		TextLinks: textLinks, Links: links,
 	}

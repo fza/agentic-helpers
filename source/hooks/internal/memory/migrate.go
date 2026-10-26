@@ -63,7 +63,14 @@ func (mem *memory) migrate(ctx context.Context) error {
 		}
 	}
 
-	return mem.migrateFormat2()
+	if version <= 2 {
+		err = mem.migrateFormat2()
+		if err != nil {
+			return err
+		}
+	}
+
+	return mem.migrateFormat3(ctx)
 }
 
 // migrateFormat1 turns a format-1 store, keyed by seat name, into format 2,
@@ -143,7 +150,7 @@ func (mem *memory) rewrite(ctx context.Context, events []memorylog.Event, regist
 		return err
 	}
 
-	err = mem.swapLog(building, undo)
+	err = mem.swapLog(building, "log.format-1", undo)
 	if err != nil {
 		return err
 	}
@@ -289,8 +296,8 @@ func (mem *memory) renameSeatFiles(ids map[string]string, undo *rollback) error 
 	return nil
 }
 
-func (mem *memory) swapLog(building string, undo *rollback) error {
-	retired := filepath.Join(mem.store(), "log.format-1")
+func (mem *memory) swapLog(building string, setAside string, undo *rollback) error {
+	retired := filepath.Join(mem.store(), setAside)
 
 	_, err := os.Stat(mem.logDir())
 	hadLog := err == nil
@@ -455,5 +462,5 @@ func (mem *memory) placeShelves(registry seat.Registry, shelves seat.Shelves, or
 
 	undo.add(func() { _ = os.WriteFile(seat.RegistryPath(mem.store()), original, 0o600) })
 
-	return writeFormat(mem.store(), storeFormat)
+	return writeFormat(mem.store(), 3)
 }

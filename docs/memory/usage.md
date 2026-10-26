@@ -15,12 +15,13 @@ different things, and an entry belongs in exactly one:
 | Holds | decisions, the signals behind them, why the project is the way it is | where work stands, a judgment call made without confirmation, an open question, a measured fact nothing else records, a trap that already cost time |
 | For | everyone working on the project, for as long as it stands | one job, the seat, across compactions and sessions |
 | Lives | in the repository, under version control, reviewed like code | on the machine, under `~/.claude/agentic-memory/`, outside the repository |
-| Changes | never in place: a decision is superseded, a signal closed | retired or superseded, and fading by retention (`standing` to `scratch`) |
+| Changes | never in place: a decision is superseded, a signal closed | retired or superseded, and fading at the rate its kind sets (`rule` never, `note` in two weeks) |
 | Found by | `sdd search`, `sdd show`, and the grounding gate making an agent read it | the brief, prompt recall, `search` |
 
 A memory entry about a decision points at the graph entry by its id and never restates it: two
 copies drift, and a reader acts on whichever it opened. A project without a graph files its
-decisions and its defects in memory, at `long` retention, since nothing else would keep them.
+decisions and its defects in memory, decisions as notes and defects as todos, since nothing else
+would keep them.
 
 ## Where it works
 
@@ -64,8 +65,11 @@ from the Bash tool, a tool call to the plugin's MCP server and a hook all agree,
 
 ```bash
 agentic-memory claim main
-agentic-memory new --title 'Gate ignores MCP reads' --topic gate --retention normal <<'BODY'
+agentic-memory new --title 'Gate ignores MCP reads' --topic gate --kind trap <<'BODY'
 reads are recorded only for Bash, so a search through MCP never counts
+BODY
+agentic-memory state <<'BODY'
+gate fix half done: the Bash path records reads, the MCP path not yet
 BODY
 agentic-memory search --term mcp --query 'gate blind to tool calls'
 agentic-memory supersede m-7q2k4f --by m-9xq0b1
@@ -155,10 +159,11 @@ agentic-memory claim --shelf row-7ah            # a new seat row-7ah-<n>, the lo
   prompt recall treat every entry on the shelf as the seat's own; `search --seat <s>` narrows to one
   filer. The brief of a seat on a shelf of another name opens `agentic-memory: seat rev on shelf
   row-7ah, ...`.
-- **Every seat on the shelf may retire, retain, retitle, tag and untag its entries.** A seat on another
-  shelf is refused: `<id> is on shelf <name>`.
+- **Every seat on the shelf may retire, retain, rekind, retitle, tag and untag its entries.** A seat
+  on another shelf is refused: `<id> is on shelf <name>`.
 - **The seats on a shelf are its subscribers.** A shelf mate's new entry arrives as
-  `agentic-memory: new for <seat> (<n>):`, and a retire, retain, retitle, tag or untag a shelf mate made
+  `agentic-memory: new for <seat> (<n>):`, and a retire, retain, rekind, retitle, tag or untag a shelf
+  mate made
   arrives as `agentic-memory: changed on shelf <name> (<n>):`, one line per change,
   `<id> <title>: <what> by <seat>`, both through the paths shared entries arrive by.
 
@@ -195,7 +200,8 @@ agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, a
   `0` purges inside the `release` or SessionEnd closing the last seat.
 - **What survives**: an entry filed `--for` a shelf outside the purge, or `--for all`. It stays in
   its recipients' brief and search, names its filer as `<seat> (expired)`, and every seat on a
-  shelf it was filed for may retire, retain, retitle, tag and untag it. Entries other shelves filed for the
+  shelf it was filed for may retire, retain, rekind, retitle, tag and untag it. Entries other shelves
+  filed for the
   purged one stay their filers'.
 - **`drop <shelf>`** (MCP `drop`, key `shelf`) purges a temporary shelf at once, from any process,
   and says `dropped <shelf> (<n> seats, <m> entries)`. It is refused while a seat on the shelf is in
@@ -205,11 +211,49 @@ agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, a
 ## Entries
 
 An entry has a 3-10 word title, a free body, topics the agent chooses (one namespace per project,
-merged with `merge`), a retention level setting how long it stays in view (`standing`, `long`,
-`normal`, `short`, `scratch`) and a source (`--from user|agent|tool`). The tool stamps time, seat,
-session, branch and commit, and anchors the entry to every file it names by content hash: a name of
-letters, digits and marks of any script holding a dot or a slash, where a file exists under it,
-with a trailing `:<line>` dropped.
+merged with `merge`), a kind (`--kind`, MCP `kind`) and a source (`--from user|agent|tool`). The
+tool stamps time, seat, session, branch and commit, and anchors the entry to every file it names by
+content hash: a name of letters, digits and marks of any script holding a dot or a slash, where a
+file exists under it, with a trailing `:<line>` dropped.
+
+### Kinds
+
+What an entry is says how long it matters and where the brief shows it, and the filer knows that at
+filing time:
+
+| Kind | For | Decays | In the brief |
+|---|---|---|---|
+| `rule` | a standing grant or instruction from the user | never | `rules`, capped at a third of the brief |
+| `trap` | something that already cost time and will again | half-life 90 days | `traps` |
+| `todo` | work owed later, an owner decision waiting for its capture | half-life 3 days | `todos` |
+| `note` | everything else, and the kind of an entry filed without `--kind` | half-life 14 days | `notes` |
+
+- **A rule is the user's.** `--kind rule` without `--from user` is refused:
+  `a rule is the user's grant or instruction: --kind rule needs --from user`.
+- **`rekind <id> rule|trap|todo|note`** (MCP `rekind`, keys `id` and `kind`) gives an entry another
+  kind. Every seat on the entry's shelf may, as with `retitle`; rekinding to `rule` is refused unless
+  the entry was filed `--from user`. A shelf mate's rekind arrives through
+  `agentic-memory: changed on shelf <name> (<n>):`.
+- **`retain <id>... standing|long|normal|short|scratch`** overrides the decay a kind sets. A line names
+  an override that differs from its kind's decay: `[main, note, retain long, from agent, ...]`.
+- **`--retention` is gone.** `new --retention` and the MCP key `retention` are refused, naming
+  `--kind`: `new takes no --retention: --kind rule|trap|todo|note sets the decay (MCP key kind);
+  retain <id>... <level> overrides it`.
+
+### The state slot
+
+Where a seat's work stands is not an entry. Each seat holds one state slot, overwritten by
+`agentic-memory state` (MCP `state`, key `body`) with the body on stdin, and answered
+`state of <seat> written`. The slot keeps its body, time, session, branch and commit, and holds no
+id, no heat and no topics: `search`, recall, `retire` and the live and retired counts never see it.
+The `entry_max_words` limit applies to its body, as to an entry's.
+
+The brief opens with it, after its first line, its age measured as the brief is built:
+
+    state (3h old, branch main): gate fix half done: the Bash path records reads, the MCP path not yet
+
+A state write moves the start of the post-compaction replay forward as filing does, answers the
+compaction nudge and re-arms the replay nudge.
 
 Words are counted for the body against `entry_max_words` and for the title against 3-10, and the
 similar-entry hint compares entries by their words. In scripts written without spaces (Han,
@@ -251,7 +295,8 @@ holds:
 
 The filing seat's own shelf is never a recipient. A received entry stands with the seat's own: in
 its brief, in a search without `--seat` or `--all-seats`, and in prompt recall at the own seat's
-bar. Ownership stays the filing shelf's: only its seats retire, retain, retitle, tag or untag the entry,
+bar. Ownership stays the filing shelf's: only its seats retire, retain, rekind, retitle, tag or untag
+the entry,
 while any seat may supersede or confirm it. An entry line names its recipients after the filer:
 `[main → all, ...]`, `[main → idea, row-7ah, ...]`, or `[main → infra followers, ...]` where only a
 follow brings it.
@@ -356,21 +401,33 @@ first page warms its top hits.
 
 ## What comes back
 
-A brief at every claim and compaction (standing entries, the seat's live entries by heat, what other
-seats changed and filed, the topics), the turns since the seat's newest entry, and up to three
-entries a prompt touches that stand out from the rest. Near compaction a nudge asks the seat to file
-what the summary would lose; a session's last turns survive its end for the next claim. There is no
-handoff to write.
+A brief at every claim and compaction, the turns since the seat's newest entry or state write, and up
+to three entries a prompt touches that stand out from the rest. A session's last turns survive its
+end for the next claim. There is no handoff to write.
 
-The turns since the seat's newest entry come back after a compaction in at most five pieces of
-9,000 characters, the newest kept. Once they would no longer fit, the next prompt asks the seat to
-file, once per newest entry:
+The brief runs, in order: its first line, the state slot, `changed by other seats:`,
+`rules (from the user, verify before relying):`, `traps:`, `todos:`, `notes:`, each kind's live
+entries by heat, `new from other seats:`, and the topics. It stays within 9,000 characters; rules
+take at most a third of that, and past it the brief says
+`rules exceed a third of the brief: <n>; retire or rekind some`.
 
-    Turns since your newest entry no longer fit the post-compaction replay. File where work stands: findings, open questions, judgment calls. agentic-memory new --title '<3-10 words>' --topic <name>... < body
+Near compaction a nudge asks for a state write first:
 
-Filing any entry moves the replay's start forward and re-arms the nudge, which counts toward neither
-the compaction nudge's two nor the `Stop` backstop. A replay that still cuts turns opens with the
-count and where the rest is:
+    Context near compaction. Write where work stands first: agentic-memory state < body. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
+
+A state write or any entry answers it. Unanswered twice, `Stop` blocks with the backstop:
+`Memory overdue, two nudges unanswered: write where work stands with agentic-memory state now, and
+file findings with agentic-memory new, before ending the turn.`
+
+The turns since the seat's newest entry or state write come back after a compaction in at most five
+pieces of 9,000 characters, the newest kept. Once they would no longer fit, the next prompt asks
+once per newest entry or state write:
+
+    Turns since your newest entry or state write no longer fit the post-compaction replay. Write where work stands first: agentic-memory state < body. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
+
+A state write or any entry moves the replay's start forward and re-arms the nudge, which counts
+toward neither the compaction nudge's two nor the `Stop` backstop. A replay that still cuts turns
+opens with the count and where the rest is:
 
     agentic-memory: the turns since seat <name>'s newest entry, in <n> pieces, newest last; <k> older pieces cut, the full transcript at <path>:
 

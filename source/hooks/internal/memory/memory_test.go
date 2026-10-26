@@ -191,7 +191,7 @@ func TestNewStampsAndAnchors(t *testing.T) {
 	out := h.must("the gate reads internal/gate/gate.go:12 only for Bash",
 		"new", "--title", "Gate ignores MCP reads", "--topic", "Gate", "--about", "README.md")
 
-	if !regexp.MustCompile(`^filed m-[a-z0-9]{6} Gate ignores MCP reads  \[main, normal, from agent, ` +
+	if !regexp.MustCompile(`^filed m-[a-z0-9]{6} Gate ignores MCP reads  \[main, note, from agent, ` +
 		`2026-10-25 \d\d:\d\d [A-Z0-9+-]+, 15af1a8c\]`).MatchString(out) {
 		t.Errorf("filing should print the stamped line: %s", out)
 	}
@@ -226,18 +226,24 @@ func TestNewTakesAnyBodyAndNotes(t *testing.T) {
 	}
 }
 
-func TestStandingNeedsASource(t *testing.T) {
+func TestARuleNeedsTheUser(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	got := h.run("commit when asked", "new", "--title", "Owner allows commits on main", "--topic", "grants",
-		"--retention", "standing")
-	if got.code != 1 || !strings.Contains(got.err, "--from") {
-		t.Errorf("a standing entry should need --from, got %d %q", got.code, got.err)
+	for _, from := range []string{"", "agent", "tool"} {
+		args := []string{"new", "--title", "Owner allows commits on main", "--topic", "grants", "--kind", "rule"}
+		if from != "" {
+			args = append(args, "--from", from)
+		}
+
+		got := h.run("commit when asked", args...)
+		if got.code != 1 || !strings.Contains(got.err, "--kind rule needs --from user") {
+			t.Errorf("a rule not filed from the user should be refused, from %q got %d %q", from, got.code, got.err)
+		}
 	}
 
 	h.must("commit when asked", "new", "--title", "Owner allows commits on main", "--topic", "grants",
-		"--retention", "standing", "--from", "user")
+		"--kind", "rule", "--from", "user")
 }
 
 func TestTailSealsPast64KB(t *testing.T) {
@@ -375,7 +381,7 @@ func TestStampsCarryTheirZone(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	if !regexp.MustCompile(`\[main, normal, from agent, 2026-10-2[45] \d\d:\d\d [A-Za-z0-9+-]+,`).MatchString(
+	if !regexp.MustCompile(`\[main, note, from agent, 2026-10-2[45] \d\d:\d\d [A-Za-z0-9+-]+,`).MatchString(
 		h.must("body", "new", "--title", "Gate reads Bash only today", "--topic", "gate")) {
 		t.Error("a stamp should name its zone, so an hour the clocks repeat reads unambiguously")
 	}
@@ -766,7 +772,7 @@ func TestBrief(t *testing.T) {
 
 	for index := range 40 {
 		h.must("grant text", "new", "--title", fmt.Sprintf("Standing grant number %d for main", index),
-			"--topic", "grants", "--retention", "standing", "--from", "user")
+			"--topic", "grants", "--kind", "rule", "--from", "user")
 	}
 
 	retired := h.file("This entry is retired now", "gone")
@@ -778,15 +784,15 @@ func TestBrief(t *testing.T) {
 		t.Errorf("the brief should stay within its budget, got %d characters", len(brief))
 	}
 
-	standing := strings.Index(brief, "standing (user-given grants and instructions, verify before relying):")
-	working := strings.Index(brief, "working set:")
+	rules := strings.Index(brief, "rules (from the user, verify before relying):")
+	notes := strings.Index(brief, "notes:")
 
-	if standing < 0 || working < 0 || standing > working {
-		t.Errorf("standing entries should open the brief, ahead of the working set:\n%s", brief)
+	if rules < 0 || notes < 0 || rules > notes {
+		t.Errorf("rules should come ahead of the notes:\n%s", brief)
 	}
 
-	if !strings.Contains(brief, "standing entries exceed a third of the brief: 40; demote some") {
-		t.Errorf("standing entries past a third should be named:\n%s", brief)
+	if !strings.Contains(brief, "rules exceed a third of the brief: 40; retire or rekind some") {
+		t.Errorf("rules past a third should be named:\n%s", brief)
 	}
 
 	if strings.Contains(brief, "This entry is retired") {
@@ -794,7 +800,7 @@ func TestBrief(t *testing.T) {
 	}
 
 	if !strings.Contains(brief, "Working finding stays in view") {
-		t.Error("the working set should follow the standing entries")
+		t.Error("the notes should follow the rules")
 	}
 }
 
@@ -1673,9 +1679,10 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 	test.AppendTurns(t, path, h.clock.Now().Add(2*time.Hour), 40, 1000)
 
 	first := h.must(prompt, "prompt")
-	if !strings.Contains(first, "Turns since your newest entry no longer fit the post-compaction replay. "+
-		"File where work stands: findings, open questions, judgment calls. "+
-		"agentic-memory new --title '<3-10 words>' --topic <name>... < body") {
+	if !strings.Contains(first, "Turns since your newest entry or state write no longer fit the post-compaction replay. "+
+		"Write where work stands first: agentic-memory state < body. "+
+		"File an entry only for a finding, an open question or a judgment call: "+
+		"agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body") {
 		t.Errorf("turns outgrowing the replay should nudge the seat to file:\n%s", first)
 	}
 

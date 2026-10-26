@@ -74,7 +74,7 @@ func TestAClaimMintsASeatID(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":4`) {
 		t.Errorf("the claim creating a store should write it at the current format, got %s", format)
 	}
 
@@ -95,7 +95,7 @@ func TestAClaimMintsASeatID(t *testing.T) {
 		}
 	}
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":4`) {
 		t.Errorf("a fresh store should be written at the current format, got %s", format)
 	}
 }
@@ -165,7 +165,7 @@ func TestAFormat1StoreMigrates(t *testing.T) {
 
 	h.must("", "topics")
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":4`) {
 		t.Fatalf("the store should be at the current format after one call, got %s", format)
 	}
 
@@ -292,12 +292,12 @@ func TestANewerStoreIsRefused(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.file("Gate reads Bash only today", "finding")
-	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format": 4}`)
+	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format": 5}`)
 
 	before := test.Tree(t, h.store())
 
 	got := h.run("", "search", "--term", "Gate")
-	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this store has format 4; this release reads up to 3") {
+	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this store has format 5; this release reads up to 4") {
 		t.Errorf("a store of a newer format should be refused naming both, got %d %q", got.code, got.err)
 	}
 
@@ -350,5 +350,119 @@ func TestAMigrationKeepsSeatsTheRegistryAlreadyHolds(t *testing.T) {
 	registry, _ := os.ReadFile(filepath.Join(h.store(), "seats.json"))
 	if strings.Count(string(registry), `"name"`) != 1 || seatID(t, h.store(), "main") != id {
 		t.Errorf("a migration should mint nothing for a seat the registry holds or an id an event carries, got %s", registry)
+	}
+}
+
+// format3Store is a store of the format before entry kinds: the seat main
+// claimed, and entries filed with a retention level and no kind.
+func format3Store(t *testing.T, h *harness) (string, string, string) {
+	t.Helper()
+
+	h.must("", "claim", "main")
+	main := seatID(t, h.store(), "main")
+	at := h.clock.Now()
+
+	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = log.Append(context.Background(),
+		memorylog.Event{Kind: memorylog.KindNew, Entry: "m-rule01", Time: at, Seat: main,
+			Payload: []byte(`{"title":"Owner allows commits on main","body":"b","topics":["grants"],"retention":"standing","from":"user"}`)},
+		memorylog.Event{Kind: memorylog.KindNew, Entry: "m-long01", Time: at.Add(time.Second), Seat: main,
+			Payload: []byte(`{"title":"Gate finding kept long","body":"b","topics":["gate"],"retention":"long","from":"agent"}`)},
+		memorylog.Event{Kind: memorylog.KindNew, Entry: "m-norm01", Time: at.Add(2 * time.Second), Seat: main,
+			Payload: []byte(`{"title":"Gate finding kept normal","body":"b","topics":["gate"],"retention":"normal","from":"agent"}`)},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format":3}`)
+
+	return "m-rule01", "m-long01", "m-norm01"
+}
+
+func TestAFormat3StoreMigratesToKinds(t *testing.T) {
+	h := newHarness(t)
+	rule, long, normal := format3Store(t, h)
+	original := test.Tree(t, filepath.Join(h.store(), "log"))
+
+	out := h.must("", "search", "--term", "Owner|Gate finding")
+
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":4`) {
+		t.Fatalf("the store should be at the current format after one call, got %s", format)
+	}
+
+	for _, want := range []string{
+		rule + " Owner allows commits on main  [main, rule, from user, ",
+		long + " Gate finding kept long  [main, note, retain long, from agent, ",
+		normal + " Gate finding kept normal  [main, note, from agent, ",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("a standing entry should read as a rule and every other as a note keeping its retention, missing %q in:\n%s",
+				want, out)
+		}
+	}
+
+	backups, _ := filepath.Glob(filepath.Join(h.store(), "backup", "format-3-*"))
+	if len(backups) != 1 {
+		t.Fatalf("one backup should hold the log as it was, got %v", backups)
+	}
+
+	if backed := test.Tree(t, filepath.Join(backups[0], "log")); backed != original {
+		t.Errorf("the backup should hold the original log byte for byte, got:\n%s\nfrom:\n%s", backed, original)
+	}
+
+	if brief := h.must("", "brief"); strings.Index(brief, rule) > strings.Index(brief, "notes:") {
+		t.Errorf("the migrated rule should stand in the rules section:\n%s", brief)
+	}
+}
+
+func TestTwoCallsMigrateAFormat3StoreOnce(t *testing.T) {
+	h := newHarness(t)
+	format3Store(t, h)
+
+	var group sync.WaitGroup
+
+	for range 2 {
+		group.Go(func() { h.run("", "topics") })
+	}
+
+	group.Wait()
+
+	backups, _ := filepath.Glob(filepath.Join(h.store(), "backup", "format-3-*"))
+	if len(backups) != 1 {
+		t.Errorf("two calls on one unmigrated store should migrate it once, under the store lock, got %d backups", len(backups))
+	}
+
+	if out := h.must("", "search", "--term", "Gate finding"); strings.Count(out, "[main, note, ") != 2 {
+		t.Errorf("every entry should be migrated once:\n%s", out)
+	}
+}
+
+func TestAFailedKindMigrationLeavesTheLogAsItWas(t *testing.T) {
+	h := newHarness(t)
+	format3Store(t, h)
+	before := test.Tree(t, filepath.Join(h.store(), "log"))
+
+	blocker := filepath.Join(h.store(), "log.format-3")
+	test.WriteFile(t, filepath.Join(blocker, "keeps the old log from being set aside"), "")
+
+	if got := h.run("", "topics"); !strings.Contains(got.err, "migrating the store failed:") {
+		t.Errorf("a failed migration should say so, got %q", got.err)
+	}
+
+	if after := test.Tree(t, filepath.Join(h.store(), "log")); after != before {
+		t.Errorf("a failed migration should leave the log byte-identical, got:\n%s\nbefore:\n%s", after, before)
+	}
+
+	if test.Exists(t, filepath.Join(h.store(), "log.migrating")) {
+		t.Error("a failed migration should leave no half-built log")
+	}
+
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
+		t.Errorf("a failed migration should leave the store at its format, got %s", format)
 	}
 }

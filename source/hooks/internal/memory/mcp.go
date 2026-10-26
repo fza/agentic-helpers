@@ -102,6 +102,10 @@ func exactKeys(held command, arguments json.RawMessage) error {
 	var unknown []string
 
 	for key := range given {
+		if instead, gone := held.replaced[key]; gone && !slices.Contains(listed, key) {
+			return fmt.Errorf("%s takes no key %q: %s", held.name, key, instead)
+		}
+
 		if !slices.Contains(listed, key) {
 			unknown = append(unknown, fmt.Sprintf("%q", key))
 		}

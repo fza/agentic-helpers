@@ -54,8 +54,9 @@ into place, and a seat and a shelf minted together are minted under one hold of 
 
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 3}`; a store without one is format 1, where
-events and seat files name the seat, and format 2 keeps seats by id without shelves. The first call
+`format.json` holds the store's format, `{"format": 4}`; a store without one is format 1, where
+events and seat files name the seat, format 2 keeps seats by id without shelves, and format 3 files
+entries with a retention level and no kind. The first call
 that meets an older store migrates it a step at a time, holding the store lock from the first step
 to the last, so another call waits and then reads the migrated store. From format 1:
 
@@ -71,12 +72,24 @@ From format 2, the log untouched:
 2. give every seat a shelf of its own under its name, its follows moved there;
 3. write `shelves.json`, then `seats.json`, then `format.json`.
 
+From format 3:
+
+1. copy `log/` to `backup/format-3-<UTC stamp>/`;
+2. run every migration pass over the log's events: the kind pass makes every entry whose decay in
+   force (its filed retention as later `retain` events left it) is `standing` a `rule`, keeping its
+   source, and every other a `note`, keeping its filed retention as a retain override, so no entry
+   moves in any brief;
+3. build the migrated log as `log.migrating`, set the old one aside as `log.format-3`, swap the new one
+   in, write `format.json`, and remove `log.format-3`. A log no pass changed stays as it is, and only
+   `format.json` is written.
+
 A failure before `format.json` undoes every step, says
 `agentic-memory: migrating the store failed: <cause>; the store is unchanged and the next call tries again`
-once per session, and the call runs on the format-1 store. A store of a newer format than the release
-knows is refused: `agentic-memory: this store has format <n>; this release reads up to <m>`, with
-hooks silent and nothing written. A store created by this release starts at the current format. The
-log's manifest no longer carries a format number; one that does still reads.
+once per session, and the call runs on the store at the format it had. A store of a newer format than
+the release knows is refused: `agentic-memory: this store has format <n>; this release reads up to
+<m>`, with hooks silent and nothing written; a binary of an earlier release refuses a format-4 store
+that way. A store created by this release starts at the current format. The log's manifest no longer
+carries a format number; one that does still reads.
 
 `<project>` is the `repo_id` the project's `.sdd/config.yaml` declares (the graph repository's,
 where `project_dir` names one, so a code repository and its graph repository share one store), else `local/` and a hash of
@@ -113,12 +126,18 @@ and writes all its events in one append under the log's lock, or none: a refused
 log byte-identical. The tail seals past 64 KiB into an immutable segment, named for
 its content hash, and eight segments merge into one. A merge bounds what history it keeps: every
 event older than 14 days, the revive window, folds into the shortest run of existing event kinds
-that rebuilds its entry (one `new` row carrying the title, topics and retention as they stood, the
-latest `confirm`, and the `retire` or `supersede` still standing), so the log grows with the entries
-it holds rather than with every change ever made, and a binary of an earlier release still reads it.
-Topic merges and every younger event stay as they are. An `untag` row is a kind binaries before it
-do not read; it carries every name the entry was filed or tagged with that reads as a removed topic,
-so folding it needs no topic merge, and past the horizon it folds into the `new` row like any other. The same merge drops the body of an entry
+that rebuilds its entry (one `new` row carrying the title, topics, kind and retain override as they
+stood, the latest `confirm`, and the `retire` or `supersede` still standing), so the log grows with
+the entries it holds rather than with every change ever made. Topic merges and every younger event
+stay as they are. An `untag` row carries every name the entry was filed or tagged with that reads as
+a removed topic, so folding it needs no topic merge, and past the horizon it folds into the `new`
+row like any other.
+
+A `state` row names a seat and no entry, and carries the seat's state slot: `body`, `session`,
+`branch`, `commit`, its time the row's. The newest `state` row of a seat is its slot. A merge keeps
+only each seat's newest `state` row, and a purge drops the `state` rows of the seats it purges. The
+`untag`, `state` and `rekind` rows are kinds binaries before format 4 do not read; the format bump
+keeps those binaries off the store. The same merge drops the body of an entry
 superseded more than 14 days earlier, or retired more than `retired_body_days` earlier; the entry
 stays in search, flagged, and `revive` refuses it.
 
@@ -178,8 +197,8 @@ Every hook exits at once in a project without a store.
 | Event | What memory does |
 |---|---|
 | SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
-| SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
-| UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry would no longer fit the pieces, once per newest entry; the ladder records the entry it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
+| SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
+| UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
 | PostToolUse (`tool`) | tells the seat about arrivals as `additionalContext`; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls and nothing more |
 | Stop (`stop`) | blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |

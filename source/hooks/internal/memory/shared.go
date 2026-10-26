@@ -287,6 +287,7 @@ func (mem *memory) arrivals(folded *state, seatName string) []*entry {
 // entries, and so the ones its shelf mates are told of.
 var shelfEdits = []memorylog.Kind{
 	memorylog.KindRetire, memorylog.KindRetain, memorylog.KindRetitle, memorylog.KindTag, memorylog.KindUntag,
+	memorylog.KindRekind,
 }
 
 type shelfChange struct {

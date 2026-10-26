@@ -36,7 +36,7 @@ type request struct {
 	Body           string   `json:"body,omitempty"`
 	Topics         []string `json:"topic,omitempty"`
 	Untagged       []string `json:"topics,omitempty"`
-	Retention      string   `json:"retention,omitempty"`
+	Kind           string   `json:"kind,omitempty"`
 	From           string   `json:"from,omitempty"`
 	About          []string `json:"about,omitempty"`
 	Terms          []string `json:"term,omitempty"`
@@ -122,6 +122,9 @@ type command struct {
 	positional  func(req *request) error
 	schema      string
 	run         func(mem *memory, ctx context.Context, req request) result
+	// replaced names, per flag a command no longer takes, what took its place,
+	// so a call passing it hears where to go, as a flag and as an MCP key.
+	replaced map[string]string
 }
 
 func commandByName(name string) (command, bool) {
@@ -163,6 +166,10 @@ func (held command) parse(args []string, stdin io.Reader) (request, error) {
 		name, value, inline := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
 
 		spec, found := held.flag(name)
+		if instead, gone := held.replaced[name]; !found && gone {
+			return request{}, fmt.Errorf("%s takes no --%s: %s", held.name, name, instead)
+		}
+
 		if !found {
 			return request{}, fmt.Errorf("%s takes no --%s; usage: %s %s", held.name, name, self, held.usage)
 		}
@@ -217,7 +224,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	req.given[spec.name] = true
 
 	texts := map[string]*string{
-		"title": &req.Title, "retention": &req.Retention, "from": &req.From, "query": &req.Query,
+		"title": &req.Title, "kind": &req.Kind, "from": &req.From, "query": &req.Query,
 		"by": &req.By, "because": &req.Because, "session": &req.Session, "shelf": &req.Shelf,
 		"lifetime": &req.Lifetime,
 	}
@@ -314,18 +321,19 @@ func commands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
-			description: "file an entry; body on stdin; --for shares it with other seats",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
+			description: "file an entry; body on stdin; --kind sets its decay and brief section (note unless given); --for shares it with other seats",
 			flags: []flagSpec{
-				{"title", flagText}, {"topic", flagList}, {"retention", flagText}, {"from", flagText},
+				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
 				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList},
 			},
 			readsBody: true,
+			replaced:  map[string]string{"retention": retentionReplaced},
 			schema: `{"type":"object","properties":{` +
 				`"title":{"type":"string","description":"3-10 words"},` +
 				`"body":{"type":"string"},` +
 				`"topic":{"type":"array","items":{"type":"string"}},` +
-				`"retention":{"type":"string","enum":["standing","long","normal","short","scratch"]},` +
+				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"rule needs from user; note unless given"},` +
 				`"from":{"type":"string","enum":["user","agent","tool"]},` +
 				`"about":{"type":"array","items":{"type":"string"}},` +
 				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"},` +
@@ -386,6 +394,18 @@ func commands() []command {
 			run: (*memory).retain,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":` + idSchema + `},"level":{"type":"string",` +
 				`"enum":["standing","long","normal","short","scratch"]}},"required":["ids","level"]}`,
+		},
+		{
+			name: "rekind", usage: "rekind <id> rule|trap|todo|note", description: "give an entry another kind; rule only for an entry filed --from user",
+			positional: func(req *request) error { return exactly(2, &req.ID, &req.Kind)(req) },
+			run:        (*memory).rekind,
+			schema: `{"type":"object","properties":{"id":` + idSchema +
+				`,"kind":{"type":"string","enum":["rule","trap","todo","note"]}},"required":["id","kind"]}`,
+		},
+		{
+			name: "state", usage: "state", description: "overwrite this seat's state slot, where its work stands; body on stdin; the brief opens with it",
+			readsBody: true, run: (*memory).writeState,
+			schema: `{"type":"object","properties":{"body":{"type":"string"}},"required":["body"]}`,
 		},
 		{
 			name: "retire", usage: "retire <id>... [--because '<why>']", description: "keep entries in results, flagged, out of the brief, all or none; --because says why they ended",

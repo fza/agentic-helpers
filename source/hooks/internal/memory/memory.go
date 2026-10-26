@@ -225,7 +225,7 @@ func (mem *memory) openLog() (*memorylog.Log, error) {
 func (mem *memory) load(ctx context.Context) (*state, error) {
 	_, err := os.Stat(mem.logDir())
 	if errors.Is(err, fs.ErrNotExist) {
-		return &state{entries: map[string]*entry{}}, nil
+		return newState(), nil
 	}
 
 	log, err := mem.openLog()

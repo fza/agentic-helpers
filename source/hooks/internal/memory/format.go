@@ -13,10 +13,12 @@ import (
 )
 
 // storeFormat is the store's shape this release reads and writes: seats keyed
-// by id through the registry, each filing onto a shelf of shelves.json. A store
-// without format.json is format 1, keyed by seat name; format 2 has no shelves.
+// by id through the registry, each filing onto a shelf of shelves.json, every
+// entry filed with a kind, and state rows in the log. A store without
+// format.json is format 1, keyed by seat name; format 2 has no shelves; format
+// 3 files entries with a retention level and no kind.
 const (
-	storeFormat = 3
+	storeFormat = 4
 	formatName  = "format.json"
 )
 

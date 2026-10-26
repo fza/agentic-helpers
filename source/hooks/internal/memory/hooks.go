@@ -43,11 +43,16 @@ const (
 	waitDeadline             = 30 * time.Minute
 )
 
-const nudgeText = "Context near compaction. File what the summary would lose: findings, open questions, " +
-	"judgment calls, where work stands. " + self + " new --title '<3-10 words>' --topic <name>... < body"
+// stateFirst is what both nudges ask for: where work stands goes into the
+// state slot, and an entry is filed only for what outlives the moment.
+const stateFirst = "Write where work stands first: " + self + " state < body. " +
+	"File an entry only for a finding, an open question or a judgment call: " +
+	self + " new --kind <kind> --title '<3-10 words>' --topic <name>... < body"
 
-const backstopText = "Memory overdue, two nudges unanswered: file what the summary would lose now, " +
-	"with " + self + " new, before ending the turn."
+const nudgeText = "Context near compaction. " + stateFirst
+
+const backstopText = "Memory overdue, two nudges unanswered: write where work stands with " + self +
+	" state now, and file findings with " + self + " new, before ending the turn."
 
 type hookEvent func(mem *memory, ctx context.Context, args []string) int
 
@@ -245,9 +250,8 @@ type ladder struct {
 	ReplayCheckedSize int64     `json:"replay_checked_size"`
 }
 
-const replayNudgeText = "Turns since your newest entry no longer fit the post-compaction replay. " +
-	"File where work stands: findings, open questions, judgment calls. " +
-	"agentic-memory new --title '<3-10 words>' --topic <name>... < body"
+const replayNudgeText = "Turns since your newest entry or state write no longer fit the post-compaction replay. " +
+	stateFirst
 
 // replayNudge asks the seat to file once its turns since its newest entry
 // would no longer fit the replay a compaction brings back, once per newest

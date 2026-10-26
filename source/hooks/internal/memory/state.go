@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -26,10 +27,12 @@ type anchor struct {
 }
 
 type newPayload struct {
-	Title     string      `json:"title"`
-	Body      string      `json:"body"`
-	Topics    []string    `json:"topics"`
-	Retention string      `json:"retention"`
+	Title  string   `json:"title"`
+	Body   string   `json:"body"`
+	Topics []string `json:"topics"`
+	Kind   string   `json:"kind,omitempty"`
+	// Retention is a retain override of the decay the kind sets, if any.
+	Retention string      `json:"retention,omitempty"`
 	From      string      `json:"from"`
 	Session   string      `json:"session"`
 	Commit    string      `json:"commit"`
@@ -97,13 +100,17 @@ type entry struct {
 	id   string
 	seat string
 	// seatKey is the filing seat's key in the store, which a shelf is found by.
-	seatKey   string
-	session   string
-	filed     time.Time
-	title     string
-	body      string
-	topics    []string
+	seatKey string
+	session string
+	filed   time.Time
+	title   string
+	body    string
+	topics  []string
+	kind    string
+	// retention is the decay in force: the override where a retain set one,
+	// else the kind's.
 	retention string
+	override  string
 	from      string
 	commit    string
 	branch    string
@@ -185,12 +192,17 @@ type topicMerge struct {
 	at   time.Time
 }
 
-// state is the log folded: every entry with its current status, and every
-// topic merge, oldest first.
+// state is the log folded: every entry with its current status, every topic
+// merge, oldest first, and each seat's state slot by seat name.
 type state struct {
 	entries map[string]*entry
 	order   []string
 	merges  []topicMerge
+	states  map[string]stateSlot
+}
+
+func newState() *state {
+	return &state{entries: map[string]*entry{}, states: map[string]stateSlot{}}
 }
 
 func normalTopic(topic string) string {
@@ -244,7 +256,7 @@ func (folded *state) entryList() []*entry {
 // fold reads the log into entries, each row's seat key turned into the name
 // the seat has now.
 func fold(snapshot *memorylog.Snapshot, seatName func(key string) string) (*state, error) {
-	folded := &state{entries: map[string]*entry{}}
+	folded := newState()
 
 	for index, row := range snapshot.Rows() {
 		key := row.Seat
@@ -284,6 +296,25 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 		return nil
 	}
 
+	if row.Kind == memorylog.KindState {
+		var slot stateSlot
+
+		err := json.Unmarshal(payload, &slot.statePayload)
+		if err != nil {
+			return err
+		}
+
+		slot.at = row.Time
+
+		if folded.states == nil {
+			folded.states = map[string]stateSlot{}
+		}
+
+		folded.states[row.Seat] = slot
+
+		return nil
+	}
+
 	if row.Kind == memorylog.KindNew {
 		var filed newPayload
 
@@ -292,9 +323,12 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 			return err
 		}
 
+		kind := cmp.Or(filed.Kind, kindNote)
+
 		folded.entries[row.Entry] = &entry{
 			id: row.Entry, seat: row.Seat, session: filed.Session, filed: row.Time, title: filed.Title,
-			body: filed.Body, topics: filed.Topics, retention: filed.Retention, from: filed.From,
+			body: filed.Body, topics: filed.Topics, kind: kind, override: filed.Retention,
+			retention: cmp.Or(filed.Retention, levelOf(kind)), from: filed.From,
 			commit: filed.Commit, branch: filed.Branch, anchors: filed.Anchors, dropped: filed.Dropped,
 			status: statusLive,
 		}
@@ -413,8 +447,19 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 			return err
 		}
 
-		held.retention = retained.Level
+		held.retention, held.override = retained.Level, retained.Level
 		note("retention set to " + retained.Level)
+	case memorylog.KindRekind:
+		var rekinded rekindPayload
+
+		err := json.Unmarshal(payload, &rekinded)
+		if err != nil {
+			return err
+		}
+
+		held.kind = rekinded.Kind
+		held.retention = cmp.Or(held.override, levelOf(held.kind))
+		note("rekinded to " + rekinded.Kind)
 	case memorylog.KindRetitle:
 		var retitled retitlePayload
 
@@ -484,20 +529,22 @@ type horizonRun struct {
 // mergePolicy decides what a merge keeps. Each entry's leading run of events
 // older than supersedeKeep, the revive window, is folded into the shortest run
 // of existing kinds rebuilding the entry at that horizon: its new row carrying
-// the title, topics and retention the run left, its latest confirm, and the
-// retires and supersedes a revive can still step back over. No kind is added,
-// so a binary of an earlier release reads the merged segment. Topic merges and
-// every event past the horizon are kept as they are. The body of an entry
-// superseded longer ago than supersedeKeep, or retired longer ago than
-// retiredKeep, is dropped: the one place a body ever is.
+// the title, topics, kind and retain override the run left, its latest
+// confirm, and the retires and supersedes a revive can still step back over.
+// No kind is added, so a binary of the same format reads the merged segment.
+// Topic merges and every event past the horizon are kept as they are, and of
+// the state rows only each seat's newest. The body of an entry superseded
+// longer ago than supersedeKeep, or retired longer ago than retiredKeep, is
+// dropped: the one place a body ever is.
 func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 	return func(rows []memorylog.Row, payload func(int) ([]byte, error)) ([]memorylog.Event, error) {
 		horizon := now.Add(-supersedeKeep)
-		folded := &state{entries: map[string]*entry{}}
-		atHorizon := &state{entries: map[string]*entry{}}
+		folded := newState()
+		atHorizon := newState()
 		runs := map[string]*horizonRun{}
 		payloads := make([][]byte, len(rows))
 		inRun := make([]bool, len(rows))
+		newestState := map[string]int{}
 
 		for index, row := range rows {
 			raw, err := payload(index)
@@ -510,6 +557,12 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 			err = folded.apply(row, raw)
 			if err != nil {
 				return nil, err
+			}
+
+			if row.Kind == memorylog.KindState {
+				newestState[row.Seat] = index
+
+				continue
 			}
 
 			if row.Kind == memorylog.KindMerge {
@@ -557,6 +610,10 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 
 		for index, row := range rows {
 			if inRun[index] && row.Kind != memorylog.KindNew {
+				continue
+			}
+
+			if row.Kind == memorylog.KindState && newestState[row.Seat] != index {
 				continue
 			}
 
@@ -647,7 +704,8 @@ func (run *horizonRun) recordLink(kind memorylog.Kind, target string, index int)
 }
 
 // filedAtMerge is the payload a merge keeps for an entry's new row: the title,
-// topics and retention its folded run left, and no body once that is due to go.
+// topics, kind and retain override its folded run left, and no body once that
+// is due to go.
 func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, retiredKeep time.Duration) ([]byte, error) {
 	drop := bodyDue(final, now, retiredKeep)
 	if run == nil && !drop {
@@ -664,7 +722,8 @@ func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, reti
 	if run != nil {
 		filed.Title = run.held.title
 		filed.Topics = run.held.topics
-		filed.Retention = run.held.retention
+		filed.Kind = run.held.kind
+		filed.Retention = run.held.override
 	}
 
 	// A link from the text holds as long as the text does.

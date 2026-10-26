@@ -16,14 +16,20 @@ func stamp(at time.Time) string {
 }
 
 // line is how an entry shows in every list: id, title, the bracket naming seat,
-// retention, source, filing time and commit, then its flags.
+// kind, a retain override that differs from the kind's decay, source, filing
+// time and commit, then its flags.
 func line(here tree, held *entry) string {
 	filer := held.seat
 	if held.recipients != "" {
 		filer += " → " + held.recipients
 	}
 
-	parts := []string{filer, held.retention, "from " + held.from, stamp(held.filed)}
+	parts := []string{filer, held.kind}
+	if retained := held.retainedOverride(); retained != "" {
+		parts = append(parts, "retain "+retained)
+	}
+
+	parts = append(parts, "from "+held.from, stamp(held.filed))
 	if held.commit != "" {
 		parts = append(parts, held.commit)
 	}

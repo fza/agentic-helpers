@@ -24,7 +24,7 @@ what should still hold in a month and for everyone working on the project: decis
 behind them, and why. It lives in the repository, is reviewed like code, and never changes an entry
 once written. agentic-memory holds what one job needs to pick up where it left off: where work
 stands, a judgment call made without confirmation, a trap that already cost time. It lives on the
-machine outside the repository, fades by each entry's retention, and survives a compaction or a new
+machine outside the repository, fades by each entry's kind, and survives a compaction or a new
 session. A memory entry points at a graph entry by id; it never copies a decision.
 
 Every piece installs once for the whole machine and stays silent where it has nothing to work on.

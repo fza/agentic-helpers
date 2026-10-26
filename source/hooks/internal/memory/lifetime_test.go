@@ -232,10 +232,18 @@ func TestRetentionZeroPurgesAtTheLastClose(t *testing.T) {
 	}
 
 	h.must("", "claim", "scratch", "--lifetime", "0")
+	scratch := seatID(t, h.store(), "scratch")
+	h.must("where the scratch work stands", "state")
 	h.must("", "release")
 
 	if _, found := mustShelf(h, "scratch"); found {
 		t.Error("retention 0 should purge the shelf as its last seat is released")
+	}
+
+	for _, row := range storeEvents(t, h) {
+		if row.Seat == scratch {
+			t.Error("a purge should drop the state rows of the seats it purges")
+		}
 	}
 }
 

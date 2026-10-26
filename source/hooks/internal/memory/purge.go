@@ -167,7 +167,7 @@ func (mem *memory) purge(ctx context.Context, shelfIDs []string) (int, int, erro
 		}
 	}
 
-	named, err := mem.rewriteWithout(ctx, dropped)
+	named, err := mem.rewriteWithout(ctx, dropped, seats)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -209,9 +209,10 @@ func (mem *memory) purge(ctx context.Context, shelfIDs []string) (int, int, erro
 	return len(seats), len(dropped), nil
 }
 
-// rewriteWithout rewrites the log without every row of the dropped entries,
-// through the merge policy, and says which seat keys the rows left name.
-func (mem *memory) rewriteWithout(ctx context.Context, dropped map[string]bool) (map[string]bool, error) {
+// rewriteWithout rewrites the log without every row of the dropped entries and
+// the state rows of the gone seats, through the merge policy, and says which
+// seat keys the rows left name.
+func (mem *memory) rewriteWithout(ctx context.Context, dropped map[string]bool, gone []string) (map[string]bool, error) {
 	named := map[string]bool{}
 
 	_, err := os.Stat(mem.logDir())
@@ -224,7 +225,7 @@ func (mem *memory) rewriteWithout(ctx context.Context, dropped map[string]bool) 
 		return nil, err
 	}
 
-	if len(dropped) > 0 {
+	if len(dropped) > 0 || len(gone) > 0 {
 		base := mergePolicy(mem.now(), mem.retiredKeep())
 
 		err = log.Rewrite(ctx, func(rows []memorylog.Row, payload func(int) ([]byte, error)) ([]memorylog.Event, error) {
@@ -233,7 +234,11 @@ func (mem *memory) rewriteWithout(ctx context.Context, dropped map[string]bool) 
 			var origin []int
 
 			for index, row := range rows {
-				if row.Kind != memorylog.KindMerge && dropped[row.Entry] {
+				if row.Kind == memorylog.KindState && slices.Contains(gone, row.Seat) {
+					continue
+				}
+
+				if row.Kind != memorylog.KindMerge && row.Kind != memorylog.KindState && dropped[row.Entry] {
 					continue
 				}
 

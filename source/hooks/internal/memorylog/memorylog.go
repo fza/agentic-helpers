@@ -40,12 +40,15 @@ const (
 	KindLink      Kind = "link"
 	KindUnlink    Kind = "unlink"
 	KindUntag     Kind = "untag"
+	// KindState overwrites a seat's state slot and names no entry.
+	KindState  Kind = "state"
+	KindRekind Kind = "rekind"
 )
 
 // kinds is the segment encoding of a kind: its index here. Only ever append.
 var kinds = []Kind{
 	KindNew, KindRetire, KindSupersede, KindMerge, KindConfirm, KindRetain, KindRevive, KindRetitle, KindTag,
-	KindLink, KindUnlink, KindUntag,
+	KindLink, KindUnlink, KindUntag, KindState, KindRekind,
 }
 
 const (

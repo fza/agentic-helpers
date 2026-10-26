@@ -114,9 +114,9 @@ func (mem *memory) ownLive(folded *state, seatName string) []*entry {
 	return live
 }
 
-// brief is what a fresh context gets: standing entries, then the seat's live
-// entries by heat, then what other seats did since this seat's last brief, then
-// the topics. Claim and compaction share it.
+// brief is what a fresh context gets: the seat's state slot, what other seats
+// changed since its last brief, its live rules, traps, todos and notes, each by
+// heat, what other seats filed, then the topics. Claim and compaction share it.
 func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName string) string {
 	since := mem.previousBrief(seatName)
 	live := mem.ownLive(folded, seatName)
@@ -138,6 +138,10 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	}
 
 	out.add(fmt.Sprintf("%s: %s, %d live, %d retired, entries in %s", self, seated, len(live), retired, mem.language(ctx)))
+
+	if slot := mem.stateLine(folded, seatName); slot != "" {
+		out.add(slot)
+	}
 
 	var changed []string
 
@@ -167,21 +171,19 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 	}
 
-	var standing, working []*entry
+	byKind := map[string][]*entry{}
+	listed := map[string]bool{}
 
 	for _, held := range live {
-		if held.retention == "standing" {
-			standing = append(standing, held)
-		} else {
-			working = append(working, held)
-		}
+		byKind[held.kind] = append(byKind[held.kind], held)
+		listed[held.id] = true
 	}
 
-	if len(standing) > 0 {
-		out.add("standing (user-given grants and instructions, verify before relying):")
+	if rules := byKind[kindRule]; len(rules) > 0 {
+		out.add("rules (from the user, verify before relying):")
 
 		third := &budget{limit: briefBudget / 3}
-		for _, held := range standing {
+		for _, held := range rules {
 			third.add("  " + line(here, held))
 		}
 
@@ -190,27 +192,31 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 
 		if third.cut > 0 {
-			out.add(fmt.Sprintf("standing entries exceed a third of the brief: %d; demote some", len(standing)))
+			out.add(fmt.Sprintf("rules exceed a third of the brief: %d; retire or rekind some", len(rules)))
 		}
 	}
 
-	shown := 0
+	missing := 0
 
-	if len(working) > 0 {
-		out.add("working set:")
-
-		listed := map[string]bool{}
-		for _, held := range append(slices.Clone(standing), working...) {
-			listed[held.id] = true
+	for _, section := range []struct{ kind, header string }{
+		{kindTrap, "traps:"}, {kindTodo, "todos:"}, {kindNote, "notes:"},
+	} {
+		held := byKind[section.kind]
+		if len(held) == 0 {
+			continue
 		}
 
-		for _, held := range working {
-			if out.add("  " + line(here, held)) {
-				shown++
+		out.add(section.header)
 
-				for _, cited := range citingLines(held, listed, "    ") {
-					out.add(cited)
-				}
+		for _, one := range held {
+			if !out.add("  " + line(here, one)) {
+				missing++
+
+				continue
+			}
+
+			for _, cited := range citingLines(one, listed, "    ") {
+				out.add(cited)
 			}
 		}
 	}
@@ -252,7 +258,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add("topics: " + strings.Join(parts, " "))
 	}
 
-	if missing := len(working) - shown; missing > 0 {
+	if missing > 0 {
 		out.limit += 200
 		out.add(fmt.Sprintf("+%d more: %s brief --topic <name>", missing, self))
 	}
