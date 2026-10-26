@@ -374,6 +374,19 @@ count and where the rest is:
 
     agentic-memory: the turns since seat <name>'s newest entry, in <n> pieces, newest last; <k> older pieces cut, the full transcript at <path>:
 
+### Prompt recall and credentials
+
+Recall embeds the prompt through the configured embedding endpoint, which may be remote. Each
+prompt is first scanned for credentials with the scanner every piece shares
+([`secrets`](../secrets/usage.md)). A prompt holding one is embedded by neither agentic-memory nor
+agentic-tools; recall scores the entries by the prompt's words for that prompt instead, and the
+agent hears once:
+
+    agentic-memory: this prompt looks like it holds a credential (<rule ids>); it was not sent to the embedding endpoint
+
+The prompt itself is the user's and is not refused. `<rule ids>` are every gitleaks rule found on
+the first line holding one; the matched text is never printed.
+
 ## MCP tools
 
 Every subcommand is also a tool of the plugin's `memory` MCP server,

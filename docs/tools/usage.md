@@ -121,7 +121,8 @@ Each line names tools, paths and commands only, never another agent's summary or
 | the next prompt after a turn changed a taken copy | `` tool library: you changed your copy of `word-count` (<copy>): `agentic-tools update word-count --from <copy> --why '...'` `` |
 
 The offer names up to three own tools, each once per session, the caller's role first; nothing when
-none is near. The two turn-end lines also open the session's next agentic-tools call, once.
+none is near. A prompt holding a credential is never embedded and gets no offer; agentic-memory
+says so once ([memory](../memory/usage.md#prompt-recall-and-credentials)). The two turn-end lines also open the session's next agentic-tools call, once.
 
 ## Environment
 

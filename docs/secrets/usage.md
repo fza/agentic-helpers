@@ -4,13 +4,15 @@ Text agentic-helpers keeps is shared: a tool script reaches every session and pr
 machine, and sandboxed jobs read the stores. A token pasted into one, from a log, a verbose `curl`
 or an environment dump, spreads to every reader and cannot be taken back. Every piece writing such
 text scans it first with one shared scanner, `source/hooks/internal/secrets`, and refuses rather
-than keeps what looks like a credential.
+than keeps what looks like a credential. The same scan keeps a prompt holding one from the
+embedding endpoint, which may be remote.
 
 ## Where it runs
 
 | Piece | What is scanned | On a finding |
 |---|---|---|
 | `agentic-tools add`, `update` (CLI and MCP) | every file of the version written, a fork's first version included; `--summary`, `--usage`, `--inputs`, `--outputs`, `--distinct`, `--why` | refused, nothing embedded or written ([tools](../tools/usage.md#credentials)) |
+| agentic-memory's and agentic-tools' prompt hooks | each user prompt, before it is embedded for recall | the prompt is not embedded; recall answers by terms; agentic-memory says so once ([memory](../memory/usage.md#prompt-recall-and-credentials)) |
 
 ## What a refusal says
 
@@ -20,6 +22,7 @@ redacted copy beside a missed variant of the same token is worse than a refusal.
 wording is part of its contract, quoted by its skill:
 
     agentic-tools: <file or flag> looks like a credential (<rule ids>, line <n>); the library never holds one
+    agentic-memory: this prompt looks like it holds a credential (<rule ids>); it was not sent to the embedding endpoint
 
 The way out is to reference the credential instead of holding it: an environment variable or a file
 read at run time. A false positive, a credential-shaped example, is rewritten until it no longer

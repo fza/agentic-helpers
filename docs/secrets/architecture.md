@@ -59,6 +59,14 @@ finding of rule `scan-incomplete`, so a caller refusing on any finding refuses r
 unscanned text. The vendored rules decode and compile in a test, so in a released binary only an
 ended context reaches it.
 
+## Prompts
+
+`internal/promptvector`, where both prompt hooks share a prompt's vector, scans the prompt with
+`promptvector.Withheld` before either hook embeds it. A prompt with a finding is never embedded and
+never fills the shared slot; agentic-tools offers nothing for it, and agentic-memory scores recall by
+the prompt's words instead and prints the notice. Only agentic-memory prints it, so the agent hears
+it once per prompt.
+
 ## Tests
 
 `internal/secrets` holds the engine to the fixtures under `test/fixtures/secrets/`, the same files

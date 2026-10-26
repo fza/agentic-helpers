@@ -274,6 +274,9 @@ agentic-memory merge <from> <into>                    # every seat's topic
   seats changed and filed, then topics. Plus the turns since the seat's newest entry.
 - **Every prompt → up to three related entries** that stand out from the rest. Not repeated until the
   next compaction.
+- **`agentic-memory: this prompt looks like it holds a credential (<rule ids>); it was not sent to
+  the embedding endpoint`** → the user's prompt holds a token. Recall answered by its words instead.
+  Never copy that token into an entry, a file or a command; reference where it lives.
 - **Near compaction → nudge:** `Context near compaction. File what the summary would lose...`. Any
   entry filed answers it. Ignore twice → `Stop` blocks with the backstop. File, then go on. How full
   the context is → the plugin writes it after every turn. No status line needed.

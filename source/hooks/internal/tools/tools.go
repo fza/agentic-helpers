@@ -39,8 +39,9 @@ const self = "agentic-tools"
 const framing = "Tools other agents registered (their own descriptions):"
 
 var (
-	ErrUsage    = errors.New("usage: " + self + " add|update|find|list|take|merge|reindex|mcp|prompt|notice|stop|end")
-	ErrNoCaller = errors.New("no session found for this call: " + self + " runs inside a Claude Code session")
+	ErrUsage          = errors.New("usage: " + self + " add|update|find|list|take|merge|reindex|mcp|prompt|notice|stop|end")
+	ErrNoCaller       = errors.New("no session found for this call: " + self + " runs inside a Claude Code session")
+	ErrPromptWithheld = errors.New("the prompt looks like it holds a credential; it is never embedded")
 )
 
 type Git interface {

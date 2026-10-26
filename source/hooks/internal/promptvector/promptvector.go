@@ -1,10 +1,12 @@
 // Package promptvector keeps the vector of a session's latest prompt, one slot
 // per session, so agentic-memory and agentic-tools embed a prompt once between
 // them where one finishes before the other asks. The hooks of one event run in
-// parallel, so a miss is the common case and costs one embed.
+// parallel, so a miss is the common case and costs one embed. Both scan a
+// prompt for credentials here before embedding it.
 package promptvector
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,6 +15,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 )
 
 // slotLimit caps a slot read: a vector of a few thousand floats is far below.
@@ -24,6 +28,22 @@ type slot struct {
 	Prompt      string    `json:"prompt"`
 	Fingerprint string    `json:"fingerprint"`
 	Vector      []float32 `json:"vector"`
+}
+
+// Withheld is the notice for a prompt that looks like it holds a credential,
+// or nothing for a clean one. Neither prompt hook embeds such a prompt, since
+// the embedding endpoint may be remote; the prompt itself is the user's and is
+// never refused. agentic-memory alone prints the notice, so the agent hears it
+// once.
+func Withheld(ctx context.Context, prompt string) string {
+	found := secrets.Scan(ctx, prompt, "")
+	if len(found) == 0 {
+		return ""
+	}
+
+	rules, _ := secrets.Describe(found)
+
+	return fmt.Sprintf("agentic-memory: this prompt looks like it holds a credential (%s); it was not sent to the embedding endpoint", rules)
 }
 
 func Dir(cacheRoot string) string {

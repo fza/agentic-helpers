@@ -171,8 +171,14 @@ func (lib *library) ownOnly() *store {
 }
 
 // embedPrompt reuses the vector agentic-memory left for this prompt where it
-// finished first, and leaves its own for agentic-memory otherwise.
+// finished first, and leaves its own for agentic-memory otherwise. A prompt
+// holding a credential is never embedded, and the offer stays silent on it:
+// agentic-memory's recall tells the agent once.
 func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, string, error) {
+	if promptvector.Withheld(ctx, prompt) != "" {
+		return nil, "", ErrPromptWithheld
+	}
+
 	embedder, err := lib.embedder()
 	if err != nil {
 		return nil, "", err

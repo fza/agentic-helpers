@@ -445,7 +445,12 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 
 	_ = writeJSON(mem.ladderPath(session), steps)
 
-	recalled := mem.recall(ctx, name, session, payload.Prompt)
+	withheld := promptvector.Withheld(ctx, payload.Prompt)
+	if withheld != "" {
+		out = append(out, withheld)
+	}
+
+	recalled := mem.recall(ctx, name, session, payload.Prompt, withheld != "")
 	if recalled != "" {
 		out = append(out, recalled)
 	}
@@ -671,7 +676,8 @@ func (mem *memory) shownPath(session string) string {
 // recall is up to three entries the prompt touches that stand out from the
 // rest: the own seat's two standard deviations above the mean, another seat's
 // three, none already shown since the last compaction.
-func (mem *memory) recall(ctx context.Context, seatName string, session string, prompt string) string {
+// A prompt withheld from the embedding endpoint is scored by its words.
+func (mem *memory) recall(ctx context.Context, seatName string, session string, prompt string, withheld bool) string {
 	if strings.TrimSpace(prompt) == "" {
 		return ""
 	}
@@ -699,7 +705,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	bounded, cancel := context.WithTimeout(ctx, recallLimit)
 	defer cancel()
 
-	scores, err := mem.semanticFor(bounded, folded, prompt, session)
+	scores, err := mem.recallScores(bounded, folded, live, prompt, session, withheld)
 	if err != nil {
 		if shown.Notified {
 			return ""

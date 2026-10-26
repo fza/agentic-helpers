@@ -182,6 +182,28 @@ func TestWritesRefuseACredential(t *testing.T) {
 	}
 }
 
+func TestThePromptOfferNeverEmbedsAPromptHoldingACredential(t *testing.T) {
+	h := newHarness(t)
+	h.tool("markdown-words", "Count markdown section words")
+
+	calls := h.embedder.Calls()
+	prompt := "count markdown section words\n" + test.SecretFixture(t, "positive/github-pat.txt")
+
+	got := h.hook("prompt", map[string]any{"prompt": prompt})
+
+	if got != "" {
+		t.Errorf("the offer should stay silent on a prompt holding a credential, agentic-memory telling the agent, got %q", got)
+	}
+
+	if h.embedder.Calls() != calls {
+		t.Error("a prompt holding a credential should never reach the embedding endpoint")
+	}
+
+	if !strings.Contains(h.hook("prompt", map[string]any{"prompt": "count markdown section words"}), "markdown-words") {
+		t.Error("a clean prompt should still be offered the near tool")
+	}
+}
+
 func TestTheMCPAddRefusesACredential(t *testing.T) {
 	h := newHarness(t)
 	credential := test.SecretFixture(t, "positive/github-pat.txt")
