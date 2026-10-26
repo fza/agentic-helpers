@@ -48,7 +48,8 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
   entries. Draft written through `Bash`, edited after, or another capture landed in between → run
   the three before `agentic-capture`.
 - **Plain `sdd new` → the three reads, always.** No draft, nothing grounded. `--dry-run`, `--help`, `-h` exempt, on `agentic-capture` too.
-  Wrapping it (`bash -c`, subshell, `xargs`, full path) changes nothing.
+  Wrapping it (`bash -c`, `eval`, subshell, `xargs`, full path, any quoting) changes nothing. A
+  command that does not parse and names `sdd` or `agentic-capture` → owes the three too.
 - **sdd's MCP tools count the same.** `mcp__sdd__search` `query` = semantic, `terms` = literal;
   `mcp__sdd__view` `layout` = the listing, same prefix rule. Only a call that succeeded counts.
   `mcp__sdd__start_procedure` with `canonical: capture` → the three reads, like `agentic-capture`.

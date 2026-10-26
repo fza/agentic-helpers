@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 // judgeRemoval judges a removal that is the whole command: its targets must be
@@ -15,13 +17,13 @@ import (
 func judgeRemoval(_ context.Context, args []*syntax.Word, workingDir string, env Env, options Options) Verdict {
 	values := make([]string, 0, len(args))
 	for _, arg := range args {
-		value, isLiteral := literal(arg)
+		value, isLiteral := shellwalk.Literal(arg)
 		if !isLiteral {
 			if options.Expansion {
 				return Verdict{Decision: Deny, Reason: reasonExpansion}
 			}
 
-			return cannotPlace(options, text(arg), whyExpansion)
+			return cannotPlace(options, shellwalk.Text(arg), whyExpansion)
 		}
 
 		values = append(values, value)

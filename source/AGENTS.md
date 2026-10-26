@@ -17,9 +17,9 @@ Go rules, loaded when a session touches code under `source/`.
   otherwise carry and test themselves. `github.com/goccy/go-yaml` reads a draft's header and
   `.sdd/grounding.yaml`, since the standard library parses no YAML; `golang.org/x/text` normalises
   seat names to NFC, which the standard library cannot; `mvdan.cc/sh/v3` parses bash for
-  shell-guard, the only way to tell a removal from text that names one; `golang.org/x/sys` reads
-  darwin's process table through sysctl, which the standard library does not expose and which
-  saves a `ps` spawn per read.
+  shell-guard and the grounding gate, the only way to tell a call from text that names one;
+  `golang.org/x/sys` reads darwin's process table through sysctl, which the standard library does
+  not expose and which saves a `ps` spawn per read.
 
 ## Hooks
 

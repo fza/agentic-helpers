@@ -246,10 +246,9 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 }
 
-// record credits the reads a command performed. Two readings of one command:
-// the shell-stripped form says whether a call happened, because crediting a
-// quoted mention lets an `echo` satisfy the gate; the raw form says what the
-// call asked for, because the layout and search mode live inside quotes.
+// record credits the reads a command performed: only calls the shell itself
+// runs, since crediting a quoted mention lets an `echo` satisfy the gate, and
+// no search or listing inside code a shell inside the command runs.
 func record(ctx context.Context, env Env, payload hookio.Payload) {
 	if savingTools[payload.ToolName] {
 		recordDraft(ctx, env, payload)
@@ -270,7 +269,7 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
-	spoken := shellOnly(command)
+	calls := spokenIn(command, false)[0].calls
 
 	path, err := ledgerPath(env.ledgerDir(), payload)
 	if err != nil {
@@ -289,29 +288,9 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 	held := loadEvidence(ctx, path)
 	held.against(env.graphState())
 
-	changed := false
+	changed := credit(&held, reads, config.ListingPrefix, calls)
 
-	if reads.search.MatchString(spoken) {
-		held.Search++
-		changed = true
-
-		if reads.semantic.MatchString(command) {
-			held.Query++
-		}
-
-		if reads.literal.MatchString(command) {
-			held.Term++
-		}
-	}
-
-	if reads.view.MatchString(spoken) {
-		for _, listing := range reads.listingsIn(config.ListingPrefix, command) {
-			held.addListing(listing)
-			changed = true
-		}
-	}
-
-	for _, gathered := range reads.gatheringsIn(command) {
+	for _, gathered := range reads.gatheringsIn(calls) {
 		held.Search++
 		changed = true
 
@@ -333,6 +312,48 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 		// the gate then refuses: the safe side.
 		_ = saveEvidence(ctx, path, held)
 	}
+}
+
+// credit notes the searches and listings the calls ran. A command credits a
+// search mode once, however many of its calls ran it.
+func credit(held *evidence, reads reads, prefix string, calls []call) bool {
+	searched, semantic, literal, changed := false, false, false, false
+
+	for _, called := range calls {
+		if !reads.reachedBy(called) {
+			continue
+		}
+
+		text := called.text()
+
+		if reads.search.MatchString(text) {
+			searched = true
+			semantic = semantic || reads.semantic.MatchString(text)
+			literal = literal || reads.literal.MatchString(text)
+		}
+
+		if reads.view.MatchString(text) {
+			for _, listing := range reads.listingsIn(prefix, text) {
+				held.addListing(listing)
+				changed = true
+			}
+		}
+	}
+
+	if searched {
+		held.Search++
+		changed = true
+	}
+
+	if semantic {
+		held.Query++
+	}
+
+	if literal {
+		held.Term++
+	}
+
+	return changed
 }
 
 // recordDraft grounds a draft saved in a turn carrying every read. The hash is
@@ -498,7 +519,7 @@ func readsBadly(ctx context.Context, env Env, payload hookio.Payload) string {
 		return ""
 	}
 
-	texts := spokenTexts(raw)
+	heard := spokenIn(raw, false)
 
 	// A config that does not parse still leaves bare `sdd` recognised, so a
 	// broken file never refuses a command reading nothing.
@@ -506,9 +527,9 @@ func readsBadly(ctx context.Context, env Env, payload hookio.Payload) string {
 	reads := readsOf(config)
 
 	for _, check := range []func() string{
-		func() string { return discardsAStream(reads, texts, raw) },
+		func() string { return discardsAStream(reads, heard, raw) },
 		func() string {
-			return hidesTheDownstream(ctx, env, payload.SessionID, texts, reads, config.ShowDepth, configErr)
+			return hidesTheDownstream(ctx, env, payload.SessionID, readTexts(reads, heard), reads, config.ShowDepth, configErr)
 		},
 	} {
 		found := check()
@@ -530,22 +551,23 @@ const (
 
 // writing says how the command writes to this project's graph, if it does.
 // `agentic-capture` wins over `sdd new`, since only it can pass on a grounded
-// draft.
+// draft. Code that does not parse writes through `sdd new` wherever it names
+// `sdd` or `agentic-capture`, so its reads stay owed with shell-guard off.
 func writing(env Env, raw string) graphWrite {
 	if elsewhere(env, raw) {
 		return writesNothing
 	}
 
-	texts := spokenTexts(raw)
+	heard := spokenIn(raw, false)
 
-	for _, text := range texts {
-		if callsCapture(text) {
+	for _, stretch := range heard {
+		if slices.ContainsFunc(stretch.calls, callsCapture) {
 			return writesThroughCapture
 		}
 	}
 
-	for _, text := range texts {
-		if callsNew(text) {
+	for _, stretch := range heard {
+		if slices.ContainsFunc(stretch.calls, callsNew) || namesTool.MatchString(stretch.unparsed) {
 			return writesThroughNew
 		}
 	}
@@ -633,15 +655,41 @@ func draftPaths(env Env, command string) []namedDraft {
 	return found
 }
 
-func discardsAStream(reads reads, texts []string, raw string) string {
-	for _, text := range texts {
-		if reads.reachedBy(text) && toNull.MatchString(text) {
+// discardsAStream refuses a stretch of code calling the graph's tool and
+// discarding a stream anywhere in it; one that does not parse, where it names
+// the tool and its text discards one.
+func discardsAStream(reads reads, heard []spoken, raw string) string {
+	for _, stretch := range heard {
+		reached := stretch.discards && slices.ContainsFunc(stretch.calls, reads.reachedBy)
+		guessed := namesTool.MatchString(stretch.unparsed) && toNull.MatchString(stretch.unparsed)
+
+		if reached || guessed {
 			return refusal("stream.txt", "{command}", strings.TrimSpace(raw), "{read}", reads.command, "{suffix}", reads.suffix,
 				"{flags}", reads.streamFlags)
 		}
 	}
 
 	return ""
+}
+
+// readTexts lists every call of the graph's tool as words, and the text of
+// every stretch that does not parse but names the tool.
+func readTexts(reads reads, heard []spoken) []string {
+	var texts []string
+
+	for _, stretch := range heard {
+		if namesTool.MatchString(stretch.unparsed) {
+			texts = append(texts, stretch.unparsed)
+		}
+
+		for _, called := range stretch.calls {
+			if reads.reachedBy(called) {
+				texts = append(texts, called.text())
+			}
+		}
+	}
+
+	return texts
 }
 
 // hidesTheDownstream refuses on a broken config only once a show turns up, so

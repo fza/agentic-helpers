@@ -54,11 +54,25 @@ user or local scope is not read.
 
 ## Crediting a read
 
-A command is read twice. The shell-stripped form, with quoted spans emptied, says whether a call
-happened, because crediting a quoted mention would let an `echo` satisfy the gate. The raw form says
-what the call asked for, because the layout and the search mode live inside quotes. A
-`read_command` or `gather_command` word is matched against the stripped form, so each must be plain
-words without quotes, variables or operators, or no call would ever match it.
+A command is parsed as bash with `mvdan.cc/sh/v3/syntax`, and `internal/shellwalk`, the walk
+shell-guard judges through too, lists every command it runs: in a subshell, a pipe or a command
+substitution, after a launcher (`env`, `xargs`, `sudo`, `find -exec`, ...) past the launcher's
+options, assignments and counts, and inside code a shell runs (`bash -c`, `eval`, `trap`, a
+here-document fed to a shell). A quoted argument and a heredoc body are words, never a call, so
+crediting a quoted mention cannot let an `echo` satisfy the gate. Each call's words are read with
+their quoting removed (`$'...'` decoded, a backslash inside double quotes dropped), and the search
+mode, layout and depth are read from those words. A command's first word counts by its base name;
+a `read_command` or `gather_command` is matched word for word after it, so each must be plain words
+without quotes, variables or operators.
+
+Only the calls the command itself runs are credited: a read inside code a shell runs is checked for
+a discarded stream and its depth, but credits nothing. A stream counts as discarded where a
+redirection in the same stretch of code (the command, or one piece of code a shell inside it runs)
+sends output to `/dev/null`.
+
+A command that does not parse is read from its text: wherever `sdd` or `agentic-capture` stands in
+it as a word, it counts as a plain `sdd new`, so its reads stay owed even with shell-guard switched
+off, and a discarded stream or a short show in its text is refused. It credits nothing.
 
 ## Seats
 

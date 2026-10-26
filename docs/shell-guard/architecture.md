@@ -36,7 +36,8 @@ Any other command is walked call by call. A removal (or `git ... rm`) denies und
 alone)`. `mktemp` denies under `shell_guard_mktemp`, its reason naming `.tmp/` by whether the project
 carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A launcher (`sudo`,
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
-stood alone.
+stood alone. The walk that finds calls, launchers, nested code and pipe feeds lives in
+`internal/shellwalk`, which the grounding gate walks commands through too.
 
 Code another program runs as shell, `eval`'s arguments, the handler `trap` sets past its options, the word after a shell's
 `-c`-carrying option, and the body of a here-document or here-string a shell reads, is joined and

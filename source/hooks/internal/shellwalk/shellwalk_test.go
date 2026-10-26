@@ -1,0 +1,152 @@
+package shellwalk_test
+
+import (
+	"slices"
+	"testing"
+
+	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
+	"github.com/fza/agentic-helpers/source/hooks/test"
+)
+
+func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
+	cases := []struct {
+		name    string
+		command string
+		events  []string
+	}{
+		{name: "a plain call", command: "sdd info", events: []string{"call sdd info"}},
+		{name: "a subshell and a substitution", command: "(ls) && echo \"$(pwd)\"", events: []string{"call ls", "call echo $(pwd)", "call pwd"}},
+		{name: "a keyword is no call", command: "time sdd info", events: []string{"call sdd info"}},
+		{
+			name: "env past its assignments", command: "env X=1 sdd info",
+			events: []string{"call env X=1 sdd info", "launched X=1 sdd info", "launched sdd info (certain)", "launched info"},
+		},
+		{
+			name: "xargs past its options and counts", command: "xargs -n 1 sdd",
+			events: []string{"call xargs -n 1 sdd", "launched -n 1 sdd", "launched 1 sdd", "launched sdd (certain)"},
+		},
+		{
+			name: "a launcher a launcher runs", command: "nohup env sdd",
+			events: []string{"call nohup env sdd", "launched env sdd (certain)", "launched sdd (certain)"},
+		},
+		{
+			name: "past the end of options", command: "sudo -- -x",
+			events: []string{"call sudo -- -x", "launched -- -x", "launched -x (certain)"},
+		},
+		{
+			name: "nothing past the end of options", command: "sudo -- ",
+			events: []string{"call sudo --", "launched --"},
+		},
+		{
+			name: "find's -exec", command: `find . -exec rm {} \;`,
+			events: []string{"call find . -exec rm {} ;", "launched . -exec rm {} ;", "launched -exec rm {} ;", "launched rm {} ; (certain)", "launched {} ;", "launched ;"},
+		},
+		{
+			name: "find past an expansion", command: `find "$dir" -exec rm {} \;`,
+			events: []string{`call find $dir -exec rm {} ;`, "launched $dir -exec rm {} ;", "launched -exec rm {} ;", "launched rm {} ; (certain)", "launched {} ;", "launched ;"},
+		},
+		{
+			name: "an expansion as the command", command: `env "$tool" x`,
+			events: []string{"call env $tool x", "launched $tool x (certain)", "launched x"},
+		},
+		{
+			name: "find with nothing to run", command: "find . -name x",
+			events: []string{"call find . -name x", "launched . -name x", "launched -name x", "launched x"},
+		},
+		{
+			name: "a lookup runs nothing", command: "command -v sdd",
+			events: []string{"call command -v sdd", "launched -v sdd", "launched sdd"},
+		},
+		{name: "a shell's -c", command: "bash -c 'sdd new'", events: []string{"call bash -c sdd new", "code bash -c: sdd new"}},
+		{name: "eval", command: "eval sdd new", events: []string{"call eval sdd new", "code eval: sdd new"}},
+		{name: "a trap handler", command: "trap 'rm x' EXIT", events: []string{"call trap rm x EXIT", "code trap: rm x"}},
+		{name: "a heredoc fed to a shell", command: "bash <<'EOF'\nsdd new\nEOF", events: []string{"code bash stdin: sdd new\n", "call bash"}},
+		{name: "a heredoc fed to an interpreter", command: "python3 <<'EOF'\nx\nEOF", events: []string{"inline python3: x\n", "call python3", "inline python3: "}},
+		{name: "a heredoc fed to anything else", command: "cat <<'EOF'\nsdd new\nEOF", events: []string{"call cat"}},
+		{name: "code piped to a shell", command: "echo x | sh", events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "a script piped into", command: "echo x | sh run.sh", events: []string{"call echo x", "call sh run.sh"}},
+		{name: "inline code", command: "perl -e 'unlink 1'", events: []string{"call perl -e unlink 1", "inline perl: -e unlink 1"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			file, err := shellwalk.Parse(tc.command)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			recorder := &test.WalkRecorder{}
+			shellwalk.Walk(file, recorder)
+
+			if !slices.Equal(recorder.Events, tc.events) {
+				t.Errorf("the walk should offer each command it runs, in order, got: %q", recorder.Events)
+			}
+		})
+	}
+}
+
+func TestSpelledRemovesQuotingAndKeepsExpansions(t *testing.T) {
+	cases := []struct {
+		word string
+		want string
+	}{
+		{word: "plain", want: "plain"},
+		{word: `'single quoted'`, want: "single quoted"},
+		{word: `$'s\x64d'`, want: "sdd"},
+		{word: `"s\dd"`, want: "sdd"},
+		{word: `"$HOME/bin/sdd"`, want: "$HOME/bin/sdd"},
+		{word: `a\ b`, want: "a b"},
+		{word: `"x ${HOME}"`, want: "x ${HOME}"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.word, func(t *testing.T) {
+			file, err := shellwalk.Parse("echo " + tc.word)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			recorder := &test.WalkRecorder{}
+			shellwalk.Walk(file, recorder)
+
+			if !slices.Equal(recorder.Events, []string{"call echo " + tc.want}) {
+				t.Errorf("the word should read with its quoting removed, got: %q", recorder.Events)
+			}
+		})
+	}
+}
+
+func TestLiteralRefusesWhatItCannotRead(t *testing.T) {
+	cases := []struct {
+		word      string
+		value     string
+		isLiteral bool
+	}{
+		{word: `"r\m"`, value: "rm", isLiteral: true},
+		{word: `'a b'`, value: "a b", isLiteral: true},
+		{word: `$'rm'`},
+		{word: `$HOME`},
+		{word: `"$HOME"`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.word, func(t *testing.T) {
+			file, err := shellwalk.Parse("echo " + tc.word)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			call, isCall := file.Stmts[0].Cmd.(*syntax.CallExpr)
+			if !isCall {
+				t.Fatal("the command should parse as a call")
+			}
+
+			value, isLiteral := shellwalk.Literal(call.Args[1])
+			if value != tc.value || isLiteral != tc.isLiteral {
+				t.Errorf("a word should read as a literal only without expansions, got: %q %v", value, isLiteral)
+			}
+		})
+	}
+}

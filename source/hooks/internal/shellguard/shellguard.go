@@ -14,13 +14,11 @@
 package shellguard
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -30,6 +28,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 const self = "agentic-shell-guard"
@@ -103,27 +102,6 @@ const (
 )
 
 var removers = []string{"rm", "rmdir", "unlink"}
-
-var shells = []string{"sh", "bash", "zsh", "dash", "ksh", "mksh", "fish"}
-
-// longFlags are the shells' long options that take no value.
-var longFlags = []string{
-	"--norc", "--noprofile", "--login", "--posix", "--noediting", "--verbose", "--restricted", "--debugger",
-	"--dump-strings", "--no-config", "--private", "--interactive", "--no-execute", "--emulate-sh",
-}
-
-// A launcher runs its arguments as a command: whatever it names is judged as
-// if it stood alone.
-var launchers = []string{
-	"sudo", "doas", "command", "builtin", "exec", "env", "nohup", "nice", "ionice", "timeout",
-	"xargs", "parallel", "caffeinate", "stdbuf", "unbuffer", "time", "chronic", "flock",
-	"find", "arch",
-}
-
-var interpreters = []string{
-	"perl", "ruby", "node", "deno", "bun", "php", "osascript", "awk", "gawk", "mawk", "nawk",
-	"ssh", "lua", "tclsh", "rscript", "jshell", "swift", "watch", "su", "script",
-}
 
 // namesRemoval matches the removal calls of the shell and of the interpreters'
 // own libraries, as a word.
@@ -241,7 +219,7 @@ func cannotPlace(options Options, target string, why string) Verdict {
 }
 
 func Judge(ctx context.Context, command string, workingDir string, env Env, options Options) Verdict {
-	file, err := parse(command)
+	file, err := shellwalk.Parse(command)
 	if err != nil {
 		return Verdict{Decision: Deny, Reason: reasonUnparsable}
 	}
@@ -255,15 +233,6 @@ func Judge(ctx context.Context, command string, workingDir string, env Env, opti
 	inspection.walk(file)
 
 	return inspection.found.decided
-}
-
-func parse(code string) (*syntax.File, error) {
-	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(code), "")
-	if err != nil {
-		return nil, fmt.Errorf("parsing the command: %w", err)
-	}
-
-	return file, nil
 }
 
 // loneRemoval returns the call when the whole command is one removal and
@@ -284,13 +253,13 @@ func loneRemoval(file *syntax.File) (*syntax.CallExpr, int) {
 		return nil, 0
 	}
 
-	name := commandName(call.Args[0])
+	name := shellwalk.CommandName(call.Args[0])
 	if slices.Contains(removers, name) {
 		return call, 1
 	}
 
 	if name == "git" && len(call.Args) > 1 {
-		subcommand, isLiteral := literal(call.Args[1])
+		subcommand, isLiteral := shellwalk.Literal(call.Args[1])
 		if isLiteral && subcommand == "rm" {
 			return call, 2
 		}
@@ -299,9 +268,9 @@ func loneRemoval(file *syntax.File) (*syntax.CallExpr, int) {
 	return nil, 0
 }
 
-// inspector walks a command. Inside code another program runs as shell
-// (inside), a removal or mktemp is only noted: the nested-code guard judges
-// it.
+// inspector judges what the walk finds. Inside code another program runs as
+// shell (inside), a removal or mktemp is only noted: the nested-code guard
+// judges it.
 type inspector struct {
 	options Options
 	found   verdicts
@@ -311,146 +280,7 @@ type inspector struct {
 }
 
 func (inspection *inspector) walk(node syntax.Node) {
-	syntax.Walk(node, func(visited syntax.Node) bool {
-		switch typed := visited.(type) {
-		case *syntax.CallExpr:
-			if len(typed.Args) > 0 {
-				inspection.command(typed.Args)
-			}
-		case *syntax.Stmt:
-			inspection.fed(typed)
-		case *syntax.BinaryCmd:
-			inspection.piped(typed)
-		}
-
-		return true
-	})
-}
-
-// fed judges the code a here-document or here-string hands a shell or an
-// interpreter on its standard input, as code handed to it with -c.
-func (inspection *inspector) fed(statement *syntax.Stmt) {
-	call, isCall := statement.Cmd.(*syntax.CallExpr)
-	if !isCall || len(call.Args) == 0 {
-		return
-	}
-
-	name := commandName(call.Args[0])
-
-	for _, redirect := range statement.Redirs {
-		if redirect.Op != syntax.Hdoc && redirect.Op != syntax.DashHdoc && redirect.Op != syntax.WordHdoc {
-			continue
-		}
-
-		body := redirect.Hdoc
-		if body == nil {
-			body = redirect.Word
-		}
-
-		switch {
-		case body == nil:
-		case slices.Contains(shells, name):
-			inspection.nested(name+" stdin", []*syntax.Word{body})
-		case isInterpreter(name):
-			inspection.inline(name, []*syntax.Word{body})
-		}
-	}
-}
-
-// piped judges a shell reading its code from a pipe: code the guard cannot
-// read.
-func (inspection *inspector) piped(binary *syntax.BinaryCmd) {
-	if binary.Op != syntax.Pipe && binary.Op != syntax.PipeAll || binary.Y == nil {
-		return
-	}
-
-	call, isCall := binary.Y.Cmd.(*syntax.CallExpr)
-	if !isCall || len(call.Args) == 0 {
-		return
-	}
-
-	args := launched(call.Args)
-	if args == nil {
-		return
-	}
-
-	name := commandName(args[0])
-	if replacesInput(args[1:]) || namesScript(args[1:]) {
-		return
-	}
-
-	inspection.unreadable(name+" stdin", fmt.Sprintf("cannot read the code piped to %s; refusing", name))
-}
-
-// launched is the shell a call runs, through any launchers before it, with its
-// arguments, or nil where it runs none.
-func launched(args []*syntax.Word) []*syntax.Word {
-	for index, arg := range args {
-		name := commandName(arg)
-
-		switch {
-		case slices.Contains(shells, name):
-			return args[index:]
-		case index == 0 && !slices.Contains(launchers, name):
-			return nil
-		}
-	}
-
-	return nil
-}
-
-// namesScript is whether a shell's arguments name a script for it to run: its
-// first operand, unless -s sends it to standard input. An option taking a
-// value (-o, -O, grouped as -eo, and every long option but the shells' known
-// flags) takes the next word with it.
-func namesScript(args []*syntax.Word) bool {
-	for index := 0; index < len(args); index++ {
-		value, isLiteral := literal(args[index])
-
-		switch {
-		case !isLiteral:
-			return true
-		case value == "-" || value == "--":
-			return false
-		case slices.Contains(longFlags, value):
-		case strings.HasPrefix(value, "--"):
-			// A long option it does not know may take a value: the next word goes with it.
-			index++
-		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
-			flags := strings.TrimLeft(value, "-+")
-			if strings.Contains(flags, "s") {
-				return false
-			}
-
-			// A grouped option taking a value, as -eo pipefail or fish's -C init code,
-			// takes the next word.
-			if strings.ContainsAny(flags, "oOC") {
-				index++
-			}
-		default:
-			return true
-		}
-	}
-
-	return false
-}
-
-// trapHandler is the code trap sets, past its options, or nil where it sets none.
-func trapHandler(args []*syntax.Word) *syntax.Word {
-	for index, arg := range args {
-		value, isLiteral := literal(arg)
-		if isLiteral && (value == "--" || value == "-p" || value == "-l" || value == "-P") {
-			continue
-		}
-
-		if index+1 < len(args) || !isLiteral {
-			return arg
-		}
-
-		return nil
-	}
-
-	return nil
+	shellwalk.Walk(node, inspection)
 }
 
 // removal is a removal that is not the whole command, its targets from
@@ -468,12 +298,14 @@ func (inspection *inspector) removal(args []*syntax.Word, from int) {
 		return
 	}
 
-	inspection.found.add(cannotPlace(inspection.options, text(args[min(from, len(args)):]...), whyNotAlone))
+	inspection.found.add(cannotPlace(inspection.options, shellwalk.Text(args[min(from, len(args)):]...), whyNotAlone))
 }
 
-func (inspection *inspector) command(args []*syntax.Word) {
-	name := commandName(args[0])
-	options := inspection.options
+// Command judges every call the walk offers, a launcher's every word among
+// them: a guard errs on the side of reading a word as the command it runs.
+func (inspection *inspector) Command(call shellwalk.Call) {
+	args := call.Args
+	name := shellwalk.CommandName(args[0])
 
 	switch {
 	case slices.Contains(removers, name):
@@ -482,40 +314,16 @@ func (inspection *inspector) command(args []*syntax.Word) {
 		inspection.mktemp()
 	case name == "git":
 		for index, arg := range args[1:] {
-			value, isLiteral := literal(arg)
+			value, isLiteral := shellwalk.Literal(arg)
 			if isLiteral && value == "rm" {
 				inspection.removal(args, index+2)
 			}
 		}
-	case name == "eval":
-		inspection.nested("eval", args[1:])
-	case name == "trap":
-		handler := trapHandler(args[1:])
-		if handler != nil {
-			inspection.nested("trap", []*syntax.Word{handler})
-		}
-	case slices.Contains(shells, name):
-		code := shellCode(args[1:])
-		if code != nil {
-			inspection.nested(name+" -c", []*syntax.Word{code})
-		}
-	case isInterpreter(name):
-		inspection.inline(name, args[1:])
-	}
-
-	if name == "find" {
+	case name == "find":
 		for _, arg := range args[1:] {
-			value, _ := literal(arg)
+			value, _ := shellwalk.Literal(arg)
 			if value == "-delete" {
-				inspection.found.add(mode(options.FindDelete, reasonFindDelete))
-			}
-		}
-	}
-
-	if slices.Contains(launchers, name) {
-		for index := 1; index < len(args); index++ {
-			if isJudged(commandName(args[index])) {
-				inspection.command(args[index:])
+				inspection.found.add(mode(inspection.options.FindDelete, reasonFindDelete))
 			}
 		}
 	}
@@ -540,11 +348,11 @@ func (inspection *inspector) mktemp() {
 	inspection.found.add(Verdict{Decision: Deny, Reason: reason})
 }
 
-// inline judges code for an interpreter the guard cannot parse: naming a
+// Inline judges code for an interpreter the guard cannot parse: naming a
 // removal or mktemp there denies while the nested-code guard is on.
-func (inspection *inspector) inline(name string, args []*syntax.Word) {
+func (inspection *inspector) Inline(name string, args []*syntax.Word) {
 	for _, arg := range args {
-		code := text(arg)
+		code := shellwalk.Text(arg)
 		removes := namesRemoval.MatchString(code)
 
 		switch {
@@ -559,14 +367,14 @@ func (inspection *inspector) inline(name string, args []*syntax.Word) {
 	}
 }
 
-// nested judges code another program runs as shell. Code the guard cannot
-// read as a literal, or cannot parse, denies: it could be anything. With the
+// Code judges code another program runs as shell. Code the guard cannot read
+// as a literal, or cannot parse, denies: it could be anything. With the
 // nested-code guard off, a removal in it, or code it cannot read, takes the
 // outside-project verdict, and the rest passes.
-func (inspection *inspector) nested(runner string, words []*syntax.Word) {
+func (inspection *inspector) Code(runner string, words []*syntax.Word) {
 	parts := make([]string, 0, len(words))
 	for _, word := range words {
-		value, isLiteral := literal(word)
+		value, isLiteral := shellwalk.Literal(word)
 		if !isLiteral {
 			inspection.unreadable(runner, fmt.Sprintf("cannot read the code handed to %s; refusing", runner))
 
@@ -578,7 +386,7 @@ func (inspection *inspector) nested(runner string, words []*syntax.Word) {
 
 	code := strings.Join(parts, " ")
 
-	file, err := parse(code)
+	file, err := shellwalk.Parse(code)
 	if err != nil {
 		inspection.unreadable(runner, fmt.Sprintf("cannot parse the code handed to %s; refusing", runner))
 
@@ -600,6 +408,10 @@ func (inspection *inspector) nested(runner string, words []*syntax.Word) {
 	}
 }
 
+func (inspection *inspector) Piped(name string) {
+	inspection.unreadable(name+" stdin", fmt.Sprintf("cannot read the code piped to %s; refusing", name))
+}
+
 func (inspection *inspector) unreadable(runner string, reason string) {
 	if inspection.options.NestedCode {
 		inspection.found.add(Verdict{Decision: Deny, Reason: reason})
@@ -608,124 +420,4 @@ func (inspection *inspector) unreadable(runner string, reason string) {
 	}
 
 	inspection.found.add(cannotPlace(inspection.options, "code handed to "+runner, whyNestedCode))
-}
-
-// replacesInput is whether a shell is handed its code with -c or --command,
-// and so reads none from its standard input; fish's -C init code runs before
-// the input is read.
-func replacesInput(args []*syntax.Word) bool {
-	for _, arg := range args {
-		value, _ := literal(arg)
-		if value == "--command" || (strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.Contains(value, "c")) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// shellCode is the word a shell runs as code: the one after an option
-// carrying c, or C, fish's init command, or the long --command and
-// --init-command.
-func shellCode(args []*syntax.Word) *syntax.Word {
-	for index, arg := range args {
-		value, _ := literal(arg)
-
-		short := strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.ContainsAny(value, "cC")
-		if short || value == "--command" || value == "--init-command" {
-			if index+1 < len(args) {
-				return args[index+1]
-			}
-
-			return nil
-		}
-	}
-
-	return nil
-}
-
-func isJudged(name string) bool {
-	return slices.Contains(removers, name) || name == "mktemp" || name == "git" || name == "eval" || name == "trap" ||
-		slices.Contains(shells, name) || isInterpreter(name) || slices.Contains(launchers, name)
-}
-
-func isInterpreter(name string) bool {
-	return slices.Contains(interpreters, name) || strings.HasPrefix(name, "python")
-}
-
-// commandName is the base name of the word naming a command, lower-cased: a
-// case-insensitive filesystem, as macOS keeps by default, runs `RM` as `rm`.
-func commandName(word *syntax.Word) string {
-	value, isLiteral := literal(word)
-	if !isLiteral {
-		return ""
-	}
-
-	return strings.ToLower(path.Base(value))
-}
-
-// literal returns the word's value when it carries no expansion: plain text,
-// single quotes, and double quotes around plain text.
-func literal(word *syntax.Word) (string, bool) {
-	var value strings.Builder
-
-	for _, part := range word.Parts {
-		switch typed := part.(type) {
-		case *syntax.Lit:
-			value.WriteString(unescape(typed.Value))
-		case *syntax.SglQuoted:
-			if typed.Dollar {
-				return "", false
-			}
-
-			value.WriteString(typed.Value)
-		case *syntax.DblQuoted:
-			for _, inner := range typed.Parts {
-				innerLit, isLit := inner.(*syntax.Lit)
-				if !isLit {
-					return "", false
-				}
-
-				value.WriteString(unescape(innerLit.Value))
-			}
-		default:
-			return "", false
-		}
-	}
-
-	return value.String(), true
-}
-
-func unescape(value string) string {
-	var result strings.Builder
-
-	escaped := false
-	for _, character := range value {
-		if character == '\\' && !escaped {
-			escaped = true
-
-			continue
-		}
-
-		escaped = false
-		result.WriteRune(character)
-	}
-
-	return result.String()
-}
-
-// text is the words as the command spells them, space-separated.
-func text(words ...*syntax.Word) string {
-	printed := make([]string, 0, len(words))
-
-	for _, word := range words {
-		var buffer bytes.Buffer
-
-		err := syntax.NewPrinter().Print(&buffer, word)
-		if err == nil {
-			printed = append(printed, buffer.String())
-		}
-	}
-
-	return strings.Join(printed, " ")
 }

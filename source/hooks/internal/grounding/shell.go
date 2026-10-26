@@ -1,272 +1,155 @@
 package grounding
 
 import (
+	"path"
 	"regexp"
+	"slices"
 	"strings"
+
+	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
-// An `sdd` invocation, rather than the `.sdd/` directory or the word as an
-// argument to something else. It has to sit where a command word sits: opening
-// the line, following a separator, after the `--` that ends a runner's flags,
-// or after a runner that hands the rest of the line to another program. A path
-// spelling reaches the same binary, so `/opt/homebrew/bin/sdd` counts.
-const runner = `env(?:\s+[A-Za-z_]\w*=\S*)*|command|exec|nohup|time|sudo` +
-	`|xargs(?:\s+-\S+)*|stdbuf(?:\s+-\S+)*|caffeinate(?:\s+-\S+)*`
-
-const atCommand = `(?:^|[\n;|&]\s*|--\s+|\b(?:` + runner + `)\s+)`
-
-const sddWord = `(?:\S*/)?sdd\s+[a-z]`
-
-// `agentic-capture` as a command word: a path may lead to it, and nothing
-// path-like may follow, so `./cmd/agentic-capture/main.go` is no call.
-const captureWord = `(?:\S*/)?agentic-capture(?:[\s;&|)]|$)`
-
-const newWord = `(?:\S*/)?sdd\s+new\b`
-
-var (
-	bareSDD = regexp.MustCompile(atCommand + sddWord)
-
-	// A `(` opens a subshell only where nothing word-like precedes it, so
-	// `(sdd info)` is a call and a pattern such as `Bash(sdd new` is not. RE2
-	// has no lookbehind, so the preceding character is checked by hand.
-	subshellSDD = regexp.MustCompile(`\(\s*` + sddWord)
-
-	bareCapture     = regexp.MustCompile(atCommand + captureWord)
-	subshellCapture = regexp.MustCompile(`\(\s*` + captureWord)
-	bareNew         = regexp.MustCompile(atCommand + newWord)
-	subshellNew     = regexp.MustCompile(`\(\s*` + newWord)
-
-	// A flag in the same command that makes the call write nothing: a dry run,
-	// or the usage a `--help` or `-h` prints.
-	writesNoEntry = regexp.MustCompile(`^[^\n;&|]*(?:--dry-run\b|--help\b|(?:^|\s)-h\b)`)
-
-	// A quoted command word, `"$HOME/go/bin/agentic-capture"`, is the call
-	// itself rather than an argument, so its text survives the unquoting.
-	quotedCapture = regexp.MustCompile(`^['"][^\s'"]*/agentic-capture['"]$`)
-
-	// A shell handed a string to run. Only a shell qualifies: `grep -c` takes a
-	// `-c` of its own and counts lines.
-	shellC = regexp.MustCompile(`(?:^|[\s;|&(])(?:ba|z|da|k)?sh\s+(?:-[A-Za-z]+\s+)*-c\s+('[^']*'|"[^"]*"|\S+)`)
-
-	heredocOpen = regexp.MustCompile(`<<-?\s*(['"]?)(\w+)(['"]?)\r?\n`)
-)
-
-func reachesBareTool(text string) bool {
-	return bareSDD.MatchString(text) || opensSubshell(subshellSDD, text)
+// spoken is one stretch of shell code as the parser reads it: the command, or
+// code a program inside it runs as shell (nested). Code that does not parse is
+// kept as its text, unparsed.
+type spoken struct {
+	calls    []call
+	discards bool
+	nested   bool
+	unparsed string
 }
 
-// opensSubshell reports whether the pattern matches where a `(` opens a
-// subshell.
-func opensSubshell(pattern *regexp.Regexp, text string) bool {
-	for _, match := range pattern.FindAllStringIndex(text, -1) {
-		if atSubshell(text, match[0]) {
-			return true
-		}
+// call is one command's words, quoting removed; name is the base name of the
+// first, lower-cased.
+type call struct {
+	words []string
+	name  string
+}
+
+func (called call) text() string {
+	return strings.Join(called.words, " ")
+}
+
+// namesTool finds `sdd` or `agentic-capture` as a word in code that does not
+// parse: a path may lead to it, and nothing path-like may follow.
+var namesTool = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.-])(?:sdd|agentic-capture)(?:[^A-Za-z0-9_./-]|$)`)
+
+// spokenIn reads the command and every piece of code a shell inside it would
+// run. A quoted argument, a heredoc body and a word the launcher's options
+// leave unclear are never a call.
+func spokenIn(code string, nested bool) []spoken {
+	file, err := shellwalk.Parse(code)
+	if err != nil {
+		return []spoken{{nested: nested, unparsed: code}}
 	}
 
-	return false
-}
+	heard := &listener{}
+	shellwalk.Walk(file, heard)
 
-// atSubshell reports whether the `(` at start opens a subshell: only where
-// nothing word-like precedes it. RE2 has no lookbehind, so the preceding
-// character is checked by hand.
-func atSubshell(text string, start int) bool {
-	return start == 0 || !strings.ContainsRune(`/.-`, rune(text[start-1])) && !isWordByte(text[start-1])
-}
-
-func callsCapture(text string) bool {
-	return writes(text, bareCapture, subshellCapture)
-}
-
-func callsNew(text string) bool {
-	return writes(text, bareNew, subshellNew)
-}
-
-// writes reports a call, bare or opening a subshell, that writes an entry.
-func writes(text string, bare, subshell *regexp.Regexp) bool {
-	for _, pattern := range []*regexp.Regexp{bare, subshell} {
-		for _, match := range pattern.FindAllStringIndex(text, -1) {
-			if pattern == subshell && !atSubshell(text, match[0]) {
-				continue
-			}
-
-			if !writesNoEntry.MatchString(text[match[1]:]) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-func isWordByte(char byte) bool {
-	return char == '_' || char >= '0' && char <= '9' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= 0x80
-}
-
-// stripHeredocs replaces every heredoc, from `<<` through its terminator line,
-// with a placeholder. A body is data the shell hands to a program, so a graph
-// read quoted inside one is prose rather than a call.
-func stripHeredocs(command string) string {
-	var kept strings.Builder
-
-	rest := command
-	for {
-		open := heredocOpen.FindStringSubmatchIndex(rest)
-		if open == nil {
-			break
-		}
-
-		opening, word, closing := rest[open[2]:open[3]], rest[open[4]:open[5]], rest[open[6]:open[7]]
-		end := -1
-
-		if opening == closing {
-			end = terminator(rest[open[1]:], word)
-		}
-
-		if end < 0 {
-			kept.WriteString(rest[:open[0]+2])
-			rest = rest[open[0]+2:]
-
-			continue
-		}
-
-		kept.WriteString(rest[:open[0]])
-		kept.WriteString("<<REDACTED\n")
-		rest = rest[open[1]+end:]
-	}
-
-	kept.WriteString(rest)
-
-	return kept.String()
-}
-
-// terminator finds the first line of body consisting of word alone, and
-// returns the offset just past it, or -1.
-func terminator(body string, word string) int {
-	offset := 0
-	for {
-		line, _, found := strings.Cut(body[offset:], "\n")
-		if line == word {
-			return offset + len(word)
-		}
-
-		if !found {
-			return -1
-		}
-
-		offset += len(line) + 1
-	}
-}
-
-// quotedSpans lists every span the shell reads as text, scanned the way the
-// shell scans one. A backslash escapes the character after it, so `\'` is an
-// apostrophe rather than an opening quote, and a quote nothing closes opens no
-// span.
-func quotedSpans(command string) [][2]int {
-	var spans [][2]int
-
-	for index := 0; index < len(command); {
-		char := command[index]
-		if char == '\\' {
-			index += 2
-
-			continue
-		}
-
-		if char != '\'' && char != '"' {
-			index++
-
-			continue
-		}
-
-		closing := strings.IndexByte(command[index+1:], char)
-		if closing < 0 {
-			index++
-
-			continue
-		}
-
-		end := index + 1 + closing + 1
-		spans = append(spans, [2]int{index, end})
-		index = end
-	}
-
-	return spans
-}
-
-func quotedAt(spans [][2]int, position int) bool {
-	for _, span := range spans {
-		if span[0] < position && position < span[1] {
-			return true
-		}
-	}
-
-	return false
-}
-
-// unquoted empties every quoted span. A quoted span is an argument, and a grep
-// pattern holds pipes and parentheses that would otherwise read as syntax.
-func unquoted(command string) string {
-	var kept strings.Builder
-
-	last := 0
-	for _, span := range quotedSpans(command) {
-		kept.WriteString(command[last:span[0]])
-
-		quoted := command[span[0]:span[1]]
-		if quotedCapture.MatchString(quoted) {
-			kept.WriteString(quoted[1 : len(quoted)-1])
-		} else {
-			kept.WriteString("''")
-		}
-
-		last = span[1]
-	}
-
-	kept.WriteString(command[last:])
-
-	return kept.String()
-}
-
-// shellOnly is the command as the shell reads it: no heredoc bodies, no
-// quoted arguments.
-func shellOnly(command string) string {
-	return unquoted(stripHeredocs(command))
-}
-
-// spokenTexts is the command as the shell reads it, followed by every command
-// string a shell inside it would run, each read the same way.
-func spokenTexts(raw string) []string {
-	texts := []string{shellOnly(raw)}
-	for _, inner := range carried(stripHeredocs(raw), 0) {
-		texts = append(texts, shellOnly(inner))
-	}
-
-	return texts
-}
-
-// carried lists every command string a shell inside this one would run. A
-// `bash -c` quoted inside another argument is a mention, and stays one.
-func carried(command string, depth int) []string {
-	spans := quotedSpans(command)
-
-	var found []string
-
-	for _, match := range shellC.FindAllStringSubmatchIndex(command, -1) {
-		if quotedAt(spans, match[0]) {
-			continue
-		}
-
-		inner := command[match[2]:match[3]]
-		if inner[0] == '\'' || inner[0] == '"' {
-			inner = inner[1 : len(inner)-1]
-		}
-
-		found = append(found, inner)
-		if depth < 3 {
-			found = append(found, carried(inner, depth+1)...)
-		}
+	found := []spoken{{calls: heard.calls, discards: discardsStream(file), nested: nested}}
+	for _, inner := range heard.code {
+		found = append(found, spokenIn(inner, true)...)
 	}
 
 	return found
+}
+
+type listener struct {
+	calls []call
+	code  []string
+}
+
+func (heard *listener) Command(found shellwalk.Call) {
+	if !found.Certain {
+		return
+	}
+
+	words := make([]string, 0, len(found.Args))
+	for _, word := range found.Args {
+		words = append(words, shellwalk.Spelled(word))
+	}
+
+	heard.calls = append(heard.calls, call{words: words, name: strings.ToLower(path.Base(words[0]))})
+}
+
+func (heard *listener) Code(_ string, words []*syntax.Word) {
+	parts := make([]string, 0, len(words))
+	for _, word := range words {
+		parts = append(parts, shellwalk.Spelled(word))
+	}
+
+	heard.code = append(heard.code, strings.Join(parts, " "))
+}
+
+func (*listener) Inline(string, []*syntax.Word) {}
+
+func (*listener) Piped(string) {}
+
+// discardsStream reports a redirection sending output to /dev/null anywhere
+// the shell reads, never in a heredoc body or a quoted argument.
+func discardsStream(file *syntax.File) bool {
+	found := false
+
+	syntax.Walk(file, func(node syntax.Node) bool {
+		redirect, isRedirect := node.(*syntax.Redirect)
+		if !isRedirect || redirect.Word == nil {
+			return !found
+		}
+
+		target, isLiteral := shellwalk.Literal(redirect.Word)
+		if isLiteral && target == "/dev/null" && slices.Contains(toStream, redirect.Op) {
+			found = true
+		}
+
+		return !found
+	})
+
+	return found
+}
+
+var toStream = []syntax.RedirOperator{
+	syntax.RdrOut, syntax.AppOut, syntax.DplOut, syntax.RdrClob, syntax.RdrAll, syntax.AppAll,
+	syntax.RdrAllClob, syntax.AppAllClob,
+}
+
+func callsCapture(called call) bool {
+	return called.name == "agentic-capture" && !writesNoEntry(called.words[1:])
+}
+
+func callsNew(called call) bool {
+	return called.name == "sdd" && len(called.words) > 1 && called.words[1] == "new" && !writesNoEntry(called.words[2:])
+}
+
+// writesNoEntry reports a flag that makes the call write nothing: a dry run,
+// or the usage a `--help` or `-h` prints.
+func writesNoEntry(args []string) bool {
+	for _, arg := range args {
+		if arg == "--dry-run" || strings.HasPrefix(arg, "--dry-run=") || arg == "--help" || arg == "-h" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// callsAs reports whether the call runs the command spelled as words: its
+// first word by any path, the rest as written. It returns the words past it.
+func callsAs(called call, words []string) ([]string, bool) {
+	if len(words) == 0 || len(called.words) < len(words) {
+		return nil, false
+	}
+
+	if called.name != strings.ToLower(path.Base(words[0])) || !slices.Equal(called.words[1:len(words)], words[1:]) {
+		return nil, false
+	}
+
+	return called.words[len(words):], true
+}
+
+// opensSubcommand reports a first argument naming a subcommand: `sdd search`
+// rather than `sdd --version`.
+func opensSubcommand(rest []string) bool {
+	return len(rest) > 0 && rest[0] != "" && rest[0][0] >= 'a' && rest[0][0] <= 'z'
 }

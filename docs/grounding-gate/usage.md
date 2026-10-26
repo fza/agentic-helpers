@@ -43,7 +43,9 @@ flags, since its command need not take sdd's.
 A plain `sdd new` without `--dry-run` owes the reads too, and since it names no draft, nothing
 grounded stands in for them. `--help` or `-h`, on `sdd new` or on `agentic-capture`, writes nothing
 and owes nothing. A capture counts however the shell spells it: after a runner, in a
-subshell, inside `bash -c`, under any path.
+subshell, inside `bash -c` or `eval`, fed to a shell by a here-document, under any path, in any
+quoting. A command that does not parse as bash and names `sdd` or `agentic-capture` as a word owes
+the reads as a plain `sdd new` does.
 
 ## sdd's MCP tools
 
