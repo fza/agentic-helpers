@@ -47,7 +47,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
-	"github.com/fza/agentic-helpers/source/hooks/internal/sddfork"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 )
 
 const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [--preflight-limit <duration>] [--preflight-route <model>=<layer>]... [--preflight-done <sha256>]"
@@ -135,6 +135,10 @@ type Env struct {
 	// the grounding gate's, whose check a capture rests on.
 	Settings []string
 	Getenv   func(string) string
+	// SddCache and LookPath let the probe of what sdd offers keep its answer
+	// per binary; either left empty, sdd's help is read on every capture.
+	SddCache string
+	LookPath func(string) (string, error)
 }
 
 type request struct {
@@ -342,6 +346,62 @@ type capture struct {
 	graph   string
 	request request
 	path    string
+	caps    sddcaps.Caps
+	// single is a capture through an sdd without `--preflight-verified`: one
+	// `sdd new` runs the pre-flight and writes, so no separate dry run comes
+	// first and the lock covers the whole call.
+	single bool
+}
+
+// forkOnly names what the draft or the call asks of sdd that this sdd lacks,
+// or nothing where it has it all. A field sdd cannot write is refused rather
+// than dropped: an entry written without it never gains it.
+func (run *capture) forkOnly(held draft) string {
+	needs := func(what string) string {
+		return fmt.Sprintf("%s, which only sdd built from %s carries; install it with `%s`", what, sddcaps.Fork, sddcaps.ForkInstall)
+	}
+
+	_, title := held.front["title"]
+	_, actorKind := held.front["actor_kind"]
+
+	switch {
+	case title && !run.caps.Title:
+		return needs("the draft's header carries `title`, written through `sdd new --title`") + ", or drop the key"
+	case actorKind && !run.caps.ActorKind:
+		return needs("the draft's header carries `actor_kind`, written through `sdd new --actor-kind`") + ", or drop the key"
+	case len(run.request.routes) > 0 && !run.caps.LocalConfig:
+		return needs("--preflight-route runs sdd under `--local-config`")
+	case run.request.preflightDone != "" && !run.caps.PreflightVerified:
+		return needs("--preflight-done records the entry through `sdd new --preflight-verified`")
+	}
+
+	version := schemaOf(run.graph)
+	if version > 1 && !run.caps.Migrate {
+		return fmt.Sprintf("the graph is on schema %d, which only sdd built from %s writes; this sdd writes schema 1. Install the fork with `%s`",
+			version, sddcaps.Fork, sddcaps.ForkInstall)
+	}
+
+	return ""
+}
+
+// schemaOf reads the graph's schema version from its `meta.json`, 0 where it
+// names none.
+func schemaOf(graph string) int {
+	raw, err := os.ReadFile(filepath.Join(graph, "meta.json"))
+	if err != nil {
+		return 0
+	}
+
+	var meta struct {
+		Version int `json:"graph_schema_version"`
+	}
+
+	err = json.Unmarshal(raw, &meta)
+	if err != nil {
+		return 0
+	}
+
+	return meta.Version
 }
 
 func (run *capture) say(format string, args ...any) {
@@ -370,13 +430,21 @@ func (run *capture) do(ctx context.Context) int {
 		return 1
 	}
 
-	printed, fork := sddfork.Check(ctx, run.env.Runner, run.root)
-	if !fork {
-		run.say("agentic-capture needs sdd built from %s; `sdd --version` printed %s. Install it with `%s`",
-			sddfork.Source, printed, sddfork.Install)
+	run.caps = sddcaps.Probe{Runner: run.env.Runner, CacheDir: run.env.SddCache, LookPath: run.env.LookPath}.Of(ctx, run.root)
+	if !run.caps.Runs {
+		run.say("agentic-capture needs sdd on the PATH; %s. Install it with `%s`", run.caps.Printed, sddcaps.StockInstall)
 
 		return 1
 	}
+
+	missing := run.forkOnly(held)
+	if missing != "" {
+		run.say("%s", missing)
+
+		return 1
+	}
+
+	run.single = !run.caps.PreflightVerified
 
 	if config.DraftLint != "" {
 		alerts, err := run.lint(ctx, config.DraftLint, held)
@@ -419,6 +487,17 @@ func (run *capture) do(ctx context.Context) int {
 }
 
 func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
+	if run.single {
+		unlock, err := run.lock()
+		if err != nil {
+			run.say("%v", err)
+
+			return 1
+		}
+
+		defer unlock()
+	}
+
 	result, err := run.preflight(ctx, held)
 	if errors.Is(err, errGaveUp) {
 		return 1
@@ -440,6 +519,12 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 	// sdd exits non-zero on a high finding, so a failed run carrying one is a
 	// held draft, not a refused one.
 	if result.Code != 0 && !slices.ContainsFunc(found, isHigh) {
+		if run.single {
+			run.say("sdd new failed; it checks and writes in one call, so check `git log` before capturing again:\n%s", strings.TrimSpace(output))
+
+			return 1
+		}
+
 		run.say("pre-flight refused the draft:\n%s", strings.TrimSpace(output))
 
 		return 1
@@ -450,10 +535,21 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 	for _, each := range found {
 		switch each.severity {
 		case "medium":
-			run.say("pre-flight notes, not blocking: %s", each.text)
+			if !run.single {
+				run.say("pre-flight notes, not blocking: %s", each.text)
+			}
 		case "high":
 			blocking = append(blocking, each.text)
 		}
+	}
+
+	// The single call wrote the entry where nothing blocked it, and its own
+	// output already carries every finding.
+	if run.single && len(blocking) == 0 {
+		_, _ = fmt.Fprint(run.streams.Out, result.Stdout)
+		_, _ = fmt.Fprint(run.streams.Err, result.Stderr)
+
+		return 0
 	}
 
 	if len(blocking) > 0 && !run.request.force {
@@ -472,6 +568,14 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 		run.say("capturing despite a high-severity finding: %s", text)
 	}
 
+	// The single call refused the entry on its finding; this sdd has no way to
+	// record a checked one, so the forced write records that nothing checked it.
+	if run.single {
+		run.say("this sdd writes the forced entry with --skip-preflight, so the entry records that nothing checked it")
+
+		return run.write(ctx, held, "--skip-preflight")
+	}
+
 	return run.capture(ctx, held, "--preflight-verified")
 }
 
@@ -485,6 +589,12 @@ const schemaRefusal = "refusing to write — graph incompatible with this binary
 func (run *capture) refusedForSchema(output string) bool {
 	if !strings.Contains(output, schemaRefusal) {
 		return false
+	}
+
+	if !run.caps.Migrate {
+		run.say("sdd refuses to write this graph; the draft did not cause this:\n%s", strings.TrimSpace(output))
+
+		return true
 	}
 
 	run.say("the graph needs `sdd migrate` before sdd writes to it; the draft did not cause this, so run `sdd migrate` and capture again:\n%s",
@@ -635,10 +745,21 @@ func (run *capture) try(ctx context.Context, held draft, via route) (process.Res
 	bounded, cancel := context.WithTimeout(ctx, run.request.limit)
 	defer cancel()
 
-	result, err := run.env.Runner.Run(bounded, run.root, via.command(held))
+	argv := via.command(held)
+	if run.single {
+		argv = command(held, "")
+	}
+
+	result, err := run.env.Runner.Run(bounded, run.root, argv)
 
 	if ctx.Err() != nil {
 		return result, "", fmt.Errorf("the pre-flight was interrupted: %w", ctx.Err())
+	}
+
+	// A single call cut off by the limit may have written already, so it is
+	// never tried again.
+	if errors.Is(bounded.Err(), context.DeadlineExceeded) && run.single {
+		return result, "", fmt.Errorf("sdd new gave no answer within %s; it checks and writes in one call, so check `git log` before capturing again", run.request.limit)
 	}
 
 	if errors.Is(bounded.Err(), context.DeadlineExceeded) {
@@ -696,6 +817,11 @@ func (run *capture) capture(ctx context.Context, held draft, preflight string) i
 
 	defer unlock()
 
+	return run.write(ctx, held, preflight)
+}
+
+// write runs the capture step under a lock its caller holds.
+func (run *capture) write(ctx context.Context, held draft, preflight string) int {
 	result, err := run.env.Runner.Run(ctx, run.root, command(held, preflight))
 	if err != nil {
 		run.say("%v", err)
@@ -962,6 +1088,10 @@ func command(held draft, preflight string) []string {
 
 	for _, item := range items(held.front["attach"]) {
 		args = append(args, "--attach", fmt.Sprint(item))
+	}
+
+	if preflight == "" {
+		return args
 	}
 
 	return append(args, preflight)

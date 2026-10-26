@@ -11,9 +11,9 @@ command substitution and every code identifier vanishes from an entry that can n
 | Step | Stops the run when |
 |---|---|
 | header | a field the call needs is missing, a key reaches no `sdd new` flag, or no topic carries the project's `listing_prefix` |
-| sdd fork | `sdd --version` carries no `fza` |
+| sdd | no `sdd` answers `--help`; or the draft or the call asks for what only the fork carries (`title`, `actor_kind`, `--preflight-route`, `--preflight-done`, a schema-2 graph) and the probe finds it missing |
 | lint | `draft_lint` reports on the body, or fails and says nothing; it runs from the repository root on `.<draft>.body.md` beside the draft, its findings shifted to the draft's lines |
-| pre-flight | `sdd new --dry-run` refuses, or reports a high finding; a medium finding is shown and captures anyway, a low one is never shown |
+| pre-flight | `sdd new --dry-run` refuses, or reports a high finding; a medium finding is shown and captures anyway, a low one is never shown. Where sdd lacks `--preflight-verified`, no dry run: one `sdd new` under the lock checks and writes, a high finding writing nothing, a provider fault retried, a cut-off never retried |
 | capture | `sdd new --preflight-verified`, run once under `.sdd/tmp/capture.lock` of the project's `.sdd/` (the graph repository's, where `project_dir` names one), an exclusive `flock` serialising captures that share a graph |
 
 ## The pre-flight's provider

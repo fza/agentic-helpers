@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -276,5 +277,43 @@ func TestRecallNamesTheNewerEntriesCitingAHit(t *testing.T) {
 	out := h.must(hookPayload("", "", "zebra quokka narwhal"), "prompt")
 	if !strings.Contains(out, hub) || !strings.Contains(out, "    ← "+cited+" Follow-up on the sighting [idea, ") {
 		t.Errorf("a recalled hit should name the newer entry citing it, got:\n%s", out)
+	}
+}
+
+func TestAnSddWithoutExportFlagsLinksByFile(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		runner  *test.Runner
+		exports bool
+	}{
+		{name: "stock sdd from main", runner: &test.Runner{Stock: true}, exports: true},
+		{name: "a stock release", runner: &test.Runner{Stock: true, Unreleased: true}},
+		{name: "no sdd", runner: &test.Runner{Missing: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			withGraph(t, h)
+			h.sdd = &sddcaps.Probe{Runner: tc.runner}
+			h.must("", "claim", "main")
+
+			id := h.file("A finding linking a closed decision", "body", "--link", closedDecision)
+			got := h.run("", "show", id)
+
+			if tc.exports {
+				if h.graph.Calls() == 0 || !strings.Contains(got.out, closedDecision+" closed by") {
+					t.Errorf("an sdd with export should flag the link by its status, got:\n%s", got.out)
+				}
+
+				return
+			}
+
+			if h.graph.Calls() != 0 {
+				t.Error("an sdd without export should never be asked for one")
+			}
+
+			if strings.Contains(got.out, "closed by") || strings.Contains(got.err, "graph status unavailable") {
+				t.Errorf("the link should be flagged by its file alone, quietly, got:\n%s\n%s", got.out, got.err)
+			}
+		})
 	}
 }

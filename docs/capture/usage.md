@@ -1,8 +1,9 @@
 # Capture: usage
 
 `agentic-capture <draft.md>` writes one sdd entry from a draft file: a YAML block carrying the
-fields `sdd new` takes, and the body below it. It runs only in a project carrying `.sdd/`, and only
-with sdd built from the fork: any other sdd makes it refuse and say how to install the fork.
+fields `sdd new` takes, and the body below it. It runs only in a project carrying `.sdd/`, with stock
+sdd or with the fork at github.com/fza/sdd, and uses what the fork adds wherever the installed `sdd`
+lists it in its `--help`.
 
 ```bash
 agentic-capture <draft.md>                                    # lint, pre-flight, capture
@@ -40,7 +41,20 @@ neither the reads nor a grounded draft.
 A graph on an older schema than the installed sdd refuses every write, the pre-flight included. The
 capture then says ``the graph needs `sdd migrate` before sdd writes to it; the draft did not cause
 this``, prints sdd's reason and exits 1, since no edit to the draft helps; `sdd migrate` is the
-graph owner's to run.
+graph owner's to run. Stock sdd has no `sdd migrate`: there the capture says ``sdd refuses to write
+this graph; the draft did not cause this`` and prints sdd's reason.
+
+## On stock sdd
+
+Stock sdd has no `--preflight-verified`, so no dry run comes first: one `sdd new`, under the capture
+lock, runs the pre-flight and writes. A high finding writes nothing and exits 2; a provider fault is
+retried as below, since a failed check wrote nothing; a call cut off by `--preflight-limit` is never
+retried, since it may have written, and the capture says to check `git log`. `--force` past a high
+finding writes the entry again with `--skip-preflight`, so it records that nothing checked it.
+
+What only the fork writes is refused before anything runs, naming the fork: a draft header carrying
+`title` or `actor_kind`, `--preflight-route` (the fork's `--local-config`), `--preflight-done` (the
+fork's `--preflight-verified`), and a graph whose `.sdd/meta.json` holds `graph_schema_version: 2`.
 
 ## When the pre-flight's provider fails
 

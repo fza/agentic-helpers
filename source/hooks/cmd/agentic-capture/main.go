@@ -6,7 +6,9 @@ package main
 import (
 	"context"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 )
 
 func main() {
@@ -30,6 +33,11 @@ func main() {
 		home = ""
 	}
 
+	cacheRoot := os.Getenv("XDG_CACHE_HOME")
+	if cacheRoot == "" && home != "" {
+		cacheRoot = filepath.Join(home, ".cache")
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	env := capture.Env{
@@ -39,6 +47,8 @@ func main() {
 		Pause:      capture.Sleep,
 		Settings:   pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
 		Getenv:     os.Getenv,
+		SddCache:   sddcaps.CacheDir(cacheRoot),
+		LookPath:   exec.LookPath,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

@@ -5,6 +5,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
@@ -12,6 +14,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 )
 
 func main() {
@@ -23,6 +26,11 @@ func main() {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = ""
+	}
+
+	cacheRoot := os.Getenv("XDG_CACHE_HOME")
+	if cacheRoot == "" && home != "" {
+		cacheRoot = filepath.Join(home, ".cache")
 	}
 
 	owner := os.Getenv("AGENTIC_MEMORY_PROCESS_NAME")
@@ -40,6 +48,8 @@ func main() {
 		OwnerName:  owner,
 		Settings:   pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
 		Getenv:     os.Getenv,
+		SddCache:   sddcaps.CacheDir(cacheRoot),
+		LookPath:   exec.LookPath,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

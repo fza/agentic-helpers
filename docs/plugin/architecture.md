@@ -24,7 +24,7 @@ files goes into `plugin/`.
 | SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-grounding-gate start` |
 | UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt` |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `agentic-grounding-gate gate` |
-| PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `Write`, `Edit` | `agentic-grounding-gate record` |
+| PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next`, `Write`, `Edit` | `agentic-grounding-gate record` |
 | PostToolUse on every tool | `agentic-memory tool`, `agentic-tools notice` |
 | Stop | `agentic-memory stop`, `agentic-tools stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
 | SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end` |

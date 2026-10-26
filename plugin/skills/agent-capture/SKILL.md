@@ -79,10 +79,17 @@ Body. Markdown, unfenced.
 |---|---|
 | grounding gate | the project serves sdd's engine and sets no `cli_capture: true`; or the reads are owed and the draft is not grounded (`agentic-helpers:agent-grounding`) |
 | header | no `type`/`layer`; `listing_prefix` set and no topic carries it |
-| sdd fork | `sdd --version` carries no `fza` → `agentic-capture needs sdd built from github.com/fza/sdd`, exit 1, nothing runs. Fix = `brew install fza/tap/sdd`, owner's call |
+| sdd | no `sdd` → `agentic-capture needs sdd on the PATH`, exit 1. Draft or call asks for a fork-only surface the installed sdd lacks → refused naming `brew install fza/tap/sdd`, exit 1, nothing runs. Drop the key or have the owner install the fork |
 | project lint | `draft_lint` set and it reports; or it fails and says nothing |
 | pre-flight | `sdd new --dry-run` refuses; any `[high]` finding. Provider fault → retried, see below. Skipped on a `--preflight-done` match |
 | capture | `sdd new --preflight-verified`, under `.sdd/tmp/capture.lock`. Runs once, never retried |
+
+- **Stock sdd (no `--preflight-verified`)** → no dry run: one `sdd new` under the lock checks and
+  writes. `[high]` → exit 2, nothing written. Provider fault → retried. Cut off by the limit → exit 1,
+  never retried: `git log` first. `--force` past a `[high]` → written with `--skip-preflight`,
+  recorded unchecked.
+- **Fork-only:** draft keys `title`, `actor_kind`; `--preflight-route`; `--preflight-done`; a graph on
+  schema 2. Probed from `sdd --help`, never from the version.
 
 - **Split layout** (`project_dir` in the code repo's `.sdd/config.yaml`) → `grounding.yaml` and the
   lock are the graph repo's. sdd runs from the code repo.
@@ -122,7 +129,8 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
 - **Never retried:** a `[high]` finding, `validation failed`, status 400/401/403/404, anything else.
   Refusal checked first: a `[high]` finding quoting "timed out" is still a refusal.
 - **Graph on an older schema** → stderr ``the graph needs `sdd migrate` before sdd writes to it; the
-  draft did not cause this``, then sdd's reason, exit 1. Pre-flight or capture step; never retried,
+  draft did not cause this``, then sdd's reason, exit 1. Stock sdd has no `migrate` → ``sdd refuses to
+  write this graph; the draft did not cause this``. Pre-flight or capture step; never retried,
   never routed. Fix = `sdd migrate`: owner's call, rewrites the whole graph, asks y/N. Never edit the
   draft for it.
 - **Capture step never retried.** Its one model call (summary) fails soft, before the write. A

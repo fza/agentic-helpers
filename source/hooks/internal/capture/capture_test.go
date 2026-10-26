@@ -913,50 +913,6 @@ func TestAGraphOnAnOlderSchemaNeedsMigrateNotADraftEdit(t *testing.T) {
 	})
 }
 
-func TestCaptureNeedsTheSddFork(t *testing.T) {
-	cases := []struct {
-		name    string
-		version process.Result
-		fails   bool
-		fork    bool
-	}{
-		{name: "a fork release", version: process.Result{Stdout: "sdd version 0.18.0-alpha.2.fza.22\n"}, fork: true},
-		{name: "a local fork build", version: process.Result{Stdout: "sdd version 0.18.0-alpha.2+fza21\n"}, fork: true},
-		{name: "upstream", version: process.Result{Stdout: "sdd version 0.17.0\n"}},
-		{name: "a dev build", version: process.Result{Stdout: "sdd version dev\n"}},
-		{name: "another program printing fza", version: process.Result{Stdout: "fza-tool 1.0\n"}},
-		{name: "a failing fork", version: process.Result{Stdout: "sdd version 0.18.0-alpha.2.fza.22\n", Stderr: "panic: broken\n", Code: 2}},
-		{name: "no sdd at all", fails: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newFixture(t, "grounding/area-prefix.yaml")
-			f.runner.Version = tc.version
-			f.runner.VersionFails = tc.fails
-
-			got := f.run(f.draft("capture/full.md"))
-
-			if tc.fork {
-				if got.code != 0 || len(f.runner.CallsOf("capture")) != 1 {
-					t.Errorf("the fork should capture, got: %+v", got)
-				}
-
-				return
-			}
-
-			if got.code != 1 || !strings.Contains(got.stderr, "agentic-capture needs sdd built from github.com/fza/sdd") ||
-				!strings.Contains(got.stderr, "brew install fza/tap/sdd") {
-				t.Errorf("another sdd should be refused, naming the fork and its install, got: %+v", got)
-			}
-
-			if len(f.runner.Calls) != 1 {
-				t.Errorf("nothing should run after the version, got: %v", f.runner.Calls)
-			}
-		})
-	}
-}
-
 func TestCaptureOffOnTheMachine(t *testing.T) {
 	cases := []struct {
 		options string

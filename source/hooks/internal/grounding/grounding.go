@@ -63,7 +63,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
-	"github.com/fza/agentic-helpers/source/hooks/internal/sddfork"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -140,13 +140,17 @@ type Env struct {
 	WorkingDir string
 	Home       string
 	Checkout   project.CommonDirLookup
-	Runner     sddfork.Runner
+	Runner     sddcaps.Runner
 	Processes  seat.Processes
 	OwnerName  string
 	// Settings and Getenv carry the plugin's options: the gate's own switch, and
 	// memory's, which exempt_seats rests on.
 	Settings []string
 	Getenv   func(string) string
+	// SddCache and LookPath let the probe of what sdd offers keep its answer
+	// per binary; either left empty, sdd's help is read on every probe.
+	SddCache string
+	LookPath func(string) (string, error)
 }
 
 func (env Env) options() pluginconfig.Options {
@@ -214,7 +218,6 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return 0
 	case "start":
 		reap(ctx, env.ledgerDir(), time.Now())
-		stepAsideWithoutFork(ctx, env, payload, streams)
 
 		if payload.Source == "compact" {
 			forgetReads(ctx, env, payload)
@@ -226,10 +229,6 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		return 0
 	default:
-		if steppedAside(env, payload) {
-			return 0
-		}
-
 		refusal := gate(ctx, env, payload)
 		if refusal == "" {
 			return 0
@@ -398,7 +397,7 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 	}
 
 	if payload.ToolName == "Bash" && writing(env, payload.ToolInput.Command) == writesThroughCapture &&
-		!config.CLICapture && env.servesEngine() {
+		!config.CLICapture && env.servesEngine(ctx) {
 		return refusal("engine.txt")
 	}
 

@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 )
 
 var version = "dev"
@@ -70,6 +72,7 @@ func main() {
 		Checkout:      project.GitCommonDir{},
 		Git:           process.Git{},
 		Graph:         process.SddExport{},
+		Sdd:           &sddcaps.Probe{Runner: process.Runner{}, CacheDir: sddcaps.CacheDir(cacheRoot), LookPath: exec.LookPath},
 		Embedders: func(config embed.Config) (embed.Embedder, error) {
 			return embed.New(config, &http.Client{Timeout: 30 * time.Second})
 		},

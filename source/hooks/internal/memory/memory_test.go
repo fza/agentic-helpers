@@ -18,6 +18,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
@@ -40,6 +41,7 @@ type harness struct {
 	waitPoll     time.Duration
 	waitDeadline time.Duration
 	graph        *test.Graph
+	sdd          *sddcaps.Probe
 }
 
 func newHarness(t *testing.T) *harness {
@@ -109,7 +111,7 @@ func (h *harness) env() memory.Env {
 		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now,
 		Random: test.Random(), Processes: h.processes, Checkout: test.GitDirOf{},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
-		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph,
+		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
 	}
 }
 

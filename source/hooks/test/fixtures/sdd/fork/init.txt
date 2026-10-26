@@ -1,0 +1,24 @@
+NAME:
+   sdd init - Initialize or refresh the SDD project (idempotent)
+
+USAGE:
+   sdd init [options]
+
+OPTIONS:
+   --graph-dir string                   Graph directory relative to repo root (prompted interactively on fresh init)
+   --project-dir string                 Root of the sdd project holding this repository's graph, kept in a repository of its own; this repository then carries only the pointer and the agent skills
+   --participant string                 Canonical author name recorded in .sdd/config.local.yaml (prompted interactively with git user.name as default when unset)
+   --language string                    Graph authoring language as a locale code, e.g. en, de (prompted interactively on fresh init with en as default)
+   --scope string                       Where to install skills: user (~/.claude/skills) or project (.claude/skills) (default: "user")
+   --agents string [ --agents string ]  Agent targets to render skills for: claude, codex (prompted interactively on fresh init; defaults to claude)
+   --force                              Overwrite user-modified skill files without prompting
+   --bump                               Raise .sdd/meta.json minimum_version to this binary's version (released builds only)
+   --help, -h                           show help
+
+GLOBAL OPTIONS:
+   --version                      Print the version
+   --graph-dir string, -d string  Override graph directory (auto-discovered from .sdd/config.yaml)
+   --local-config string          Use this file as the machine-local config layer instead of .sdd/config.local.yaml (read and written)
+   --verbose, -v                  Enable info-level logging
+   --extra-verbose, --vv          Enable debug-level logging
+   --timing                       Print how long each phase of the command takes to stderr [$SDD_TIMING]

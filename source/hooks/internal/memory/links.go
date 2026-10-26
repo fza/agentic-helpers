@@ -141,7 +141,9 @@ type graphState struct {
 
 // graphStatuses is every graph entry's status, from the cache while the graph
 // is unchanged, else from `sdd export`. Without one, flags fall back to whether
-// a graph entry's file exists, and the read says so once.
+// a graph entry's file exists, and the read says so once. An sdd without the
+// command falls back silently: no stock release carries `export`, so its
+// absence says nothing about the graph.
 func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bool) {
 	if mem.graphKnown != nil {
 		return mem.graphKnown, true
@@ -156,6 +158,10 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 		mem.graphKnown = cached.Statuses
 
 		return cached.Statuses, true
+	}
+
+	if mem.env.Sdd != nil && !mem.env.Sdd.Of(ctx, root).Export {
+		return nil, false
 	}
 
 	statuses, err := mem.exportStatuses(ctx, root)

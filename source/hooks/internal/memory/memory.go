@@ -29,6 +29,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
+	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -64,8 +65,10 @@ type Env struct {
 	Git           Git
 	Embedders     EmbedderFactory
 	Version       string
-	// Graph asks sdd for the graph's statuses, which link flags read.
+	// Graph asks sdd for the graph's statuses, which link flags read; Sdd says
+	// whether the sdd on the PATH has `export` at all, nil taking it as given.
 	Graph GraphExporter
+	Sdd   *sddcaps.Probe
 	// WaitPoll and WaitDeadline pace the idle waiter; zero takes every 5
 	// seconds for 30 minutes.
 	WaitPoll     time.Duration

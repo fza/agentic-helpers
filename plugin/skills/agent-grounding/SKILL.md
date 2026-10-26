@@ -11,10 +11,8 @@ holds. Both → wrong answer, written down, confident.
 
 **Only a project carrying `.sdd/`.** No graph → gate silent, nothing here applies.
 
-**Gate needs sdd from the fork, github.com/fza/sdd.** SessionStart in a graph project runs
-`sdd --version` once. No `fza` in it → one notice, ``agentic-helpers: the grounding gate is off for
-this session``, naming the version and `brew install fza/tap/sdd`; gate off for the whole session.
-Tell the owner; installing is theirs. New session after the install → gate back on.
+**Gate holds on stock sdd and on the fork alike.** It reads commands only; every one it matches
+exists in both.
 
 **Gate on unless `.sdd/grounding.yaml` lifts it.** `enabled: false` → gate silent for every session.
 Top-level `exempt_seats: [reviewer]` → a session holding that seat passes every check. Gate silent

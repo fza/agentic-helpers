@@ -179,7 +179,9 @@ link, reading `repos[].entries[].{id,status,status_by}` of the local repo. The r
 `graph-status.json` in the cache, keyed by the count of `**/*.md` under the resolved `graph_dir` and the newest
 modification time among them. Where the export fails or its shape no longer carries those fields,
 flags fall back to whether the file exists, and the read says once
-`agentic-memory: graph status unavailable (sdd export: <why>)`.
+`agentic-memory: graph status unavailable (sdd export: <why>)`. Where the installed sdd lists no `export`
+command in `sdd --help` (no stock release carries it), no export runs and the read says nothing:
+flags fall back to the file quietly.
 
 ## Arrivals
 

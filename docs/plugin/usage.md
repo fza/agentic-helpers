@@ -19,10 +19,21 @@ allowlist entry and no marker file.
 
 ## sdd
 
-The grounding gate and `agentic-capture` work only with sdd built from the fork
-[github.com/fza/sdd](https://github.com/fza/sdd). A build is the fork when `sdd --version` carries
-`fza`. With any other sdd, `agentic-capture` refuses to run and says how to install the fork, and the
-grounding gate says the same once as a session starts, then stays off for that session.
+The grounding gate and `agentic-capture` work with stock sdd
+([github.com/networkteam/sdd](https://github.com/networkteam/sdd)) and use what the fork
+[github.com/fza/sdd](https://github.com/fza/sdd) adds wherever the installed `sdd` carries it. What a
+binary carries is read from its own `sdd --help`, `sdd new --help` and `sdd init --help`, never from
+its version, and kept in `<cache>/agentic-helpers/sdd-caps.json` (`$XDG_CACHE_HOME`, else
+`~/.cache`) per binary path, modification time and size.
+
+| Fork surface | Without it |
+|---|---|
+| `sdd new --preflight-verified` | `agentic-capture` runs one `sdd new`, which checks and writes |
+| `sdd new --title`, `--actor-kind` | a draft carrying `title` or `actor_kind` is refused, naming the fork |
+| `sdd --local-config` | `--preflight-route` is refused |
+| `sdd migrate` | a graph on schema 2 is refused; a schema refusal names no `sdd migrate` |
+| `sdd init --project-dir` | the gate's engine refusal skips a project naming `project_dir` |
+| `sdd export` (no stock release) | memory flags a graph link by whether its entry file exists |
 
 ## Commands
 

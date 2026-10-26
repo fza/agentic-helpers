@@ -19,7 +19,7 @@ through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code 
 
 | Event | Mode | What it does |
 |---|---|---|
-| SessionStart | `start` | checks once that `sdd --version` carries `fza`, and otherwise turns the gate off for the session with one notice; removes the ledgers of sessions that left a week ago without ending cleanly; with `source: compact`, forgets this session's reads and keeps its grounded drafts |
+| SessionStart | `start` | removes the ledgers of sessions that left a week ago without ending cleanly; with `source: compact`, forgets this session's reads and keeps its grounded drafts |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next` | `record` | credits the reads the call performed; after the session's own capture (`agentic-capture` printing `<id>.md`, or a `next` result carrying `produced.entryId`), moves the ledger to the new graph state when that entry is the only change, keeping the reads |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`; for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
@@ -42,7 +42,10 @@ file is byte-identical and the graph still holds the same entries.
 On `Bash`, a call running `agentic-capture`, recognised in every spelling the gate sees a capture
 in, is refused with `refusals/engine.txt` when the project's `.mcp.json`, read from the project root,
 declares `mcpServers.sdd`, the server name sdd's `mcp__sdd__*` tools carry, and the resolved
-`.sdd/grounding.yaml` sets no `cli_capture: true`. The check runs before the reads: credit decides
+`.sdd/grounding.yaml` sets no `cli_capture: true`. Where the governing `.sdd/` names its graph
+repository through `project_dir`, the server counts only where the installed sdd lists
+`--project-dir` in `sdd init --help`: an sdd without it ignores the key, and its server would serve
+the code repository's own `.sdd/`. The probe's answer is cached per binary. The check runs before the reads: credit decides
 nothing here. A `.mcp.json` that is missing or does not parse declares no server. An sdd server at
 user or local scope is not read.
 

@@ -12,10 +12,12 @@ const defaultEntries = ".sdd/graph"
 
 // Project is where a directory's sdd state lives. Dir is the `.sdd/` holding
 // the project's config, `grounding.yaml` and `tmp/`; Entries is the directory
-// its graph entries live under. Both are empty where no graph governs.
+// its graph entries live under. Both are empty where no graph governs. Split
+// says the governing `.sdd/` names its graph repository through `project_dir`.
 type Project struct {
 	Dir     string
 	Entries string
+	Split   bool
 }
 
 // sddConfig is the part of `.sdd/config.yaml` and `.sdd/config.local.yaml` the
@@ -69,10 +71,10 @@ func resolveFrom(dir string) Project {
 
 	info, err := os.Stat(graph)
 	if err != nil || !info.IsDir() {
-		return Project{Dir: dir, Entries: filepath.Join(target, defaultEntries)}
+		return Project{Dir: dir, Entries: filepath.Join(target, defaultEntries), Split: true}
 	}
 
-	return Project{Dir: graph, Entries: entriesOf(graph, readConfig(graph).GraphDir)}
+	return Project{Dir: graph, Entries: entriesOf(graph, readConfig(graph).GraphDir), Split: true}
 }
 
 func (project Project) config() sddConfig {

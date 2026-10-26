@@ -1,0 +1,36 @@
+NAME:
+   sdd - Signal-Dialogue-Decision graph tool
+
+USAGE:
+   sdd [global options] [command [command options]]
+
+COMMANDS:
+   init       Initialize or refresh the SDD project (idempotent)
+   info       Show session framing — participant, language, search capability
+   config     Show and edit SDD configuration (global-first overlay with per-repo override)
+   show       Show entry with upstream and downstream summary chains
+   view       Compose custom graph views with filters, ranking, transforms, and renderers
+   export     EXPERIMENTAL: export the graph and its declared dependencies with derived status and heat as one JSON document (unstable shape)
+   new        Create a new graph entry
+   rewrite    Rewrite an entry's type and kind, updating inbound references
+   wip        Manage work-in-progress markers
+   lint       Check graph entries for integrity issues
+   summarize  Generate or regenerate entry summaries and titles
+   migrate    Upgrade the graph to this binary's schema version, after approval
+   index      Build or refresh the search index over .sdd/graph
+   search     Search the graph by keyword (--term), semantic phrase (--query), or both (hybrid)
+   serve      Run the workflow MCP server: dialogue-loop tools over stdio or HTTP
+   sessions   List this project's dialogue sessions with open work; abandon stale ones
+   sync       Synchronize the shared graph with the upstream branch
+   repo       Manage connected repos for cross-repo references
+   stats      Show LLM/embedding usage analytics from the local stats sink
+   help, h    Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --version                      Print the version
+   --graph-dir string, -d string  Override graph directory (auto-discovered from .sdd/config.yaml)
+   --local-config string          Use this file as the machine-local config layer instead of .sdd/config.local.yaml (read and written)
+   --verbose, -v                  Enable info-level logging
+   --extra-verbose, --vv          Enable debug-level logging
+   --timing                       Print how long each phase of the command takes to stderr [$SDD_TIMING]
+   --help, -h                     show help

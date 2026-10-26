@@ -16,7 +16,7 @@ and commands the agent calls itself:
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
 | shell-guard | `agentic-shell-guard` | keeping every removal inside the project and `/tmp`, and scratch files out of `mktemp`, on every Bash call |
 
-**The grounding gate and capture exist for [sdd](https://github.com/fza/sdd)**, the
+**The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd)**, the
 Signal-Dialogue-Decision graph a project keeps under `.sdd/`.
 
 **sdd is a project's long-term memory; agentic-memory is its short-term memory.** The graph holds
@@ -38,21 +38,31 @@ none is supported.
 
 ## Installing
 
-**agentic-helpers works only with sdd built from the fork [github.com/fza/sdd](https://github.com/fza/sdd)**,
-not from networkteam/sdd: `agentic-capture` and the grounding gate follow the fork's `sdd`. Install
-it first:
+Install sdd first:
+
+```bash
+brew install networkteam/tap/sdd
+```
+
+Without Homebrew, sdd's install script does the same:
+
+```bash
+curl -sL https://github.com/networkteam/sdd/releases/latest/download/install.sh | sh
+```
+
+**Optional: the fork [github.com/fza/sdd](https://github.com/fza/sdd).** agentic-helpers works with
+stock sdd and uses what the fork adds wherever the installed `sdd` carries it, read from its own
+`--help`: entry titles and `actor_kind` in a draft's header, a pre-flight checked once and recorded
+as verified, fallback routes for the pre-flight, `sdd migrate`, and a code repository naming its
+graph repository through `project_dir`.
 
 ```bash
 brew install fza/tap/sdd
-sdd --version   # sdd version 0.18.0-alpha.2.fza.22, or any version carrying "fza"
 ```
 
-Without Homebrew, the fork's install script from a pinned release does the same (every fork release
-is a prerelease, so `releases/latest` finds none):
-
-```bash
-curl -sL https://github.com/fza/sdd/releases/download/v0.18.0-alpha.2.fza.22/install.sh | sh
-```
+A graph `sdd migrate` has moved to the fork's schema takes only the fork for writes: stock sdd
+refuses it, and so does `agentic-capture` through stock sdd. Every member writing to such a graph
+installs the fork.
 
 Then the plugin:
 
