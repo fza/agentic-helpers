@@ -38,10 +38,12 @@ var plainWord = regexp.MustCompile(`^[A-Za-z0-9_./:@%+=,~-]+$`)
 // runs every read a turn owes in one call; ReadSuffix ends every read a refusal
 // suggests. Any may be empty. Disabled switches the gate off for the project,
 // and ExemptSeats names the seats it never refuses; the zero value keeps the
-// gate on, so a project writing no file stays under it.
+// gate on, so a project writing no file stays under it. CLICapture lets
+// `agentic-capture` through where the project also serves sdd's engine.
 type Config struct {
 	Disabled      bool
 	ExemptSeats   []string
+	CLICapture    bool
 	ListingPrefix string
 	DraftLint     string
 	ReadCommand   string
@@ -63,6 +65,7 @@ type ShowDepth struct {
 type written struct {
 	Enabled       *bool    `yaml:"enabled"`
 	ExemptSeats   []string `yaml:"exempt_seats"`
+	CLICapture    bool     `yaml:"cli_capture"`
 	ListingPrefix string   `yaml:"listing_prefix"`
 	DraftLint     string   `yaml:"draft_lint"`
 	ReadCommand   string   `yaml:"read_command"`
@@ -127,6 +130,7 @@ func Load(graphDir string) (Config, error) {
 
 	config.Disabled = file.Enabled != nil && !*file.Enabled
 	config.ExemptSeats = file.ExemptSeats
+	config.CLICapture = file.CLICapture
 	config.ListingPrefix = file.ListingPrefix
 	config.DraftLint = file.DraftLint
 	config.ReadSuffix = strings.TrimSpace(file.ReadSuffix)

@@ -1,0 +1,7 @@
+GROUNDING GATE: refused. This project serves sdd's engine (`mcpServers.sdd` in `.mcp.json`), and a capture runs through it: the engine plays the entry back for the owner's confirmation and checks its summary, which `agentic-capture` does not.
+
+Capture through the engine instead:
+
+  mcp__sdd__start_procedure  {"canonical": "capture"}
+
+A project capturing through `agentic-capture` on purpose sets `cli_capture: true` in `.sdd/grounding.yaml`.

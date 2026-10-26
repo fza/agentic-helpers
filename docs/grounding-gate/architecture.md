@@ -37,6 +37,15 @@ The gate keeps each session's credited reads and grounded drafts under
 entry count and newest entry at the time it was saved; a capture of it passes only while the draft
 file is byte-identical and the graph still holds the same entries.
 
+## The engine refusal
+
+On `Bash`, a call running `agentic-capture`, recognised in every spelling the gate sees a capture
+in, is refused with `refusals/engine.txt` when the project's `.mcp.json`, read from the project root,
+declares `mcpServers.sdd`, the server name sdd's `mcp__sdd__*` tools carry, and the resolved
+`.sdd/grounding.yaml` sets no `cli_capture: true`. The check runs before the reads: credit decides
+nothing here. A `.mcp.json` that is missing or does not parse declares no server. An sdd server at
+user or local scope is not read.
+
 ## Crediting a read
 
 A command is read twice. The shell-stripped form, with quoted spans emptied, says whether a call

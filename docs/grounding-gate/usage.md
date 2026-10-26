@@ -13,6 +13,13 @@ refuses a call that would discard the graph tool's own output, since a swallowed
 exactly like an empty graph, and a read that stops at the entry itself, since a body is immutable
 and a later entry may have renamed every surface it names.
 
+**A project serving sdd's engine captures through it.** Where `.mcp.json` declares
+`mcpServers.sdd`, the gate refuses `agentic-capture` outright, whatever reads the session holds, and
+names the engine's capture, `mcp__sdd__start_procedure` with `canonical: capture`: the engine plays
+the entry back for the owner's confirmation and checks its summary, which `agentic-capture` does
+not. `cli_capture: true` in `.sdd/grounding.yaml` lifts the refusal for a project capturing through
+`agentic-capture` on purpose. A plain `sdd new` keeps its own rule.
+
 **A question, a draft edit and a notebook edit under `drafts/` are let through, never refused.**
 With reads owed the call goes ahead and the agent gets a note, opening
 `GROUNDING GATE: let through, reads owed.` and naming what is still owed; a draft edit's note
@@ -84,6 +91,7 @@ discarded stream and the depth alike. A file that does not parse keeps the gate 
 ```yaml
 enabled: false               # left out or true: the gate runs
 exempt_seats: [reviewer]     # seats the gate never refuses; show_depth's own lifts the depth alone
+cli_capture: true            # agentic-capture passes beside an sdd server in .mcp.json
 ```
 
 A project running its reads through a wrapper names it, and the refusals suggest reads the wrapper

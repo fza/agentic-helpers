@@ -1,14 +1,30 @@
 ---
 name: agent-capture
-description: 'Capturing an sdd graph entry from a draft file with agentic-capture: the draft''s shape, the project''s lint, the pre-flight, what each refusal means. Use before writing a draft, before any capture, and whenever agentic-capture refuses one. Only projects carrying a .sdd/ graph use this.'
+description: 'Which way an sdd graph entry is captured: through sdd''s engine (mcp__sdd__start_procedure, canonical capture) wherever mcp__sdd__* tools are present, through agentic-capture from a draft file only where they are not. Covers the draft''s shape, the project''s lint, the pre-flight, what each refusal means. Use before any capture, and whenever agentic-capture or the grounding gate refuses one. Only projects carrying a .sdd/ graph use this.'
 license: MIT
 ---
 
 # Capture
 
+## Which way
+
+| Session has | Capture through |
+|---|---|
+| `mcp__sdd__*` tools (sdd's engine) | `mcp__sdd__start_procedure` with `canonical: capture`, driven by the `sdd` skill. Never `agentic-capture` |
+| no sdd MCP server, or one that refuses the graph | `agentic-capture <draft.md>`, below |
+
+- **The engine plays the entry back** for the owner's confirmation, runs a writing-guide review and
+  checks the generated summary. `agentic-capture` does none of these.
+- **The gate holds it.** `agentic-capture` in a project whose `.mcp.json` declares `mcpServers.sdd`
+  → refused, `GROUNDING GATE: refused. This project serves sdd's engine ...`. Switch to the engine.
+  `cli_capture: true` in `.sdd/grounding.yaml` lifts it: the owner's setting, never yours.
+- **`sdd-engine` is deprecated.** The `sdd` skill is the engine flow.
+
+## agentic-capture
+
 `sdd new "$(cat body.md)"` → second shell re-reads the body → backticks run as commands, every code
-identifier gone from an immutable entry. `agentic-capture` passes the body as one argument. Always it,
-never `sdd new` by hand.
+identifier gone from an immutable entry. `agentic-capture` passes the body as one argument.
+Outside the engine, always it, never `sdd new` by hand.
 
 **Only a project carrying `.sdd/`.** No graph → refused, nothing created.
 
@@ -61,7 +77,7 @@ Body. Markdown, unfenced.
 
 | Step | Blocks when |
 |---|---|
-| grounding gate | turn lacks the three reads and the draft is not grounded (`agentic-helpers:agent-grounding`) |
+| grounding gate | the project serves sdd's engine and sets no `cli_capture: true`; or the reads are owed and the draft is not grounded (`agentic-helpers:agent-grounding`) |
 | header | no `type`/`layer`; `listing_prefix` set and no topic carries it |
 | sdd fork | `sdd --version` carries no `fza` → `agentic-capture needs sdd built from github.com/fza/sdd`, exit 1, nothing runs. Fix = `brew install fza/tap/sdd`, owner's call |
 | project lint | `draft_lint` set and it reports; or it fails and says nothing |

@@ -14,6 +14,17 @@ agentic-capture <draft.md> --preflight-done <sha256>          # the caller ran t
 agentic-capture --help                                        # usage and one line per flag
 ```
 
+## Engine first
+
+Where the project serves sdd's engine, an entry is captured through it, not through
+`agentic-capture`: `mcp__sdd__start_procedure` with `canonical: capture`, driven by sdd's `sdd`
+skill. The engine plays the exact entry back for the owner's confirmation, runs a writing-guide
+review and checks the generated summary; `agentic-capture` does none of these. The grounding gate
+refuses `agentic-capture` in a project whose `.mcp.json` declares `mcpServers.sdd`, naming the
+engine's capture instead. A project that captures through `agentic-capture` on purpose beside an sdd
+server, a pipeline or a scripted capture, sets `cli_capture: true` in `.sdd/grounding.yaml`. An sdd
+server configured at user or local scope, outside `.mcp.json`, goes unseen.
+
 ## What a draft must clear
 
 Before it writes, the draft clears three checks in turn: its header names what the call needs (and a

@@ -397,6 +397,11 @@ func gate(ctx context.Context, env Env, payload hookio.Payload) string {
 		return configRefusal(configErr)
 	}
 
+	if payload.ToolName == "Bash" && writing(env, payload.ToolInput.Command) == writesThroughCapture &&
+		!config.CLICapture && env.servesEngine() {
+		return refusal("engine.txt")
+	}
+
 	prefix := config.ListingPrefix
 
 	path, err := ledgerPath(env.ledgerDir(), payload)

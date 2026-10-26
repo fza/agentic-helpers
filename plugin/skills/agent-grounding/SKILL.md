@@ -138,6 +138,7 @@ parse error. Fix the file.
 
 | Refused | Why |
 |---|---|
+| `agentic-capture` where `.mcp.json` declares `mcpServers.sdd`, no `cli_capture: true` | the engine's capture plays the entry back and checks its summary; use `mcp__sdd__start_procedure` |
 | capture, three reads missing, draft not grounded | writing what the graph never confirmed |
 | `sdd new` without `--dry-run` or `--help`, three reads missing | same, by the path that skips the draft |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
@@ -149,8 +150,8 @@ parse error. Fix the file.
 - **Never `2>/dev/null` an `sdd` call.** Filter instead: `| grep -E '^  [0-9]'`.
 - **A listing is enormous.** Another capture mid-pass invalidates it. Read the first run whole,
   then only what changed.
-- **Capture through `agentic-capture`.** It lints the draft first; nothing lints an entry after.
-  The `agentic-helpers:agent-capture` skill carries the rest.
+- **Capture through sdd's engine where `mcp__sdd__*` tools exist, else `agentic-capture`.** Never
+  `sdd new` by hand. The `agentic-helpers:agent-capture` skill carries the rest.
 
 ## Capturing
 
