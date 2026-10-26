@@ -983,3 +983,32 @@ func TestCaptureOffOnTheMachine(t *testing.T) {
 		})
 	}
 }
+
+func TestASplitLayoutTakesTheGraphRepositorysSettings(t *testing.T) {
+	f := newFixture(t, "")
+	graph := filepath.Join(filepath.Dir(f.root), "mika-sdd")
+
+	test.WriteFile(t, filepath.Join(f.root, ".sdd", "config.yaml"), test.Fixture(t, "sddconfig/project-dir.yaml"))
+	test.WriteFile(t, filepath.Join(graph, ".sdd", "config.yaml"), test.Fixture(t, "sddconfig/graph-repo.yaml"))
+	test.WriteFile(t, filepath.Join(graph, ".sdd", "grounding.yaml"), test.Fixture(t, "grounding/area-prefix.yaml"))
+
+	refused := f.run(f.draft("capture/no-area.md"))
+	if refused.code != 1 || !strings.Contains(refused.stderr, "opening with area-") {
+		t.Errorf("the graph repository's grounding.yaml should set the topic rule, got: %+v", refused)
+	}
+
+	got := f.run(f.draft("capture/full.md"))
+	if got.code != 0 {
+		t.Fatalf("a clean draft should capture, got: %+v", got)
+	}
+
+	for _, dir := range f.runner.Dirs {
+		if dir != graphconfig.RealPath(f.root) {
+			t.Error("sdd should run from the code repository, which resolves its graph repository itself")
+		}
+	}
+
+	if !test.Exists(t, filepath.Join(graph, ".sdd", "tmp", "capture.lock")) {
+		t.Error("the capture lock should live in the graph repository, where every capture of it meets")
+	}
+}

@@ -2,12 +2,9 @@ package memory
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/goccy/go-yaml"
-
+	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
@@ -19,16 +16,9 @@ const defaultLanguage = "en"
 func (mem *memory) language(ctx context.Context) string {
 	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
 
-	raw, err := os.ReadFile(filepath.Join(root, ".sdd", "config.yaml"))
-	if err == nil {
-		var graph struct {
-			Language string `yaml:"language"`
-		}
-
-		err = yaml.Unmarshal(raw, &graph)
-		if err == nil && strings.TrimSpace(graph.Language) != "" {
-			return strings.TrimSpace(graph.Language)
-		}
+	graph := strings.TrimSpace(graphconfig.ResolveAt(root).Language())
+	if graph != "" {
+		return graph
 	}
 
 	configured := strings.TrimSpace(mem.options().MemoryLanguage)

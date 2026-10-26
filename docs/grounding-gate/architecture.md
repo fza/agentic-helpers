@@ -3,6 +3,18 @@
 `agentic-grounding-gate` runs in a project carrying `.sdd/`, at the project root or above it, and
 does nothing elsewhere or where `.sdd/grounding.yaml` says `enabled: false`.
 
+## Which graph
+
+The hooks find a project's graph where sdd does. They walk up to the governing `.sdd/` and read its
+`config.yaml`, overlaid by `config.local.yaml`. Where that sets `project_dir`, sdd's split layout,
+the code repository's `.sdd/` holds only that key, and the project is the graph repository it names:
+its `.sdd/` holds `grounding.yaml`, the gate's ledgers and `agentic-capture`'s lock. Entries live
+under that project's `graph_dir`, `.sdd/graph` where unset. A relative `project_dir` or `graph_dir`
+joins to the folder holding the `.sdd/` that sets it, never to the git toplevel. A `graph_dir`
+leaving that folder reads as unset: sdd refuses it, and the split layout names its graph repository
+through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code repository's own
+`.sdd/` and reads an empty graph, creating nothing in the missing checkout.
+
 ## Hooks
 
 | Event | Mode | What it does |
@@ -16,7 +28,7 @@ does nothing elsewhere or where `.sdd/grounding.yaml` says `enabled: false`.
 ## The ledger
 
 A ledger's reads carry `graph`, the graph's state when they were recorded: the count of entry files
-and the newest entry's name, the state grounded drafts carry too. `record` compares it before
+under the resolved `graph_dir` and the newest entry's name, the state grounded drafts carry too. `record` compares it before
 crediting a read, and a different state clears the query, term and listings first; `gate` treats
 reads recorded under another state as none.
 

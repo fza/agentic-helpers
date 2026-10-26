@@ -21,7 +21,9 @@ topic carrying the project's `listing_prefix`, where one is set) and carries no 
 `sdd new` flag, since an entry written without a field never gains it; the project's own lint reports
 nothing on the body; and `sdd new --dry-run` reports nothing of high severity. The lint is whatever
 the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --output=line` alike,
-and a project naming none gets no lint. The grounding gate refuses a capture whose turn carries
+and a project naming none gets no lint. In sdd's split layout, where the code repository's
+`.sdd/config.yaml` names the graph repository as `project_dir`, `grounding.yaml` is the graph
+repository's; sdd itself still runs from the code repository, which resolves its graph repository. The grounding gate refuses a capture whose turn carries
 neither the reads nor a grounded draft.
 
 A graph on an older schema than the installed sdd refuses every write, the pre-flight included. The

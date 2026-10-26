@@ -6,7 +6,8 @@ The binary is `source/hooks/cmd/agentic-tools`; every decision lives in
 ## Store
 
 One store per project, `~/.claude/agentic-tools/<project>/`, the project keyed as agentic-memory
-keys it (`.sdd/config.yaml` `repo_id`, else a hash of the main checkout), so worktrees share it.
+keys it (`.sdd/config.yaml` `repo_id`, the graph repository's where `project_dir` names one, else
+a hash of the main checkout), so worktrees share it.
 
 | Path | Holds |
 |---|---|

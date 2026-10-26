@@ -70,7 +70,8 @@ knows is refused: `agentic-memory: this store has format <n>; this release reads
 hooks silent and nothing written. A store created by this release starts at the current format. The
 log's manifest no longer carries a format number; one that does still reads.
 
-`<project>` is the `repo_id` the project's `.sdd/config.yaml` declares, else `local/` and a hash of
+`<project>` is the `repo_id` the project's `.sdd/config.yaml` declares (the graph repository's,
+where `project_dir` names one, so a code repository and its graph repository share one store), else `local/` and a hash of
 its git common directory, the key sdd gives its own search index, so every worktree of a repository
 shares one store. A directory counts as inside git when `git rev-parse --is-inside-work-tree` says
 `true`; a `.git` directory and a bare repository do not. Outside git there is no project key; with
@@ -167,13 +168,15 @@ Every hook exits at once in a project without a store.
 A `new` row carries the ids its text named that resolved when it was filed (`text_links`) and the
 ones `--link` named (`links`); `link` and `unlink` events add and drop explicit links, each kept with
 the seat that made it. A graph id resolves where
-`.sdd/graph/<yyyy>/<mm>/<dd>-<hhmmss>-<type>-<layer>-<suffix>.md` exists in the checkout, a memory id
+`<yyyy>/<mm>/<dd>-<hhmmss>-<type>-<layer>-<suffix>.md` exists under the project's resolved
+`graph_dir` (`.sdd/graph` where unset, the graph repository's where `project_dir` names one, as the
+grounding gate resolves it), a memory id
 where the folded log holds the entry. A merge keeps one `link` row per net explicit link with its
 seat, dropping a link with its `unlink`, and drops a text link with the body it came from.
 
 A graph target's state comes from `sdd export --dependencies none`, run when a read carries a graph
 link, reading `repos[].entries[].{id,status,status_by}` of the local repo. The result is cached as
-`graph-status.json` in the cache, keyed by the count of `.sdd/graph/**/*.md` and the newest
+`graph-status.json` in the cache, keyed by the count of `**/*.md` under the resolved `graph_dir` and the newest
 modification time among them. Where the export fails or its shape no longer carries those fields,
 flags fall back to whether the file exists, and the read says once
 `agentic-memory: graph status unavailable (sdd export: <why>)`.

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
@@ -43,7 +44,7 @@ func (mem *memory) graphPath(ctx context.Context, id string) string {
 
 	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
 
-	return filepath.Join(root, ".sdd", "graph", parts[1], parts[2], parts[3]+"-"+parts[4]+"-"+parts[5]+".md")
+	return filepath.Join(graphconfig.ResolveAt(root).Entries, parts[1], parts[2], parts[3]+"-"+parts[4]+"-"+parts[5]+".md")
 }
 
 // resolves is whether id names an entry here: a graph entry whose file the
@@ -147,7 +148,7 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 	}
 
 	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
-	key := graphKey(filepath.Join(root, ".sdd", "graph"))
+	key := graphKey(graphconfig.ResolveAt(root).Entries)
 	cachePath := filepath.Join(mem.cacheDir(), "graph-status.json")
 
 	var cached graphStatus

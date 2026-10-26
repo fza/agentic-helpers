@@ -88,7 +88,8 @@ one memory; each still holds its own seat.
   or tagged an entry. One line each, `<id> <title>: <what> by <seat>`. Act on it, say nothing about
   the mechanism.
 - Store → `~/.claude/agentic-memory/<project>/`, outside the repo. Project = `.sdd/config.yaml`
-  `repo_id`, else a hash of the main checkout. Worktrees share it.
+  `repo_id` (the graph repo's where `project_dir` names one), else a hash of the main checkout.
+  Worktrees share it, and so do a code repo and its graph repo.
 
 ## File
 

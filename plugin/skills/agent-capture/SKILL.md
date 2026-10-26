@@ -68,6 +68,9 @@ Body. Markdown, unfenced.
 | pre-flight | `sdd new --dry-run` refuses; any `[high]` finding. Provider fault → retried, see below. Skipped on a `--preflight-done` match |
 | capture | `sdd new --preflight-verified`, under `.sdd/tmp/capture.lock`. Runs once, never retried |
 
+- **Split layout** (`project_dir` in the code repo's `.sdd/config.yaml`) → `grounding.yaml` and the
+  lock are the graph repo's. sdd runs from the code repo.
+
 - **Project config → `.sdd/grounding.yaml`.** `listing_prefix: area-` → topic rule.
   `draft_lint: <command>` → run from the repo root on `.<draft>.body.md` beside the draft, findings
   shifted to the draft's lines. No key → no rule, no lint.

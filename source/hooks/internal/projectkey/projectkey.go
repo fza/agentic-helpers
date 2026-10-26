@@ -1,6 +1,6 @@
 // Package projectkey names a project the way sdd names it for its search index,
 // so both tools agree on one identity per repository on the machine: the
-// `repo_id` the project's `.sdd/config.yaml` declares, else `local/` and a hash
+// `repo_id` the project's `.sdd/config.yaml` declares (the graph repository's, where `project_dir` names one), else `local/` and a hash
 // of the git common directory, which every worktree of a repository shares.
 // Outside git there is no project identity; a caller wanting one anyway asks
 // for the directory's own.
@@ -11,18 +11,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/goccy/go-yaml"
-
+	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
-
-type config struct {
-	RepoID string `yaml:"repo_id"`
-}
 
 var ErrNoRepository = errors.New("not inside a git repository")
 
@@ -58,19 +52,7 @@ func DirectoryKey(base string) string {
 }
 
 func declaredRepoID(root string) string {
-	raw, err := os.ReadFile(filepath.Join(root, ".sdd", "config.yaml"))
-	if err != nil {
-		return ""
-	}
-
-	var parsed config
-
-	err = yaml.Unmarshal(raw, &parsed)
-	if err != nil {
-		return ""
-	}
-
-	id := strings.TrimSpace(parsed.RepoID)
+	id := graphconfig.ResolveAt(root).RepoID()
 	if !validRepoID(id) {
 		return ""
 	}

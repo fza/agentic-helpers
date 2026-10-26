@@ -172,7 +172,11 @@ func (env Env) ledgerDir() string {
 }
 
 func (env Env) graphDir() string {
-	return graphconfig.GraphDir(env.project())
+	return env.graphProject().Dir
+}
+
+func (env Env) graphProject() graphconfig.Project {
+	return graphconfig.Resolve(env.project())
 }
 
 // Main runs one hook invocation. A project carrying no graph, or switching the
@@ -572,7 +576,7 @@ func (env Env) grounding(path string) (groundedDraft, error) {
 func (env Env) graphState() string {
 	count, newest := 0, ""
 
-	_ = filepath.WalkDir(filepath.Join(env.graphDir(), "graph"), func(path string, entry os.DirEntry, err error) error {
+	_ = filepath.WalkDir(env.graphProject().Entries, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() || filepath.Ext(path) != ".md" {
 			return nil
 		}

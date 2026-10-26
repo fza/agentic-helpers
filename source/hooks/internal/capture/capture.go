@@ -314,18 +314,23 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		}
 	}
 
-	graph := graphconfig.GraphDir(filepath.Dir(path))
-	if graph == "" {
-		graph = graphconfig.GraphDir(env.WorkingDir)
+	governing := graphconfig.GraphDir(filepath.Dir(path))
+	if governing == "" {
+		governing = graphconfig.GraphDir(env.WorkingDir)
 	}
 
-	if graph == "" {
+	if governing == "" {
 		_, _ = fmt.Fprintln(streams.Err, "no .sdd graph governs this draft or this directory")
 
 		return 1
 	}
 
-	run := &capture{env: env, streams: streams, root: filepath.Dir(graph), graph: graph, request: held, path: path}
+	// sdd runs where the governing `.sdd/` sits and resolves a split layout's
+	// graph repository itself; the project's settings and the capture lock
+	// belong to the graph project, where every capture of it meets.
+	graph := graphconfig.ResolveAt(filepath.Dir(governing)).Dir
+
+	run := &capture{env: env, streams: streams, root: filepath.Dir(governing), graph: graph, request: held, path: path}
 
 	return run.do(ctx)
 }

@@ -33,8 +33,8 @@ keeps a store keyed by its own path.
 
 ## Who writes a project's memory
 
-A project's store is found by the `repo_id` its `.sdd/config.yaml` declares, which any checkout can
-declare. The checkouts that may use it are listed, by their git common directory, in the project's
+A project's store is found by the `repo_id` its `.sdd/config.yaml` declares (the graph
+repository's, where `project_dir` names one), which any checkout can declare. The checkouts that may use it are listed, by their git common directory, in the project's
 one list `~/.claude/agentic-helpers/<project>/writers.json`, which agentic-tools reads too; every
 worktree of a listed checkout is listed with it. The first call that writes an unlisted
 project's store (a `claim`, a filing, any change) lists the calling checkout; a read (`search`,
@@ -197,7 +197,8 @@ Hiragana, Katakana, Thai, Lao, Khmer, Myanmar) every character counts as a word;
 a run between spaces.
 
 An entry is written in the project's language, never in the language the conversation happens to
-run in: the graph's `language` from `.sdd/config.yaml`, else the plugin option `memory_language`,
+run in: the graph's `language` from `.sdd/config.yaml` (the graph repository's, where
+`project_dir` names one), else the plugin option `memory_language`,
 else `en`. The brief's first line names it, as in
 `agentic-memory: seat main, 14 live, 6 retired, entries in de`. A domain term (a word naming a thing
 in the project's code, documents or business, such as `Lieferschein`) keeps the project's spelling

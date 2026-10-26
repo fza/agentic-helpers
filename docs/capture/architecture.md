@@ -14,7 +14,7 @@ command substitution and every code identifier vanishes from an entry that can n
 | sdd fork | `sdd --version` carries no `fza` |
 | lint | `draft_lint` reports on the body, or fails and says nothing; it runs from the repository root on `.<draft>.body.md` beside the draft, its findings shifted to the draft's lines |
 | pre-flight | `sdd new --dry-run` refuses, or reports a high finding; a medium finding is shown and captures anyway, a low one is never shown |
-| capture | `sdd new --preflight-verified`, run once under `.sdd/tmp/capture.lock`, an exclusive `flock` serialising captures that share a graph |
+| capture | `sdd new --preflight-verified`, run once under `.sdd/tmp/capture.lock` of the project's `.sdd/` (the graph repository's, where `project_dir` names one), an exclusive `flock` serialising captures that share a graph |
 
 ## The pre-flight's provider
 
