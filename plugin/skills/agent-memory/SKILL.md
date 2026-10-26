@@ -234,7 +234,7 @@ agentic-memory ack <id>... --done | --decline '<why>'   # settle what no tool ca
 agentic-memory new --title '...' --topic t --attach .tmp/claude/build.log <<'EOF'   # a path, never content
 agentic-memory attach <id> <path>...                    # any seat on the entry's shelf
 agentic-memory read <id> [<name>] [--offset n] [--max-bytes n]   # page a text file
-agentic-memory read <id> <name> --to <new path>         # any file's bytes, for your own reader
+agentic-memory read <id> <name> --to <new path>         # any file's bytes, inside the work tree or /tmp
 ```
 
 - **Bigger than a body → attach it**: a log, a table, test output, a screenshot. Path only: costs

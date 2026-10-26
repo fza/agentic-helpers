@@ -214,7 +214,7 @@ func TestReadPagesATextAttachment(t *testing.T) {
 		t.Errorf("a paged read of a binary file should be refused naming --to, got %d %q", got.code, got.err)
 	}
 
-	out := filepath.Join(dir, "copy.png")
+	out := filepath.Join(h.repo, "copy.png")
 	h.must("", "read", id, "shot.png", "--to", out)
 
 	original, _ := os.ReadFile(image)
@@ -347,5 +347,85 @@ func TestAFileStaysWhileAnyProjectNamesIt(t *testing.T) {
 
 	if files := h.attachmentFiles(); len(files) != 0 {
 		t.Errorf("a file no project names should be removed by the sweep, got %v", files)
+	}
+}
+
+func (h *harness) storedAttachment() string {
+	h.t.Helper()
+
+	files := h.attachmentFiles()
+	if len(files) != 1 {
+		h.t.Fatalf("one stored attachment expected, got %v", files)
+	}
+
+	return filepath.Join(h.home, ".claude", "agentic-memory", "attachments", files[0])
+}
+
+func TestAStoredFileIsNeverReadPastItsSize(t *testing.T) {
+	cases := []struct {
+		name    string
+		planted func(t *testing.T) string
+		says    string
+	}{
+		{
+			name:    "a stored file inflating past the size it was attached at",
+			planted: func(t *testing.T) string { return test.Fixture(t, "memory/attachments/inflates.gz") },
+			says:    "attachment notes.txt inflates past the size it was attached at",
+		},
+		{
+			name:    "a stored file larger than any attachment may be",
+			planted: func(t *testing.T) string { return strings.Repeat("x", 10<<20+1) },
+			says:    "attachment notes.txt is larger in the store than it was attached",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+
+			file := filepath.Join(t.TempDir(), "notes.txt")
+			test.WriteFile(t, file, strings.Repeat("a gate note\n", 40))
+			id := h.file("Gate finding with notes", "body", "--attach", file)
+
+			test.WriteFile(t, h.storedAttachment(), tc.planted(t))
+
+			if got := h.run("", "read", id); got.code != 1 || !strings.Contains(got.err, tc.says) {
+				t.Errorf("a planted stored file should be refused before it is read whole, got %d %q", got.code, got.err)
+			}
+		})
+	}
+}
+
+func TestReadToWritesOnlyInsideTheWorkTreeOrTmp(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	file := filepath.Join(t.TempDir(), "notes.txt")
+	test.WriteFile(t, file, "a gate note\n")
+	id := h.file("Gate finding with notes", "body", "--attach", file)
+
+	outside := t.TempDir()
+	link := filepath.Join(h.repo, "elsewhere")
+
+	err := os.Symlink(outside, link)
+	if err != nil {
+		t.Fatalf("planting the link: %v", err)
+	}
+
+	for _, target := range []string{filepath.Join(outside, "authorized_keys"), filepath.Join(link, "authorized_keys")} {
+		got := h.run("", "read", id, "--to", target)
+		if got.code != 1 || !strings.Contains(got.err, "--to writes only inside this work tree") {
+			t.Errorf("--to %s should be refused, got %d %q", target, got.code, got.err)
+		}
+	}
+
+	if test.Exists(t, filepath.Join(outside, "authorized_keys")) {
+		t.Error("a refused --to should write nothing")
+	}
+
+	inside := filepath.Join(h.repo, "notes-copy.txt")
+	if got := h.run("", "read", id, "--to", inside); got.code != 0 || !test.Exists(t, inside) {
+		t.Errorf("--to inside the work tree should write the file, got %d %q", got.code, got.err)
 	}
 }

@@ -359,12 +359,27 @@ func (mem *memory) attach(ctx context.Context, req request) result {
 
 // readStored is an attachment's original bytes, checked against the hash the
 // log recorded: any sandboxed job can write the store.
+//
+// Neither the stored file nor what it inflates to is read past the size the
+// log recorded, or the size a file may be: a file planted in the store must
+// not make a read exhaust memory.
 func (mem *memory) readStored(held attachPayload) ([]byte, error) {
-	data, err := os.ReadFile(mem.attachmentPath(held))
+	path := mem.attachmentPath(held)
+
+	info, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("attachment %s is no longer stored", held.Name)
 	}
 
+	if err != nil {
+		return nil, fmt.Errorf("reading attachment %s: %w", held.Name, err)
+	}
+
+	if info.Size() > max(held.Size, int64(mem.options().AttachmentMaxMB)<<20) {
+		return nil, fmt.Errorf("attachment %s is larger in the store than it was attached", held.Name)
+	}
+
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading attachment %s: %w", held.Name, err)
 	}
@@ -375,9 +390,13 @@ func (mem *memory) readStored(held attachPayload) ([]byte, error) {
 			return nil, fmt.Errorf("attachment %s changed since it was attached", held.Name)
 		}
 
-		data, err = io.ReadAll(reader)
+		data, err = io.ReadAll(io.LimitReader(reader, held.Size+1))
 		if err != nil {
 			return nil, fmt.Errorf("attachment %s changed since it was attached", held.Name)
+		}
+
+		if int64(len(data)) > held.Size {
+			return nil, fmt.Errorf("attachment %s inflates past the size it was attached at", held.Name)
 		}
 	}
 
@@ -427,7 +446,7 @@ func (mem *memory) read(ctx context.Context, req request) result {
 	}
 
 	if req.To != "" {
-		return mem.readTo(*chosen, data, req.To)
+		return mem.readTo(ctx, *chosen, data, req.To)
 	}
 
 	if !utf8.Valid(data) {
@@ -480,8 +499,13 @@ func page(id string, held attachPayload, data []byte, offset int, maxBytes int) 
 	return strings.Join(lines, "\n")
 }
 
-func (mem *memory) readTo(held attachPayload, data []byte, path string) result {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+func (mem *memory) readTo(ctx context.Context, held attachPayload, data []byte, path string) result {
+	target, err := mem.writableTarget(ctx, path)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if errors.Is(err, fs.ErrExist) {
 		return refused("%s exists; name a new path", path)
 	}
@@ -499,6 +523,40 @@ func (mem *memory) readTo(held attachPayload, data []byte, path string) result {
 	}
 
 	return done(fmt.Sprintf("wrote %s (%s) to %s", held.Name, size(held.Size), path))
+}
+
+// writableTarget is the path --to may create: inside the work tree or /tmp,
+// the places shell-guard holds removals to, so a stored file is never
+// restored as a missing ~/.ssh/authorized_keys or a shell's rc file. The new
+// file does not exist yet, so its parent is resolved through every symlink
+// before the place is checked.
+func (mem *memory) writableTarget(ctx context.Context, path string) (string, error) {
+	absolute := path
+	if !filepath.IsAbs(absolute) {
+		absolute = filepath.Join(mem.env.Base, absolute)
+	}
+
+	parent, err := filepath.EvalSymlinks(filepath.Dir(absolute))
+	if err != nil {
+		return "", fmt.Errorf("--to %s: its folder does not exist", path)
+	}
+
+	target := filepath.Join(parent, filepath.Base(absolute))
+	root := mem.checkout(ctx).root
+
+	for _, place := range []string{root, "/tmp"} {
+		resolved, err := filepath.EvalSymlinks(place)
+		if err != nil {
+			continue
+		}
+
+		inside, err := filepath.Rel(resolved, target)
+		if err == nil && inside != "." && inside != ".." && !strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
+			return target, nil
+		}
+	}
+
+	return "", fmt.Errorf("--to writes only inside this work tree (%s) or /tmp, not %s", root, path)
 }
 
 // writeRefs keeps, beside the log, the hashes this project's entries still

@@ -315,8 +315,16 @@ entry has one attachment:
 
 the last page closing with `--- end of <name> ---`. A file that is not UTF-8 text is refused naming
 `--to`; `read <id> <name> --to <path>` writes its original bytes to a new path, for the agent's own
-reader. Every read checks the stored file against the SHA-256 the log recorded, since any sandboxed
-job can write the store: `attachment <name> changed since it was attached`, and nothing is served.
+reader. The path lies inside the work tree or `/tmp`, the places shell-guard holds removals to,
+resolved through every symlink of its folder; anywhere else is refused, `--to writes only inside
+this work tree (<root>) or /tmp, not <path>`, so a stored file is never restored as a missing
+`~/.ssh/authorized_keys` or a shell's rc file. Every read checks the stored file against the
+SHA-256 the log recorded, since any sandboxed job can write the store: `attachment <name> changed
+since it was attached`, and nothing is served. A stored file is never read past the size it was
+attached at: one larger in the store than any attachment may be is refused, `attachment <name> is
+larger in the store than it was attached`, and a compressed one that inflates past that size,
+`attachment <name> inflates past the size it was attached at`. Attaching reads a file from
+anywhere: the credential scan, not the path, guards what lands in the store.
 
 An attachment ends when its entry's body does: 14 days after a supersede, `retired_body_days` after
 a retire, at once in a temporary shelf's purge. A `revive` before then brings it back with the body.
