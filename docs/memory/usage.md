@@ -584,17 +584,21 @@ the first line holding one; the matched text is never printed.
 
 ### Writes holding a credential
 
-Memory never holds a credential. Every write carrying text is scanned before anything is written or
-embedded, and refused on a finding, nothing redacted: `new` (its title and body), `state`, `retitle`,
-`retire --because`, `supersede --because` and `ack --decline`, CLI and MCP alike:
+Memory never holds a credential. Every text a write puts in the log is scanned before anything is
+written or embedded, and the write is refused on a finding, nothing redacted: an entry's title, body,
+topics, anchors and every declared `--until`, `--when`, `--on`, `--proof` and `--forbids`, a state, a
+retitle, a tag, a topic merge, a link target, and the reason of `retire`, `supersede` and `ack
+--decline`, CLI and MCP alike. The scan sits in the one place every write to the log passes, so a
+field added later is scanned too:
 
     agentic-memory: <where> looks like a credential (<rule ids>, line <n>); memory never holds one
 
-`<where>` is `the title`, `the body`, `the state` or `the reason`. A scan that cannot finish refuses
+`<where>` names the field: `the title`, `the body`, `the state`, `the reason`, `a topic`, `an anchor`,
+`the link target`, or the flag, as `--until`. A scan that cannot finish refuses
 too, naming `scan-incomplete`. Trim the text and send it again; reference where the credential lives
 instead.
 
-The migration to format 4 scans every entry still holding its body once, and the next brief of each
+The migration to format 4 scans every entry still holding its body once, over the same fields, and the next brief of each
 seat that filed one with a finding lists it, once:
 
     possible credential: <id> <title> (<rule ids>); supersede it --because 'credential'

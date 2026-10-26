@@ -106,10 +106,6 @@ func (mem *memory) writeState(ctx context.Context, req request) result {
 	}
 
 	body := strings.TrimSpace(req.Body)
-	why := credentialIn(ctx, "the state", body)
-	if why != "" {
-		return refused("%s", why)
-	}
 	if body == "" {
 		return refused("state needs a body on stdin: where the seat's work stands")
 	}

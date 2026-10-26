@@ -164,7 +164,7 @@ one → `retire`. Overturned decision → `supersede <old> --by <new>`. Other ro
 
 Graph holds the decision → never a second copy: memory points at its id. **No credential, ever.**
 `agentic-memory: <where> looks like a credential (<rule ids>, line <n>); memory never holds one` →
-nothing was written: trim the token from the title, body, state or reason, name where it lives
+nothing was written: trim the token from whatever field it names, name where it lives
 instead, send again. Tell the user only if the text cannot do without it.
 `possible credential: <id> <title> (<rule ids>); supersede it --because 'credential'` in a brief →
 an older entry holds one: check it, then run that supersede.

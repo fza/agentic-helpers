@@ -251,7 +251,15 @@ func (mem *memory) load(ctx context.Context) (*state, error) {
 	return folded, nil
 }
 
+// appendEvents writes events to the log, all or none, after scanning every
+// text they carry for a credential: the one door every write passes, so a
+// field added later is scanned without anyone remembering to.
 func (mem *memory) appendEvents(ctx context.Context, events ...memorylog.Event) error {
+	err := credentialInEvents(ctx, events)
+	if err != nil {
+		return err
+	}
+
 	log, err := mem.openLog()
 	if err != nil {
 		return err
