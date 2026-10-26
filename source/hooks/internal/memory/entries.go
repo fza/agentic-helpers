@@ -35,6 +35,11 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("%s", ErrNoSeat)
 	}
 
+	why := firstCredential(ctx, [2]string{"the title", req.Title}, [2]string{"the body", req.Body})
+	if why != "" {
+		return refused("%s", why)
+	}
+
 	kind := cmp.Or(req.Kind, kindNote)
 
 	from := cmp.Or(req.From, defaultFrom)
@@ -42,7 +47,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("--from takes user, agent or tool, not %q", from)
 	}
 
-	why := kindRefusal(kind, from)
+	why = kindRefusal(kind, from)
 	if why != "" {
 		return refused("%s", why)
 	}

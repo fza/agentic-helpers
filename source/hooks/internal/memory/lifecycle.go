@@ -174,6 +174,11 @@ func (mem *memory) simpleEvent(kind memorylog.Kind, target string, payload any) 
 }
 
 func (mem *memory) retire(ctx context.Context, req request) result {
+	why := credentialIn(ctx, "the reason", req.Because)
+	if why != "" {
+		return refused("%s", why)
+	}
+
 	_, ids, failure, ok := mem.batch(ctx, "retired", req.IDs, true, func(_ *state, held *entry) error {
 		if held.status != statusLive {
 			return fmt.Errorf("%s is already %s", held.id, held.status)
@@ -199,6 +204,11 @@ func retirement(because string) any {
 }
 
 func (mem *memory) supersede(ctx context.Context, req request) result {
+	why := credentialIn(ctx, "the reason", req.Because)
+	if why != "" {
+		return refused("%s", why)
+	}
+
 	if (req.By == "") == (req.Because == "") {
 		return refused("supersede takes exactly one of --by <id> or --because '<why>'")
 	}
@@ -283,6 +293,10 @@ func (mem *memory) retain(ctx context.Context, req request) result {
 
 func (mem *memory) retitle(ctx context.Context, req request) result {
 	title := strings.TrimSpace(req.Title)
+	why := credentialIn(ctx, "the title", title)
+	if why != "" {
+		return refused("%s", why)
+	}
 
 	_, _, failure, ok := mem.change(ctx, req.ID, true, nil, memorylog.KindRetitle, "", retitlePayload{Title: title})
 	if !ok {

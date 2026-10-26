@@ -226,6 +226,10 @@ func (mem *memory) ack(ctx context.Context, req request) result {
 	}
 
 	because := strings.TrimSpace(req.Decline)
+	why := credentialIn(ctx, "the reason", because)
+	if why != "" {
+		return refused("%s", why)
+	}
 	if req.Done == (because != "") {
 		return refused("ack takes exactly one of --done or --decline '<why>'")
 	}

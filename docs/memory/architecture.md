@@ -78,7 +78,9 @@ From format 3:
 2. run every migration pass over the log's events: the kind pass makes every entry whose decay in
    force (its filed retention as later `retain` events left it) is `standing` a `rule`, keeping its
    source, and every other a `note`, keeping its filed retention as a retain override, so no entry
-   moves in any brief;
+   moves in any brief; the credential pass scans every entry still holding its body and keeps what
+   it finds, by filing seat, in `credentials-found.json` in the store, which each seat's next brief
+   reads and empties of its own;
 3. build the migrated log as `log.migrating`, set the old one aside as `log.format-3`, swap the new one
    in, write `format.json`, and remove `log.format-3`. A log no pass changed stays as it is, and only
    `format.json` is written.

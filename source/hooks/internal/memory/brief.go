@@ -175,6 +175,10 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add(slot)
 	}
 
+	for _, text := range mem.credentialLines(ctx, seatName) {
+		out.add(text)
+	}
+
 	var changed []string
 
 	for _, held := range folded.entryList() {

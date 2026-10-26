@@ -582,6 +582,25 @@ agent hears once:
 The prompt itself is the user's and is not refused. `<rule ids>` are every gitleaks rule found on
 the first line holding one; the matched text is never printed.
 
+### Writes holding a credential
+
+Memory never holds a credential. Every write carrying text is scanned before anything is written or
+embedded, and refused on a finding, nothing redacted: `new` (its title and body), `state`, `retitle`,
+`retire --because`, `supersede --because` and `ack --decline`, CLI and MCP alike:
+
+    agentic-memory: <where> looks like a credential (<rule ids>, line <n>); memory never holds one
+
+`<where>` is `the title`, `the body`, `the state` or `the reason`. A scan that cannot finish refuses
+too, naming `scan-incomplete`. Trim the text and send it again; reference where the credential lives
+instead.
+
+The migration to format 4 scans every entry still holding its body once, and the next brief of each
+seat that filed one with a finding lists it, once:
+
+    possible credential: <id> <title> (<rule ids>); supersede it --because 'credential'
+
+A superseded body drops 14 days on.
+
 ## MCP tools
 
 Every subcommand is also a tool of the plugin's `memory` MCP server,

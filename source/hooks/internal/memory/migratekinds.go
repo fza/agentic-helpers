@@ -18,9 +18,10 @@ import (
 type migrationPass func(events []memorylog.Event) error
 
 // kindPasses are the passes the move to entry kinds runs over the whole log,
-// in order: the one point every event of a store is read once.
-func (mem *memory) kindPasses() []migrationPass {
-	return []migrationPass{assignKinds}
+// in order: the one point every event of a store is read once, so the one
+// scan of every body still held for credentials runs here too.
+func (mem *memory) kindPasses(scan *credentialScan) []migrationPass {
+	return []migrationPass{assignKinds, scan.pass}
 }
 
 // migrateFormat3 gives every entry of a format-3 store a kind. The log is
@@ -50,7 +51,9 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 		original[index] = event.Payload
 	}
 
-	for _, pass := range mem.kindPasses() {
+	scan := &credentialScan{ctx: ctx}
+
+	for _, pass := range mem.kindPasses(scan) {
 		err = pass(events)
 		if err != nil {
 			return fmt.Errorf("migrating the store failed: %w; the store is unchanged and the next call tries again", err)
@@ -62,12 +65,25 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 		changed = changed || !bytes.Equal(event.Payload, original[index])
 	}
 
-	// A log no pass changed stays as it is, byte for byte.
-	if !changed {
-		return writeFormat(mem.store(), storeFormat)
+	undo := &rollback{}
+
+	err = scan.save(mem.store())
+	if err != nil {
+		return fmt.Errorf("migrating the store failed: keeping what the credential scan found: %w; "+
+			"the store is unchanged and the next call tries again", err)
 	}
 
-	undo := &rollback{}
+	undo.add(func() { removeIfThere(mem.credentialsPath()) })
+
+	// A log no pass changed stays as it is, byte for byte.
+	if !changed {
+		err = writeFormat(mem.store(), storeFormat)
+		if err != nil {
+			undo.run()
+		}
+
+		return err
+	}
 
 	err = mem.rebuildLog(ctx, events, undo)
 	if err != nil {
