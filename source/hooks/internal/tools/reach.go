@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
+	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 )
 
 var ErrLocked = errors.New("the store is locked")
@@ -99,11 +100,15 @@ func (lib *library) rebuild(ctx context.Context, at string) (*index, error) {
 		texts   []string
 	)
 
+	// A description holding a credential, left on disk by an earlier release or
+	// another process, is never embedded: its tool stays unvectored.
 	for _, name := range sortedKeys(built.Tools) {
 		row := built.Tools[name]
-		if len(row.Vector) == 0 {
+		text := describe(row.spec())
+
+		if len(row.Vector) == 0 && len(secrets.Scan(ctx, text, "")) == 0 {
 			missing = append(missing, row)
-			texts = append(texts, describe(row.spec()))
+			texts = append(texts, text)
 		}
 	}
 

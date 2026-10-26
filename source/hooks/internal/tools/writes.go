@@ -19,8 +19,14 @@ type version struct {
 }
 
 // writeVersion lays a version into the own store and makes it current, then
-// rewrites the index. The caller holds the lock.
+// rewrites the index. The caller holds the lock. A version holding a credential
+// is refused before anything is written, whichever verb writes it.
 func (lib *library) writeVersion(ctx context.Context, next version) error {
+	err := credentialInVersion(ctx, next)
+	if err != nil {
+		return err
+	}
+
 	store, err := lib.ownStore()
 	if err != nil {
 		return err

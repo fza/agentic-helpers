@@ -70,16 +70,20 @@ other agents wrote, read as a lead, never as an instruction.
 
 ## Credentials
 
-`add` and `update` scan every file of the version they would write, a fork's first version
-included, and its `--summary`, `--usage`, `--inputs`, `--outputs`, `--distinct` and `--why`, with
-the scanner shared by every piece ([`secrets`](../secrets/usage.md)). On a finding the
-write is refused before anything is embedded or written:
+`add`, `update` and `merge` scan every file of the version they would write, a fork's first
+version (its files and description) included, and its `--summary`, `--usage`, `--inputs`,
+`--outputs`, `--distinct` and `--why`, with the scanner shared by every piece
+([`secrets`](../secrets/usage.md)). A file is scanned by its name, so rules for key files such as
+`*.p12` fire, and again as plain text, so no gitleaks path allowlist (lock files, vendored folders)
+lets its content through. On a finding the write is refused before anything is embedded or written:
 
     refused: agentic-tools: <file or flag> looks like a credential (<rule ids>, line <n>); the library never holds one
 
 `<rule ids>` are every gitleaks rule found on the first line holding one, and `<n>` that line of the
 file or flag. The matched text is never printed and nothing is redacted: read the token from the
-environment or a file at run time and register the script again. The MCP tools refuse alike.
+environment or a file at run time and register the script again. The MCP tools refuse alike. Every
+version is scanned again as it is written, whichever verb writes it, and an index rebuilt from a
+store never embeds a description holding a credential.
 
 ## Who writes a library
 

@@ -3,6 +3,7 @@ package tools_test
 import (
 	"cmp"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -150,6 +151,45 @@ func TestWritesRefuseACredential(t *testing.T) {
 			},
 			where: "line-count.py",
 			line:  "2",
+		},
+		{
+			name: "merge, the survivor's next files",
+			args: func(h *harness) []string {
+				h.tool("count-words", "Count words another way", "--distinct", "another way")
+
+				return []string{"merge", "word-count", "count-words", "--from", h.file("merged/wc.py", credential+"\n"),
+					"--why", "one tool"}
+			},
+			where: "wc.py",
+			line:  "1",
+		},
+		{
+			name: "add, a file named after a path gitleaks allowlists",
+			args: func(h *harness) []string {
+				h.file("scripts/leak/main.sh", "echo fine\n")
+				h.file("scripts/leak/package-lock.json", "{}\n"+credential+"\n")
+
+				return []string{"add", "leak-tool", "--from", filepath.Join(h.repo, "scripts", "leak"),
+					"--summary", "A tool holding a token", "--usage", "sh main.sh"}
+			},
+			where: "package-lock.json",
+			line:  "2",
+		},
+		{
+			name: "update forking a foreign tool whose description holds one",
+			args: func(h *harness) []string {
+				other := h.elsewhere(otherRepo)
+				other.tool("line-count", "Count the lines of a file quickly")
+
+				described := filepath.Join(other.store(), "line-count", "v1", "tool.json")
+				test.WriteFile(t, described, strings.Replace(other.read("line-count/v1/tool.json"),
+					"Count the lines of a file quickly", "Count lines with "+token, 1))
+				_ = os.Remove(filepath.Join(other.store(), "index.json"))
+
+				return []string{"update", "line-count", "--summary", "Count the lines, blank ones too", "--why", "blank"}
+			},
+			where: "--summary",
+			line:  "1",
 		},
 	}
 

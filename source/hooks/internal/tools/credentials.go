@@ -1,8 +1,11 @@
 package tools
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 )
@@ -13,11 +16,12 @@ type labelled struct {
 }
 
 // credentialIn is the refusal for the first file or flag of a write holding a
-// credential, or nothing. It runs before the description is embedded, so a
-// refused write never reaches the embedding endpoint.
+// credential, or nothing. add and update run it before the description is
+// embedded, so a refused write never reaches the embedding endpoint;
+// writeVersion runs it again on every version, so no write path skips it.
 func credentialIn(ctx context.Context, files []walked, fields []labelled) string {
 	for _, file := range files {
-		found := secrets.Scan(ctx, string(file.data), file.name)
+		found := scanFile(ctx, file)
 		if len(found) > 0 {
 			return credentialRefusal(file.name, found)
 		}
@@ -31,6 +35,28 @@ func credentialIn(ctx context.Context, files []walked, fields []labelled) string
 	}
 
 	return ""
+}
+
+// scanFile scans a tool file by its name, so path rules fire on it, and again
+// as text that is no file: gitleaks' path allowlists skip whole files (lock
+// files, vendored folders, images), and a tool file of such a name would
+// otherwise keep a credential unscanned.
+func scanFile(ctx context.Context, file walked) []secrets.Finding {
+	content := string(file.data)
+	found := append(secrets.Scan(ctx, content, file.name), secrets.Scan(ctx, content, "")...)
+
+	slices.SortStableFunc(found, func(a, b secrets.Finding) int { return cmp.Compare(a.Line, b.Line) })
+
+	return found
+}
+
+func credentialInVersion(ctx context.Context, next version) error {
+	refusal := credentialIn(ctx, next.files, append(describedFields(next.spec), labelled{label: "--why", text: next.why}))
+	if refusal != "" {
+		return errors.New(refusal)
+	}
+
+	return nil
 }
 
 func credentialRefusal(where string, found []secrets.Finding) string {

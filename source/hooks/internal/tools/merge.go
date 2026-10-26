@@ -42,6 +42,12 @@ func (lib *library) merge(ctx context.Context, req request) result {
 	}
 
 	next := survivor.spec()
+
+	credential := credentialIn(ctx, from.files, append(describedFields(next), labelled{label: "--why", text: req.Why}))
+	if credential != "" {
+		return refused("%s", credential)
+	}
+
 	vector, _ := lib.embedOne(ctx, next)
 	members := slices.Compact(slices.Clone(req.Members))
 

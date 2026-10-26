@@ -11,7 +11,7 @@ embedding endpoint, which may be remote.
 
 | Piece | What is scanned | On a finding |
 |---|---|---|
-| `agentic-tools add`, `update` (CLI and MCP) | every file of the version written, a fork's first version included; `--summary`, `--usage`, `--inputs`, `--outputs`, `--distinct`, `--why` | refused, nothing embedded or written ([tools](../tools/usage.md#credentials)) |
+| `agentic-tools add`, `update`, `merge` (CLI and MCP) | every file of the version written (by its name and as plain text), a fork's first version included; `--summary`, `--usage`, `--inputs`, `--outputs`, `--distinct`, `--why` | refused, nothing embedded or written ([tools](../tools/usage.md#credentials)) |
 | agentic-memory's and agentic-tools' prompt hooks | each user prompt, before it is embedded for recall | the prompt is not embedded; recall answers by terms; agentic-memory says so once ([memory](../memory/usage.md#prompt-recall-and-credentials)) |
 
 ## What a refusal says

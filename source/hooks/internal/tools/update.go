@@ -86,14 +86,18 @@ func (lib *library) update(ctx context.Context, req request) result {
 		}
 	}
 
-	// A fork keeps the foreign version's files as its first version, so they
-	// are scanned as well as the files of the next.
+	// A fork keeps the foreign version's files and description as its first
+	// version, so they are scanned as well as the next, before anything is
+	// embedded.
 	scanned := files
+	fields := append(describedFields(next), labelled{label: "--why", text: req.Why})
+
 	if !hit.store.own {
 		scanned = append(slices.Clone(files), previous...)
+		fields = append(fields, describedFields(old.spec())...)
 	}
 
-	credential := credentialIn(ctx, scanned, append(describedFields(next), labelled{label: "--why", text: req.Why}))
+	credential := credentialIn(ctx, scanned, fields)
 	if credential != "" {
 		return refused("%s", credential)
 	}
