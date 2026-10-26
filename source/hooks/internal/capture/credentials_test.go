@@ -1,6 +1,7 @@
 package capture_test
 
 import (
+	"context"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -260,4 +261,18 @@ func TestAFileChangedBeforeTheWriteIsScannedAgain(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnInterruptDuringTheScanIsNoCredential(t *testing.T) {
+	f := newFixture(t, "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	got := f.runIn(ctx, f.writeDraft("", "A body with nothing secret in it."))
+	if got.code != 1 || strings.Contains(got.stderr, captureLeaked) || !strings.Contains(got.stderr, "interrupted before sdd ran") {
+		t.Errorf("an interrupt should end the capture as an interrupt, never as a credential, got: %+v", got)
+	}
+
+	f.sentNothing()
 }

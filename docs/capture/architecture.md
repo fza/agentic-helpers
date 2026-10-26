@@ -50,4 +50,6 @@ cannot be scanned, and nothing hands sdd one here: `agentic-capture: refused. Th
 standard input as <name>, which cannot be scanned for a credential; attach a file instead`. A file
 that cannot be read refuses too: `agentic-capture: refused. The capture names <file>, which cannot
 be read to scan for a credential`. sdd reads an attached file itself once the scan passed, so a
-file changed in that last instant escapes both scans.
+file changed in that last instant escapes both scans. An interrupt arriving during a scan cuts it
+short, and a cut-short scan reports a `scan-incomplete` finding; the interrupt wins, exiting 1 with
+`agentic-capture: interrupted before sdd ran: <reason>; nothing was written`, never as a credential.

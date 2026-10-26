@@ -18,8 +18,19 @@ const refusedPrefix = "agentic-capture: refused. "
 // grounding gate scans the draft before this command runs; scanning again here
 // catches a draft or a file changed since, or written by the same Bash call.
 // It names what refuses the capture, or nothing. Standard input and a file
-// that cannot be read refuse too: neither can be scanned.
+// that cannot be read refuse too: neither can be scanned. An interrupt wins
+// over a finding: a scan the interrupt cut short reports `scan-incomplete`,
+// which would otherwise read as a credential.
 func (run *capture) leaks(ctx context.Context, held draft) string {
+	found := run.scanLeaks(ctx, held)
+	if ctx.Err() != nil {
+		return fmt.Sprintf("agentic-capture: interrupted before sdd ran: %v; nothing was written", ctx.Err())
+	}
+
+	return found
+}
+
+func (run *capture) scanLeaks(ctx context.Context, held draft) string {
 	draftName := run.request.draft
 
 	findings := secrets.Scan(ctx, held.body, "")
