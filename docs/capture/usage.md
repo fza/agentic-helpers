@@ -28,9 +28,11 @@ server configured at user or local scope, outside `.mcp.json`, goes unseen.
 
 ## What a draft must clear
 
-Before it writes, the draft clears three checks in turn: its header names what the call needs (and a
+Before it writes, the draft clears four checks in turn: its header names what the call needs (and a
 topic carrying the project's `listing_prefix`, where one is set) and carries no key that reaches no
-`sdd new` flag, since an entry written without a field never gains it; the project's own lint reports
+`sdd new` flag, since an entry written without a field never gains it; nothing it hands sdd, body,
+header values and attached files alike, looks like a credential ([architecture](architecture.md#credentials)),
+since an entry is never edited and every session reads it; the project's own lint reports
 nothing on the body; and `sdd new --dry-run` reports nothing of high severity. The lint is whatever
 the project names as `draft_lint` in `.sdd/grounding.yaml`, a script or `vale --output=line` alike,
 and a project naming none gets no lint. In sdd's split layout, where the code repository's

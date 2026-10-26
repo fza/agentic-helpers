@@ -126,7 +126,7 @@ func TestTheGateSeesSddsMCPTools(t *testing.T) {
 		return tools
 	}
 
-	for _, tool := range []string{"mcp__sdd__show", "mcp__sdd__start_procedure", "mcp__sdd__next"} {
+	for _, tool := range []string{"mcp__sdd__show", "mcp__sdd__start_procedure", "mcp__sdd__next", "mcp__sdd__stage_attachment"} {
 		if !slices.Contains(matched("PreToolUse", "gate"), tool) {
 			t.Errorf("the gate should judge %s before it runs", tool)
 		}

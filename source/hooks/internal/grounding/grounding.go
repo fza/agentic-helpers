@@ -388,14 +388,22 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 	_ = saveEvidence(ctx, path, held)
 }
 
-// gate returns the refusal this call earns, or nothing. A seat the project
-// exempts earns none, except for a graph write holding a credential.
+// gate returns the refusal this call earns, or nothing. A graph write holding
+// a credential is refused first, an exempt seat included. One whose files
+// cannot be scanned is refused last, once nothing else refuses it: the reads
+// or the engine say more about what to do next.
 func gate(ctx context.Context, env Env, payload hookio.Payload) string {
-	leaked := leaksCredential(ctx, env, payload)
+	leaked, unscanned := leaksCredential(ctx, env, payload)
 	if leaked != "" {
 		return leaked
 	}
 
+	return cmp.Or(judge(ctx, env, payload), unscanned)
+}
+
+// judge returns the refusal the reads, depths and engine rules give, or
+// nothing. A seat the project exempts earns none.
+func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 	config, configErr := env.config()
 	if configErr == nil && env.exempt(ctx, config.ExemptSeats) {
 		return ""

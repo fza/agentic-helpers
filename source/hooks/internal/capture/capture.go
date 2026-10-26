@@ -430,6 +430,15 @@ func (run *capture) do(ctx context.Context) int {
 		return 1
 	}
 
+	// Before the lint or a pre-flight sees the draft: the pre-flight hands it
+	// to a model provider.
+	leaked := run.leaks(ctx, held)
+	if leaked != "" {
+		run.say("%s", leaked)
+
+		return 1
+	}
+
 	run.caps = sddcaps.Probe{Runner: run.env.Runner, CacheDir: run.env.SddCache, LookPath: run.env.LookPath}.Of(ctx, run.root)
 	if !run.caps.Runs {
 		run.say("agentic-capture needs sdd on the PATH; %s. Install it with `%s`", run.caps.Printed, sddcaps.StockInstall)
@@ -496,6 +505,14 @@ func (run *capture) preflightThenCapture(ctx context.Context, held draft) int {
 		}
 
 		defer unlock()
+
+		// This sdd's pre-flight writes the entry too.
+		leaked := run.leaks(ctx, held)
+		if leaked != "" {
+			run.say("%s", leaked)
+
+			return 1
+		}
 	}
 
 	result, err := run.preflight(ctx, held)
@@ -820,8 +837,17 @@ func (run *capture) capture(ctx context.Context, held draft, preflight string) i
 	return run.write(ctx, held, preflight)
 }
 
-// write runs the capture step under a lock its caller holds.
+// write runs the capture step under a lock its caller holds, scanning what it
+// hands sdd once more first: an attached file may have changed during the
+// pre-flight.
 func (run *capture) write(ctx context.Context, held draft, preflight string) int {
+	leaked := run.leaks(ctx, held)
+	if leaked != "" {
+		run.say("%s", leaked)
+
+		return 1
+	}
+
 	result, err := run.env.Runner.Run(ctx, run.root, command(held, preflight))
 	if err != nil {
 		run.say("%v", err)

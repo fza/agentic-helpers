@@ -11,6 +11,7 @@ command substitution and every code identifier vanishes from an entry that can n
 | Step | Stops the run when |
 |---|---|
 | header | a field the call needs is missing, a key reaches no `sdd new` flag, or no topic carries the project's `listing_prefix` |
+| credentials | the body, a header value as its flag carries it, or a file the header attaches holds what looks like a credential, an attachment reads from standard input, or an attached file cannot be read (see Credentials) |
 | sdd | no `sdd` answers `--help`; or the draft or the call asks for what only the fork carries (`title`, `actor_kind`, `--preflight-route`, `--preflight-done`, a schema-2 graph) and the probe finds it missing |
 | lint | `draft_lint` reports on the body, or fails and says nothing; it runs from the repository root on `.<draft>.body.md` beside the draft, its findings shifted to the draft's lines |
 | pre-flight | `sdd new --dry-run` refuses, or reports a high finding; a medium finding is shown and captures anyway, a low one is never shown. Where sdd lacks `--preflight-verified`, no dry run: one `sdd new` under the lock checks and writes, a high finding writing nothing, a provider fault retried, a cut-off never retried |
@@ -29,3 +30,24 @@ a high finding quoting "timed out" is still a refusal.
 The write runs once. Its only model call is the summary, and sdd writes the entry without one when
 that call fails, so a failure of the write itself comes from the file or git, after the entry may
 already be on disk.
+
+## Credentials
+
+The grounding gate scans a capture before the Bash call runs: the command, the draft as it is on
+disk, and the files its header attaches. That scan comes early, before anything runs, but it reads
+files the call may change, a draft written by the same command or a file rewritten while the
+pre-flight runs. So `agentic-capture` scans again what it hands `sdd new` itself
+(`internal/capture/credentials.go`, the shared `internal/secrets` scanner): the body, counted in
+the draft's own lines; every header value as its flag carries it, after YAML decoded any escape;
+and the bytes of every attached file, read from the directory sdd runs in, by its name in the entry
+(`source:target` splits on the last colon, as sdd splits it). The scan runs after the header check,
+before the lint and the pre-flight, since the pre-flight hands the draft to a model provider; again
+right before the write; and, where one `sdd new` checks and writes, right before that call. A
+finding exits 1 with `agentic-capture: refused. The capture holds what looks like a credential
+(<rule ids>, <where>, line <n>); the graph is shared and immutable`, `<where>` the draft, a header
+flag (`<draft>'s --title`) or an attached file. An attachment from standard input (`-:target`)
+cannot be scanned, and nothing hands sdd one here: `agentic-capture: refused. The capture attaches
+standard input as <name>, which cannot be scanned for a credential; attach a file instead`. A file
+that cannot be read refuses too: `agentic-capture: refused. The capture names <file>, which cannot
+be read to scan for a credential`. sdd reads an attached file itself once the scan passed, so a
+file changed in that last instant escapes both scans.

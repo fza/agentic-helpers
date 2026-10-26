@@ -1,0 +1,2 @@
+# A lint every draft body passes, with no listing prefix to clear.
+draft_lint: vale --output=line

@@ -34,6 +34,10 @@ type Runner struct {
 	Missing    bool
 	Unreleased bool
 
+	// Before runs ahead of every call it answers, the way a file changes on
+	// disk while the lint or a pre-flight runs.
+	Before func(argv []string)
+
 	mutex  sync.Mutex
 	Calls  [][]string
 	Dirs   []string
@@ -42,6 +46,10 @@ type Runner struct {
 }
 
 func (fake *Runner) Run(ctx context.Context, dir string, argv []string) (process.Result, error) {
+	if fake.Before != nil {
+		fake.Before(argv)
+	}
+
 	fake.mutex.Lock()
 
 	fake.Calls = append(fake.Calls, slices.Clone(argv))

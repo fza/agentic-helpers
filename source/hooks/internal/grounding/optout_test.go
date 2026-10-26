@@ -67,6 +67,7 @@ func TestASeatExemptFromTheWholeGate(t *testing.T) {
 	env.Processes, env.OwnerName = processes, "claude"
 	store := test.MemoryStore(env.ProjectDir, env.Home, env.Checkout)
 	test.ClaimSeat(t, store, "reviewer", test.Session)
+	onDisk(t, env, ".sdd/tmp/drafts/d.md")
 
 	for name, payload := range unread(env, test.Session) {
 		t.Run(name+" passes", func(t *testing.T) {

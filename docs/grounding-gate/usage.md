@@ -21,15 +21,31 @@ not. `cli_capture: true` in `.sdd/grounding.yaml` lifts the refusal for a projec
 `agentic-capture` on purpose. A plain `sdd new` keeps its own rule.
 
 **A graph write holding a credential is refused, whatever else holds.** A Bash `sdd new` or
-`agentic-capture` command's text, the `agentic-capture` draft and every file its header's `attach`
-names, the `report` of `mcp__sdd__next` and the `params` of `mcp__sdd__start_procedure` are
-scanned by the shared [credential scanner](../secrets/usage.md), with stock sdd and the fork alike.
-On a finding the call is refused before any read, grounded draft or exempt seat is weighed, since
-an entry is never edited and every session reads it:
+`agentic-capture` command's text and every file a plain `sdd new` attaches, the `agentic-capture`
+draft and every file its header's `attach` names, the `report` of `mcp__sdd__next`, the `params`
+of `mcp__sdd__start_procedure` and a file staged through `mcp__sdd__stage_attachment` are scanned by
+the shared [credential scanner](../secrets/usage.md), with stock sdd and the fork alike. The
+session `label` of an engine call is not scanned: it names the dialogue and never reaches the
+graph. On a finding the call is refused before any read, grounded draft or exempt seat is weighed,
+since an entry is never edited and every session reads it:
 `GROUNDING GATE: refused. The capture holds what looks like a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable`.
-`<where>` is `the command`, the draft or attached file as the command or header names it, or
-`the mcp__sdd__next report` / `the mcp__sdd__start_procedure params`. A scan that could not finish
-refuses as `scan-incomplete`.
+`<where>` is `the command`, the draft or attached file as the command or header names it,
+`the mcp__sdd__next report` / `the mcp__sdd__start_procedure params`, or `the staged <name>`. A scan
+that could not finish refuses as `scan-incomplete`.
+
+**What the gate cannot scan is refused**, once nothing else refuses the call:
+
+- `GROUNDING GATE: refused. The capture names <file>, which cannot be read to scan for a credential; it must exist before the Bash call that captures it`:
+  a draft or attached file not on disk when the call is judged, a draft written by the same
+  command among them, or a draft header that does not parse.
+- `GROUNDING GATE: refused. The capture attaches standard input as <name>, which cannot be scanned for a credential; attach a file instead`:
+  an `--attach -:<name>`, in a draft header or on a plain `sdd new`.
+- `GROUNDING GATE: refused. The capture names no draft that can be read to scan for a credential; name the draft file in the call`:
+  an `agentic-capture` handed its draft in a way the gate cannot read, through `xargs` with no
+  `.md` name in the command.
+
+`agentic-capture` scans the exact bytes it hands sdd once more, right before each `sdd new`, so a
+file changed after the gate's scan is still caught ([capture](../capture/architecture.md#credentials)).
 
 **A question, a draft edit and a notebook edit under `drafts/` are let through, never refused.**
 With reads owed the call goes ahead and the agent gets a note, opening

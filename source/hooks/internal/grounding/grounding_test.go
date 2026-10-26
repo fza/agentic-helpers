@@ -542,11 +542,12 @@ func TestEveryKindCaptures(t *testing.T) {
 		})
 	}
 
-	t.Run("a draft that is not on disk passes", func(t *testing.T) {
+	t.Run("a draft that is not on disk cannot be scanned, so it is refused", func(t *testing.T) {
 		env := areaProject(t)
 		ground(t, env)
 
-		passes(t, run(t, env, "gate", bash("agentic-capture "+filepath.Join(env.ProjectDir, "absent.md"))))
+		refuses(t, run(t, env, "gate", bash("agentic-capture "+filepath.Join(env.ProjectDir, "absent.md"))),
+			"absent.md, which cannot be read to scan for a credential")
 	})
 }
 
@@ -679,6 +680,17 @@ func save(tool string, path string) map[string]any {
 	return map[string]any{"session_id": "s1", "tool_name": tool, "tool_input": map[string]any{"file_path": path}}
 }
 
+// onDisk writes a credential-free draft at each name under the working
+// directory, so a capture naming it can be scanned: the gate refuses a capture
+// whose draft it cannot read.
+func onDisk(t *testing.T, env grounding.Env, names ...string) {
+	t.Helper()
+
+	for _, name := range names {
+		test.WriteFile(t, filepath.Join(env.WorkingDir, name), test.Fixture(t, "drafts/fact.md"))
+	}
+}
+
 func draftIn(t *testing.T, env grounding.Env) string {
 	t.Helper()
 
@@ -753,6 +765,7 @@ func TestWhatCountsAsAGraphWrite(t *testing.T) {
 		{command: "agentic-capture -h", writes: false},
 		{command: "sdd new --help; sdd new d tac body", writes: true},
 		{command: "agentic-capture d.md --hold", writes: true},
+		{command: "agentic-capture --force --preflight-limit 5m d.md", writes: true},
 		{command: "go test -race ./cmd/agentic-capture", writes: false},
 		{command: "ls cmd/agentic-capture/", writes: false},
 		{command: "cat ./cmd/agentic-capture/main.go", writes: false},
@@ -767,6 +780,7 @@ func TestWhatCountsAsAGraphWrite(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.command, func(t *testing.T) {
 			env := areaProject(t)
+			onDisk(t, env, ".sdd/tmp/drafts/decision.md", "decision.md", "d.md")
 			got := run(t, env, "gate", bash(tc.command))
 
 			if !tc.writes {

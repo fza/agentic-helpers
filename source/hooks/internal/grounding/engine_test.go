@@ -26,6 +26,7 @@ func TestACaptureRunsThroughTheEngineWhereTheProjectServesIt(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := bare(t)
+			onDisk(t, env, ".tmp/drafts/d.md", "d.md")
 			test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), test.Fixture(t, tc.config))
 
 			if tc.mcp != "" {

@@ -22,7 +22,7 @@ through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code 
 | SessionStart | `start` | removes the ledgers of sessions that left a week ago without ending cleanly; with `source: compact`, forgets this session's reads and keeps its grounded drafts |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next` | `record` | credits the reads the call performed; after the session's own capture (`agentic-capture` printing `<id>.md`, or a `next` result carrying `produced.entryId`), moves the ledger to the new graph state when that entry is the only change, keeping the reads |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
-| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`; for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
+| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`; for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
 | SessionEnd | `end` | removes the session's ledger |
 
 ## The ledger
@@ -85,12 +85,38 @@ holds.
 `gate` scans a graph write before anything else, the exempt-seat check included
 (`internal/grounding/credentials.go`). A Bash call writes where the parse tree holds an
 `agentic-capture` or `sdd new` call, or code that does not parse names either; unlike the reads,
-a write into another repository's graph is scanned too. Its whole command text is scanned; for a
-capture, every draft the command names (resolved as a grounded draft is) and every file its
-header's `attach` names, read against the working directory and scanned by that name, so
-path-scoped rules apply. For `mcp__sdd__next` the `report` field and for
-`mcp__sdd__start_procedure` the `params` field are decoded and every key and string in them is
-scanned, one per line in key order: the JSON text itself is not, since its escapes hide a token
-from the rules. A finding refuses with `refusals/credential.txt`, naming the rules on the first
-line found and that line (`secrets.Describe`), never the matched text. A `scan-incomplete` finding
-refuses like any other.
+a write into another repository's graph is scanned too. What it scans:
+
+- **The command's whole text.**
+- **A plain `sdd new`'s `--attach` files**, in both the `--attach value` and `--attach=value`
+  forms, read against the working directory.
+- **An `agentic-capture` draft**: the call's draft argument (its first word that is no flag or flag
+  value, `~` and variables expanded), or, where the call names none (a draft handed over through
+  `xargs`), every `.md` name in the command; read against the working directory, else the project.
+  Then every file its header's `attach` names, read from the directory holding the governing
+  `.sdd/`, where agentic-capture runs sdd.
+- **An attach value** splits as sdd splits it, on the last colon: `source:target` reads `source`
+  and scans it by `target`, so path-scoped rules apply; `-:target` reads standard input.
+- **For `mcp__sdd__next` the `report`, for `mcp__sdd__start_procedure` the `params`**, decoded,
+  every key and string in them one per line in key order: the JSON text itself is not scanned,
+  since its escapes hide a token from the rules. The session `label` and the other fields naming
+  the dialogue are not scanned: they never reach the graph.
+- **`mcp__sdd__stage_attachment`**: its inline `content`, each patch's `new` text, and the local
+  file its `path` names, by the staged `name`.
+
+A finding refuses with `refusals/credential.txt`, naming the rules on the first line found and that
+line (`secrets.Describe`), never the matched text, ahead of every other check. A `scan-incomplete`
+finding refuses like any other.
+
+The gate fails closed: what it cannot scan refuses. Standard input (`refusals/credential-stdin.txt`),
+a file that cannot be read or a draft header that does not parse
+(`refusals/credential-unreadable.txt`), and a capture naming no draft
+(`refusals/credential-no-draft.txt`) refuse once no other check does, so a turn still owing reads
+hears that first; an exempt seat is refused too. A credential anywhere in the write outranks what
+could not be scanned.
+
+The gate's scan is the early refusal: it reads files before the Bash call runs, so a draft written
+by the same command is unreadable to it, and a file changed afterwards escapes it. `agentic-capture`
+closes that gap by scanning the exact bytes it hands sdd right before each `sdd new`
+([capture](../capture/architecture.md#credentials)); a plain `sdd new` and the engine have no
+second scan.

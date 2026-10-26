@@ -20,7 +20,7 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 		{name: "an expansion in code bash -c runs", command: `bash -c "sdd new d tac $body"`, writes: true},
 		{name: "an assignment before a launched capture", command: "env X=1 agentic-capture d.md", writes: true},
 		{name: "a capture past a launcher's options", command: "echo d.md | xargs -n 1 agentic-capture", writes: true},
-		{name: "a capture find runs", command: "find . -name '*.md' -exec agentic-capture {} \\;", writes: true},
+		{name: "a capture find runs", command: "find . -maxdepth 0 -exec agentic-capture d.md \\;", writes: true},
 		{name: "a quoted mention", command: `echo "sdd new"`, writes: false},
 		{name: "an escaped quote before a mention", command: `echo "a \" b; sdd new d tac body"`, writes: false},
 		{name: "a launched command's argument", command: "git ls-files | xargs grep -l agentic-capture", writes: false},
@@ -36,6 +36,7 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := areaProject(t)
+			onDisk(t, env, "d.md")
 			got := run(t, env, "gate", bash(tc.command))
 
 			if !tc.writes {

@@ -21,7 +21,14 @@ license: MIT
 - **Never a credential in an entry.** Either path, a draft, an attached file or an engine report
   holding what looks like one → refused, `GROUNDING GATE: refused. The capture holds what looks like
   a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable`. Name the variable
-  or file instead, then capture again.
+  or file instead, then capture again. `agentic-capture` scans what it hands sdd once more right
+  before each `sdd new` and refuses the same way, exit 1, opening `agentic-capture: refused. The
+  capture holds what looks like a credential (`.
+- **The draft and every attached file exist before the capture's own call.** Written in the same
+  Bash call, or gone → `... The capture names <file>, which cannot be read to scan for a
+  credential` (the gate adds `; it must exist before the Bash call that captures it`). An
+  `attach: ['-:<name>']` → `... The capture attaches standard input as <name>, which cannot be
+  scanned for a credential; attach a file instead`. Write the file first, attach it by path.
 - **`sdd-engine` is deprecated.** The `sdd` skill is the engine flow.
 
 ## agentic-capture

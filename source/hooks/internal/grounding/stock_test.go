@@ -12,6 +12,7 @@ import (
 func TestTheGateHoldsOnStockSdd(t *testing.T) {
 	env := areaProject(t)
 	env.Runner = &test.Runner{Stock: true}
+	onDisk(t, env, ".tmp/drafts/d.md")
 
 	started := run(t, env, "start", map[string]any{"session_id": "s1", "source": "startup"})
 	if started.stdout != "" || started.stderr != "" {
@@ -45,6 +46,7 @@ func TestTheEngineCountsWhereSddFollowsProjectDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			env, _ := splitProject(t)
 			env.Runner = &test.Runner{Stock: tc.stock}
+			onDisk(t, env, ".tmp/drafts/d.md")
 			test.WriteFile(t, filepath.Join(env.ProjectDir, ".mcp.json"), test.Fixture(t, "grounding/mcp-sdd.json"))
 			ground(t, env)
 
