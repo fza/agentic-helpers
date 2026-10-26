@@ -35,7 +35,10 @@ var (
 	subshellCapture = regexp.MustCompile(`\(\s*` + captureWord)
 	bareNew         = regexp.MustCompile(atCommand + newWord)
 	subshellNew     = regexp.MustCompile(`\(\s*` + newWord)
-	dryRun          = regexp.MustCompile(`^[^\n;&|]*--dry-run\b`)
+
+	// A flag in the same command that makes the call write nothing: a dry run,
+	// or the usage a `--help` or `-h` prints.
+	writesNoEntry = regexp.MustCompile(`^[^\n;&|]*(?:--dry-run\b|--help\b|(?:^|\s)-h\b)`)
 
 	// A quoted command word, `"$HOME/go/bin/agentic-capture"`, is the call
 	// itself rather than an argument, so its text survives the unquoting.
@@ -72,19 +75,22 @@ func atSubshell(text string, start int) bool {
 }
 
 func callsCapture(text string) bool {
-	return bareCapture.MatchString(text) || opensSubshell(subshellCapture, text)
+	return writes(text, bareCapture, subshellCapture)
 }
 
-// callsNew reports an `sdd new` that writes: a `--dry-run` in the same
-// command writes nothing.
 func callsNew(text string) bool {
-	for _, pattern := range []*regexp.Regexp{bareNew, subshellNew} {
+	return writes(text, bareNew, subshellNew)
+}
+
+// writes reports a call, bare or opening a subshell, that writes an entry.
+func writes(text string, bare, subshell *regexp.Regexp) bool {
+	for _, pattern := range []*regexp.Regexp{bare, subshell} {
 		for _, match := range pattern.FindAllStringIndex(text, -1) {
-			if pattern == subshellNew && !atSubshell(text, match[0]) {
+			if pattern == subshell && !atSubshell(text, match[0]) {
 				continue
 			}
 
-			if !dryRun.MatchString(text[match[1]:]) {
+			if !writesNoEntry.MatchString(text[match[1]:]) {
 				return true
 			}
 		}

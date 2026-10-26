@@ -49,7 +49,7 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
   under a `drafts/` directory while all three stood, unchanged since, graph holding the same
   entries. Draft written through `Bash`, edited after, or another capture landed in between → run
   the three before `agentic-capture`.
-- **Plain `sdd new` → the three reads, always.** No draft, nothing grounded. `--dry-run` exempt.
+- **Plain `sdd new` → the three reads, always.** No draft, nothing grounded. `--dry-run`, `--help`, `-h` exempt, on `agentic-capture` too.
   Wrapping it (`bash -c`, subshell, `xargs`, full path) changes nothing.
 - **sdd's MCP tools count the same.** `mcp__sdd__search` `query` = semantic, `terms` = literal;
   `mcp__sdd__view` `layout` = the listing, same prefix rule. Only a call that succeeded counts.
@@ -139,7 +139,7 @@ parse error. Fix the file.
 | Refused | Why |
 |---|---|
 | capture, three reads missing, draft not grounded | writing what the graph never confirmed |
-| `sdd new` without `--dry-run`, three reads missing | same, by the path that skips the draft |
+| `sdd new` without `--dry-run` or `--help`, three reads missing | same, by the path that skips the draft |
 | `sdd` call sending a stream to `/dev/null` | wrong flag prints usage to stderr. Discarded → reads as an empty graph |
 | `sdd show` short of the depth owed (`--down 2 --up 1` by default) | rename lives downstream; upstream says if it still applies |
 
