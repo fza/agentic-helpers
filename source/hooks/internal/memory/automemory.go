@@ -36,6 +36,11 @@ func (mem *memory) turnOffAutoMemory(ctx context.Context) []string {
 	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
 	path := filepath.Join(root, filepath.FromSlash(localSettings))
 
+	linked := symlinkOn(root, path)
+	if linked != "" {
+		return []string{fmt.Sprintf("%s: %s is a symbolic link, so Claude Code's own auto memory stays as it is", self, linked)}
+	}
+
 	raw, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return []string{fmt.Sprintf("%s: %s cannot be read, so Claude Code's own auto memory stays as it is: %v", self, localSettings, err)}
@@ -108,6 +113,25 @@ func withAutoMemoryOff(raw []byte) ([]byte, string) {
 	return updated, ""
 }
 
+// symlinkOn names the part of the settings path inside root that is a
+// symbolic link, or nothing where none is. A repository can carry `.claude/`
+// or the file as a link to anywhere, and a claim must never write through one.
+func symlinkOn(root, path string) string {
+	for _, part := range []string{filepath.Dir(path), path} {
+		info, err := os.Lstat(part)
+		if err == nil && info.Mode()&fs.ModeSymlink != 0 {
+			relative, _ := filepath.Rel(root, part)
+
+			return filepath.ToSlash(relative)
+		}
+	}
+
+	return ""
+}
+
+// writeSettings replaces the file through a temporary one beside it, opened
+// exclusively under a random name, so no reader sees half a file and no
+// planted link at a guessable name receives the write.
 func writeSettings(path string, content []byte) error {
 	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	if err != nil {
@@ -116,21 +140,32 @@ func writeSettings(path string, content []byte) error {
 
 	mode := os.FileMode(0o644)
 
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err == nil {
 		mode = info.Mode().Perm()
 	}
 
-	temporary := fmt.Sprintf("%s.%d.tmp", path, os.Getpid())
-
-	err = os.WriteFile(temporary, content, mode)
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".settings.local.json.*.tmp")
 	if err != nil {
 		return fmt.Errorf("writing %s: %w", localSettings, err)
 	}
 
-	err = os.Rename(temporary, path)
+	_, err = temporary.Write(content)
+	if err == nil {
+		err = temporary.Chmod(mode)
+	}
+
+	closeErr := temporary.Close()
+	if err == nil {
+		err = closeErr
+	}
+
+	if err == nil {
+		err = os.Rename(temporary.Name(), path)
+	}
+
 	if err != nil {
-		_ = os.Remove(temporary)
+		_ = os.Remove(temporary.Name())
 
 		return fmt.Errorf("writing %s: %w", localSettings, err)
 	}

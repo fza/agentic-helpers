@@ -142,3 +142,42 @@ func TestAReservationTurnsOffAutoMemoryBeforeItsSessionStarts(t *testing.T) {
 		t.Errorf("a launcher's claim should turn auto memory off before the session it reserves for starts, got:\n%s", reserved)
 	}
 }
+
+func TestAClaimNeverWritesThroughALink(t *testing.T) {
+	for _, linked := range []string{".claude", ".claude/settings.local.json"} {
+		t.Run(linked, func(t *testing.T) {
+			h := newHarness(t)
+			elsewhere := t.TempDir()
+			target := filepath.Join(elsewhere, "settings.local.json")
+			test.WriteFile(t, target, "{}\n")
+
+			link := filepath.Join(h.repo, filepath.FromSlash(linked))
+			pointsAt := target
+
+			if linked == ".claude" {
+				pointsAt = elsewhere
+			} else {
+				err := os.MkdirAll(filepath.Dir(link), 0o755)
+				if err != nil {
+					t.Fatalf("creating .claude: %v", err)
+				}
+			}
+
+			err := os.Symlink(pointsAt, link)
+			if err != nil {
+				t.Fatalf("planting the link: %v", err)
+			}
+
+			claimed := h.must("", "claim", "main")
+
+			held, _ := os.ReadFile(target)
+			if string(held) != "{}\n" || strings.Contains(claimed, autoMemoryLine) {
+				t.Errorf("a linked settings path should be left alone, its target untouched, got %q:\n%s", held, claimed)
+			}
+
+			if !strings.Contains(claimed, linked+" is a symbolic link") {
+				t.Errorf("the claim should name the link it refused, got:\n%s", claimed)
+			}
+		})
+	}
+}

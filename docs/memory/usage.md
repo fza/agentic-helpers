@@ -103,7 +103,8 @@ project and every worktree of it, and says so once:
 The setting takes effect from the next session; the claiming session keeps the memory it started
 with. Every other key and the file's text stay as they were. A file already setting
 `autoMemoryEnabled`, to either value, is the owner's setting and stays untouched, and a file that
-does not parse is left alone with a line saying so. Where git does not ignore the file already,
+does not parse is left alone with a line saying so, as is a `.claude/` or settings file that is a
+symbolic link, which a claim never writes through. Where git does not ignore the file already,
 `**/.claude/settings.local.json` is appended to git's global excludes file (`core.excludesFile`,
 else `$XDG_CONFIG_HOME/git/ignore`, else `~/.config/git/ignore`), said once:
 `agentic-memory: added **/.claude/settings.local.json to <file>, so git ignores it in every
