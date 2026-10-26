@@ -9,7 +9,7 @@ loads [`source/AGENTS.md`](source/AGENTS.md) too** whenever a session touches `s
 `agentic-helpers` is a set of machine-wide Claude Code hooks, shell-guard among them, and the
 commands `agentic-capture`, `agentic-memory` and `agentic-tools`, each paired with a skill that tells
 the agent what it is doing. The grounding gate
-and `agentic-capture` exist for [sdd](https://github.com/fza/sdd): sdd's decision graph under
+and `agentic-capture` exist for [sdd](https://github.com/networkteam/sdd): sdd's decision graph under
 `.sdd/` motivates them and drives what they check. They install once for every project on the
 machine and stay silent where a hook has nothing to work on: a project without the directory it
 needs, a session holding no memory seat. Shell-guard always has something to work on, every Bash
