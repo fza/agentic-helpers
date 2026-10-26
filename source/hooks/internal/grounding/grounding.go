@@ -30,8 +30,9 @@
 // Modes:
 //
 //	record  PostToolUse on Bash and sdd's MCP reads: notes which graph reads a
-//	        call performed; on Write and Edit: notes a draft saved while every
-//	        read stands
+//	        call performed, and keeps them across the session's own capture
+//	        when its entry is the graph's only change; on Write and Edit: notes
+//	        a draft saved while every read stands
 //	gate    PreToolUse: refuses a bad read; lets AskUserQuestion and a draft
 //	        edit through with a note until every read stands, and refuses a
 //	        capture until every read stands or its draft is grounded
@@ -256,6 +257,8 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 
 		return
 	}
+
+	keepAcrossOwnCapture(ctx, env, payload)
 
 	if strings.HasPrefix(payload.ToolName, "mcp__sdd__") {
 		recordMCP(ctx, env, payload)

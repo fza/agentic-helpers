@@ -50,7 +50,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash|mcp__sdd__search|mcp__sdd__view",
+        "matcher": "Bash|mcp__sdd__search|mcp__sdd__view|mcp__sdd__next",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate record", "timeout": 15 }
         ]

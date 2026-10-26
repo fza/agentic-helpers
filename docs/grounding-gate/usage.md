@@ -57,8 +57,10 @@ written through the shell, changed since, or captured after the graph moved owes
 Credit for the reads lasts until the graph changes or the session's context is compacted, not
 until the next prompt: a session that read the graph once works across prompts on an unchanged
 graph without reading it again. A capture by any session adds an entry file, and so voids the credit
-of every session; a compaction voids this session's, since the reads' output is gone from its
-context. Grounded drafts survive a compaction: their own graph state guards them.
+of every session, with one exception: a session's own capture, through `agentic-capture` or sdd's
+MCP capture, keeps that session's credit when its entry is the graph's only change, one entry more
+and the newest the one it wrote. A compaction voids this session's credit, since the reads' output is
+gone from its context. Grounded drafts survive a compaction: their own graph state guards them.
 
 ## Configuration: `.sdd/grounding.yaml`
 

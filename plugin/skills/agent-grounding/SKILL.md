@@ -23,8 +23,8 @@ Top-level `exempt_seats: [reviewer]` → a session holding that seat passes ever
 ## Three reads, before any question, draft edit, or capture
 
 **Credit lasts until the graph changes or the context compacts.** Read once, then work across
-prompts on an unchanged graph. Any capture (yours or another session's) or a compaction → read
-again.
+prompts on an unchanged graph. Another session's capture or a compaction → read again. Your own
+capture keeps your reads, as long as its entry is the only change.
 
 ```bash
 sdd search --query "<how somebody would phrase it>" --limit 5 --max-citations 0   # semantic
