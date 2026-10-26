@@ -76,11 +76,15 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
+	links := make([]string, 0, len(req.Links))
+
 	for _, target := range req.Links {
-		err = mem.requireTarget(ctx, folded, target)
+		resolved, err := mem.resolveTarget(ctx, folded, target)
 		if err != nil {
 			return refused("%v", err)
 		}
+
+		links = append(links, resolved)
 	}
 
 	textLinks, unlinked := mem.textLinks(ctx, folded, req.Title+"\n"+req.Body, id)
@@ -110,7 +114,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
 		Retention: retention, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
 		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
-		TextLinks: textLinks, Links: req.Links,
+		TextLinks: textLinks, Links: links,
 	}
 
 	raw, err := json.Marshal(filed)
@@ -448,12 +452,14 @@ func (mem *memory) show(ctx context.Context, req request) result {
 	return done(strings.Join(blocks, "\n\n"))
 }
 
-// linkLine is one outbound link in show: the target and, where it is no
-// longer live, active or open, what became of it.
+// linkLine is one outbound link in show: the target, a connected repo's by
+// its full qualified id, and, where it is no longer live, active or open,
+// what became of it.
 func linkLine(folded *state, held *entry, target string) string {
 	for _, flag := range held.linkFlags {
-		if strings.HasPrefix(flag, "→ "+target+" ") {
-			return flag
+		named := "→ " + foreignName(target) + " "
+		if strings.HasPrefix(flag, named) {
+			return "→ " + target + " " + strings.TrimPrefix(flag, named)
 		}
 	}
 

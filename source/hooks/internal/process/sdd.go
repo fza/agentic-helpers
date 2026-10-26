@@ -14,13 +14,13 @@ const exportLimit = 10 * time.Second
 
 type SddExport struct{}
 
-// Export runs `sdd export` for the local graph alone in dir and returns the
-// document it prints.
+// Export runs `sdd export` for the graph in dir and every connected repo it
+// depends on, whole, and returns the document it prints.
 func (SddExport) Export(ctx context.Context, dir string) ([]byte, error) {
 	bounded, cancel := context.WithTimeout(ctx, exportLimit)
 	defer cancel()
 
-	command := exec.CommandContext(bounded, "sdd", "export", "--dependencies", "none")
+	command := exec.CommandContext(bounded, "sdd", "export", "--dependencies", "all")
 	command.Dir = dir
 
 	output, err := command.Output()

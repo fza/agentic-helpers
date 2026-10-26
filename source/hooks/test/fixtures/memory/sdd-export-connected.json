@@ -1,0 +1,48 @@
+{
+  "experimental": true,
+  "generated_at": "2026-10-26T10:15:00Z",
+  "repos": [
+    {
+      "repo_id": "github.com/acme/app",
+      "local": true,
+      "revision": "15af1a8c",
+      "entries": [
+        {"id": "20261025-162357-d-tac-427", "short_id": "d-tac-427", "type": "decision", "status": "closed-by", "status_by": "20261026-101500-s-tac-a1b"},
+        {"id": "20261026-101500-s-tac-a1b", "short_id": "s-tac-a1b", "type": "signal", "kind": "done"},
+        {"id": "20261025-100000-d-tac-act", "short_id": "d-tac-act", "type": "decision", "status": "active"}
+      ],
+      "wip": []
+    },
+    {
+      "repo_id": "gitlab.com/acme/fdbox",
+      "local": false,
+      "revision": "9b1c2d3e",
+      "entries": [
+        {"id": "20261024-120000-d-tac-k2m", "short_id": "d-tac-k2m", "type": "decision", "status": "closed-by", "status_by": "20261025-090000-s-tac-c1s"},
+        {"id": "20261025-090000-s-tac-c1s", "short_id": "s-tac-c1s", "type": "signal", "kind": "done"},
+        {"id": "20261024-130000-d-tac-liv", "short_id": "d-tac-liv", "type": "decision", "status": "active"},
+        {"id": "20261024-140000-d-tac-two", "short_id": "d-tac-two", "type": "decision", "status": "active"}
+      ],
+      "wip": []
+    },
+    {
+      "repo_id": "gitlab.com/acme/devlab",
+      "local": false,
+      "revision": "4f5e6d7c",
+      "entries": [
+        {"id": "20261024-140000-d-tac-two", "short_id": "d-tac-two", "type": "decision", "status": "active"}
+      ],
+      "wip": []
+    },
+    {
+      "repo_id": "",
+      "local": false,
+      "revision": "0a0b0c0d",
+      "entries": [
+        {"id": "20261024-150000-d-tac-ano", "short_id": "d-tac-ano", "type": "decision", "status": "active"}
+      ],
+      "wip": []
+    }
+  ],
+  "embedded": []
+}

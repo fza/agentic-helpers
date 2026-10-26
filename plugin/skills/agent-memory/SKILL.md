@@ -223,6 +223,13 @@ agentic-memory unlink <id> <target>     # links from --link / link only
 ```
 
 - **Name the full id in the text** → linked if it resolves. Short graph ids (`d-tac-427`) never link.
+- **Another repo's graph entry → `<repo_id>:<id>`**, a repo sdd connects (`sdd repo list`):
+  `gitlab.com/acme/fdbox:20261024-120000-d-tac-k2m`. A bare id only one connected repo holds links
+  qualified on its own. Refusals: `<id>: in several connected repos (...); link one of them` →
+  qualify it; `<id>: not in the local graph or any connected repo (sdd repo list)` → wrong id or repo
+  not connected, the user's to connect; `<id>: resolving another repository's entry needs sdd export,
+  which this sdd lacks` → name it in the body, where it stays text; never retry. Lines name it
+  `fdbox:<id>`, `show` the full id.
 - **Line flags:** `→ <target> closed by|superseded by|settled|retired|gone`, `← <n>` = linked from n.
   A lead whose target closed or was superseded → read the successor before relying on it.
 - **`← <id> <title>`** under a hit = a newer entry citing it. Often the fix or the follow-up.

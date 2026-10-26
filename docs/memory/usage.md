@@ -264,13 +264,27 @@ at its prompt, through a waiter that wakes it with a new turn.
 
 A memory entry can link to a graph entry and to another memory entry: a full graph id
 (`20261025-162357-d-tac-427`) or a memory id (`m-` and its characters). A short graph id
-(`d-tac-427`) is never a link. Ids are per project.
+(`d-tac-427`) is never a link. Memory ids are per project.
+
+A graph id may also name an entry of one of sdd's connected repos (`sdd repo list`), qualified the way
+sdd's own cross-repo references are: `<repo_id>:<id>`, as in
+`gitlab.com/acme/fdbox:20261024-120000-d-tac-k2m`, the `repo_id` host/path. A bare graph id the local
+graph lacks is looked up in the connected repos: found in exactly one, it links in the qualified form;
+found in several, it is refused naming them,
+`<id>: in several connected repos (<repo_id>:<id>, ...); link one of them`. An id no graph holds,
+or one of a repo not connected through sdd, is refused as
+`<id>: not in the local graph or any connected repo (sdd repo list)`. A qualified id naming the local
+repo links the local entry. Connected repos resolve only where the installed sdd carries `export`;
+without it a qualified id is refused,
+`<id>: resolving another repository's entry needs sdd export, which this sdd lacks`, and local links
+work as before.
 
 - **From the text**: every full id the title or body names that resolves when `new` files the entry
   links it. One that resolves to nothing stays text, and the reply names it:
   `not linked (no such entry): m-zzzz99`.
 - **`new --link <id>`**, repeatable (MCP key `link`): an id resolving to nothing refuses the filing,
-  `agentic-memory: <id>: no such entry`.
+  `agentic-memory: <id>: no such entry` for a memory id, the connected-repo refusals above for a
+  graph id.
 - **`link <id> <target>`** and **`unlink <id> <target>`** (MCP `link` and `unlink`, keys `id` and
   `target`) add or drop a link later. A `link` to a memory entry warms it by 0.5;
   `--no-heat` (MCP `no_heat`) links without. Any seat may; the owner's brief lists it under changes by
@@ -279,7 +293,9 @@ A memory entry can link to a graph entry and to another memory entry: a full gra
 
 A link is read, never followed for bodies. A line flags each target that is no longer live, active or
 open: `→ <target> closed by <id>`, `superseded by <id>`, `settled`, `retired`, or `gone` where the
-graph entry's file is missing from the checkout. `← <n>` counts the entries linking to it. `show` adds
+graph entry's file is missing from the checkout, or, for a connected repo's entry, where the export no
+longer carries it. A line names a connected repo's entry by the last path segment of its `repo_id`,
+`→ fdbox:20261024-120000-d-tac-k2m closed by <id>`, and `show` by its full qualified id. `← <n>` counts the entries linking to it. `show` adds
 `links:` and `linked from:`. Recall and the brief name, under a hit, up to two entries linking to it
 that were filed after it, newest first, title only: `← <id> <title> [<seat>, <date>]`. The
 similar-entry hint offers both fixes: `replaces it → agentic-memory supersede <old> --by <new>` and

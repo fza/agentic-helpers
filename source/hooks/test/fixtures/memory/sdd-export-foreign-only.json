@@ -1,0 +1,23 @@
+{
+  "experimental": true,
+  "generated_at": "2026-10-26T10:15:00Z",
+  "repos": [
+    {
+      "repo_id": "github.com/acme/app",
+      "local": true,
+      "revision": "15af1a8c",
+      "entries": [],
+      "wip": []
+    },
+    {
+      "repo_id": "gitlab.com/acme/fdbox",
+      "local": false,
+      "revision": "9b1c2d3e",
+      "entries": [
+        {"id": "20261024-130000-d-tac-liv", "short_id": "d-tac-liv", "type": "decision", "status": "active"}
+      ],
+      "wip": []
+    }
+  ],
+  "embedded": []
+}

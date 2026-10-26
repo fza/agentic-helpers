@@ -196,10 +196,17 @@ grounding gate resolves it), a memory id
 where the folded log holds the entry. A merge keeps one `link` row per net explicit link with its
 seat, dropping a link with its `unlink`, and drops a text link with the body it came from.
 
-A graph target's state comes from `sdd export --dependencies none`, run when a read carries a graph
-link, reading `repos[].entries[].{id,status,status_by}` of the local repo. The result is cached as
-`graph-status.json` in the cache, keyed by the count of `**/*.md` under the resolved `graph_dir` and the newest
-modification time among them. Where the export fails or its shape no longer carries those fields,
+A graph target's state comes from `sdd export --dependencies all`, run when a read carries a graph
+link, reading `repos[].entries[].{id,status,status_by}` of every repo it carries: the local one keyed by
+the bare id, each connected repo keyed by `<repo_id>:<id>` from `repos[].repo_id` (a connected repo with
+no `repo_id` is skipped). Memory keeps no list of connected repos of its own: sdd's dependency
+declaration decides what the export carries. The result is cached as `graph-status.json` in the cache
+with the connected repos it carried, keyed by the count of `**/*.md` under the resolved `graph_dir`
+and the newest modification time among them, and the same for each connected repo's cache, the clone
+sdd keeps under `$XDG_CACHE_HOME/sdd/<repo_id>` (`~/.cache` where unset), so a `sdd repo sync` pulling
+into it refreshes the flags. Memory runs no sync of its own. An export carrying no local entry is not
+trusted. A bare graph id the checkout's graph lacks resolves through the connected repos' keys; a
+qualified id naming the local `repo_id` is stored bare. Where the export fails or its shape no longer carries those fields,
 flags fall back to whether the file exists, and the read says once
 `agentic-memory: graph status unavailable (sdd export: <why>)`. Where the installed sdd lists no `export`
 command in `sdd --help` (no stock release carries it), no export runs and the read says nothing:

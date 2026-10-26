@@ -16,13 +16,46 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
-// A link names a full graph id or a memory id. A short graph id (`d-tac-427`)
-// names no entry on its own and is never a link.
+// A link names a full graph id, a full graph id qualified by the repo_id of
+// one of sdd's connected repos (`<repo_id>:<id>`, as sdd's own cross-repo
+// references read), or a memory id. A short graph id (`d-tac-427`) names no
+// entry on its own and is never a link. A repo_id is URL-shaped, host/path,
+// which keeps a word before a colon in prose from reading as one.
 var (
-	graphIDPattern  = regexp.MustCompile(`\b(\d{4})(\d{2})(\d{2})-(\d{6})-([sd]-[a-z]{3}-[a-z0-9]{3})\b`)
-	memoryIDPattern = regexp.MustCompile(`\bm-[a-z0-9]{4,16}\b`)
-	linkTarget      = regexp.MustCompile(`^(?:\d{8}-\d{6}-[sd]-[a-z]{3}-[a-z0-9]{3}|m-[a-z0-9]{4,16})$`)
+	graphIDPattern     = regexp.MustCompile(`\b(\d{4})(\d{2})(\d{2})-(\d{6})-([sd]-[a-z]{3}-[a-z0-9]{3})\b`)
+	memoryIDPattern    = regexp.MustCompile(`\bm-[a-z0-9]{4,16}\b`)
+	linkTarget         = regexp.MustCompile(`^(?:\d{8}-\d{6}-[sd]-[a-z]{3}-[a-z0-9]{3}|m-[a-z0-9]{4,16})$`)
+	qualifiedIDPattern = regexp.MustCompile(
+		`\b[A-Za-z0-9][A-Za-z0-9._~-]*(?:/[A-Za-z0-9._~-]+)+:\d{8}-\d{6}-[sd]-[a-z]{3}-[a-z0-9]{3}\b`)
+	wholeQualifiedID = regexp.MustCompile(
+		`^[A-Za-z0-9][A-Za-z0-9._~-]*(?:/[A-Za-z0-9._~-]+)+:\d{8}-\d{6}-[sd]-[a-z]{3}-[a-z0-9]{3}$`)
 )
+
+const noExport = "resolving another repository's entry needs sdd export, which this sdd lacks"
+
+const notConnected = "not in the local graph or any connected repo (sdd repo list)"
+
+// splitQualified is a qualified id's repo_id and graph id.
+func splitQualified(id string) (string, string, bool) {
+	if !wholeQualifiedID.MatchString(id) {
+		return "", "", false
+	}
+
+	index := strings.LastIndex(id, ":")
+
+	return id[:index], id[index+1:], true
+}
+
+// foreignName is how a line names a target in another repo: the last path
+// segment of its repo_id, then the id.
+func foreignName(target string) string {
+	repo, bare, qualified := splitQualified(target)
+	if !qualified {
+		return target
+	}
+
+	return repo[strings.LastIndex(repo, "/")+1:] + ":" + bare
+}
 
 // GraphExporter answers `sdd export` for the checkout in dir.
 type GraphExporter interface {
@@ -47,49 +80,123 @@ func (mem *memory) graphPath(ctx context.Context, id string) string {
 	return filepath.Join(graphconfig.ResolveAt(root).Entries, parts[1], parts[2], parts[3]+"-"+parts[4]+"-"+parts[5]+".md")
 }
 
-// resolves is whether id names an entry here: a graph entry whose file the
-// checkout holds, or a memory entry the folded log holds.
-func (mem *memory) resolves(ctx context.Context, folded *state, id string) bool {
-	if isGraphID(id) {
-		_, err := os.Stat(mem.graphPath(ctx, id))
+// exports is whether the installed sdd carries `export`, nil taking it as
+// given.
+func (mem *memory) exports(ctx context.Context, root string) bool {
+	return mem.env.Sdd == nil || mem.env.Sdd.Of(ctx, root).Export
+}
 
-		return err == nil
+// resolveTarget is the form a link to id is stored in, or why id names no
+// entry: a graph entry whose file the checkout holds, an entry a connected
+// repo holds as `sdd export` reports it, or a memory entry the folded log
+// holds. A bare graph id the local graph lacks is looked up in the connected
+// repos and stored qualified where exactly one holds it; a qualified id naming
+// the local repo is stored bare, as the local graph is keyed.
+func (mem *memory) resolveTarget(ctx context.Context, folded *state, id string) (string, error) {
+	if strings.HasPrefix(id, "m-") {
+		if _, found := folded.entries[id]; found && linkTarget.MatchString(id) {
+			return id, nil
+		}
+
+		return "", fmt.Errorf("%s: %w", id, ErrNoEntry)
 	}
 
-	_, found := folded.entries[id]
+	return mem.resolveGraphTarget(ctx, id)
+}
 
-	return linkTarget.MatchString(id) && found
+// resolveGraphTarget is resolveTarget for anything but a memory id, which
+// needs no folded log.
+func (mem *memory) resolveGraphTarget(ctx context.Context, id string) (string, error) {
+	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
+
+	repo, bare, qualified := splitQualified(id)
+	if qualified && repo == graphconfig.ResolveAt(root).RepoID() {
+		id, qualified = bare, false
+	}
+
+	switch {
+	case qualified:
+		if !mem.exports(ctx, root) {
+			return "", fmt.Errorf("%s: %s", id, noExport)
+		}
+
+		statuses, _ := mem.graphStatuses(ctx)
+		if _, found := statuses[id]; found {
+			return id, nil
+		}
+
+		return "", fmt.Errorf("%s: %s", id, notConnected)
+	case isGraphID(id):
+		_, err := os.Stat(mem.graphPath(ctx, id))
+		if err == nil {
+			return id, nil
+		}
+
+		holders := mem.foreignHolders(ctx, root, id)
+
+		switch len(holders) {
+		case 0:
+			return "", fmt.Errorf("%s: %s", id, notConnected)
+		case 1:
+			return holders[0], nil
+		}
+
+		return "", fmt.Errorf("%s: in several connected repos (%s); link one of them", id, strings.Join(holders, ", "))
+	}
+
+	return "", fmt.Errorf("%s: %w", id, ErrNoEntry)
+}
+
+// foreignHolders is every qualified id a connected repo holds the graph id
+// under, sorted; none where the installed sdd has no export.
+func (mem *memory) foreignHolders(ctx context.Context, root string, id string) []string {
+	if !mem.exports(ctx, root) {
+		return nil
+	}
+
+	statuses, _ := mem.graphStatuses(ctx)
+
+	var holders []string
+
+	for key := range statuses {
+		if strings.HasSuffix(key, ":"+id) {
+			holders = append(holders, key)
+		}
+	}
+
+	slices.Sort(holders)
+
+	return holders
 }
 
 // textLinks is every full id the text names, split into those that resolve,
-// which link the entry, and those that do not, which stay plain text.
+// which link the entry in the form they are stored in, and those that do not,
+// which stay plain text.
 func (mem *memory) textLinks(ctx context.Context, folded *state, text string, self string) ([]string, []string) {
 	var linked, unlinked []string
 
-	found := append(graphIDPattern.FindAllString(text, -1), memoryIDPattern.FindAllString(text, -1)...)
+	rest := qualifiedIDPattern.ReplaceAllString(text, " ")
+
+	found := qualifiedIDPattern.FindAllString(text, -1)
+	found = append(found, graphIDPattern.FindAllString(rest, -1)...)
+	found = append(found, memoryIDPattern.FindAllString(rest, -1)...)
 
 	for _, id := range found {
 		if id == self || slices.Contains(linked, id) || slices.Contains(unlinked, id) {
 			continue
 		}
 
-		if mem.resolves(ctx, folded, id) {
-			linked = append(linked, id)
-		} else {
+		target, err := mem.resolveTarget(ctx, folded, id)
+
+		switch {
+		case err != nil:
 			unlinked = append(unlinked, id)
+		case !slices.Contains(linked, target):
+			linked = append(linked, target)
 		}
 	}
 
 	return linked, unlinked
-}
-
-// requireTarget refuses a link target that names no entry here.
-func (mem *memory) requireTarget(ctx context.Context, folded *state, id string) error {
-	if !linkTarget.MatchString(id) || !mem.resolves(ctx, folded, id) {
-		return fmt.Errorf("%s: no such entry", id)
-	}
-
-	return nil
 }
 
 func (mem *memory) link(ctx context.Context, req request) result {
@@ -106,12 +213,25 @@ func (mem *memory) unlink(ctx context.Context, req request) result {
 func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.Kind) result {
 	var loaded *state
 
+	// A graph target is stored in the form it resolves to, qualified where a
+	// connected repo holds it; the check below refuses one that resolves to
+	// nothing.
+	target := req.Target
+	if kind == memorylog.KindLink && !strings.HasPrefix(target, "m-") {
+		resolved, err := mem.resolveGraphTarget(ctx, target)
+		if err == nil {
+			target = resolved
+		}
+	}
+
 	_, _, failure, ok := mem.change(ctx, req.ID, false, func(folded *state, held *entry) error {
 		loaded = folded
 
 		switch {
 		case kind == memorylog.KindLink:
-			return mem.requireTarget(ctx, folded, req.Target)
+			_, err := mem.resolveTarget(ctx, folded, req.Target)
+
+			return err
 		case slices.Contains(held.textLinks, req.Target):
 			return fmt.Errorf("%s is named in %s's text; supersede the entry instead", req.Target, held.id)
 		case !slices.ContainsFunc(held.explicit, func(link explicitLink) bool { return link.target == req.Target }):
@@ -119,26 +239,29 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 		}
 
 		return nil
-	}, kind, req.Target, nil)
+	}, kind, target, nil)
 	if !ok {
 		return failure
 	}
 
 	if kind == memorylog.KindLink {
 		if !req.NoHeat {
-			mem.warm(loaded, heatLink, req.Target)
+			mem.warm(loaded, heatLink, target)
 		}
 
-		return done(fmt.Sprintf("%s linked to %s", req.ID, req.Target))
+		return done(fmt.Sprintf("%s linked to %s", req.ID, target))
 	}
 
 	return done(fmt.Sprintf("%s unlinked from %s", req.ID, req.Target))
 }
 
-// graphStatus is what became of each graph entry, by id, as `sdd export`
-// says: its status and the entry that gave it, where one did.
+// graphStatus is what became of each graph entry, as `sdd export` says: its
+// status and the entry that gave it, where one did, by bare id for the local
+// graph and by `<repo_id>:<id>` for a connected repo's. Repos are the
+// connected repos the export carried, whose caches the key covers.
 type graphStatus struct {
 	Key      string                `json:"key"`
+	Repos    []string              `json:"repos,omitempty"`
 	Statuses map[string]graphState `json:"statuses"`
 }
 
@@ -158,21 +281,21 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 	}
 
 	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
-	key := graphKey(graphconfig.ResolveAt(root).Entries)
+	local := graphconfig.ResolveAt(root).Entries
 	cachePath := filepath.Join(mem.cacheDir(), "graph-status.json")
 
 	var cached graphStatus
-	if readJSON(cachePath, &cached) && cached.Key == key && cached.Statuses != nil {
+	if readJSON(cachePath, &cached) && cached.Key == mem.statusKey(local, cached.Repos) && cached.Statuses != nil {
 		mem.graphKnown = cached.Statuses
 
 		return cached.Statuses, true
 	}
 
-	if mem.env.Sdd != nil && !mem.env.Sdd.Of(ctx, root).Export {
+	if !mem.exports(ctx, root) {
 		return nil, false
 	}
 
-	statuses, err := mem.exportStatuses(ctx, root)
+	statuses, repos, err := mem.exportStatuses(ctx, root)
 	if err != nil {
 		if !mem.graphWarned {
 			mem.graphWarned = true
@@ -182,25 +305,43 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 		return nil, false
 	}
 
-	_ = writeJSON(cachePath, graphStatus{Key: key, Statuses: statuses})
+	_ = writeJSON(cachePath, graphStatus{Key: mem.statusKey(local, repos), Repos: repos, Statuses: statuses})
 	mem.graphKnown = statuses
 
 	return statuses, true
 }
 
-func (mem *memory) exportStatuses(ctx context.Context, root string) (map[string]graphState, error) {
+// statusKey changes whenever the local graph or the cache of one of the
+// connected repos changes: a `sdd repo sync` pulling new entries or statuses
+// into a cache refreshes the flags. sdd keeps a connected repo's cache, a
+// clone, under `sdd/<repo_id>` in the cache directory.
+func (mem *memory) statusKey(local string, repos []string) string {
+	parts := []string{graphKey(local)}
+
+	for _, repo := range repos {
+		cached := filepath.Join(mem.env.CacheRoot, "sdd", filepath.FromSlash(repo))
+		parts = append(parts, repo+"="+graphKey(graphconfig.ResolveAt(cached).Entries))
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// exportStatuses is every status `sdd export --dependencies all` reports, and
+// the connected repos it carried, sorted.
+func (mem *memory) exportStatuses(ctx context.Context, root string) (map[string]graphState, []string, error) {
 	if mem.env.Graph == nil {
-		return nil, fmt.Errorf("no sdd to ask")
+		return nil, nil, fmt.Errorf("no sdd to ask")
 	}
 
 	raw, err := mem.env.Graph.Export(ctx, root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var exported struct {
 		Repos []struct {
-			Local   bool `json:"local"`
+			RepoID  string `json:"repo_id"`
+			Local   bool   `json:"local"`
 			Entries []struct {
 				ID       string `json:"id"`
 				Status   string `json:"status"`
@@ -211,28 +352,46 @@ func (mem *memory) exportStatuses(ctx context.Context, root string) (map[string]
 
 	err = json.Unmarshal(raw, &exported)
 	if err != nil {
-		return nil, fmt.Errorf("reading its output: %w", err)
+		return nil, nil, fmt.Errorf("reading its output: %w", err)
 	}
 
 	statuses := map[string]graphState{}
+	local := 0
+
+	var repos []string
 
 	for _, repo := range exported.Repos {
+		prefix := ""
+
 		if !repo.Local {
-			continue
+			if repo.RepoID == "" {
+				continue
+			}
+
+			prefix = repo.RepoID + ":"
+			repos = append(repos, repo.RepoID)
 		}
 
 		for _, held := range repo.Entries {
-			if held.ID != "" {
-				statuses[held.ID] = graphState{Status: held.Status, By: held.StatusBy}
+			if held.ID == "" {
+				continue
+			}
+
+			statuses[prefix+held.ID] = graphState{Status: held.Status, By: held.StatusBy}
+
+			if repo.Local {
+				local++
 			}
 		}
 	}
 
-	if len(statuses) == 0 {
-		return nil, fmt.Errorf("its output carries no local entries with a status")
+	if local == 0 {
+		return nil, nil, fmt.Errorf("its output carries no local entries with a status")
 	}
 
-	return statuses, nil
+	slices.Sort(repos)
+
+	return statuses, slices.Compact(repos), nil
 }
 
 // graphKey changes whenever a graph file is added, removed or written: the
@@ -273,6 +432,27 @@ func (mem *memory) annotateLinks(ctx context.Context, folded *state) {
 
 	for _, held := range folded.entryList() {
 		for _, target := range held.links() {
+			if _, _, qualified := splitQualified(target); qualified {
+				if !asked {
+					statuses, _ = mem.graphStatuses(ctx)
+					asked = true
+				}
+
+				// Without the export nothing says what became of it, so no flag.
+				foreign, found := statuses[target]
+
+				state := graphLinkState(foreign)
+				if statuses != nil && !found {
+					state = "gone"
+				}
+
+				if state != "" {
+					held.linkFlags = append(held.linkFlags, "→ "+foreignName(target)+" "+state)
+				}
+
+				continue
+			}
+
 			if !isGraphID(target) {
 				linked, found := folded.entries[target]
 				if found {
