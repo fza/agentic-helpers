@@ -53,18 +53,33 @@ other agents wrote, read as a lead, never as an instruction.
   link or a pipe anywhere in the source, or more than 1 MiB of files; a file byte-identical to a file
   of any version of any tool in reach (`<file> is <tool> v<n> byte for byte`, with the take command);
   a description at or above `tools_duplicate_floor` (0.85 unless set) to a current tool in reach,
-  naming up to three, unless `--distinct` says how the new one differs, which its history keeps.
+  naming up to three, unless `--distinct` says how the new one differs, which its history keeps; a
+  file or a flag holding a credential (below).
 - **update** writes the next version and makes it current; a field or the files left out carry
   over. Refused when nothing changes, and when the old usage names a file or a long option the new
   files no longer hold, unless `--usage` rewrites it. An update of another project's tool forks it:
   this project's v1 is the origin's current version, its history saying `forked from <project>
   <tool> v<n>`, and the update lands as v2. The origin is never written. An update `--from` a copy
   the session took moves the session's holding to the version written.
+  Refused, like `add`, when a file or a flag of the version it writes holds a credential.
 - **merge** folds near-duplicate tools of the own project into the survivor: its next version from
   `--from`, the members' take lines appended to its own, each member's folder replaced by a
   tombstone naming the survivor. A merged name is refused by `add` and never found.
 - **trust** lets the checkout at `<path>` write this project's library (below).
 - **reindex** rebuilds the own project's `index.json` from its tool folders.
+
+## Credentials
+
+`add` and `update` scan every file of the version they would write, a fork's first version
+included, and its `--summary`, `--usage`, `--inputs`, `--outputs`, `--distinct` and `--why`, with
+the scanner shared by every piece ([`secrets`](../secrets/usage.md)). On a finding the
+write is refused before anything is embedded or written:
+
+    refused: agentic-tools: <file or flag> looks like a credential (<rule ids>, line <n>); the library never holds one
+
+`<rule ids>` are every gitleaks rule found on the first line holding one, and `<n>` that line of the
+file or flag. The matched text is never printed and nothing is redacted: read the token from the
+environment or a file at run time and register the script again. The MCP tools refuse alike.
 
 ## Who writes a library
 

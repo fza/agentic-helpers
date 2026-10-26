@@ -97,5 +97,6 @@ the slot mostly saves an embed where recall finished first.
 
 `internal/tools` drives `tools.Main` against stores under `t.TempDir()` with a fake embedder: every
 verb and refusal, names across projects, the scope, the lock held by another descriptor, links and
-pipes planted in a store and in a write's path, the hooks, and the MCP server. fdbox's backfilled
+pipes planted in a store and in a write's path, the credential refusals of `add` and `update` (CLI and
+MCP), the hooks, and the MCP server. fdbox's backfilled
 library is the fixture `test/fixtures/tools/fdbox-library`, renamed into place and read as is.

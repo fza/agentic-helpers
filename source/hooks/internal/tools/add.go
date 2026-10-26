@@ -202,6 +202,12 @@ func (lib *library) add(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
+	credential := credentialIn(ctx, from.files, append(describedFields(described),
+		labelled{label: "--distinct", text: req.Distinct}))
+	if credential != "" {
+		return refused("%s", credential)
+	}
+
 	same := lib.identical(ctx, from.files)
 	if same != "" {
 		return refused("%s", same)

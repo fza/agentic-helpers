@@ -1,6 +1,6 @@
 ---
 name: agent-tools
-description: 'agentic-tools: the machine-wide library of helper tools agents wrote. Use before writing a helper script (a measurement, a search, a rewrite, a check), when a "tool library:" line names a tool, a newer version or an unregistered script, after writing or changing a script worth keeping, and when a near-duplicate refusal names another tool.'
+description: 'agentic-tools: the machine-wide library of helper tools agents wrote. Use before writing a helper script (a measurement, a search, a rewrite, a check), when a "tool library:" line names a tool, a newer version or an unregistered script, after writing or changing a script worth keeping, when a near-duplicate refusal names another tool, and when a write is refused as holding a credential.'
 ---
 
 # Tools
@@ -43,6 +43,10 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
   `update <tool>` instead. Truly different → `--distinct '<how it differs>'`, kept in its history.
 - **update of another project's tool forks it** into this project (v1 = the origin, v2 = yours).
   The origin is never written.
+- **`agentic-tools: <file or flag> looks like a credential (<rule ids>, line <n>); the library
+  never holds one`** → a script or a flag holds a token. Read it from the environment or a file at
+  run time, then register again. Nothing overrides it, `gitleaks:allow` included; a credential-shaped
+  example is rewritten.
 - **Stale usage refused** → the old usage names a file or `--option` the new files lack. Give
   `--usage`.
 - **Near-duplicates already in the own project** → `merge <survivor> <member>... --from <path> --why
