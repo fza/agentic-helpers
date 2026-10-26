@@ -1,6 +1,6 @@
 ---
 name: agent-shell-guard
-description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
+description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
 license: MIT
 ---
 
@@ -58,6 +58,9 @@ Questions it asks:
 | `no target` | a removal naming nothing |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | a guard the user switched off no longer denies it; its target cannot be placed |
 | `find -delete` | `find ... -delete` anywhere |
+| `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | a token or key typed into the command, found by the shared scanner; rewrite it to read from a variable or a file rather than asking again (`scan-incomplete` = the scan could not finish) |
+
+The secrets guard follows `shell_guard_secrets`: `ask` unless the user set `deny` or `off`.
 
 A countdown that runs out comes back as a deny:
 

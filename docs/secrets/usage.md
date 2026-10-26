@@ -12,6 +12,7 @@ embedding endpoint, which may be remote.
 | Piece | What is scanned | On a finding |
 |---|---|---|
 | `agentic-tools add`, `update`, `merge` (CLI and MCP) | every file of the version written (by its name and as plain text), a fork's first version included; `--summary`, `--usage`, `--inputs`, `--outputs`, `--distinct`, `--why` | refused, nothing embedded or written ([tools](../tools/usage.md#credentials)) |
+| shell-guard, on every Bash call | the command's whole text | `ask`, `deny` or nothing as `shell_guard_secrets` says ([shell-guard](../shell-guard/usage.md)) |
 | agentic-memory's and agentic-tools' prompt hooks | each user prompt, before it is embedded for recall | the prompt is not embedded; recall answers by terms; agentic-memory says so once ([memory](../memory/usage.md#prompt-recall-and-credentials)) |
 
 ## What a refusal says
@@ -23,6 +24,7 @@ wording is part of its contract, quoted by its skill:
 
     agentic-tools: <file or flag> looks like a credential (<rule ids>, line <n>); the library never holds one
     agentic-memory: this prompt looks like it holds a credential (<rule ids>); it was not sent to the embedding endpoint
+    agentic-shell-guard: the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file
 
 The way out is to reference the credential instead of holding it: an environment variable or a file
 read at run time. A false positive, a credential-shaped example, is rewritten until it no longer

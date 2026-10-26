@@ -26,6 +26,7 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		"nobody answered within <n>s; <reason>",
 		fmt.Sprintf("%d countdowns ran out unanswered since the last prompt; <reason>", unansweredLimit),
 		"`" + modeDontAsk + "`", "`" + modeAuto + "`", "`" + modeBypass + "`",
+		strings.NewReplacer("%s", "<rule ids>", "%d", "<n>").Replace(reasonSecrets), "shell_guard_secrets",
 	}
 
 	for _, reason := range quoted {

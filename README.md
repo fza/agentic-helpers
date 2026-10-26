@@ -107,6 +107,7 @@ user or managed settings; no project overrides them.
 | `shell_guard_expansion` | `true` | deny a removal target built from a variable or command substitution |
 | `shell_guard_nested_code` | `true` | deny a removal or `mktemp` inside `eval`, a shell's `-c` or inline code for another interpreter |
 | `shell_guard_mktemp` | `true` | deny `mktemp` anywhere in a Bash command |
+| `shell_guard_secrets` | `ask` | `ask`, `deny` or `off` for a Bash command holding what looks like a credential |
 | `shell_guard_ask_timeout` | `120` | the seconds a shell-guard ask waits in `auto` and `bypassPermissions` mode before it denies, at most 3600; `0` waits without limit |
 
 ## Dependencies

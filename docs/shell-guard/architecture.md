@@ -40,6 +40,16 @@ carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A 
 stood alone. The walk that finds calls, launchers, nested code and pipe feeds lives in
 `internal/shellwalk`, which the grounding gate walks commands through too.
 
+## Credentials
+
+Every command that parses, a lone removal included, has its whole text scanned by
+`internal/secrets` (`secrets.Scan` with no file name, so path-scoped rules never fire). A finding
+takes `shell_guard_secrets`'s verdict, reason `the command holds what looks like a credential (<rule
+ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file`, naming
+the rules on the first line found (`secrets.Describe`) and never the matched text. A scan that could
+not finish is a finding with the rule `scan-incomplete`. The guard is added after every other, so
+another guard's ask keeps its own reason, while a deny outranks it.
+
 Code another program runs as shell, `eval`'s arguments, the handler `trap` sets past its options, the word after a shell's
 `-c`-carrying option, and the body of a here-document or here-string a shell reads, is joined and
 parsed again, and walked with removals and `mktemp` only noted. Under

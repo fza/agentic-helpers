@@ -28,6 +28,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
@@ -67,11 +68,12 @@ type Streams struct {
 	Err io.Writer
 }
 
-// Options is every guard's setting: the outside-project and find -delete
-// guards ask, deny or are off; every other guard denies when on.
+// Options is every guard's setting: the outside-project, find -delete and
+// secrets guards ask, deny or are off; every other guard denies when on.
 type Options struct {
 	OutsideProject string
 	FindDelete     string
+	Secrets        string
 	LoneRemoval    bool
 	Expansion      bool
 	NestedCode     bool
@@ -83,7 +85,7 @@ type Options struct {
 
 func optionsFrom(read pluginconfig.Options) Options {
 	return Options{
-		OutsideProject: read.ShellGuardOutsideProject, FindDelete: read.ShellGuardFindDelete,
+		OutsideProject: read.ShellGuardOutsideProject, FindDelete: read.ShellGuardFindDelete, Secrets: read.ShellGuardSecrets,
 		LoneRemoval: read.ShellGuardLoneRemoval, Expansion: read.ShellGuardExpansion,
 		NestedCode: read.ShellGuardNestedCode, Mktemp: read.ShellGuardMktemp,
 	}
@@ -96,6 +98,7 @@ const (
 	reasonExpansion     = "refusing rm with a shell variable or command substitution"
 	reasonUnparsable    = "cannot parse the command; refusing"
 	reasonFindDelete    = "find -delete"
+	reasonSecrets       = `the command holds what looks like a credential (%s, line %d); history, logs and files keep it; reference it instead: "$NAME" or a file`
 	whyNotAlone         = "not alone"
 	whyExpansion        = "expansion"
 	whyNestedCode       = "nested code"
@@ -237,15 +240,35 @@ func Judge(ctx context.Context, command string, workingDir string, env Env, opti
 		return Verdict{Decision: Deny, Reason: reasonUnparsable}
 	}
 
+	var found verdicts
+
 	call, targetsFrom := loneRemoval(file)
 	if call != nil {
-		return judgeRemoval(ctx, call.Args[targetsFrom:], workingDir, env, options)
+		found.add(judgeRemoval(ctx, call.Args[targetsFrom:], workingDir, env, options))
+	} else {
+		inspection := inspector{options: options}
+		inspection.walk(file)
+		found.add(inspection.found.decided)
 	}
 
-	inspection := inspector{options: options}
-	inspection.walk(file)
+	found.add(holdsCredential(ctx, command, options))
 
-	return inspection.found.decided
+	return found.decided
+}
+
+// holdsCredential is the secrets guard's verdict on the command's whole text:
+// a credential typed into a command stays in the shell's history, the
+// transcript and any log it reaches. A scan that could not finish counts as a
+// finding.
+func holdsCredential(ctx context.Context, command string, options Options) Verdict {
+	findings := secrets.Scan(ctx, command, "")
+	if len(findings) == 0 {
+		return Verdict{Decision: Allow}
+	}
+
+	rules, line := secrets.Describe(findings)
+
+	return mode(options.Secrets, fmt.Sprintf(reasonSecrets, rules, line))
 }
 
 // loneRemoval returns the call when the whole command is one removal and

@@ -15,6 +15,20 @@ func defaultsWith(change func(options *pluginconfig.Options)) pluginconfig.Optio
 	return options
 }
 
+func TestEveryShellGuardThatCanAskAsksByDefault(t *testing.T) {
+	defaults := pluginconfig.Defaults()
+
+	for name, setting := range map[string]string{
+		"shell_guard_outside_project": defaults.ShellGuardOutsideProject,
+		"shell_guard_find_delete":     defaults.ShellGuardFindDelete,
+		"shell_guard_secrets":         defaults.ShellGuardSecrets,
+	} {
+		if setting != pluginconfig.ShellGuardAsk {
+			t.Errorf("%s should ask unless set, got %q", name, setting)
+		}
+	}
+}
+
 func TestRead(t *testing.T) {
 	const own = `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":`
 
@@ -123,6 +137,16 @@ func TestRead(t *testing.T) {
 			want: defaultsWith(func(options *pluginconfig.Options) {
 				options.ShellGuardOutsideProject, options.ShellGuardFindDelete, options.ShellGuardMktemp = "deny", "off", false
 			}),
+		},
+		{
+			name: "a secrets mode",
+			user: own + `{"shell_guard_secrets":"deny"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ShellGuardSecrets = "deny" }),
+		},
+		{
+			name:    "a secrets mode of another word is an error",
+			user:    own + `{"shell_guard_secrets":"never"}}}}`,
+			wantErr: true,
 		},
 		{
 			name: "an ask timeout",

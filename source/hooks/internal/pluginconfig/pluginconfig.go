@@ -80,10 +80,12 @@ type Options struct {
 	// TemporarySeatLifetime is how long a closed temporary shelf keeps its
 	// entries, as `lifetime` spells a span; empty takes agentic-memory's default.
 	TemporarySeatLifetime string
-	// ShellGuardOutsideProject / ShellGuardFindDelete are `ask`, `deny` or
-	// `off`; the other shell-guard options switch a guard that denies when on.
+	// ShellGuardOutsideProject / ShellGuardFindDelete / ShellGuardSecrets are
+	// `ask`, `deny` or `off`; the other shell-guard options switch a guard that
+	// denies when on.
 	ShellGuardOutsideProject string
 	ShellGuardFindDelete     string
+	ShellGuardSecrets        string
 	ShellGuardLoneRemoval    bool
 	ShellGuardExpansion      bool
 	ShellGuardNestedCode     bool
@@ -111,7 +113,7 @@ var Keys = []string{
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
-	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout",
+	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
 	"memory_enabled", "tools_enabled", "scratch_enabled", "grounding_gate_enabled", "capture_enabled",
 	"shell_guard_enabled",
 }
@@ -259,7 +261,7 @@ func Defaults() Options {
 		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
 		MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor:          DefaultToolsQueryFloor,
-		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk,
+		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
 		ShellGuardAskTimeout: DefaultShellGuardAskTimeout,
 		MemoryEnabled:        true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
@@ -333,6 +335,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 	modes := map[string]*string{
 		"shell_guard_outside_project": &options.ShellGuardOutsideProject,
 		"shell_guard_find_delete":     &options.ShellGuardFindDelete,
+		"shell_guard_secrets":         &options.ShellGuardSecrets,
 	}
 
 	for key, target := range modes {

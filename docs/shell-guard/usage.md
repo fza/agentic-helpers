@@ -3,8 +3,8 @@
 A stray `rm -rf` outside the project is the one mistake an agent cannot undo, and a careless chain
 such as `cd ~ && rm -rf x` slips past any rule that reads targets without parsing the command.
 `agentic-shell-guard` runs before every Bash call, parses the command as bash, and holds an agent's
-removals (`rm`, `rmdir`, `unlink`, `git rm`) to the project and `/tmp`, asks before `find -delete`,
-and bans `mktemp`. A removal named inside a quoted argument (a sed script, a grep pattern, a commit
+removals (`rm`, `rmdir`, `unlink`, `git rm`) to the project and `/tmp`, asks before `find -delete`
+and before a command holding what looks like a credential, and bans `mktemp`. A removal named inside a quoted argument (a sed script, a grep pattern, a commit
 message) is text and passes; code handed to `eval`, `trap`, a shell's `-c`, or a shell's standard
 input by a here-document or here-string is parsed again.
 
@@ -32,6 +32,7 @@ user or managed settings):
 |---|---|---|---|
 | `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a `..` step, which a symlink before it would carry elsewhere, a glob that can match a name starting with a dot, `..` among them), or that names no target |
 | `shell_guard_find_delete` | `ask`, `deny`, `off` | `ask` | `find ... -delete` |
+| `shell_guard_secrets` | `ask`, `deny`, `off` | `ask` | a command whose text holds what looks like a credential, found by the shared [credential scanner](../secrets/usage.md) |
 | `shell_guard_lone_removal` | boolean | `true` | a removal that is not the whole command |
 | `shell_guard_expansion` | boolean | `true` | a removal target built from a variable or command substitution |
 | `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it |
@@ -80,6 +81,7 @@ Every reason starts `agentic-shell-guard: `:
 | `outside project: <targets>`, `no project: <targets>`, `unresolvable: <targets>`, `no target` | outside project; several join with `; ` |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | outside project, for a supporting guard switched off |
 | `find -delete` | find -delete |
+| `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | secrets; `scan-incomplete` as the rule when the scan could not finish |
 | `cannot parse the command; refusing` | always |
 | `nobody answered within <n>s; <reason>` | an ask in `auto` or `bypassPermissions` mode whose countdown ran out |
 | `3 countdowns ran out unanswered since the last prompt; <reason>` | an ask in `auto` or `bypassPermissions` mode after three countdowns ran out |
@@ -113,6 +115,7 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
       "options": {
         "shell_guard_outside_project": "deny",
         "shell_guard_find_delete": "ask",
+        "shell_guard_secrets": "ask",
         "shell_guard_lone_removal": true,
         "shell_guard_expansion": true,
         "shell_guard_nested_code": true,
