@@ -11,8 +11,12 @@ ends an ask in `auto` and `bypassPermissions` mode (see Permission modes).
 ## Parsing
 
 The command is parsed with `mvdan.cc/sh/v3/syntax` as bash: a parse error denies. Words are judged
-by their literal value: plain text, single quotes, and double quotes around plain text read as their
-value; anything with an expansion (`$x`, `$(...)`, `` `...` ``, `$'...'`) has none. A command's name
+by their literal value: plain text, single quotes, double quotes around plain text, and ANSI-C
+quoting (`$'...'`) read as their value, the last decoded by `mvdan.cc/sh/v3/expand` as bash decodes
+it; anything with an expansion (`$x`, `$(...)`, `` `...` ``) has none, and neither has a `$'...'`
+holding an escape that library does not read as bash does: `\c`, a control character built from
+what follows, an octal escape past one byte, a Unicode escape naming no character. The reading is
+`shellwalk.Literal`, shared with the grounding gate, so `$'rm'` is `rm` to both. A command's name
 is the base name of its first word, lower-cased, so `/bin/rm`, `\rm` and `RM` are `rm`.
 
 ## Lone removals

@@ -15,7 +15,9 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
@@ -411,9 +413,10 @@ func CommandName(word *syntax.Word) string {
 }
 
 // Literal returns the word's value when it carries no expansion: plain text,
-// single quotes, and double quotes around plain text. A backslash inside
-// double quotes is dropped before any character, which reads `"r\m"` as `rm`
-// where bash keeps the backslash: the side a guard errs on.
+// single quotes, `$'...'` whose escapes resolve to a fixed string, and double
+// quotes around plain text. A backslash inside double quotes is dropped before
+// any character, which reads `"r\m"` as `rm` where bash keeps the backslash:
+// the side a guard errs on.
 func Literal(word *syntax.Word) (string, bool) {
 	var value strings.Builder
 
@@ -422,11 +425,12 @@ func Literal(word *syntax.Word) (string, bool) {
 		case *syntax.Lit:
 			value.WriteString(unescape(typed.Value))
 		case *syntax.SglQuoted:
-			if typed.Dollar {
+			decoded, resolved := ansiC(typed)
+			if !resolved {
 				return "", false
 			}
 
-			value.WriteString(typed.Value)
+			value.WriteString(decoded)
 		case *syntax.DblQuoted:
 			for _, inner := range typed.Parts {
 				innerLit, isLit := inner.(*syntax.Lit)
@@ -444,10 +448,11 @@ func Literal(word *syntax.Word) (string, bool) {
 	return value.String(), true
 }
 
-// Spelled is the word with its quoting removed, as Literal reads it, with
-// `$'...'` decoded and every expansion kept as the command spells it:
-// `"$HOME/bin/sdd"` reads `$HOME/bin/sdd`, and code handed to `bash -c "sdd
-// new $title"` reads as the shell would parse it.
+// Spelled is the word with its quoting removed, as Literal reads it, and every
+// expansion kept as the command spells it: `"$HOME/bin/sdd"` reads
+// `$HOME/bin/sdd`, and code handed to `bash -c "sdd new $title"` reads as the
+// shell would parse it. A `$'...'` whose escapes do not resolve stays spelled
+// as an expansion too.
 func Spelled(word *syntax.Word) string {
 	var value strings.Builder
 
@@ -463,15 +468,9 @@ func spellPart(value *strings.Builder, part syntax.WordPart) {
 	case *syntax.Lit:
 		value.WriteString(unescape(typed.Value))
 	case *syntax.SglQuoted:
-		if !typed.Dollar {
-			value.WriteString(typed.Value)
-
-			return
-		}
-
-		decoded, err := expand.Literal(nil, &syntax.Word{Parts: []syntax.WordPart{typed}})
-		if err != nil {
-			value.WriteString(typed.Value)
+		decoded, resolved := ansiC(typed)
+		if !resolved {
+			printPart(value, part)
 
 			return
 		}
@@ -482,13 +481,81 @@ func spellPart(value *strings.Builder, part syntax.WordPart) {
 			spellPart(value, inner)
 		}
 	default:
-		var buffer bytes.Buffer
+		printPart(value, part)
+	}
+}
 
-		err := syntax.NewPrinter().Print(&buffer, part)
-		if err == nil {
-			value.WriteString(buffer.String())
+func printPart(value *strings.Builder, part syntax.WordPart) {
+	var buffer bytes.Buffer
+
+	err := syntax.NewPrinter().Print(&buffer, part)
+	if err == nil {
+		value.WriteString(buffer.String())
+	}
+}
+
+// ansiC is a single-quoted part's value, a `$'...'` one decoded as bash
+// decodes it. It reports false where an escape has no reading mvdan.cc/sh
+// gives as bash does: `\c`, a control character bash builds from what follows,
+// an octal escape past one byte, and a Unicode escape naming no character.
+func ansiC(part *syntax.SglQuoted) (string, bool) {
+	if !part.Dollar {
+		return part.Value, true
+	}
+
+	if !fixedEscapes(part.Value) {
+		return "", false
+	}
+
+	decoded, err := expand.Literal(nil, &syntax.Word{Parts: []syntax.WordPart{part}})
+	if err != nil {
+		return "", false
+	}
+
+	return decoded, true
+}
+
+func fixedEscapes(raw string) bool {
+	for index := 0; index < len(raw)-1; index++ {
+		if raw[index] != '\\' {
+			continue
+		}
+
+		index++
+
+		switch escape := raw[index]; {
+		case escape == 'c':
+			return false
+		case escape >= '0' && escape <= '7':
+			value, _ := strconv.ParseUint(leading(raw[index:], 3, "01234567"), 8, 32)
+			if value > 0o377 {
+				return false
+			}
+		case escape == 'u' || escape == 'U':
+			width := 4
+			if escape == 'U' {
+				width = 8
+			}
+
+			value, _ := strconv.ParseUint(leading(raw[index+1:], width, "0123456789abcdefABCDEF"), 16, 32)
+			if !utf8.ValidRune(rune(value)) {
+				return false
+			}
 		}
 	}
+
+	return true
+}
+
+// leading is the longest run, up to limit, of text's opening characters that
+// are in set.
+func leading(text string, limit int, set string) string {
+	end := 0
+	for end < len(text) && end < limit && strings.IndexByte(set, text[end]) >= 0 {
+		end++
+	}
+
+	return text[:end]
 }
 
 func unescape(value string) string {

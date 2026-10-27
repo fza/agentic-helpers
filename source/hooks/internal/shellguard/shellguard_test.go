@@ -122,7 +122,16 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"braced variable target", "{project}", "rm -f ${file}", "deny"},
 		{"substituted target", "{project}", "rm $(cat list)", "deny"},
 		{"backtick target", "{project}", "rm `cat list`", "deny"},
-		{"ansi-c quoted target", "{project}", "rm $'a\\nb'", "deny"},
+		{"ansi-c quoted target", "{project}", "rm $'a\\nb'", "allow"},
+		{"ansi-c quoted rm", "{project}", "$'rm' sub/x", "allow"},
+		{"ansi-c quoted target with a control escape", "{project}", "rm $'a\\cb'", "deny"},
+		{"ansi-c quoted target past one byte", "{project}", "rm $'a\\400'", "deny"},
+		{"ansi-c quoted target naming no character", "{project}", "rm $'a\\U110000'", "deny"},
+		{"ansi-c quoted rm after a command", "{project}", "ls && $'rm' a", "deny"},
+		{"ansi-c quoted rm under a launcher", "{project}", "sudo $'\\x72m' a", "deny"},
+		{"ansi-c quoted mktemp", "{project}", "$'mktemp' -d", "deny"},
+		{"ansi-c quoted git rm after a command", "{project}", "ls && git $'rm' b", "deny"},
+		{"ansi-c quoted shell code with a removal", "{project}", "bash -c $'rm x'", "deny"},
 		{"shell code with a variable removal", "{project}", `sh -c 'rm -rf $X'`, "deny"},
 		{"shell code with a removal", "{project}", `sh -c 'rm -rf sub/x'`, "deny"},
 		{"login shell code with a removal", "{project}", `bash -lc 'rm x'`, "deny"},
@@ -212,6 +221,10 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"a link followed by a parent step", "{project}", "rm -rf link/../x", "ask"},
 		{"a parent step back into the project", "{project}/sub", "rm -rf ../sub/x", "ask"},
 		{"dot glob in a subdirectory", "{project}", "rm -rf sub/.[!.]*", "ask"},
+		{"ansi-c quoted rm outside", "{project}", "$'rm' -rf /", "ask"},
+		{"ansi-c escaped rm outside", "{project}", "$'\\x72m' -rf ~/x", "ask"},
+		{"ansi-c quoted target outside", "{project}", "rm $'/etc/hosts'", "ask"},
+		{"ansi-c quoted find delete", "{project}", "find {tmp} $'-delete'", "ask"},
 	}
 
 	g := newGuard(t, true, "")

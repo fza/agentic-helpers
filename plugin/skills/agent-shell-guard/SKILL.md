@@ -15,7 +15,9 @@ before it runs. Reason starts `agentic-shell-guard: ` → this hook.
 ## What passes
 
 - **A lone removal**: the whole Bash call is one `rm` / `rmdir` / `unlink` / `git rm`, literal
-  targets, each strictly inside the project or `/tmp`. Nothing before or after it.
+  targets, each strictly inside the project or `/tmp`. Nothing before or after it. Literal = plain
+  text, quotes around plain text, or `$'...'` whose escapes resolve: `$'rm' -rf /` is `rm -rf /`.
+  `\c`, an octal escape past one byte or a Unicode escape naming no character = an expansion.
 - **Text naming `rm`**: a sed script, a grep pattern, a commit message. Quoted text is no command.
 
 ```bash

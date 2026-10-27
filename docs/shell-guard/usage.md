@@ -19,7 +19,10 @@ options off.
   each strictly inside the project or `/tmp`. The project is `$CLAUDE_PROJECT_DIR`, the directory
   the session started in; where it is unset, `/` or `~` there is none, so every removal outside
   `/tmp` asks. A command name is read lower-cased, as a case-insensitive filesystem runs `RM` as
-  `rm`.
+  `rm`. A literal is plain text, single or double quotes around plain text, or ANSI-C quoting
+  (`$'rm'`, `$'\x72m'`) whose escapes resolve to a fixed string, so `$'rm' -rf /` is judged as
+  `rm -rf /`; one whose escapes do not (`\c`, an octal escape past one byte, a Unicode escape
+  naming no character) is read as an expansion.
   Targets resolve through symlinks, so a link inside the project pointing elsewhere is elsewhere.
 - Anything naming no removal and no `mktemp`.
 
