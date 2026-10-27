@@ -58,7 +58,9 @@ A command is parsed as bash with `mvdan.cc/sh/v3/syntax`, and `internal/shellwal
 shell-guard judges through too, lists every command it runs: in a subshell, a pipe or a command
 substitution, after a launcher (`env`, `xargs`, `sudo`, `find -exec`, ...) past the launcher's
 options, assignments and counts, and inside code a shell runs (`bash -c`, `eval`, `trap`, a
-here-document fed to a shell). A quoted argument and a heredoc body are words, never a call, so
+here-document fed to a shell). An option's value that is neither fixed text without a glob
+or brace nor wholly double-quoted without an `@`, `*` or `!` expansion (`sudo -u $user sdd ...`) is
+taken for the command, as it may split into one, so a read behind it is not credited. A quoted argument and a heredoc body are words, never a call, so
 crediting a quoted mention cannot let an `echo` satisfy the gate. Each call's words are read with
 their quoting removed (`$'...'` decoded, a backslash inside double quotes dropped), and the search
 mode, layout and depth are read from those words. A command's first word counts by its base name;

@@ -50,7 +50,11 @@ argument, it takes `shell_guard_outside_project`'s verdict, reason `cannot judge
 <word> is not fixed text`, the word as the command spells it; with none it runs. Under a launcher
 only the word `shellwalk` marks as the command it certainly runs counts, past the launcher's
 options, their values, assignments and counts, since any other word may be an option's value (`sudo
--u $user`, `find -name "$x"`). The walk that finds calls, launchers, nested code and pipe feeds lives in
+-u "$user"`, `find -name "$x"`). A known value option's value counts as its value only when it is
+fixed text with no glob or brace, or wholly double-quoted with no `@`, `*` or `!` expansion; any
+other (`sudo -u $user`, `nice -n $n`, `sudo -u {root,rm}`) may split into the value and a command of
+its own, so the walk takes it for the command and it takes this verdict. A name holding a glob or
+brace counts as not fixed text too, since it expands into other words. The walk that finds calls, launchers, nested code and pipe feeds lives in
 `internal/shellwalk`, which the grounding gate walks commands through too.
 
 ## Credentials

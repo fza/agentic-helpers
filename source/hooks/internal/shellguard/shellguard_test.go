@@ -339,6 +339,15 @@ func TestACommandNameThatIsNotFixedTextTakesTheOutsideVerdict(t *testing.T) {
 		{"a variable after an assignment", "LC_ALL=C $CMD x", "$CMD"},
 		{"a variable in shell code", `bash -c '$CMD -rf /'`, "$CMD"},
 		{"a variable under a launcher", "sudo -u root $CMD -rf /", "$CMD"},
+		{"an unquoted variable as sudo's option value", "sudo -u $user make build", "$user"},
+		{"an unquoted variable as nice's option value", "nice -n $n make build", "$n"},
+		{"a quoted array as an option value", `sudo -u "${a[@]}" make build`, `"${a[@]}"`},
+		{"a quoted star expansion as an option value", `sudo -u "$*" make build`, `"$*"`},
+		{"a quoted indirection as an option value", `sudo -u "${!name}" make build`, `"${!name}"`},
+		{"a partly quoted option value", `sudo -u x"$user" make build`, `x"$user"`},
+		{"a quoted option value followed by an unquoted one", `sudo -u "$user"$x make build`, `"$user"$x`},
+		{"a brace as an option value", "sudo -u {root,rm} -rf /", "{root,rm}"},
+		{"a glob as an option value", "nice -n ?? make build", "??"},
 		{"a variable run by find", `find . -exec "$cmd" {} \;`, `"$cmd"`},
 	}
 
@@ -349,7 +358,9 @@ func TestACommandNameThatIsNotFixedTextTakesTheOutsideVerdict(t *testing.T) {
 	}{
 		{"a variable with no argument", "$CMD", "allow"},
 		{"a variable with no argument but a redirection", "$CMD > out.log", "allow"},
-		{"a variable as a launcher's option value", "sudo -u $user ls -la", "allow"},
+		{"a quoted variable as sudo's option value", `sudo -u "$user" ls -la`, "allow"},
+		{"a quoted variable as nice's option value", `nice -n "$n" make build`, "allow"},
+		{"a quoted command substitution as an option value", `sudo -u "$(whoami)" ls -la`, "allow"},
 		{"a variable in a find expression", `find . -name "$pattern" -print`, "allow"},
 		{"a lone removal inside the project", "rm -rf ./build", "allow"},
 		{"a fixed name with a variable argument", `echo "$CMD" -rf /`, "allow"},

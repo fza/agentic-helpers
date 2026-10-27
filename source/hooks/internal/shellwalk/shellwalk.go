@@ -228,6 +228,13 @@ func launchedAt(args []*syntax.Word) int {
 			return index + 1
 		case slices.Contains(Options[launcher].Value, value):
 			index++
+
+			// An unquoted expansion may split into the value and a command of its
+			// own (`sudo -u $user` with user='root rm -rf /'): the value word is
+			// then the command, as nothing tells which word runs.
+			if index < len(args) && !oneKnownWord(args[index]) {
+				return index
+			}
 		case strings.HasPrefix(value, "-") || assignment.MatchString(value) || count.MatchString(value):
 		default:
 			return index
@@ -235,6 +242,46 @@ func launchedAt(args []*syntax.Word) int {
 	}
 
 	return -1
+}
+
+// oneKnownWord is whether the shell hands the word on as one word: fixed text
+// with no glob or brace, or text wholly inside double quotes whose expansions
+// use no `@` or `*`, which split even there, and no `!` indirection.
+func oneKnownWord(word *syntax.Word) bool {
+	if Patterned(word) {
+		return false
+	}
+
+	_, isLiteral := Literal(word)
+	if isLiteral {
+		return true
+	}
+
+	if len(word.Parts) != 1 {
+		return false
+	}
+
+	quoted, isQuoted := word.Parts[0].(*syntax.DblQuoted)
+	if !isQuoted {
+		return false
+	}
+
+	for _, inner := range quoted.Parts {
+		_, isLit := inner.(*syntax.Lit)
+		if isLit {
+			continue
+		}
+
+		var printed strings.Builder
+
+		printPart(&printed, inner)
+
+		if strings.ContainsAny(printed.String(), "@*!") {
+			return false
+		}
+	}
+
+	return true
 }
 
 // fed hands on the code a here-document or here-string gives a shell or an

@@ -61,6 +61,22 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 			events: []string{"call env -C /work sdd", "launched -C /work sdd", "launched /work sdd", "launched sdd (certain)"},
 		},
 		{
+			name: "an option's quoted value", command: `nice -n "$n" sdd`,
+			events: []string{"call nice -n $n sdd", "launched -n $n sdd", "launched $n sdd", "launched sdd (certain)"},
+		},
+		{
+			name: "an option's value that may split", command: "nice -n $n sdd",
+			events: []string{"call nice -n $n sdd", "launched -n $n sdd", "launched $n sdd (certain)", "launched sdd"},
+		},
+		{
+			name: "an option's quoted value that splits", command: `sudo -u "${a[@]}" sdd`,
+			events: []string{"call sudo -u ${a[@]} sdd", "launched -u ${a[@]} sdd", "launched ${a[@]} sdd (certain)", "launched sdd"},
+		},
+		{
+			name: "an option's value that is a brace", command: "sudo -u {root,rm} sdd",
+			events: []string{"call sudo -u {root,rm} sdd", "launched -u {root,rm} sdd", "launched {root,rm} sdd (certain)", "launched sdd"},
+		},
+		{
 			name: "an option's value is another launcher's own", command: "sudo -u bob sdd",
 			events: []string{"call sudo -u bob sdd", "launched -u bob sdd", "launched bob sdd", "launched sdd (certain)"},
 		},

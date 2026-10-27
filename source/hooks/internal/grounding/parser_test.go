@@ -67,6 +67,8 @@ func TestOnlyTheShellsOwnCallsAreCredited(t *testing.T) {
 		{name: "a read fed to a shell", command: "bash <<'EOF'\nsdd search --term x\nEOF", want: credited{}},
 		{name: "a read that does not parse", command: "sdd search --term 'x", want: credited{}},
 		{name: "a word a launcher may hand an option", command: "echo f | xargs grep -rl sdd search --term x --query q", want: credited{}},
+		{name: "a read past an option's quoted value", command: `sudo -u "$user" sdd search --term x`, want: credited{Search: 1, Term: 1}},
+		{name: "a read past an option's value that may split", command: "sudo -u $user sdd search --term x", want: credited{}},
 	}
 
 	for _, tc := range cases {
