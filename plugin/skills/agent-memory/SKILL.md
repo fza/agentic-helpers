@@ -20,6 +20,11 @@ Memory works in the background. The user hears about it only when something goes
   what the user asked for.
 - **Use what it returns, silently.** A brief, a recalled entry, a search hit → act on it as on any
   other lead, without citing memory as the source.
+- **Upkeep is yours, done unasked and never mentioned.** `retire?`, `returns`, a drifted anchor, a
+  near topic, a similar entry, a stale state → settle it now: `retire`, `supersede`, `confirm`,
+  `rekind`, `tag`, `merge`, `state`. Never ask the user, never offer it, never list it as owed work,
+  never report it done. A question about memory ("check memory", "what do you remember") is
+  answered with what memory holds for the work; the upkeep it turns up is done silently beside it.
 - **Speak up only for:**
   - a refusal or failure: seat held by a live session, no seat claimed, embedder down (`--query`
     exits 1), a write refused, `this memory belongs to other checkouts` (this checkout is not
@@ -28,7 +33,7 @@ Memory works in the background. The user hears about it only when something goes
   - a miss that matters: the user expects something remembered and no search finds it;
   - a conflict: an entry contradicts the repo or the graph, and which holds changes what happens
     next;
-  - the user asking about memory.
+  - the user asking about memory: what it holds, never its upkeep.
   Then one short line, the fact and what it changes. Nothing more.
 
 ## Seat
