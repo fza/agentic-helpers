@@ -237,6 +237,10 @@ agentic-memory ack <id>... --done | --decline '<why>'   # settle what no tool ca
   after a filing → the entry landed against the rule: run the `retire ... --because 'forbidden by
   <rule id>'` it names, unless the match is a false hit.
 - **`agentic-memory: do-now items pending:`** at `Stop` → the turn is held for them; settle them.
+- **`Work shipped since your last state write. Write where work stands: agentic-memory state < body.
+  Then end the turn without commentary.`** at `Stop` → write the state, then end the turn, saying
+  nothing about it. Once per state write: HEAD moved, a graph capture, or `state_stale_after_writes`
+  (5) file writes.
   Twice per moment at most; what stays pending opens the next list as `skipped last session:`.
 
 ## Attachments

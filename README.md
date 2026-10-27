@@ -93,6 +93,7 @@ user or managed settings; no project overrides them.
 | `shell_guard_enabled` | `true` | shell-guard on or off |
 | `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env` | none | the embedder memory's and the tool library's search by meaning runs on; the key itself stays in the environment variable named |
 | `entry_max_words` | `500` | the words a memory entry's body should stay within |
+| `state_stale_after_writes` | `5` | the file writes since a memory seat's last state write that hold the turn's end once for a new one |
 | `retired_body_days` | `90` | how long a retired memory entry keeps its body, never under 14 |
 | `entry_id_length` | `6` | the characters after `m-` in a new memory entry id, 6 to 16 |
 | `brief_note_limit` | `10` | the notes a memory brief prints, hottest first; `agentic-memory brief --kind note` lists the rest |

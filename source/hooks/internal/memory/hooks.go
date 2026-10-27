@@ -303,6 +303,17 @@ type ladder struct {
 	// for, and ReplayCheckedSize the transcript's size at its last check.
 	ReplayNudgedFor   time.Time `json:"replay_nudged_for"`
 	ReplayCheckedSize int64     `json:"replay_checked_size"`
+	// ShipSince is when the window began measuring shipped work, ShipBase
+	// HEAD then or the commit the seat's last state write stamps, StateSeen
+	// that write's time, and Writes and Captured the file writes and graph
+	// entries since. Held marks the shipped-work hold as spent until the next
+	// state write.
+	ShipSince time.Time `json:"ship_since"`
+	ShipBase  string    `json:"ship_base,omitempty"`
+	StateSeen time.Time `json:"state_seen"`
+	Writes    int       `json:"writes,omitempty"`
+	Captured  int       `json:"captured,omitempty"`
+	Held      bool      `json:"held,omitempty"`
 }
 
 const replayNudgeText = "Turns since your newest entry or state write no longer fit the post-compaction replay. " +
@@ -550,15 +561,17 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		notes = append(notes, movedHere)
 	}
 
-	captured := mem.captureNotice(ctx, name, cmp.Or(payload.SessionID, held.SessionID))
+	session := cmp.Or(payload.SessionID, held.SessionID)
+
+	captured, gained := mem.captureNotice(ctx, name, session)
 	if captured != "" {
 		notes = append(notes, captured)
 	}
 
+	mem.countShipped(ctx, session, payload.ToolName, gained)
+
 	arrived, holdsTraps := mem.arrivalsAtTool(ctx, name)
 	notes = append(notes, arrived...)
-
-	session := cmp.Or(payload.SessionID, held.SessionID)
 
 	// The call is read only where a trap or a pending do-now item needs it:
 	// finding the work tree's root costs a git call.
@@ -718,7 +731,14 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 	}
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
+	shipped := mem.shippedHold(ctx, name, &steps)
 	_ = writeJSON(mem.ladderPath(session), steps)
+
+	if shipped {
+		_, _ = fmt.Fprintln(mem.streams.Err, shippedText)
+
+		return 2
+	}
 
 	if steps.Nudges >= nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps) {
 		_, _ = fmt.Fprintln(mem.streams.Err, backstopText)

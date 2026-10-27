@@ -45,6 +45,13 @@
       "default": 500,
       "required": false
     },
+    "state_stale_after_writes": {
+      "type": "number",
+      "title": "File writes before a state hold",
+      "description": "File writes since a memory seat's last state write that hold the turn's end once for a new one",
+      "default": 5,
+      "required": false
+    },
     "retired_body_days": {
       "type": "number",
       "title": "Retired body days",

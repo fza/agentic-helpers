@@ -27,12 +27,13 @@ func (mem *memory) graphMarkPath(session string) string {
 }
 
 // captureNotice names, once, the graph entries a tool call added while the
-// seat holds open entries waiting for a capture, and how to settle one. A
+// seat holds open entries waiting for a capture, and how to settle one, and
+// counts the entries the call added. A
 // capture lands in the graph directory of its month, found once a month
 // through the graph resolver; that directory is stat'ed on every call and read
 // only when its stamp moved. The sdd engine and agentic-capture both reach it,
 // since nothing reads a capture's output.
-func (mem *memory) captureNotice(ctx context.Context, seatName string, session string) string {
+func (mem *memory) captureNotice(ctx context.Context, seatName string, session string) (string, int) {
 	now := mem.now().Local()
 	monthKey := now.Format("2006/01")
 
@@ -53,7 +54,7 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 	if month == noGraph {
 		_ = writeJSON(mem.graphMarkPath(session), graphMark{Month: monthKey, Dir: noGraph})
 
-		return ""
+		return "", 0
 	}
 
 	stamp := "-"
@@ -64,7 +65,7 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 	}
 
 	if had && mark.Month == monthKey && mark.Dir == month && mark.Stamp == stamp {
-		return ""
+		return "", 0
 	}
 
 	files, _ := os.ReadDir(month)
@@ -87,12 +88,12 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 	_ = writeJSON(mem.graphMarkPath(session), graphMark{Month: monthKey, Dir: month, Stamp: stamp, Names: names})
 
 	if len(gained) == 0 {
-		return ""
+		return "", 0
 	}
 
 	folded, err := mem.load(ctx)
 	if err != nil {
-		return ""
+		return "", len(gained)
 	}
 
 	var waiting []string
@@ -104,9 +105,9 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 	}
 
 	if len(waiting) == 0 {
-		return ""
+		return "", len(gained)
 	}
 
 	return fmt.Sprintf("%s: graph gained %s; open todos waiting for a capture: %s; link the one it settles: %s link <todo> <graph id>",
-		self, strings.Join(gained, ", "), strings.Join(waiting, ", "), self)
+		self, strings.Join(gained, ", "), strings.Join(waiting, ", "), self), len(gained)
 }

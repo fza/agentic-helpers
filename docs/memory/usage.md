@@ -273,6 +273,19 @@ The brief opens with it, after its first line, its age measured as the brief is 
 A state write moves the start of the post-compaction replay forward as filing does, answers the
 compaction nudge and re-arms the replay nudge.
 
+A seated session that shipped work since its seat's last state write is held at Stop once, with
+exit 2:
+
+    Work shipped since your last state write. Write where work stands: agentic-memory state < body. Then end the turn without commentary.
+
+Shipped work is any of: HEAD moved off the commit the last state write stamps (or off HEAD at the
+session's first tool call, where it wrote none); the graph gained an entry; or the session's Edit,
+Write and NotebookEdit calls reached `state_stale_after_writes`, 5 unless set. The hold fires once,
+then stays spent until the seat's next state write, so an ignored hold never repeats. A seatless
+session, one that only reads and talks, and one whose state is newer than its work are never held.
+It runs after the hold for pending do-now items and before the compaction backstop, and leaves the
+nudge count alone. A compaction starts the measure afresh with the window.
+
 Words are counted for the body against `entry_max_words` and for the title against 3-10, and the
 similar-entry hint compares entries by their words. In scripts written without spaces (Han,
 Hiragana, Katakana, Thai, Lao, Khmer, Myanmar) every character counts as a word; elsewhere a word is
@@ -927,6 +940,7 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 |---|---|
 | `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env` | the embedder search by meaning and prompt recall run on |
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
+| `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
 | `retired_body_days` | how long a retired entry keeps its body, 90 unless set, never under 14 |
 | `entry_id_length` | the characters after `m-` in a new entry id |
 | `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note` |

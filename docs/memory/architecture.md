@@ -308,7 +308,7 @@ Every hook exits at once in a project without a store.
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
 | UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
 | PostToolUse (`tool`) | tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
-| Stop (`stop`) | holds the turn while do-now items are pending, at most twice per moment; then blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
+| Stop (`stop`) | holds the turn while do-now items are pending, at most twice per moment; then holds it once for a state write when work shipped since the seat's last one; then blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
 | SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
@@ -442,6 +442,14 @@ then (`traps`), so a seat holding none reads nothing more on a tool call than it
 note told is added to the session's shown set (`shown/<session>.json`, `traps` and `notes`), which a
 compaction empties. The index lists notes hottest first when built, but a `show` warms without a log
 event, so the hook ranks the matching notes by the heat read at the call.
+
+The shipped-work hold keeps its measure on the session's ladder: `ship_since`, when the window
+began measuring, set at its first tool call; `ship_base`, HEAD then, replaced by the commit the
+seat's next state write stamps; `state_seen`, that write's time; `writes`, the Edit, Write and
+NotebookEdit calls since; `captured`, the graph entries the capture notice saw added since; and
+`held`, set by the hold and cleared with the counts by a state write newer than `state_seen`. Stop
+reads HEAD with the one `rev-parse` the checkout asks. The ladder goes with the window at a
+compaction or `/clear`, and the measure with it.
 
 Do-now items pending for a seat sit beside the nudge ladder, `ladder/<seat id>.do-now.json`: the
 session they are owed in, each item's rule, moment and proofs, and how often `Stop` held a turn per

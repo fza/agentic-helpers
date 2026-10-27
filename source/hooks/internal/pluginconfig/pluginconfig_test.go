@@ -72,6 +72,11 @@ func TestRead(t *testing.T) {
 			}),
 		},
 		{
+			name: "the state hold's write threshold reads as a number, never under one",
+			user: own + `{"state_stale_after_writes":"0"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.StateStaleAfterWrites = 1 }),
+		},
+		{
 			name: "the tool duplicate floor reads as a number or the dialog's string",
 			user: own + `{"tools_duplicate_floor":"0.9"}}}}`,
 			want: defaultsWith(func(options *pluginconfig.Options) { options.ToolsDuplicateFloor = 0.9 }),

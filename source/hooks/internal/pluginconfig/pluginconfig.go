@@ -20,6 +20,8 @@ const PluginID = "agentic-helpers@agentic-helpers"
 
 const DefaultEntryMaxWords = 500
 
+const DefaultStateStaleAfterWrites = 5
+
 // The verdicts shell-guard's outside-project and find -delete guards take.
 const (
 	ShellGuardAsk  = "ask"
@@ -89,13 +91,16 @@ type Options struct {
 	EmbeddingDimensions int
 	EmbeddingAPIKeyEnv  string
 	EntryMaxWords       int
-	RetiredBodyDays     int
-	EntryIDLength       int
-	BriefNoteLimit      int
-	AttachmentMaxMB     int
-	AttachmentBudgetMB  int
-	MemoryLanguage      string
-	MemoryRequireGit    bool
+	// StateStaleAfterWrites is how many file writes since a seat's last state
+	// write hold the session's Stop for a new one.
+	StateStaleAfterWrites int
+	RetiredBodyDays       int
+	EntryIDLength         int
+	BriefNoteLimit        int
+	AttachmentMaxMB       int
+	AttachmentBudgetMB    int
+	MemoryLanguage        string
+	MemoryRequireGit      bool
 	// MemoryTurnsOffAuto has a seat claim turn Claude Code's own auto memory
 	// off for the project through its `.claude/settings.local.json`.
 	MemoryTurnsOffAuto bool
@@ -136,7 +141,7 @@ type Options struct {
 // and the hook environment spell it.
 var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
-	"entry_max_words", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachment_budget_mb", "memory_require_git", "memory_language",
+	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachment_budget_mb", "memory_require_git", "memory_language",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -282,6 +287,7 @@ func (options *Options) clamp() {
 	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
 	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
 	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
+	options.StateStaleAfterWrites = max(options.StateStaleAfterWrites, 1)
 	options.AttachmentMaxMB = max(options.AttachmentMaxMB, 1)
 	options.AttachmentBudgetMB = max(options.AttachmentBudgetMB, 1)
 	options.ShellGuardAskTimeout = min(max(options.ShellGuardAskTimeout, 0), MaxShellGuardAskTimeout)
@@ -289,7 +295,7 @@ func (options *Options) clamp() {
 
 func Defaults() Options {
 	return Options{
-		EntryMaxWords: DefaultEntryMaxWords, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
+		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentBudgetMB: DefaultAttachmentBudgetMB,
 		MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor:          DefaultToolsQueryFloor,
@@ -325,14 +331,15 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 	}
 
 	numbers := map[string]*int{
-		"embedding_dimensions":    &options.EmbeddingDimensions,
-		"entry_max_words":         &options.EntryMaxWords,
-		"retired_body_days":       &options.RetiredBodyDays,
-		"entry_id_length":         &options.EntryIDLength,
-		"brief_note_limit":        &options.BriefNoteLimit,
-		"attachment_max_mb":       &options.AttachmentMaxMB,
-		"attachment_budget_mb":    &options.AttachmentBudgetMB,
-		"shell_guard_ask_timeout": &options.ShellGuardAskTimeout,
+		"embedding_dimensions":     &options.EmbeddingDimensions,
+		"entry_max_words":          &options.EntryMaxWords,
+		"state_stale_after_writes": &options.StateStaleAfterWrites,
+		"retired_body_days":        &options.RetiredBodyDays,
+		"entry_id_length":          &options.EntryIDLength,
+		"brief_note_limit":         &options.BriefNoteLimit,
+		"attachment_max_mb":        &options.AttachmentMaxMB,
+		"attachment_budget_mb":     &options.AttachmentBudgetMB,
+		"shell_guard_ask_timeout":  &options.ShellGuardAskTimeout,
 	}
 
 	for key, target := range numbers {
