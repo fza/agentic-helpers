@@ -46,6 +46,12 @@ this``, prints sdd's reason and exits 1, since no edit to the draft helps; `sdd 
 graph owner's to run. Stock sdd has no `sdd migrate`: there the capture says ``sdd refuses to write
 this graph; the draft did not cause this`` and prints sdd's reason.
 
+A schema-1 graph holds no entry titles, and sdd refuses an explicit `--title` on one, its dry run
+included. A draft header carrying `title` on a graph whose `.sdd/meta.json` holds
+`graph_schema_version: 1` is refused before anything runs: ``the graph is on schema 1, which has no
+entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the graph``. A graph whose
+`meta.json` names no schema is on the installed sdd's own, so the check leaves it to sdd.
+
 ## On stock sdd
 
 Stock sdd has no `--preflight-verified`, so no dry run comes first: one `sdd new`, under the capture

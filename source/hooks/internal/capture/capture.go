@@ -382,6 +382,12 @@ func (run *capture) forkOnly(held draft) string {
 			version, sddcaps.Fork, sddcaps.ForkInstall)
 	}
 
+	// The fork refuses an explicit title on a schema-1 graph, `--dry-run`
+	// included; a graph naming no schema is on the binary's own.
+	if title && version == 1 {
+		return "the graph is on schema 1, which has no entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the graph"
+	}
+
 	return ""
 }
 

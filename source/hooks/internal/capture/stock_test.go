@@ -150,6 +150,46 @@ func TestTheForkWritesASchemaTwoGraph(t *testing.T) {
 	}
 }
 
+func TestASchemaOneGraphTakesNoTitle(t *testing.T) {
+	cases := []struct {
+		name    string
+		draft   string
+		meta    string
+		refused bool
+	}{
+		{name: "a title on schema 1", draft: "capture/titled.md", meta: `{"graph_schema_version": 1}`, refused: true},
+		{name: "no title on schema 1", draft: "capture/full.md", meta: `{"graph_schema_version": 1}`},
+		{name: "a title on a graph naming no schema", draft: "capture/titled.md"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			if tc.meta != "" {
+				test.WriteFile(t, filepath.Join(f.root, ".sdd", "meta.json"), tc.meta)
+			}
+
+			got := f.run(f.draft(tc.draft))
+
+			if !tc.refused {
+				if got.code != 0 || len(f.runner.CallsOf("capture")) != 1 {
+					t.Errorf("the capture should go through, got %+v: %v", got, f.runner.Calls)
+				}
+
+				return
+			}
+
+			if got.code != 1 || !strings.Contains(got.stderr, "has no entry titles") || !strings.Contains(got.stderr, "sdd migrate") {
+				t.Errorf("the title should be refused, naming the way out, got: %+v", got)
+			}
+
+			if len(f.runner.CallsOf("help")) != len(f.runner.Calls) {
+				t.Errorf("no sdd new should run, got: %v", f.runner.Calls)
+			}
+		})
+	}
+}
+
 func TestAStockCallCutOffIsNeverRetried(t *testing.T) {
 	f := stockFixture(t)
 	f.runner.HangCapture = true

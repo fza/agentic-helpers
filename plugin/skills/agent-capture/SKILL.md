@@ -104,6 +104,9 @@ Body. Markdown, unfenced.
   recorded unchecked.
 - **Fork-only:** draft keys `title`, `actor_kind`; `--preflight-route`; `--preflight-done`; a graph on
   schema 2. Probed from `sdd --help`, never from the version.
+- **`title` on a schema-1 graph** → refused before anything runs: ``the graph is on schema 1, which
+  has no entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the graph``.
+  Drop the key; `sdd migrate` is the owner's call.
 
 - **Split layout** (`project_dir` in the code repo's `.sdd/config.yaml`) → `grounding.yaml` and the
   lock are the graph repo's. sdd runs from the code repo.
