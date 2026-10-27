@@ -81,7 +81,8 @@ scan (standard input, a file not on disk, input it cannot decode), and leaves th
   window, wider.
 - **What a launcher or an expansion would change.** The grounding gate does not resolve a path the
   shell would rewrite or a launcher would run elsewhere: it refuses it. An attachment path holding
-  `$` or `~`, or a relative one after a directory change or behind a launcher, is refused rather
+  `$` or `~`, an `--attach` word holding an unquoted glob or brace the shell would expand into
+  other files, or a relative one after a directory change or behind a launcher, is refused rather
   than guessed at, and so is a write it cannot place behind a launcher's options. A path written so
   that sdd reads one file and the gate another would need the gate to follow the shell, which it
   does not try to do; refusing those spellings closes that class instead.

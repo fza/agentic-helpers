@@ -204,3 +204,45 @@ func TestLiteralRefusesWhatItCannotRead(t *testing.T) {
 		})
 	}
 }
+
+func TestPatternedFindsWhatTheShellExpands(t *testing.T) {
+	cases := []struct {
+		word      string
+		patterned bool
+	}{
+		{word: "run*.log", patterned: true},
+		{word: "ru?.log", patterned: true},
+		{word: "run[.]log", patterned: true},
+		{word: "run[.log", patterned: true},
+		{word: "run.{log,txt}", patterned: true},
+		{word: "run{1..3}.log", patterned: true},
+		{word: "@(run).log", patterned: true},
+		{word: `"run"*`, patterned: true},
+		{word: "run.log"},
+		{word: `'run*.{log,txt}'`},
+		{word: `"run?[x].{a,b}"`},
+		{word: `run\*.\{log,txt\}`},
+		{word: `$'run*'`},
+		{word: "run{.log"},
+		{word: "run{log}"},
+		{word: `"$dir"/run.log`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.word, func(t *testing.T) {
+			file, err := shellwalk.Parse("echo " + tc.word)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			call, isCall := file.Stmts[0].Cmd.(*syntax.CallExpr)
+			if !isCall {
+				t.Fatal("the command should parse as a call")
+			}
+
+			if shellwalk.Patterned(call.Args[1]) != tc.patterned {
+				t.Error("a word should be patterned only where an unquoted glob or brace leaves it to the shell")
+			}
+		})
+	}
+}

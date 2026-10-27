@@ -50,7 +50,11 @@ reads the gate would weigh next go unread too:
   an attached file (a plain `sdd new`'s `--attach`, a draft's `attach`, a staged `path`) the gate
   will not place. It reads a literal absolute path, or a literal relative one in a command that
   neither changes directory nor puts a launcher in front of the call; `<why>` is
-  `it holds a shell expansion` (any `$` or `~`), `it is relative after a directory change` (`cd`,
+  `it holds a shell expansion` (any `$` or `~`), `it holds a shell glob or brace` (a plain
+  `sdd new`'s `--attach` word holding an unquoted `*`, `?`, `[`, an extended glob such as `@(...)`,
+  or a brace expansion such as `{a,b}` or `{1..3}`, which the shell turns into other files; quoted
+  or escaped they stay text and are read, and a draft header's `attach` is no shell word),
+  `it is relative after a directory change` (`cd`,
   `pushd`, `popd`, a launcher's chdir option, anywhere in the command), or
   `it is relative behind a launcher` (`env`, `sudo`, `xargs`, `nice`, `timeout`, `flock`,
   `ionice`, and every other launcher the shell walk knows).

@@ -332,6 +332,7 @@ func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 		expansion = "it holds a shell expansion"
 		moved     = "it is relative after a directory change"
 		launched  = "it is relative behind a launcher"
+		patterned = "it holds a shell glob or brace"
 	)
 
 	cases := []struct {
@@ -357,6 +358,13 @@ func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 		{command: `sdd new d tac body --attach "$PWD/run.log"`, where: "$PWD/run.log", why: expansion},
 		{command: "sdd new d tac body --attach ~/run.log", where: "~/run.log", why: expansion},
 		{command: "sdd new d tac body --attach 'logs~/run.log'", where: "logs~/run.log", why: expansion},
+		{command: "sdd new d tac body --attach run*.log", where: "run*.log", why: patterned},
+		{command: "sdd new d tac body --attach=ru?.log", where: "ru?.log", why: patterned},
+		{command: "sdd new d tac body --attach 'run'[.]log", where: "run[.]log", why: patterned},
+		{command: "sdd new d tac body --attach 'run'[.log", where: "run[.log", why: patterned},
+		{command: "sdd new d tac body --attach run.{log,txt}", where: "run.{log,txt}", why: patterned},
+		{command: "sdd new d tac body --attach=@(run).log:copy.log", where: "@(run).log", why: patterned},
+		{command: "sdd new d tac body --attach /tmp/*.log", where: "/tmp/*.log", why: patterned},
 	}
 
 	for _, tc := range cases {
@@ -393,6 +401,26 @@ func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 		passes(t, run(t, env, "gate", bash("sdd new d tac body --attach run.log")))
 		passes(t, run(t, env, "gate", bash("time sdd new d tac body --attach run.log")))
 		passes(t, run(t, env, "gate", bash("flock /tmp/lock cd sub; sdd new d tac body --attach run.log")))
+	})
+
+	t.Run("a quoted or escaped glob is read as the file it names", func(t *testing.T) {
+		env := areaProject(t)
+		test.WriteFile(t, filepath.Join(env.WorkingDir, "run*.{log}"), test.SecretFixture(t, "clean.txt"))
+		ground(t, env)
+
+		passes(t, run(t, env, "gate", bash("sdd new d tac body --attach 'run*.{log}'")))
+		passes(t, run(t, env, "gate", bash(`sdd new d tac body --attach "run*.{log}"`)))
+		passes(t, run(t, env, "gate", bash(`sdd new d tac body --attach run\*.\{log\}`)))
+		passes(t, run(t, env, "gate", bash(`sdd new d tac body --attach=$'run*.{log}'`)))
+	})
+
+	t.Run("a draft header's glob is no shell word", func(t *testing.T) {
+		env := areaProject(t)
+		test.WriteFile(t, filepath.Join(env.WorkingDir, "run*.log"), test.SecretFixture(t, "clean.txt"))
+		headed(t, env, "attach: ['run*.log']\n")
+		ground(t, env)
+
+		passes(t, run(t, env, "gate", bash("agentic-capture .sdd/tmp/drafts/attached.md")))
 	})
 
 	t.Run("standard input is refused as standard input", func(t *testing.T) {

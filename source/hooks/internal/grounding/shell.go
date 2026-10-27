@@ -25,11 +25,14 @@ type spoken struct {
 // first, lower-cased. launched is a call a launcher before it runs, whose
 // directory and environment the launcher may change; certain is false for a
 // word after a launcher that may be an option's value rather than the command.
+// patterned marks each word the shell may expand into others, a glob or a
+// brace, which the words hold only as spelled.
 type call struct {
-	words    []string
-	name     string
-	launched bool
-	certain  bool
+	words     []string
+	patterned []bool
+	name      string
+	launched  bool
+	certain   bool
 }
 
 func (called call) text() string {
@@ -77,12 +80,16 @@ type listener struct {
 // checked through it, but a write through it still owes what any write owes.
 func (heard *listener) Command(found shellwalk.Call) {
 	words := make([]string, 0, len(found.Args))
+	patterned := make([]bool, 0, len(found.Args))
+
 	for _, word := range found.Args {
 		words = append(words, shellwalk.Spelled(word))
+		patterned = append(patterned, shellwalk.Patterned(word))
 	}
 
 	heard.calls = append(heard.calls, call{
-		words: words, name: strings.ToLower(path.Base(words[0])), launched: found.Launched, certain: found.Certain,
+		words: words, patterned: patterned, name: strings.ToLower(path.Base(words[0])),
+		launched: found.Launched, certain: found.Certain,
 	})
 }
 

@@ -448,6 +448,47 @@ func Literal(word *syntax.Word) (string, bool) {
 	return value.String(), true
 }
 
+// Patterned reports a word the shell may turn into other words before the
+// command sees it: an unquoted, unescaped `*`, `?` or `[` (a `[` bash would
+// keep for want of a `]` included), an extended glob, or a brace expansion.
+// Literal and Spelled read such a word as the text it spells.
+func Patterned(word *syntax.Word) bool {
+	for _, part := range word.Parts {
+		switch typed := part.(type) {
+		case *syntax.ExtGlob:
+			return true
+		case *syntax.Lit:
+			if holdsGlob(typed.Value) {
+				return true
+			}
+		}
+	}
+
+	// SplitBraces reports any `{` as split, so what counts is whether it left
+	// a brace expansion behind.
+	split := &syntax.Word{Parts: slices.Clone(word.Parts)}
+	syntax.SplitBraces(split)
+
+	return slices.ContainsFunc(split.Parts, func(part syntax.WordPart) bool {
+		_, isBrace := part.(*syntax.BraceExp)
+
+		return isBrace
+	})
+}
+
+func holdsGlob(value string) bool {
+	for index := 0; index < len(value); index++ {
+		switch value[index] {
+		case '\\':
+			index++
+		case '*', '?', '[':
+			return true
+		}
+	}
+
+	return false
+}
+
 // Spelled is the word with its quoting removed, as Literal reads it, and every
 // expansion kept as the command spells it: `"$HOME/bin/sdd"` reads
 // `$HOME/bin/sdd`, and code handed to `bash -c "sdd new $title"` reads as the
