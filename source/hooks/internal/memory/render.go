@@ -130,11 +130,7 @@ func statusFlags(held *entry) []string {
 
 		return []string{"retired " + stamp(last.at)}
 	case statusSuperseded:
-		if last.by != "" {
-			return []string{fmt.Sprintf("superseded %s by %s", stamp(last.at), last.by)}
-		}
-
-		return []string{fmt.Sprintf("superseded %s: %s", stamp(last.at), last.because)}
+		return []string{"superseded " + stamp(last.at) + supersession(last.by, last.because)}
 	}
 
 	return nil

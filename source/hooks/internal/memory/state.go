@@ -446,11 +446,7 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 			kind: row.Kind, at: row.Time, seat: row.Seat, by: superseded.By, because: superseded.Because,
 		})
 
-		if superseded.By != "" {
-			note("superseded by " + superseded.By)
-		} else {
-			note("superseded: " + superseded.Because)
-		}
+		note("superseded" + supersession(superseded.By, superseded.Because))
 	case memorylog.KindLink:
 		if !slices.ContainsFunc(held.explicit, func(link explicitLink) bool { return link.target == row.Target }) {
 			held.explicit = append(held.explicit, explicitLink{target: row.Target, seat: row.Seat})

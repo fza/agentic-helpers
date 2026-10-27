@@ -6,7 +6,8 @@ every read spans every project on the machine, the own project's tools first. A 
 tool, takes a copy into its checkout, runs it, and registers what it wrote or changed.
 
 Every verb is a command and a tool of the plugin's `tools` MCP server
-(`mcp__plugin_agentic-helpers_tools__<verb>`), taking exactly the keys its schema lists. Every tool
+(`mcp__plugin_agentic-helpers_tools__<verb>`), taking exactly the keys its schema lists, each carrying its own
+description; a tool's description names no flag, since the call takes keys. Every tool
 answers one JSON object, as `structuredContent` and, serialized, as its text block, its shape in the
 tool's `outputSchema`: `find` and `list` answer their `--json` listing whatever the `json` key says
 (still accepted, changing nothing); every other verb answers `message`, the text the command prints,

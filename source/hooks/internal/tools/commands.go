@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -54,13 +55,27 @@ type command struct {
 	schema      string
 }
 
+// text, names and number are a key's type, described by described.
 const (
 	text   = `{"type":"string"}`
 	names  = `{"type":"array","items":{"type":"string"}}`
 	number = `{"type":"integer","minimum":1}`
 )
 
+const jsonKey = `"json":{"type":"boolean","description":"no effect: every answer is JSON"}`
+
+// described is a key's schema with what the key is for.
+func described(schema, description string) string {
+	quoted, _ := json.Marshal(description)
+
+	return strings.TrimSuffix(schema, "}") + `,"description":` + string(quoted) + "}"
+}
+
 var describing = []flagSpec{{"summary", flagText}, {"usage", flagText}, {"inputs", flagText}, {"outputs", flagText}}
+
+var describingKeys = `,"summary":` + described(text, "what the tool does, one line") +
+	`,"usage":` + described(text, "how to run it") + `,"inputs":` + described(text, "what it reads") +
+	`,"outputs":` + described(text, "what it writes or prints")
 
 func commands() []command {
 	return []command{
@@ -71,13 +86,15 @@ func commands() []command {
 			flags: []flagSpec{{"query", flagText}, {"term", flagList}, {"limit", flagNumber}, {"page", flagNumber},
 				{"json", flagSwitch}},
 			run: (*library).find,
-			schema: `{"type":"object","properties":{"query":` + text + `,"term":` + names + `,"limit":` + number +
-				`,"page":` + number + `,"json":{"type":"boolean","description":"no effect: every answer is JSON"}}}`,
+			schema: `{"type":"object","properties":{"query":` + described(text, "a need, matched by meaning") +
+				`,"term":` + described(names, "literals, every one required") +
+				`,"limit":` + described(number, "tools per page") + `,"page":` + described(number, "the page to answer, from 1") +
+				`,` + jsonKey + `}}`,
 		},
 		{
 			name: "list", usage: "list [--json]", description: "list the own project's tools and how many each other project holds",
 			flags: []flagSpec{{"json", flagSwitch}}, run: (*library).list,
-			schema: `{"type":"object","properties":{"json":{"type":"boolean","description":"no effect: every answer is JSON"}}}`,
+			schema: `{"type":"object","properties":{` + jsonKey + `}}`,
 		},
 		{
 			name: "take", usage: "take <name>...", description: "copy the current version of each named tool into the checkout, all or none",
@@ -91,7 +108,7 @@ func commands() []command {
 				return nil
 			},
 			run:    (*library).take,
-			schema: `{"type":"object","properties":{"names":` + names + `},"required":["names"]}`,
+			schema: `{"type":"object","properties":{"names":` + described(names, "tool names, an array even for one") + `},"required":["names"]}`,
 		},
 		{
 			name:        "add",
@@ -100,8 +117,9 @@ func commands() []command {
 			flags:       append([]flagSpec{{"from", flagText}, {"distinct", flagText}}, describing...),
 			positional:  oneName,
 			run:         (*library).add,
-			schema: `{"type":"object","properties":{"name":` + text + `,"from":` + text + `,"summary":` + text +
-				`,"usage":` + text + `,"inputs":` + text + `,"outputs":` + text + `,"distinct":` + text +
+			schema: `{"type":"object","properties":{"name":` + described(text, "the new tool's name") +
+				`,"from":` + described(text, "the file or folder holding the tool") + describingKeys +
+				`,"distinct":` + described(text, "how it differs from a near-duplicate the library holds") +
 				`},"required":["name","from","summary","usage"]}`,
 		},
 		{
@@ -111,8 +129,9 @@ func commands() []command {
 			flags:       append([]flagSpec{{"from", flagText}, {"why", flagText}}, describing...),
 			positional:  oneName,
 			run:         (*library).update,
-			schema: `{"type":"object","properties":{"name":` + text + `,"from":` + text + `,"summary":` + text +
-				`,"usage":` + text + `,"inputs":` + text + `,"outputs":` + text + `,"why":` + text +
+			schema: `{"type":"object","properties":{"name":` + described(text, "the tool's name") +
+				`,"from":` + described(text, "the file or folder holding the next version") + describingKeys +
+				`,"why":` + described(text, "what changed") +
 				`},"required":["name","why"]}`,
 		},
 		{
@@ -130,8 +149,10 @@ func commands() []command {
 				return nil
 			},
 			run: (*library).merge,
-			schema: `{"type":"object","properties":{"survivor":` + text + `,"members":` + names + `,"from":` + text +
-				`,"why":` + text + `},"required":["survivor","members","from","why"]}`,
+			schema: `{"type":"object","properties":{"survivor":` + described(text, "the tool that stays") +
+				`,"members":` + described(names, "the tools folded into it, an array even for one") +
+				`,"from":` + described(text, "the file or folder holding the merged tool") +
+				`,"why":` + described(text, "why they are one tool") + `},"required":["survivor","members","from","why"]}`,
 		},
 		{
 			name: "trust", usage: "trust <path>", description: "let the checkout at path write this project's library",
@@ -145,7 +166,7 @@ func commands() []command {
 				return nil
 			},
 			run:    (*library).trust,
-			schema: `{"type":"object","properties":{"path":` + text + `},"required":["path"]}`,
+			schema: `{"type":"object","properties":{"path":` + described(text, "a checkout of this project") + `},"required":["path"]}`,
 		},
 		{
 			name: "reindex", usage: "reindex", description: "rebuild the own project's index.json from its tool folders",

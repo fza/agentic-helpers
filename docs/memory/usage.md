@@ -480,8 +480,8 @@ similar-entry hint offers both fixes: `replaces it → agentic-memory supersede 
 `retire <id>... [--because '<why>']` (MCP `retire`, key `because`) ends entries that are done or no
 longer matter: they leave the brief and stay in search, flagged `retired <stamp>: <why>`, the reason
 standing after the stamp where one was given. `supersede <id>... --by <id>` replaces entries and
-`supersede <id>... --because '<why>'` marks them wrong; `revive <id>` undoes the latest of either
-within 14 days. Only the seats on an entry's shelf retire or retain it; any seat may supersede or
+`supersede <id>... --because '<why>'` marks them wrong; both together replace them and say why.
+`revive <id>` undoes the latest retire or supersede within 14 days. Only the seats on an entry's shelf retire or retain it; any seat may supersede or
 confirm.
 
 `supersede`, `confirm <id>...`, `retain <id>... <level>` and `retire` take several ids, and land all
@@ -777,6 +777,12 @@ Every subcommand is also a tool of the plugin's `memory` MCP server,
 takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_SEATS`), and its
 schema says so with `additionalProperties: false`; any other key refuses the call with
 `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
+
+A tool's description says what it does in the words of its keys, never in command-line form: a
+flag or a `<placeholder>` there would name a shape the call does not take (`<id>...` where the key
+is `ids`). Every key carries its own description, and one naming entries says which shape it takes:
+`id`, one string, or `ids`, an array even for one. A rule between keys is stated in the tool's
+description: `supersede` takes `by`, `because` or both, `ack` takes `done` or `decline`.
 
 Every value is taken exactly as sent, on the command line and over MCP alike. A value in an extra
 layer of quotes, such as `from` sent as `"\"user\""`, is outside its set like any other and refused

@@ -199,8 +199,8 @@ func retirement(because string) any {
 }
 
 func (mem *memory) supersede(ctx context.Context, req request) result {
-	if (req.By == "") == (req.Because == "") {
-		return refused("supersede takes exactly one of --by <id> or --because '<why>'")
+	if req.By == "" && req.Because == "" {
+		return refused("supersede needs --by <id>, --because '<why>' or both")
 	}
 
 	_, ids, failure, ok := mem.batch(ctx, "superseded", req.IDs, false, mem.supersedable(req.By),
@@ -209,13 +209,23 @@ func (mem *memory) supersede(ctx context.Context, req request) result {
 		return failure
 	}
 
-	if req.By != "" {
-		return done(fmt.Sprintf("superseded %s by %s", strings.Join(ids, ", "), req.By)).
-			with(supersededFields{IDs: ids, By: req.By})
+	return done("superseded " + strings.Join(ids, ", ") + supersession(req.By, req.Because)).
+		with(supersededFields{IDs: ids, By: req.By, Because: req.Because})
+}
+
+// supersession is what follows "superseded <ids>" on a line: the successor,
+// the reason, or both.
+func supersession(by, because string) string {
+	tail := ""
+	if by != "" {
+		tail = " by " + by
 	}
 
-	return done(fmt.Sprintf("superseded %s: %s", strings.Join(ids, ", "), req.Because)).
-		with(supersededFields{IDs: ids, Because: req.Because})
+	if because != "" {
+		tail += ": " + because
+	}
+
+	return tail
 }
 
 // supersedable says why an entry cannot be superseded by successor, if it

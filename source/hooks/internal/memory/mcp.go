@@ -22,7 +22,7 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 	for _, held := range commands() {
 		tools = append(tools, mcpserver.Tool{
 			Name:         held.name,
-			Description:  fmt.Sprintf("%s. CLI form: %s %s", held.description, self, held.usage),
+			Description:  held.description,
 			InputSchema:  json.RawMessage(closedSchema(held.schema)),
 			OutputSchema: outputSchema(held.name),
 			Handle: func(ctx context.Context, arguments json.RawMessage) mcpserver.Result {

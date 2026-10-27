@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 )
 
 // refusalSchema is the one shape a refused tool call answers.
@@ -75,4 +77,47 @@ func AnswerFits(schemas map[string]json.RawMessage, tool string, line string) er
 	}
 
 	return Conforms(schema, answer.Result.Structured)
+}
+
+// UndescribedInputs lists what in a tools/list answer line leaves a caller to
+// guess a call's shape: a tool description in command-line form, which names
+// flags and positionals where the call takes keys, and an input key without a
+// description.
+func UndescribedInputs(line string) ([]string, error) {
+	var listing struct {
+		Result struct {
+			Tools []struct {
+				Name        string `json:"name"`
+				Description string `json:"description"`
+				InputSchema struct {
+					Properties map[string]struct {
+						Description string `json:"description"`
+					} `json:"properties"`
+				} `json:"inputSchema"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+
+	err := json.Unmarshal([]byte(line), &listing)
+	if err != nil {
+		return nil, fmt.Errorf("reading the tool listing: %w", err)
+	}
+
+	var gaps []string
+
+	for _, tool := range listing.Result.Tools {
+		if strings.Contains(tool.Description, "--") || strings.Contains(tool.Description, "<") {
+			gaps = append(gaps, fmt.Sprintf("%s: description in command-line form: %s", tool.Name, tool.Description))
+		}
+
+		for key, property := range tool.InputSchema.Properties {
+			if strings.TrimSpace(property.Description) == "" {
+				gaps = append(gaps, fmt.Sprintf("%s: key %s has no description", tool.Name, key))
+			}
+		}
+	}
+
+	slices.Sort(gaps)
+
+	return gaps, nil
 }

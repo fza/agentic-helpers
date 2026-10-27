@@ -420,14 +420,9 @@ func TestSupersede(t *testing.T) {
 	successor := h.file("Gate reads Bash and MCP now", "new finding about the gate")
 	wrong := h.file("Gate never reads anything at all", "wrong finding about the gate")
 
-	for _, args := range [][]string{
-		{"supersede", old},
-		{"supersede", old, "--by", successor, "--because", "both"},
-	} {
-		got := h.run("", args...)
-		if got.code != 1 || !strings.Contains(got.err, "exactly one of --by") {
-			t.Errorf("supersede should need exactly one of --by and --because, got %d %q", got.code, got.err)
-		}
+	got := h.run("", "supersede", old)
+	if got.code != 1 || !strings.Contains(got.err, "supersede needs --by <id>, --because") {
+		t.Errorf("supersede should need a successor, a reason or both, got %d %q", got.code, got.err)
 	}
 
 	h.must("", "supersede", old, "--by", successor)

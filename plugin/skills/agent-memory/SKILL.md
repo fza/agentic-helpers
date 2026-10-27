@@ -355,6 +355,7 @@ agentic-memory unlink <id> <target>     # links from --link / link only
 agentic-memory retire <id>... [--because '<why>']     # done; stays in results, flagged; leaves the brief
 agentic-memory supersede <id>... --by <id>            # replaced; never returns in a search
 agentic-memory supersede <id>... --because '<why>'    # wrong; back only with --with-superseded
+agentic-memory supersede <id>... --by <id> --because '<why>'  # replaced, and why
 agentic-memory confirm <id>...                        # verified; re-anchored to the tree
 agentic-memory retain <id>... <level>                 # the last positional is the level
 agentic-memory new --title '...' --topic t --absorbs <id>... # file a summary, supersede its parts by it
@@ -375,7 +376,8 @@ agentic-memory merge <from> <into>                    # every seat's topic
 - **Several ids → one call, all or nothing.** One failing id (missing, not yours, already in that
   state) → nothing lands, exit 1, `agentic-memory: nothing <verb>:` then one line per failing id.
   Send it again without them. `new --absorbs` over a failing id → `nothing filed:`, same shape.
-  MCP: `supersede`, `confirm`, `retain` take `ids` (an array), never `id`; `new` takes `absorbs`.
+  MCP: every tool acting on several entries (`supersede`, `retire`, `confirm`, `retain`, `ack`,
+  `show`) takes `ids`, an array even for one, never `id`; `new` takes `absorbs`.
 - **Folding notes into one → `new --absorbs`**, never a `new` then a `supersede` per note.
 - Another shelf's entry: `supersede`, `confirm` allowed, its seats' next brief lists them.
   `retire`, `retain`, `rekind`, `retitle`, `tag`, `untag` → refused `<id> is on shelf <name>`.
@@ -447,6 +449,8 @@ arguments as JSON (`body` for the body, arrays for repeatable flags). Same seat.
   agent tool call can run (a script, a hook, another process). Chaining two commands in one Bash
   call is no reason: two tool calls, the id carried over.
 - Not loaded yet → `ToolSearch` `select:mcp__plugin_agentic-helpers_memory__<subcommand>` first.
+- **Shape from the schema, never from the CLI line.** Every key carries its description; `id` is
+  one string, `ids` an array even for one. Load the schema before the first call.
 - **Keys exactly as the schema lists them.** Flag `--all-seats` → key `all_seats`. Wrong case, a typo,
   another tool's key → refused: `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
 - **Values exactly as the schema lists them.** `"from": "user"`, never `"\"user\""`: an extra layer
