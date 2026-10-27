@@ -350,11 +350,14 @@ func (mem *memory) attach(ctx context.Context, req request) result {
 	}
 
 	lines := make([]string, 0, len(prepared))
+	names := make([]string, 0, len(prepared))
+
 	for _, file := range prepared {
 		lines = append(lines, attachedLine(held.id, file.attachPayload))
+		names = append(names, file.Name)
 	}
 
-	return done(strings.Join(lines, "\n"))
+	return done(strings.Join(lines, "\n")).with(attachedFields{ID: held.id, Attachments: names})
 }
 
 // readStored is an attachment's original bytes, checked against the hash the
@@ -446,7 +449,7 @@ func (mem *memory) read(ctx context.Context, req request) result {
 	}
 
 	if req.To != "" {
-		return mem.readTo(ctx, *chosen, data, req.To)
+		return mem.readTo(ctx, *chosen, data, req.To).with(readFields{ID: held.id, Name: chosen.Name, Path: req.To})
 	}
 
 	if !utf8.Valid(data) {
@@ -454,7 +457,9 @@ func (mem *memory) read(ctx context.Context, req request) result {
 			chosen.Name, self, held.id, chosen.Name)
 	}
 
-	return done(page(held.id, *chosen, data, req.Offset, req.MaxBytes))
+	text, next := page(held.id, *chosen, data, req.Offset, req.MaxBytes)
+
+	return done(text).with(readFields{ID: held.id, Name: chosen.Name, NextOffset: next})
 }
 
 func attachmentNames(held *entry) []string {
@@ -467,8 +472,9 @@ func attachmentNames(held *entry) []string {
 }
 
 // page is one page of a text attachment, cut on a character boundary, framed
-// as data and closed with where the next page starts.
-func page(id string, held attachPayload, data []byte, offset int, maxBytes int) string {
+// as data and closed with where the next page starts, and that offset, nil on
+// the last page.
+func page(id string, held attachPayload, data []byte, offset int, maxBytes int) (string, *int) {
 	offset = min(max(offset, 0), len(data))
 
 	for offset > 0 && offset < len(data) && !utf8.RuneStart(data[offset]) {
@@ -492,11 +498,13 @@ func page(id string, held attachPayload, data []byte, offset int, maxBytes int) 
 
 	if end < len(data) {
 		lines = append(lines, fmt.Sprintf("--- next page: %s read %s %s --offset %d ---", self, id, held.Name, end))
-	} else {
-		lines = append(lines, fmt.Sprintf("--- end of %s ---", held.Name))
+
+		return strings.Join(lines, "\n"), &end
 	}
 
-	return strings.Join(lines, "\n")
+	lines = append(lines, fmt.Sprintf("--- end of %s ---", held.Name))
+
+	return strings.Join(lines, "\n"), nil
 }
 
 func (mem *memory) readTo(ctx context.Context, held attachPayload, data []byte, path string) result {

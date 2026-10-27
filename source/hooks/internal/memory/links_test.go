@@ -1,9 +1,7 @@
 package memory_test
 
 import (
-	"bufio"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -244,23 +242,6 @@ func TestTheSimilarHintOffersALink(t *testing.T) {
 		!strings.Contains(out, "relates → agentic-memory link "+id+" "+old) {
 		t.Errorf("the similar-entry hint should offer supersede and link, got:\n%s", out)
 	}
-}
-
-// mcp sends one tools/call and returns the server's answers.
-func (h *harness) mcp(call string) string {
-	h.t.Helper()
-
-	lines := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
-		fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":%s}`, call) + "\n"
-
-	var answers []string
-
-	scanner := bufio.NewScanner(strings.NewReader(h.must(lines, "mcp")))
-	for scanner.Scan() {
-		answers = append(answers, scanner.Text())
-	}
-
-	return strings.Join(answers, "\n")
 }
 
 func TestRecallNamesTheNewerEntriesCitingAHit(t *testing.T) {

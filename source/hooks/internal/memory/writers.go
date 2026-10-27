@@ -80,5 +80,6 @@ func (mem *memory) trust(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
-	return done(fmt.Sprintf("trusted %s: that checkout writes this project's memory and tool library now", checkout))
+	return done(fmt.Sprintf("trusted %s: that checkout writes this project's memory and tool library now", checkout)).
+		with(trustedFields{Checkout: checkout})
 }

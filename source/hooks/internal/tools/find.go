@@ -214,21 +214,32 @@ func asListed(hit found, score *float64) listedTool {
 		Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs, Score: score, Takers: len(tool.Takers)}
 }
 
-func (lib *library) findJSON(shown []ranked, matching int, total int, projects int, page int) result {
-	type scoredTool struct {
-		listedTool
-		Score *float64 `json:"score"`
-	}
+// scoredTool is a found tool with its cosine to the query, null where it was
+// found by a term alone.
+type scoredTool struct {
+	listedTool
+	Score *float64 `json:"score"`
+}
 
+// listing is what find and list answer as JSON.
+type listing[T any] struct {
+	Framing  string `json:"framing"`
+	Tools    []T    `json:"tools"`
+	Shown    int    `json:"shown"`
+	Matching int    `json:"matching"`
+	Total    int    `json:"total"`
+	Projects int    `json:"projects"`
+	Page     int    `json:"page"`
+}
+
+func (lib *library) findJSON(shown []ranked, matching int, total int, projects int, page int) result {
 	tools := make([]scoredTool, 0, len(shown))
 	for _, hit := range shown {
 		tools = append(tools, scoredTool{listedTool: asListed(hit.hit, nil), Score: hit.score})
 	}
 
-	return encoded(map[string]any{
-		"framing": strings.TrimSuffix(framing, ":"), "tools": tools, "shown": len(shown), "matching": matching,
-		"total": total, "projects": projects, "page": page,
-	})
+	return encoded(listing[scoredTool]{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(shown),
+		Matching: matching, Total: total, Projects: projects, Page: page})
 }
 
 func encoded(value any) result {
@@ -256,10 +267,8 @@ func (lib *library) list(ctx context.Context, req request) result {
 			total += len(held.index.Tools)
 		}
 
-		return encoded(map[string]any{
-			"framing": strings.TrimSuffix(framing, ":"), "tools": tools, "shown": len(tools),
-			"matching": len(tools), "total": total, "projects": len(stores), "page": 1,
-		})
+		return encoded(listing[listedTool]{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(tools),
+			Matching: len(tools), Total: total, Projects: len(stores), Page: 1})
 	}
 
 	lines := []string{framing}

@@ -13,16 +13,18 @@ import (
 )
 
 // serveMCP answers the plugin's `memory` server: every agent command as a tool
-// of the same name, taking the command's arguments as JSON and answering what
-// the command prints. A refusal comes back as a tool result marked as an error.
+// of the same name, taking the command's arguments as JSON and answering JSON:
+// a read its --json object, any other command its text as the message beside
+// what it did. A refusal comes back as an error result carrying its text.
 func (mem *memory) serveMCP(ctx context.Context) int {
 	var tools []mcpserver.Tool
 
 	for _, held := range commands() {
 		tools = append(tools, mcpserver.Tool{
-			Name:        held.name,
-			Description: fmt.Sprintf("%s. CLI form: %s %s", held.description, self, held.usage),
-			InputSchema: json.RawMessage(closedSchema(held.schema)),
+			Name:         held.name,
+			Description:  fmt.Sprintf("%s. CLI form: %s %s", held.description, self, held.usage),
+			InputSchema:  json.RawMessage(closedSchema(held.schema)),
+			OutputSchema: outputSchema(held.name),
 			Handle: func(ctx context.Context, arguments json.RawMessage) mcpserver.Result {
 				return mem.callTool(ctx, held, arguments)
 			},
@@ -44,26 +46,28 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 
 	refusal := mem.storeRefusal()
 	if refusal != "" && held.name != "who" {
-		return mcpserver.Result{Text: self + ": " + refusal, IsError: true}
+		return mcpserver.Refusal(self + ": " + refusal)
 	}
 
 	admitted := mem.admission(ctx, held.name)
 	if admitted != nil {
-		return mcpserver.Result{Text: self + ": " + admitted.Error(), IsError: true}
+		return mcpserver.Refusal(self + ": " + admitted.Error())
 	}
 
 	err := exactKeys(held, arguments)
 	if err != nil {
-		return mcpserver.Result{Text: self + ": " + err.Error(), IsError: true}
+		return mcpserver.Refusal(self + ": " + err.Error())
 	}
 
 	req := request{given: map[string]bool{}}
 
 	err = json.Unmarshal(arguments, &req)
 	if err != nil {
-		return mcpserver.Result{Text: fmt.Sprintf("%s: the arguments do not fit %s: %v", self, held.name, err),
-			IsError: true}
+		return mcpserver.Refusal(fmt.Sprintf("%s: the arguments do not fit %s: %v", self, held.name, err))
 	}
+
+	read := slices.Contains(mcpReads, held.name)
+	req.JSON = read
 
 	if req.ID != "" && len(req.IDs) == 0 {
 		req.IDs = []string{req.ID}
@@ -73,10 +77,25 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 
 	answer := held.run(mem, ctx, req)
 	if answer.failed {
-		return mcpserver.Result{Text: self + ": " + answer.text, IsError: true}
+		return mcpserver.Refusal(self + ": " + answer.text)
 	}
 
-	return mcpserver.Result{Text: answer.text}
+	// A read answering text, as view's explain does, answers it as a message.
+	if read && json.Valid([]byte(answer.text)) {
+		return mcpserver.Result{Structured: json.RawMessage(answer.text)}
+	}
+
+	return mcpserver.Result{Structured: mcpserver.Messaged(answer.text, answer.fields)}
+}
+
+// outputSchema is what a tool answers: a read's JSON object, or its message
+// beside the fields of what the call produced.
+func outputSchema(name string) json.RawMessage {
+	if slices.Contains(mcpReads, name) {
+		return mcpserver.SchemaOf(mcpOutputs[name])
+	}
+
+	return mcpserver.MessageSchema(mcpOutputs[name])
 }
 
 // closedSchema marks a tool's schema as taking no key beyond its properties,

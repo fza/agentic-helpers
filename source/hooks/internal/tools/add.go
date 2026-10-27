@@ -236,7 +236,7 @@ func (lib *library) add(ctx context.Context, req request) result {
 
 	lib.forget()
 
-	return done(fmt.Sprintf("added %s: `%s take %s` copies it", req.Name, self, req.Name))
+	return done(fmt.Sprintf("added %s: `%s take %s` copies it", req.Name, self, req.Name)).with(nameFields{Name: req.Name})
 }
 
 // identical names the first file byte-identical to a file of any version of

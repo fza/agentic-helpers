@@ -62,15 +62,15 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 
 	here := mem.checkout(ctx)
 
+	if req.Kind != "" && !slices.Contains(entryKinds, req.Kind) {
+		return refused("--kind takes %s, not %q", strings.Join(entryKinds, ", "), req.Kind)
+	}
+
 	if req.JSON {
-		return mem.briefJSON(ctx, here, folded, name)
+		return mem.briefJSON(ctx, here, folded, name, briefFilter(req))
 	}
 
 	if req.Kind != "" {
-		if !slices.Contains(entryKinds, req.Kind) {
-			return refused("--kind takes %s, not %q", strings.Join(entryKinds, ", "), req.Kind)
-		}
-
 		return done(mem.kindBrief(here, folded, name, req.Kind))
 	}
 
@@ -119,6 +119,20 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 	}
 
 	return strings.Join(held.lines, "\n")
+}
+
+// briefFilter is the one filter a narrowed brief names: its kind, else its
+// topics, else none.
+func briefFilter(req request) []string {
+	if req.Kind != "" {
+		return []string{"kind", req.Kind}
+	}
+
+	if len(req.Topics) > 0 {
+		return append([]string{"topic"}, req.Topics...)
+	}
+
+	return []string{""}
 }
 
 // ownLive is the seat's live entries, hottest first: active:mine:rank(heat),

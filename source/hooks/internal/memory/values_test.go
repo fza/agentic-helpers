@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func TestAQuotedValueIsRefusedNotRepaired(t *testing.T) {
@@ -38,7 +40,7 @@ func TestAQuotedValueIsRefusedNotRepaired(t *testing.T) {
 				return answer, false
 			}
 
-			return result.Result.Content[0].Text, result.Result.IsError
+			return test.Readable(result.Result.Content[0].Text), result.Result.IsError
 		}},
 	}
 

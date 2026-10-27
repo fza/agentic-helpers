@@ -106,6 +106,13 @@ nothing. A prompt's vector lives in a slot per session under
 embeds the prompt first leaves its vector for the other. The hooks of one event run in parallel, so
 the slot mostly saves an embed where recall finished first.
 
+## MCP answers
+
+The `tools` server answers JSON as the `memory` server does, through the same
+`internal/mcpserver`: `find` and `list` their `--json` listing (`listing`, whose type gives their
+`outputSchema`), every other verb `message` beside a fields struct (`mcpanswers.go`), a refusal
+`{"error": "refused: <why>"}` as an error result.
+
 ## Tests
 
 `internal/tools` drives `tools.Main` against stores under `t.TempDir()` with a fake embedder: every

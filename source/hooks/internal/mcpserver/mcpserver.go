@@ -20,17 +20,35 @@ type Tool struct {
 	Name        string
 	Description string
 	InputSchema json.RawMessage
-	Handle      func(ctx context.Context, arguments json.RawMessage) Result
+	// OutputSchema describes the object every answer not marked as an error
+	// carries as its Structured value.
+	OutputSchema json.RawMessage
+	Handle       func(ctx context.Context, arguments json.RawMessage) Result
 }
 
+// Result is a tool's answer. A Structured value goes out as the result's
+// structuredContent and, serialized, as its text block, which MCP asks of a
+// structured result for clients that read only text; Text is then unused.
 type Result struct {
-	Text    string
-	IsError bool
+	Text       string
+	Structured any
+	IsError    bool
+}
+
+// Refusal is an answer marked as an error, carrying its text as the object's
+// error key. Clients skip outputSchema validation on an error result.
+func Refusal(text string) Result {
+	return Result{Text: text, Structured: refusal{Error: text}, IsError: true}
+}
+
+type refusal struct {
+	Error string `json:"error"`
 }
 
 var (
-	ErrDuplicateTool      = errors.New("duplicate tool name")
-	ErrInvalidInputSchema = errors.New("input schema is not valid JSON")
+	ErrDuplicateTool       = errors.New("duplicate tool name")
+	ErrInvalidInputSchema  = errors.New("input schema is not valid JSON")
+	ErrInvalidOutputSchema = errors.New("output schema is not valid JSON")
 )
 
 // The first entry is the latest, answered to a client asking for a version not in the list.
@@ -89,9 +107,10 @@ type toolsCapability struct {
 }
 
 type listedTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"inputSchema"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	InputSchema  json.RawMessage `json:"inputSchema"`
+	OutputSchema json.RawMessage `json:"outputSchema,omitempty"`
 }
 
 type toolsListResult struct {
@@ -109,8 +128,9 @@ type textContent struct {
 }
 
 type callResult struct {
-	Content []textContent `json:"content"`
-	IsError bool          `json:"isError"`
+	Content           []textContent   `json:"content"`
+	StructuredContent json.RawMessage `json:"structuredContent,omitempty"`
+	IsError           bool            `json:"isError"`
 }
 
 type server struct {
@@ -201,12 +221,16 @@ func newServer(out io.Writer, name string, version string, tools []Tool) (*serve
 		if !json.Valid(schema) {
 			return nil, fmt.Errorf("registering tool %q: %w", tool.Name, ErrInvalidInputSchema)
 		}
+		if len(tool.OutputSchema) > 0 && !json.Valid(tool.OutputSchema) {
+			return nil, fmt.Errorf("registering tool %q: %w", tool.Name, ErrInvalidOutputSchema)
+		}
 
 		served.tools[tool.Name] = tool
 		served.listing.Tools = append(served.listing.Tools, listedTool{
-			Name:        tool.Name,
-			Description: tool.Description,
-			InputSchema: schema,
+			Name:         tool.Name,
+			Description:  tool.Description,
+			InputSchema:  schema,
+			OutputSchema: tool.OutputSchema,
 		})
 	}
 
@@ -324,10 +348,24 @@ func (served *server) call(ctx context.Context, id json.RawMessage, params json.
 	}
 
 	outcome := tool.Handle(ctx, arguments)
+	if outcome.Structured == nil {
+		return served.answer(id, callResult{
+			Content: []textContent{{Type: "text", Text: outcome.Text}},
+			IsError: outcome.IsError,
+		})
+	}
+
+	structured, err := json.Marshal(outcome.Structured)
+	if err != nil {
+		outcome = Refusal(fmt.Sprintf("encoding the %s answer: %v", called.Name, err))
+		// A refusal holds one string, which always encodes.
+		structured, _ = json.Marshal(outcome.Structured)
+	}
 
 	return served.answer(id, callResult{
-		Content: []textContent{{Type: "text", Text: outcome.Text}},
-		IsError: outcome.IsError,
+		Content:           []textContent{{Type: "text", Text: string(structured)}},
+		StructuredContent: structured,
+		IsError:           outcome.IsError,
 	})
 }
 

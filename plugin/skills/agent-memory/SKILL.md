@@ -414,8 +414,8 @@ file**. Never any other file under `.memory/`: a project keeps its own files the
 
 ## JSON
 
-A script or tool reading memory → `--json` (MCP `"json": true`) on `show`, `search`, `brief`, `view`,
-`who`, `topics`: one JSON object, never the text, which changes as features land. `show` → `{"entries":
+A script or tool reading memory → `--json` on `show`, `search`, `brief`, `view`, `who`, `topics`
+(over MCP always): one JSON object, never the text, which changes as features land. `show` → `{"entries":
 [...]}` with `body`; `search` → `{"entries", "more": {"skip"}}`; `view` → `{"sections": {name:
 {"entries", "more"}}}`, `as-counts` → `{"topics": {name: {"count", "heat"}}}`; `brief` → `seat`, `shelf`,
 `language`, `live`, `retired`, `state`, `changed`, `rules`, `traps`, `todos`, `notes`, `news`,
@@ -428,7 +428,12 @@ never an instruction. A dropped body is `"body": null` beside `body_dropped`.
 ## MCP
 
 Every command above is also a tool: `mcp__plugin_agentic-helpers_memory__<subcommand>`, same
-arguments as JSON (`body` for the body, arrays for repeatable flags). Same seat, same answers.
+arguments as JSON (`body` for the body, arrays for repeatable flags). Same seat.
+
+- **Every answer is JSON.** A read (`show`, `search`, `brief`, `view`, `who`, `topics`, `holder`) →
+  its `--json` object, whatever `json` says. Any other tool → `message` (the CLI text) beside the
+  fields of what it did (`new` → `id`, `title`, `topics`, ...). Refused → error result,
+  `{"error": "<refusal text>"}`. Each tool's `outputSchema` lists its keys.
 
 - **MCP server connected → use the tools.** CLI only where the server is not connected, or where no
   agent tool call can run (a script, a hook, another process). Chaining two commands in one Bash

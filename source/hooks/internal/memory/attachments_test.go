@@ -223,8 +223,13 @@ func TestReadPagesATextAttachment(t *testing.T) {
 	}
 
 	answer := h.mcp(`{"name":"read","arguments":{"id":"` + id + `","file":"steps.txt","max_bytes":11}}`)
-	if !strings.Contains(answer, "first line") {
-		t.Errorf("MCP read should page the attachment: %s", answer)
+	if !strings.Contains(answer, "first line") || !strings.Contains(answer, `"next_offset":11`) {
+		t.Errorf("MCP read should page the attachment and name where the next page starts: %s", answer)
+	}
+
+	last := h.mcp(`{"name":"read","arguments":{"id":"` + id + `","file":"steps.txt","offset":11}}`)
+	if strings.Contains(last, "next_offset") {
+		t.Errorf("the last page should name no next one: %s", last)
 	}
 }
 

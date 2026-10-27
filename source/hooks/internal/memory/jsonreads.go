@@ -272,9 +272,9 @@ type jsonBrief struct {
 // briefJSON is the whole brief for a program: no character budget, every live
 // entry, and the brief mark left where it was, so the seat's next brief counts
 // from its own last one. It retires nothing.
-func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seatName string) result {
+func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seatName string, narrowed []string) result {
 	since := mem.previousBrief(seatName)
-	live := mem.ownLive(folded, seatName, "")
+	live := mem.ownLive(folded, seatName, narrowed[0], narrowed[1:]...)
 
 	answer := jsonBrief{
 		Notice: filedNotice, Seat: seatName, Shelf: mem.shelfName(mem.shelfOf(seatName)), Language: mem.language(ctx), Live: len(live),

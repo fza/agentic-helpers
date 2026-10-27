@@ -119,7 +119,8 @@ func (lib *library) update(ctx context.Context, req request) result {
 		lib.moveHolding(req.From, hit, old.Name, number)
 		lib.forget()
 
-		return done(fmt.Sprintf("updated %s to v%d, now current", old.Name, number))
+		return done(fmt.Sprintf("updated %s to v%d, now current", old.Name, number)).
+			with(updatedFields{Name: old.Name, Version: number})
 	}
 
 	return lib.fork(ctx, req, hit, previous, files, next, vector)
@@ -163,7 +164,8 @@ func (lib *library) fork(ctx context.Context, req request, hit found, previous [
 	lib.moveHolding(req.From, hit, old.Name, 2)
 	lib.forget()
 
-	return done(fmt.Sprintf("forked %s from %s into this project; updated it, now current", old.Name, hit.store.key))
+	return done(fmt.Sprintf("forked %s from %s into this project; updated it, now current", old.Name, hit.store.key)).
+		with(updatedFields{Name: old.Name, Version: 2, ForkedFrom: hit.store.key})
 }
 
 // moveHolding points the session's holding at the version just written where

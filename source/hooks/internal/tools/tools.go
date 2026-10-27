@@ -338,9 +338,18 @@ func (lib *library) refuse(text string) int {
 type result struct {
 	text   string
 	failed bool
+	fields any
 }
 
 func done(text string) result { return result{text: text} }
+
+// with carries what the call produced beside its text, the fields an MCP
+// answer adds to its message.
+func (answer result) with(fields any) result {
+	answer.fields = fields
+
+	return answer
+}
 
 func refused(format string, args ...any) result {
 	return result{text: fmt.Sprintf(format, args...), failed: true}

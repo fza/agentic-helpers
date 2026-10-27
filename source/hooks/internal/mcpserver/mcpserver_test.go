@@ -508,6 +508,11 @@ func TestServeRefusesAnInvalidToolSet(t *testing.T) {
 			tools: []mcpserver.Tool{{Name: "broken", InputSchema: json.RawMessage(`{"type":`), Handle: handle}},
 			want:  mcpserver.ErrInvalidInputSchema,
 		},
+		{
+			name:  "output schema that is not JSON",
+			tools: []mcpserver.Tool{{Name: "broken", OutputSchema: json.RawMessage(`{"type":`), Handle: handle}},
+			want:  mcpserver.ErrInvalidOutputSchema,
+		},
 	}
 
 	for _, tc := range cases {

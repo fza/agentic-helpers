@@ -255,10 +255,10 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 			lines = append(lines, mem.reachEnds(ctx, folded, name, req.ID, "captured")...)
 		}
 
-		return done(strings.Join(lines, "\n"))
+		return done(strings.Join(lines, "\n")).with(linkFields{ID: req.ID, Target: target})
 	}
 
-	return done(fmt.Sprintf("%s unlinked from %s", req.ID, req.Target))
+	return done(fmt.Sprintf("%s unlinked from %s", req.ID, req.Target)).with(linkFields{ID: req.ID, Target: req.Target})
 }
 
 // graphStatus is what became of each graph entry, as `sdd export` says: its

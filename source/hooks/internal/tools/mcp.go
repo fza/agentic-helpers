@@ -18,9 +18,10 @@ func (lib *library) serveMCP(ctx context.Context) int {
 
 	for _, held := range commands() {
 		served = append(served, mcpserver.Tool{
-			Name:        held.name,
-			Description: fmt.Sprintf("%s. CLI form: %s %s", held.description, self, held.usage),
-			InputSchema: json.RawMessage(strings.TrimSuffix(held.schema, "}") + `,"additionalProperties":false}`),
+			Name:         held.name,
+			Description:  fmt.Sprintf("%s. CLI form: %s %s", held.description, self, held.usage),
+			InputSchema:  json.RawMessage(strings.TrimSuffix(held.schema, "}") + `,"additionalProperties":false}`),
+			OutputSchema: outputSchema(held.name),
 			Handle: func(ctx context.Context, arguments json.RawMessage) mcpserver.Result {
 				return lib.callTool(ctx, held, arguments)
 			},
@@ -38,7 +39,7 @@ func (lib *library) serveMCP(ctx context.Context) int {
 func (lib *library) callTool(ctx context.Context, held command, arguments json.RawMessage) mcpserver.Result {
 	err := exactKeys(held, arguments)
 	if err != nil {
-		return mcpserver.Result{Text: "refused: " + err.Error(), IsError: true}
+		return mcpserver.Refusal("refused: " + err.Error())
 	}
 
 	var req request
@@ -46,22 +47,39 @@ func (lib *library) callTool(ctx context.Context, held command, arguments json.R
 	if len(bytes.TrimSpace(arguments)) > 0 {
 		err = json.Unmarshal(arguments, &req)
 		if err != nil {
-			return mcpserver.Result{Text: fmt.Sprintf("refused: the arguments do not fit %s: %v", held.name, err), IsError: true}
+			return mcpserver.Refusal(fmt.Sprintf("refused: the arguments do not fit %s: %v", held.name, err))
 		}
 	}
 
 	if req.Limit < 0 || req.Page < 0 {
-		return mcpserver.Result{Text: "refused: limit and page take a number of 1 or more", IsError: true}
+		return mcpserver.Refusal("refused: limit and page take a number of 1 or more")
 	}
+
+	read := slices.Contains(mcpReads, held.name)
+	req.JSON = read
 
 	lib.forget()
 
 	answer := lib.run(ctx, held, req)
 	if answer.failed {
-		return mcpserver.Result{Text: "refused: " + answer.text, IsError: true}
+		return mcpserver.Refusal("refused: " + answer.text)
 	}
 
-	return mcpserver.Result{Text: answer.text}
+	if read {
+		return mcpserver.Result{Structured: json.RawMessage(answer.text)}
+	}
+
+	return mcpserver.Result{Structured: mcpserver.Messaged(answer.text, answer.fields)}
+}
+
+// outputSchema is the shape a tool answers: a read's listing, or its message
+// beside the fields of what it produced.
+func outputSchema(name string) json.RawMessage {
+	if slices.Contains(mcpReads, name) {
+		return mcpserver.SchemaOf(mcpOutputs[name])
+	}
+
+	return mcpserver.MessageSchema(mcpOutputs[name])
 }
 
 // exactKeys refuses a key the tool's schema does not list, spelled exactly:

@@ -94,7 +94,7 @@ func (mem *memory) rekind(ctx context.Context, req request) result {
 		return failure
 	}
 
-	return done(fmt.Sprintf("%s is now a %s", req.ID, req.Kind))
+	return done(fmt.Sprintf("%s is now a %s", req.ID, req.Kind)).with(kindFields{ID: req.ID, Kind: req.Kind})
 }
 
 // writeState overwrites the calling seat's state slot. The slot is a log row,
@@ -130,7 +130,7 @@ func (mem *memory) writeState(ctx context.Context, req request) result {
 			count, limit))
 	}
 
-	return done(strings.Join(lines, "\n"))
+	return done(strings.Join(lines, "\n")).with(seatFields{Seat: name, Shelf: mem.shelfName(mem.shelfOf(name))})
 }
 
 // stateLine is how the brief opens on the seat's state slot, its age measured

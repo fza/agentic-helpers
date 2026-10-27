@@ -264,7 +264,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		}
 	}
 
-	return done(strings.Join(lines, "\n"))
+	return done(strings.Join(lines, "\n")).with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOf(req.Name))})
 }
 
 // claimLifetime sets the lifetime --lifetime names on the claimed seat's
@@ -370,7 +370,7 @@ func (mem *memory) release(ctx context.Context, req request) result {
 
 	held, found := seat.Read(mem.seatsDir(), key)
 	if !found {
-		return done(name + " is free")
+		return done(name + " is free").with(releasedFields{Seat: name})
 	}
 
 	if name != own && mem.alive(ctx, held) {
@@ -385,7 +385,7 @@ func (mem *memory) release(ctx context.Context, req request) result {
 
 	_ = mem.purgeExpired(ctx)
 
-	return done("released " + name)
+	return done("released " + name).with(releasedFields{Seat: name, Released: true})
 }
 
 // rename gives the seat the calling session holds a new name. Entries, claims
@@ -402,7 +402,7 @@ func (mem *memory) rename(ctx context.Context, req request) result {
 	}
 
 	if req.Name == own {
-		return done(own + " keeps its name")
+		return done(own + " keeps its name").with(renamedFields{Seat: own, Was: own})
 	}
 
 	unlock, err := mem.lockStore(ctx)
@@ -464,5 +464,5 @@ func (mem *memory) rename(ctx context.Context, req request) result {
 	mem.forgetRegistry()
 	mem.forgetShelves()
 
-	return done(fmt.Sprintf("%s is now %s", own, req.Name))
+	return done(fmt.Sprintf("%s is now %s", own, req.Name)).with(renamedFields{Seat: req.Name, Was: own})
 }

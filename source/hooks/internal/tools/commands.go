@@ -72,12 +72,12 @@ func commands() []command {
 				{"json", flagSwitch}},
 			run: (*library).find,
 			schema: `{"type":"object","properties":{"query":` + text + `,"term":` + names + `,"limit":` + number +
-				`,"page":` + number + `,"json":{"type":"boolean"}}}`,
+				`,"page":` + number + `,"json":{"type":"boolean","description":"no effect: every answer is JSON"}}}`,
 		},
 		{
 			name: "list", usage: "list [--json]", description: "list the own project's tools and how many each other project holds",
 			flags: []flagSpec{{"json", flagSwitch}}, run: (*library).list,
-			schema: `{"type":"object","properties":{"json":{"type":"boolean"}}}`,
+			schema: `{"type":"object","properties":{"json":{"type":"boolean","description":"no effect: every answer is JSON"}}}`,
 		},
 		{
 			name: "take", usage: "take <name>...", description: "copy the current version of each named tool into the checkout, all or none",

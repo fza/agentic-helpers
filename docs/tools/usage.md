@@ -6,7 +6,14 @@ every read spans every project on the machine, the own project's tools first. A 
 tool, takes a copy into its checkout, runs it, and registers what it wrote or changed.
 
 Every verb is a command and a tool of the plugin's `tools` MCP server
-(`mcp__plugin_agentic-helpers_tools__<verb>`), taking exactly the keys its schema lists. A session
+(`mcp__plugin_agentic-helpers_tools__<verb>`), taking exactly the keys its schema lists. Every tool
+answers one JSON object, as `structuredContent` and, serialized, as its text block, its shape in the
+tool's `outputSchema`: `find` and `list` answer their `--json` listing whatever the `json` key says
+(still accepted, changing nothing); every other verb answers `message`, the text the command prints,
+beside what it did (`take`: `into`, `tools` with `name`, `version`, `copy`; `add`: `name`;
+`update`: `name`, `version`, `forked_from` for a fork; `merge`: `survivor`, `members`; `trust`:
+`checkout`; `reindex`: `tools`, `skipped`); a refusal is an error result carrying
+`{"error": "refused: <why>"}`. Keys are only ever added. The command line keeps its text. A session
 needs no seat: the caller is its Claude Code session. Like agentic-memory, the library works only
 inside a git work tree unless `memory_require_git` is off.
 

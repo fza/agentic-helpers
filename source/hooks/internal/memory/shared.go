@@ -222,11 +222,13 @@ func (mem *memory) setFollows(ctx context.Context, req request, add bool) result
 
 	mem.forgetShelves()
 
+	fields := followFields{Shelf: held.Name, Follows: orEmpty(held.Follows)}
+
 	if len(held.Follows) == 0 {
-		return done(held.Name + " follows no topic")
+		return done(held.Name + " follows no topic").with(fields)
 	}
 
-	return done(fmt.Sprintf("%s follows %s", held.Name, strings.Join(held.Follows, ", ")))
+	return done(fmt.Sprintf("%s follows %s", held.Name, strings.Join(held.Follows, ", "))).with(fields)
 }
 
 func (mem *memory) follow(ctx context.Context, req request) result {

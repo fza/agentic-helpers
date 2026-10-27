@@ -49,13 +49,22 @@ func TestTheBriefCapsItsNotes(t *testing.T) {
 		t.Errorf("brief --kind should list one kind's live entries whole:\n%s", notes)
 	}
 
-	answer := h.mcp(`{"name":"brief","arguments":{"kind":"trap"}}`)
+	h.file("Hook finding off the gate", "hooks", "--topic", "hooks")
+
+	if topical := mcpText(t, h.mcp(`{"name":"brief","arguments":{"topic":["hooks"]}}`)); !strings.Contains(topical, "Hook finding off the gate") ||
+		strings.Contains(topical, "Gate note number") {
+		t.Errorf("the MCP key topic should list those topics' entries: %s", topical)
+	}
+
+	answer := mcpText(t, h.mcp(`{"name":"brief","arguments":{"kind":"trap"}}`))
 	if strings.Count(answer, "Gate trap number") != 5 || strings.Contains(answer, "Gate note number") {
 		t.Errorf("the MCP key kind should list one kind's entries: %s", answer)
 	}
 
-	if got := h.run("", "brief", "--kind", "finding"); got.code != 1 || !strings.Contains(got.err, "--kind takes rule, trap, todo, note") {
-		t.Errorf("brief --kind should refuse an unknown kind, got %d %q", got.code, got.err)
+	for _, args := range [][]string{{"brief", "--kind", "finding"}, {"brief", "--kind", "finding", "--json"}} {
+		if got := h.run("", args...); got.code != 1 || !strings.Contains(got.err, "--kind takes rule, trap, todo, note") {
+			t.Errorf("%v should refuse an unknown kind, got %d %q", args, got.code, got.err)
+		}
 	}
 }
 

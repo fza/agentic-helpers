@@ -280,11 +280,11 @@ func TestTheMCPAddRefusesACredential(t *testing.T) {
 		}
 	}
 
-	if !answer.Result.IsError || len(answer.Result.Content) != 1 || !strings.HasPrefix(answer.Result.Content[0].Text, "refused: ") {
+	if !answer.Result.IsError || len(answer.Result.Content) != 1 || !strings.HasPrefix(test.Readable(answer.Result.Content[0].Text), "refused: ") {
 		t.Fatalf("the MCP add should be refused as an error, got %s", out)
 	}
 
-	checkCredentialRefusal(t, strings.TrimPrefix(answer.Result.Content[0].Text, "refused: "), "leak.py", "1", "github-pat",
+	checkCredentialRefusal(t, strings.TrimPrefix(test.Readable(answer.Result.Content[0].Text), "refused: "), "leak.py", "1", "github-pat",
 		credential[strings.Index(credential, "ghp_"):strings.LastIndex(credential, `"`)])
 
 	if test.Exists(t, filepath.Join(h.store(), "leak-tool")) {
@@ -331,11 +331,11 @@ func TestTheMCPUpdateRefusesACredential(t *testing.T) {
 		}
 	}
 
-	if !answer.Result.IsError || len(answer.Result.Content) != 1 || !strings.HasPrefix(answer.Result.Content[0].Text, "refused: ") {
+	if !answer.Result.IsError || len(answer.Result.Content) != 1 || !strings.HasPrefix(test.Readable(answer.Result.Content[0].Text), "refused: ") {
 		t.Fatalf("the MCP update should be refused as an error, got %s", out)
 	}
 
-	checkCredentialRefusal(t, strings.TrimPrefix(answer.Result.Content[0].Text, "refused: "), "--why", "1", "github-pat", token)
+	checkCredentialRefusal(t, strings.TrimPrefix(test.Readable(answer.Result.Content[0].Text), "refused: "), "--why", "1", "github-pat", token)
 
 	if h.read("word-count/current") != current || h.embedder.Calls() != calls {
 		t.Error("a refused MCP update should keep nothing and embed nothing")

@@ -88,6 +88,14 @@ type result struct {
 	text   string
 	code   int
 	failed bool
+	// fields is what the call produced, answered beside the text over MCP.
+	fields any
+}
+
+func (answer result) with(fields any) result {
+	answer.fields = fields
+
+	return answer
 }
 
 // normalize spells every seat name a request carries the one way the store
@@ -343,7 +351,7 @@ func commands() []command {
 // each schema lists the MCP key json, as jsonKey spells it.
 var jsonReads = []string{"show", "search", "brief", "who", "topics", "view"}
 
-const jsonKey = `"json":{"type":"boolean","description":"answer one JSON object in place of the text"}`
+const jsonKey = `"json":{"type":"boolean","description":"no effect: every answer is JSON"}`
 
 func readsAsJSON(held []command) []command {
 	for index, one := range held {
@@ -618,7 +626,7 @@ func allCommands() []command {
 			flags:       []flagSpec{{"json", flagSwitch}, {"session", flagText}}, positional: optionalName,
 			run: (*memory).holder,
 			schema: `{"type":"object","properties":{"name":{"type":"string"},"session":{"type":"string"},` +
-				`"json":{"type":"boolean"}}}`,
+				jsonKey + `}}`,
 		},
 		{
 			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] [--session <id>] | claim --shelf <shelf> [...]",

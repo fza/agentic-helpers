@@ -73,7 +73,8 @@ func (lib *library) merge(ctx context.Context, req request) result {
 
 	lib.forget()
 
-	return done(fmt.Sprintf("merged %d into %s, now current", len(members), survivor.Name))
+	return done(fmt.Sprintf("merged %d into %s, now current", len(members), survivor.Name)).
+		with(mergedFields{Survivor: survivor.Name, Members: members})
 }
 
 // fold moves a member's take lines to the survivor, removes the member's
@@ -169,5 +170,5 @@ func (lib *library) reindex(ctx context.Context, _ request) result {
 		text += fmt.Sprintf(", %d unreadable skipped", built.Skipped)
 	}
 
-	return done(text)
+	return done(text).with(reindexedFields{Tools: len(built.Tools), Skipped: built.Skipped})
 }

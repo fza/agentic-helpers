@@ -56,7 +56,8 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 
 	fromKey, from := seat.OfSession(dir, req.Session)
 	if fromKey != "" && fromKey == key && mem.alive(ctx, from) {
-		return done(fmt.Sprintf("session %s already holds %s", short(req.Session), req.Name))
+		return done(fmt.Sprintf("session %s already holds %s", short(req.Session), req.Name)).
+			with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
 	}
 
 	moving := fromKey != "" && fromKey != key && (mem.alive(ctx, from) || mem.freshReservation(from))
@@ -109,7 +110,7 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 		_ = mem.purgeExpired(ctx)
 	}
 
-	return done(strings.Join(lines, "\n"))
+	return done(strings.Join(lines, "\n")).with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
 }
 
 // inUseRefusal is why a claim may not take the seat from its claim, or nothing

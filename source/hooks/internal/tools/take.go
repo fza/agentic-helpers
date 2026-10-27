@@ -62,6 +62,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 	}
 
 	lines := []string{framing, "taken into " + base}
+	taken := takenFields{Into: base, Tools: []takenTool{}}
 
 	for _, hit := range hits {
 		tool := hit.tool
@@ -93,6 +94,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 		}
 
 		lines = append(lines, heading)
+		taken.Tools = append(taken.Tools, takenTool{Name: hit.shown(), Version: tool.Version, Copy: copied})
 		lines = append(lines, indented("usage", tool.Usage)...)
 		lines = append(lines, indented("inputs", tool.Inputs)...)
 		lines = append(lines, indented("outputs", tool.Outputs)...)
@@ -104,7 +106,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 
 	lib.forget()
 
-	return done(strings.Join(lines, "\n"))
+	return done(strings.Join(lines, "\n")).with(taken)
 }
 
 func indented(label string, value string) []string {
