@@ -29,9 +29,12 @@ const Incomplete = "scan-incomplete"
 //go:embed rules.json
 var rulesJSON []byte
 
+// Finding / Line is the 1-based line the match starts on, LastLine the one it
+// ends on: a private key spans many.
 type Finding struct {
-	RuleID string
-	Line   int
+	RuleID   string
+	Line     int
+	LastLine int
 }
 
 type allowlist struct {
@@ -96,12 +99,12 @@ func parseRules(data []byte) (*ruleSet, error) {
 func Scan(ctx context.Context, text string, name string) []Finding {
 	set, err := loadRules()
 	if err != nil {
-		return []Finding{{RuleID: Incomplete, Line: 1}}
+		return []Finding{{RuleID: Incomplete, Line: 1, LastLine: 1}}
 	}
 
 	findings, err := set.scan(ctx, text, name)
 	if err != nil {
-		return []Finding{{RuleID: Incomplete, Line: 1}}
+		return []Finding{{RuleID: Incomplete, Line: 1, LastLine: 1}}
 	}
 
 	return findings
@@ -215,7 +218,7 @@ func (r *rule) find(name string, text string, global []allowlist) []Finding {
 		}
 
 		if r.regex == nil {
-			return []Finding{{RuleID: r.ID, Line: 1}}
+			return []Finding{{RuleID: r.ID, Line: 1, LastLine: 1}}
 		}
 	}
 
@@ -246,7 +249,12 @@ func (r *rule) find(name string, text string, global []allowlist) []Finding {
 			continue
 		}
 
-		findings = append(findings, Finding{RuleID: r.ID, Line: strings.Count(text[:bounds[0]], "\n") + 1})
+		raw := text[bounds[0]:bounds[1]]
+		end := bounds[0] + len(raw) - len(strings.TrimLeft(raw, "\n")) + len(match)
+
+		findings = append(findings, Finding{
+			RuleID: r.ID, Line: strings.Count(text[:bounds[0]], "\n") + 1, LastLine: strings.Count(text[:end], "\n") + 1,
+		})
 	}
 
 	return findings

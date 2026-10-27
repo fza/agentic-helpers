@@ -73,6 +73,36 @@ func TestScanReportsTheLineOfTheMatch(t *testing.T) {
 	}
 }
 
+func TestScanReportsTheLinesAMatchSpans(t *testing.T) {
+	cases := []struct {
+		name   string
+		sample string
+		rule   string
+	}{
+		{name: "a token on one line", sample: "positive/github-pat.txt", rule: "github-pat"},
+		{name: "a private key over many", sample: "positive/private-key.txt", rule: "private-key"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sample := test.SecretFixture(t, tc.sample)
+			text := "first line\n\n" + sample + "\nlast line"
+
+			findings := secrets.Scan(context.Background(), text, "")
+
+			index := slices.IndexFunc(findings, func(finding secrets.Finding) bool { return finding.RuleID == tc.rule })
+			if index < 0 {
+				t.Fatalf("the sample should raise its rule, raised %v", ruleIDs(findings))
+			}
+
+			wantLast := 3 + strings.Count(sample, "\n")
+			if findings[index].Line != 3 || findings[index].LastLine != wantLast {
+				t.Errorf("the finding should span the lines the credential spans: %+v", findings[index])
+			}
+		})
+	}
+}
+
 func TestScanIgnoresTheGitleaksAllowMarker(t *testing.T) {
 	text := test.SecretFixture(t, "positive/github-pat.txt") + " # gitleaks:allow"
 

@@ -28,8 +28,8 @@ are byte-identical, so both tools refuse the same strings.
 
 ## The engine
 
-`secrets.Scan(ctx, text, name)` returns the findings, each a rule id and the 1-based line the match
-starts on, sorted by line. It mirrors gitleaks' `detectRule` and `checkFindingAllowed` with Go's
+`secrets.Scan(ctx, text, name)` returns the findings, each a rule id and the 1-based lines the match
+starts and ends on (a private key spans many), sorted by the line it starts on. It mirrors gitleaks' `detectRule` and `checkFindingAllowed` with Go's
 `regexp`, as the fork does:
 
 - **Keywords gate a rule.** A rule with keywords runs only when one occurs in the lowercased text,
