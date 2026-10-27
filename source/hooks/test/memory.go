@@ -33,6 +33,8 @@ type Git struct {
 	// Unborn answers as git does in a checkout without a commit: HEAD names
 	// no revision.
 	Unborn bool
+	// Log answers `log --oneline -n <n> <range>` by its range.
+	Log map[string]string
 
 	mutex sync.Mutex
 	calls [][]string
@@ -103,6 +105,15 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 	answer, answered, err := fake.branches(args)
 	if answered {
 		return answer, err
+	}
+
+	if len(args) == 5 && args[0] == "log" && args[1] == "--oneline" && args[2] == "-n" {
+		answer, found := fake.Log[args[4]]
+		if !found {
+			return "", errors.New("fatal: bad revision")
+		}
+
+		return answer, nil
 	}
 
 	if len(args) == 3 && args[0] == "check-ignore" && args[1] == "-q" {

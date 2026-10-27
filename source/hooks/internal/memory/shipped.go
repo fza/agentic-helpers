@@ -14,7 +14,7 @@ var fileWriters = []string{"Edit", "Write", "NotebookEdit"}
 // countShipped counts a tool call's file write and the graph entries it
 // added toward the shipped-work hold, and starts the window's measure at its
 // first call: HEAD then, and no state write seen yet.
-func (mem *memory) countShipped(ctx context.Context, session string, toolName string, captured int) {
+func (mem *memory) countShipped(ctx context.Context, session string, toolName string, path string, captured int) {
 	held := mem.loadLadder(session)
 	writes := slices.Contains(fileWriters, toolName)
 
@@ -26,6 +26,7 @@ func (mem *memory) countShipped(ctx context.Context, session string, toolName st
 
 	if writes {
 		held.Writes++
+		held.Wrote = wrotePaths(held.Wrote, path)
 	}
 
 	held.Captured += captured
@@ -56,7 +57,7 @@ func (mem *memory) shippedHold(ctx context.Context, seatName string, held *ladde
 	commit := mem.checkout(ctx).commit
 
 	slot, written := folded.states[seatName]
-	if written && slot.at.After(held.StateSeen) {
+	if written && !slot.Draft && slot.at.After(held.StateSeen) {
 		held.ShipBase, held.StateSeen = cmp.Or(slot.Commit, commit), slot.at
 		held.Writes, held.Captured, held.Held = 0, 0, false
 	}

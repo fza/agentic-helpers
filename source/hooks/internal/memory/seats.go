@@ -296,7 +296,9 @@ func (mem *memory) take(ctx context.Context, name string, key string, own bool, 
 		}
 	}
 
-	took.held = seat.Claim{SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339Nano)}
+	took.held = seat.Claim{
+		SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339Nano), Commit: mem.checkout(ctx).commit,
+	}
 
 	if own {
 		took.held = existing
@@ -365,9 +367,13 @@ func (mem *memory) carryForwardHint(ctx context.Context, seatName string) string
 }
 
 // newestOwn is when the seat last filed an entry or wrote its state slot: the
-// point its replay, its nudges and its previous session's turns count from.
+// point its replay, its nudges and its previous session's turns count from. A
+// hook-written draft is no write of the seat's.
 func (mem *memory) newestOwn(folded *state, seatName string) time.Time {
-	newest := folded.states[seatName].at
+	var newest time.Time
+	if slot := folded.states[seatName]; !slot.Draft {
+		newest = slot.at
+	}
 
 	for _, held := range folded.entryList() {
 		if held.seat == seatName && held.filed.After(newest) {

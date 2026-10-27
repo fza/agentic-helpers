@@ -230,7 +230,8 @@ stays in search, flagged, and `revive` refuses it.
 A claim file, under the seat's id, names the holding session, the pid of its `claude` process, that process's start time
 (`started`, RFC 3339 in UTC), when it was claimed, and the session's transcript. A `release` or a
 SessionEnd closing the seat moves the claim to `<id>.last.json` with `closed`, the time it closed.
-A claim made with `--session` for a session holding no seat is a reservation: `reserved` holds its
+A claim records `commit`, HEAD when it was taken, which a hook-written draft of the seat's state
+counts the session's commits from. A claim made with `--session` for a session holding no seat is a reservation: `reserved` holds its
 time and `pid` is 0; any hook whose payload carries that session id, run by a process holding no
 seat, writes its owning `claude` process, start time and transcript into it. A handover writes the
 new seat's claim from the old one, process and all, with `moved_from` naming the old seat until the
@@ -308,9 +309,9 @@ Every hook exits at once in a project without a store.
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
 | UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
 | PostToolUse (`tool`) | tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
-| Stop (`stop`) | holds the turn while do-now items are pending, at most twice per moment; then holds it once for a state write when work shipped since the seat's last one; then blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
+| Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then holds it once for a state write when work shipped since the seat's last one; then blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
-| SessionEnd (`session-end`) | keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
+| SessionEnd (`session-end`) | writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
 ## MCP answers
 
@@ -442,6 +443,13 @@ then (`traps`), so a seat holding none reads nothing more on a tool call than it
 note told is added to the session's shown set (`shown/<session>.json`, `traps` and `notes`), which a
 compaction empties. The index lists notes hottest first when built, but a `show` warms without a log
 event, so the hook ranks the matching notes by the heat read at the call.
+
+A `state` row the Stop or SessionEnd hook writes carries `draft: true`, the files the session
+wrote (`wrote` on its ladder, each once, the first 20) and its last prompt (`last_prompt`, kept only
+from a prompt holding no credential). The fold never lets a draft replace a non-draft state row of
+the same session, since the hook reads the slot and appends apart and the agent's write can land
+between; a merge keeps the state row the fold reads, not merely the newest. The point a seat's
+replay and nudges count from skips a draft.
 
 The shipped-work hold keeps its measure on the session's ladder: `ship_since`, when the window
 began measuring, set at its first tool call; `ship_base`, HEAD then, replaced by the commit the

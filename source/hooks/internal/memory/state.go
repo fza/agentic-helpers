@@ -360,6 +360,13 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 			folded.states = map[string]stateSlot{}
 		}
 
+		// A hook writing a draft races the agent's own write, so a draft never
+		// replaces a state the agent wrote in the same session.
+		current, found := folded.states[row.Seat]
+		if slot.Draft && found && !current.Draft && current.Session == slot.Session {
+			return nil
+		}
+
 		folded.states[row.Seat] = slot
 
 		return nil
@@ -631,7 +638,9 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 			}
 
 			if row.Kind == memorylog.KindState {
-				newestState[row.Seat] = index
+				if folded.states[row.Seat].at.Equal(row.Time) {
+					newestState[row.Seat] = index
+				}
 
 				continue
 			}

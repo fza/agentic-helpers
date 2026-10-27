@@ -219,6 +219,7 @@ type jsonState struct {
 	At     time.Time `json:"at"`
 	Branch string    `json:"branch"`
 	Commit string    `json:"commit"`
+	Draft  bool      `json:"draft,omitempty"`
 }
 
 type jsonChange struct {
@@ -267,7 +268,7 @@ func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seat
 	}
 
 	if slot, found := folded.states[seatName]; found {
-		answer.State = &jsonState{Body: slot.Body, At: slot.at.UTC(), Branch: slot.Branch, Commit: slot.Commit}
+		answer.State = &jsonState{Body: slot.Body, At: slot.at.UTC(), Branch: slot.Branch, Commit: slot.Commit, Draft: slot.Draft}
 	}
 
 	for _, held := range folded.entryList() {

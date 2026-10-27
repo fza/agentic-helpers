@@ -273,6 +273,22 @@ The brief opens with it, after its first line, its age measured as the brief is 
 A state write moves the start of the post-compaction replay forward as filing does, answers the
 compaction nudge and re-arms the replay nudge.
 
+Where no state the agent wrote is newer than the seat's claim, the Stop and SessionEnd hooks write
+a draft themselves, so a seat's state is never empty. It says what changed, mechanically: the
+commits since the claim (`git log --oneline <claim commit>..HEAD`, the newest 20), the files the
+session's Edit, Write and NotebookEdit calls named, and its last prompt, cut to `entry_max_words`.
+The brief marks it:
+
+    state (12m old, branch main, hook draft): commits since the claim: 9c0ffee1 fix: the gate reads MCP calls
+    files written: internal/gate/gate.go
+    last prompt: fix the gate for MCP reads
+
+and `brief --json` carries `"draft": true`. Writing a draft prints nothing, and a draft is written
+again only when it would read differently. The agent's next state write replaces it; a draft never
+replaces a state the agent wrote in the same session, not even one written while the hook ran. A
+draft counts as no state write: it answers no compaction nudge, re-arms no replay nudge, and clears
+no hold for shipped work. A prompt that looks like it holds a credential never reaches a draft.
+
 A seated session that shipped work since its seat's last state write is held at Stop once, with
 exit 2:
 

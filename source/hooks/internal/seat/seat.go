@@ -62,6 +62,9 @@ type Claim struct {
 	// with their uuids unchanged from its latest compaction boundary on, or
 	// from its first message where it never compacted.
 	ForkUUID string `json:"fork_uuid,omitempty"`
+	// Commit is HEAD when the seat was claimed, where a hook-written draft of
+	// the seat's state counts the session's commits from.
+	Commit string `json:"commit,omitempty"`
 }
 
 type Processes interface {

@@ -314,6 +314,10 @@ type ladder struct {
 	Writes    int       `json:"writes,omitempty"`
 	Captured  int       `json:"captured,omitempty"`
 	Held      bool      `json:"held,omitempty"`
+	// Wrote is the files those writes named and LastPrompt the session's last
+	// prompt, both for a hook-written draft of the seat's state.
+	Wrote      []string `json:"wrote,omitempty"`
+	LastPrompt string   `json:"last_prompt,omitempty"`
 }
 
 const replayNudgeText = "Turns since your newest entry or state write no longer fit the post-compaction replay. " +
@@ -513,12 +517,15 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		out = append(out, replay)
 	}
 
-	_ = writeJSON(mem.ladderPath(session), steps)
-
+	// A prompt holding a credential never reaches a draft the log would keep.
 	withheld := promptvector.Withheld(ctx, payload.Prompt)
 	if withheld != "" {
 		out = append(out, withheld)
+	} else if strings.TrimSpace(payload.Prompt) != "" {
+		steps.LastPrompt = strings.TrimSpace(payload.Prompt)
 	}
+
+	_ = writeJSON(mem.ladderPath(session), steps)
 
 	recalled := mem.recall(ctx, name, session, payload.Prompt, withheld != "")
 	if recalled != "" {
@@ -568,7 +575,7 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		notes = append(notes, captured)
 	}
 
-	mem.countShipped(ctx, session, payload.ToolName, gained)
+	mem.countShipped(ctx, session, payload.ToolName, cmp.Or(payload.ToolInput.FilePath, payload.ToolInput.NotebookPath), gained)
 
 	arrived, holdsTraps := mem.arrivalsAtTool(ctx, name)
 	notes = append(notes, arrived...)
@@ -723,6 +730,8 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 	held = mem.track(ctx, name, held, payload)
 	session := cmp.Or(held.SessionID, payload.SessionID)
 
+	mem.draftState(ctx, name, held, session)
+
 	pending := mem.holdForDoNow(name, session)
 	if pending != "" {
 		_, _ = fmt.Fprintln(mem.streams.Err, pending)
@@ -763,6 +772,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	}
 
 	held = mem.track(ctx, name, held, payload)
+	mem.draftState(ctx, name, held, cmp.Or(held.SessionID, payload.SessionID))
 	removeIfThere(mem.shownPath(held.SessionID))
 	promptvector.Remove(promptvector.Dir(mem.env.CacheRoot), held.SessionID)
 

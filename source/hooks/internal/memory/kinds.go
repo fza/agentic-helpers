@@ -57,6 +57,8 @@ type statePayload struct {
 	Session string `json:"session,omitempty"`
 	Branch  string `json:"branch,omitempty"`
 	Commit  string `json:"commit,omitempty"`
+	// Draft marks a state the Stop or SessionEnd hook wrote, not the agent.
+	Draft bool `json:"draft,omitempty"`
 }
 
 type stateSlot struct {
@@ -144,6 +146,10 @@ func (mem *memory) stateLine(folded *state, seatName string) string {
 	where := age(mem.now().Sub(slot.at)) + " old"
 	if slot.Branch != "" {
 		where += ", branch " + slot.Branch
+	}
+
+	if slot.Draft {
+		where += ", hook draft"
 	}
 
 	return fmt.Sprintf("state (%s): %s", where, slot.Body)

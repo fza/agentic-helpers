@@ -120,6 +120,9 @@ EOF
 - **Where work stands → `state`, never an entry.** One slot per seat, overwritten by every write,
   printed first in the brief with its age: `state (3h old, branch main): ...`. Not searchable, not
   recalled, no id. Write it whenever the picture changes, and always when a nudge asks.
+- **`state (..., hook draft): ...`** → no state written since the claim; the hook listed commits,
+  files written and the last prompt. A lead on what changed, not where work stands: your own state
+  write replaces it, and it answers no nudge.
 - **Kind = what the entry is.** Pick it at filing; it sets decay and the brief section:
 
 | Kind | For | Decays |
