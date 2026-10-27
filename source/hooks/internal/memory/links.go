@@ -13,7 +13,6 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
-	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
 // A link names a full graph id, a full graph id qualified by the repo_id of
@@ -75,9 +74,7 @@ func (mem *memory) graphPath(ctx context.Context, id string) string {
 		return ""
 	}
 
-	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
-
-	return filepath.Join(graphconfig.ResolveAt(root).Entries, parts[1], parts[2], parts[3]+"-"+parts[4]+"-"+parts[5]+".md")
+	return filepath.Join(mem.graphProject(ctx).entries, parts[1], parts[2], parts[3]+"-"+parts[4]+"-"+parts[5]+".md")
 }
 
 // exports is whether the installed sdd carries `export`, nil taking it as
@@ -107,10 +104,10 @@ func (mem *memory) resolveTarget(ctx context.Context, folded *state, id string) 
 // resolveGraphTarget is resolveTarget for anything but a memory id, which
 // needs no folded log.
 func (mem *memory) resolveGraphTarget(ctx context.Context, id string) (string, error) {
-	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
+	root := mem.mainRoot(ctx)
 
 	repo, bare, qualified := splitQualified(id)
-	if qualified && repo == graphconfig.ResolveAt(root).RepoID() {
+	if qualified && repo == mem.graphProject(ctx).repoID {
 		id, qualified = bare, false
 	}
 
@@ -289,8 +286,8 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 		return mem.graphKnown, true
 	}
 
-	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
-	local := graphconfig.ResolveAt(root).Entries
+	root := mem.mainRoot(ctx)
+	local := mem.graphProject(ctx).entries
 	cachePath := filepath.Join(mem.cacheDir(), "graph-status.json")
 
 	var cached graphStatus

@@ -5,6 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
 // GitDirOf answers a checkout's git common directory as `<checkout>/.git`,
@@ -30,4 +33,28 @@ func (fake GitDirOf) CommonDir(_ context.Context, dir string) (string, error) {
 			return "", errors.New("fatal: not a git repository")
 		}
 	}
+}
+
+// CountedCommonDir passes every lookup on to Lookup and counts them, each one
+// standing for a git spawn.
+type CountedCommonDir struct {
+	Lookup project.CommonDirLookup
+
+	mutex sync.Mutex
+	calls int
+}
+
+func (counted *CountedCommonDir) CommonDir(ctx context.Context, dir string) (string, error) {
+	counted.mutex.Lock()
+	counted.calls++
+	counted.mutex.Unlock()
+
+	return counted.Lookup.CommonDir(ctx, dir)
+}
+
+func (counted *CountedCommonDir) Calls() int {
+	counted.mutex.Lock()
+	defer counted.mutex.Unlock()
+
+	return counted.calls
 }

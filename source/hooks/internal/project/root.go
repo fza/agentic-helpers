@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 type CommonDirLookup interface {
@@ -36,4 +37,40 @@ func (GitCommonDir) CommonDir(ctx context.Context, dir string) (string, error) {
 	}
 
 	return strings.TrimSpace(string(output)), nil
+}
+
+// Remembered asks its lookup once per directory and answers every later ask
+// from memory; a failed lookup is asked again. A process looks up the same
+// checkout from many places, and each ask is a git spawn.
+type Remembered struct {
+	Lookup CommonDirLookup
+
+	mutex  sync.Mutex
+	common map[string]string
+}
+
+func (remembered *Remembered) CommonDir(ctx context.Context, dir string) (string, error) {
+	remembered.mutex.Lock()
+	known, found := remembered.common[dir]
+	remembered.mutex.Unlock()
+
+	if found {
+		return known, nil
+	}
+
+	common, err := remembered.Lookup.CommonDir(ctx, dir)
+	if err != nil {
+		return "", err
+	}
+
+	remembered.mutex.Lock()
+	defer remembered.mutex.Unlock()
+
+	if remembered.common == nil {
+		remembered.common = map[string]string{}
+	}
+
+	remembered.common[dir] = common
+
+	return common, nil
 }

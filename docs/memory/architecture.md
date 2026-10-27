@@ -104,6 +104,18 @@ shares one store. A directory counts as inside git when `git rev-parse --is-insi
 `memory_require_git` set to `false`, the store is keyed `local/` and a hash of the directory's
 absolute path.
 
+## What a call asks git
+
+A process asks git for the main checkout once per directory (`project.Remembered`) and reads the
+graph's `.sdd/config.yaml` once, however many links, end conditions or language reads ask for them,
+so a read spawns the same subprocesses whatever the number of links the store holds. The
+caller's own checkout (whether it is a work tree, its top level, its HEAD commit and its branch) is
+one `git rev-parse --is-inside-work-tree --show-toplevel HEAD --abbrev-ref HEAD` per call, asked
+again by each MCP tool call and each look of the idle waiter, since a branch can change while either
+runs. `--short` would make git verify a single revision and refuse the branch beside it, so the
+commit is the full one cut to eight characters. A checkout without a commit fails that one call and
+is asked question by question.
+
 ## Times
 
 Every time the store and its cache keep in a JSON file is an RFC 3339 string in UTC, ending in `Z`,

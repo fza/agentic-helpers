@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -19,15 +20,52 @@ var (
 )
 
 type tree struct {
-	root   string
-	commit string
-	branch string
+	root     string
+	commit   string
+	branch   string
+	workTree bool
 }
 
-// checkout is the caller's own checkout: its top level, HEAD commit (at least
-// eight characters, longer where git needs it unambiguous) and branch.
+const commitLength = 8
+
+// checkout is the caller's own checkout: whether it is a git work tree, its
+// top level, HEAD commit and branch, asked once per call.
 func (mem *memory) checkout(ctx context.Context) tree {
+	if mem.here == nil {
+		held := mem.askCheckout(ctx)
+		mem.here = &held
+	}
+
+	return *mem.here
+}
+
+// askCheckout asks git everything in one rev-parse. `--short` would make git
+// verify a single revision and refuse the branch beside it, so the commit is
+// the full one cut to eight characters. A checkout without a commit fails the
+// one call, and is asked question by question.
+func (mem *memory) askCheckout(ctx context.Context) tree {
 	held := tree{root: mem.env.Base}
+
+	answer, err := mem.env.Git.Output(ctx, mem.env.Base,
+		"rev-parse", "--is-inside-work-tree", "--show-toplevel", "HEAD", "--abbrev-ref", "HEAD")
+	lines := strings.Split(strings.TrimRight(answer, "\n"), "\n")
+
+	if err == nil && len(lines) == 4 && lines[0] == "true" {
+		held.workTree = true
+		held.root = cmp.Or(strings.TrimSpace(lines[1]), held.root)
+		commit := strings.TrimSpace(lines[2])
+		held.commit = commit[:min(commitLength, len(commit))]
+		held.branch = strings.TrimSpace(lines[3])
+
+		return held
+	}
+
+	inside, err := mem.env.Git.Output(ctx, mem.env.Base, "rev-parse", "--is-inside-work-tree")
+	if err != nil || strings.TrimSpace(inside) != "true" {
+		return held
+	}
+
+	held.workTree = true
 
 	top, err := mem.env.Git.Output(ctx, mem.env.Base, "rev-parse", "--show-toplevel")
 	if err == nil && strings.TrimSpace(top) != "" {

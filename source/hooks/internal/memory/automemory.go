@@ -12,7 +12,6 @@ import (
 	"slices"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/gitignore"
-	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
 // Claude Code reads a project's local settings from the main checkout's root,
@@ -33,7 +32,7 @@ func (mem *memory) turnOffAutoMemory(ctx context.Context) []string {
 		return nil
 	}
 
-	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
+	root := mem.mainRoot(ctx)
 	path := filepath.Join(root, filepath.FromSlash(localSettings))
 
 	linked := symlinkOn(root, path)

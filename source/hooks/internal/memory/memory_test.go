@@ -18,6 +18,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
@@ -47,6 +48,9 @@ type harness struct {
 	// and worktrees maps a worktree to its main checkout.
 	base      string
 	worktrees map[string]string
+	// checkout stands in for the common-directory lookup where a test counts
+	// it; nil takes one answering from the tree.
+	checkout project.CommonDirLookup
 }
 
 func newHarness(t *testing.T) *harness {
@@ -111,10 +115,15 @@ func (h *harness) store() string {
 }
 
 func (h *harness) env() memory.Env {
+	checkout := project.CommonDirLookup(test.GitDirOf{Worktrees: h.worktrees})
+	if h.checkout != nil {
+		checkout = h.checkout
+	}
+
 	return memory.Env{
 		Base: cmp.Or(h.base, h.repo), Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
-		Random: test.Random(), Processes: h.processes, Checkout: test.GitDirOf{Worktrees: h.worktrees},
+		Random: test.Random(), Processes: h.processes, Checkout: checkout,
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
 	}

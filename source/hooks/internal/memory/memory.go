@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
@@ -103,6 +104,40 @@ type memory struct {
 	// gitKeyed is set where the store is keyed by the project's git identity,
 	// which a checkout can declare, and not by a directory's own path.
 	gitKeyed bool
+
+	// graphConfig is read once per process: every link, end condition and
+	// language read asks for it. here is the caller's checkout, asked once per
+	// call, since a long-running MCP server outlives a commit or a branch
+	// switch.
+	graphConfig *resolvedGraph
+	here        *tree
+}
+
+// mainRoot is the main checkout; Main remembers the lookup, so a process asks
+// git once.
+func (mem *memory) mainRoot(ctx context.Context) string {
+	return project.Root(ctx, mem.env.Base, mem.env.Checkout)
+}
+
+// resolvedGraph is what memory reads of the graph the main checkout resolves
+// to: where its entries are, its repo_id and its language.
+type resolvedGraph struct {
+	entries  string
+	repoID   string
+	language string
+}
+
+// graphProject is the graph the main checkout resolves to, read once per
+// process.
+func (mem *memory) graphProject(ctx context.Context) resolvedGraph {
+	if mem.graphConfig == nil {
+		resolved := graphconfig.ResolveAt(mem.mainRoot(ctx))
+		mem.graphConfig = &resolvedGraph{
+			entries: resolved.Entries, repoID: resolved.RepoID(), language: resolved.Language(),
+		}
+	}
+
+	return *mem.graphConfig
 }
 
 func (mem *memory) root() string      { return seat.StoreRoot(mem.env.Home) }
@@ -140,9 +175,7 @@ func (mem *memory) locate(ctx context.Context) {
 }
 
 func (mem *memory) insideWorkTree(ctx context.Context) bool {
-	answer, err := mem.env.Git.Output(ctx, mem.env.Base, "rev-parse", "--is-inside-work-tree")
-
-	return err == nil && strings.TrimSpace(answer) == "true"
+	return mem.checkout(ctx).workTree
 }
 
 // storeRefusal is why no call may touch the store, or empty where one may.
@@ -333,6 +366,10 @@ func drawID(random io.Reader, length int) (string, error) {
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
 	if env.Random == nil {
 		env.Random = rand.Reader
+	}
+
+	if env.Checkout != nil {
+		env.Checkout = &project.Remembered{Lookup: env.Checkout}
 	}
 
 	if len(args) == 0 {

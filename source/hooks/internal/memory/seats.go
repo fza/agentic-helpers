@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
 )
@@ -296,7 +295,7 @@ func (mem *memory) claimLifetime(ctx context.Context, req request) (string, erro
 // file is the agent's to fold and delete; no other file under `.memory/` is
 // ever touched.
 func (mem *memory) carryForwardHint(ctx context.Context, seatName string) string {
-	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
+	root := mem.mainRoot(ctx)
 	relative := filepath.Join(".memory", "carryforward", seatName+"-memory.md")
 
 	_, err := os.Stat(filepath.Join(root, relative))

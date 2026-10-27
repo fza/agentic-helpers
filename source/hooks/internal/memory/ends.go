@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
-	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -145,7 +144,7 @@ func (mem *memory) lacksExport(ctx context.Context) bool {
 		return false
 	}
 
-	return !mem.env.Sdd.Of(ctx, project.Root(ctx, mem.env.Base, mem.env.Checkout)).Export
+	return !mem.env.Sdd.Of(ctx, mem.mainRoot(ctx)).Export
 }
 
 // endProbe answers the end check's questions once per check: the graph's

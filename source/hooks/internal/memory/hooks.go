@@ -619,6 +619,8 @@ func (mem *memory) wait(ctx context.Context, _ []string) int {
 			return 0
 		}
 
+		mem.here = nil
+
 		folded, err := mem.load(ctx)
 		if err == nil {
 			arrived := mem.announce(ctx, folded, name)

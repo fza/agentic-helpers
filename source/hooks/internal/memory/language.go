@@ -3,9 +3,6 @@ package memory
 import (
 	"context"
 	"strings"
-
-	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
-	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
 const defaultLanguage = "en"
@@ -14,9 +11,7 @@ const defaultLanguage = "en"
 // authors its entries in, else the plugin's memory_language, else English.
 // The conversation's language never decides it.
 func (mem *memory) language(ctx context.Context) string {
-	root := project.Root(ctx, mem.env.Base, mem.env.Checkout)
-
-	graph := strings.TrimSpace(graphconfig.ResolveAt(root).Language())
+	graph := strings.TrimSpace(mem.graphProject(ctx).language)
 	if graph != "" {
 		return graph
 	}

@@ -8,9 +8,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
-	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
 // graphMark is how the graph's directory of the current month stood at the
@@ -47,7 +44,7 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 	if !had || mark.Month != monthKey || month == "" {
 		month = noGraph
 
-		entries := graphconfig.ResolveAt(project.Root(ctx, mem.env.Base, mem.env.Checkout)).Entries
+		entries := mem.graphProject(ctx).entries
 		if entries != "" {
 			month = filepath.Join(entries, now.Format("2006"), now.Format("01"))
 		}

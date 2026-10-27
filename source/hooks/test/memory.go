@@ -30,9 +30,53 @@ type Git struct {
 	// of; OriginHead answers `symbolic-ref refs/remotes/origin/HEAD`.
 	Branches   map[string][]string
 	OriginHead string
+	// Unborn answers as git does in a checkout without a commit: HEAD names
+	// no revision.
+	Unborn bool
+
+	mutex sync.Mutex
+	calls [][]string
+}
+
+// SwitchBranch checks out another branch while a call may be running.
+func (fake *Git) SwitchBranch(branch string) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	fake.Branch = branch
+}
+
+// Calls is every call git was asked, its arguments each.
+func (fake *Git) Calls() [][]string {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	return slices.Clone(fake.calls)
 }
 
 func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, error) {
+	fake.mutex.Lock()
+	fake.calls = append(fake.calls, slices.Clone(args))
+	branch := fake.Branch
+	fake.mutex.Unlock()
+
+	switch strings.Join(args, " ") {
+	case "rev-parse --is-inside-work-tree --show-toplevel HEAD --abbrev-ref HEAD":
+		if fake.OutsideWorkTree {
+			return "", errors.New("fatal: not a git repository")
+		}
+
+		if fake.Unborn {
+			return "", errors.New("fatal: ambiguous argument 'HEAD'")
+		}
+
+		return "true\n" + fake.Top + "\n" + fake.Commit + "\n" + branch + "\n", nil
+	case "rev-parse --short=8 HEAD", "rev-parse --abbrev-ref HEAD":
+		if fake.Unborn {
+			return "", errors.New("fatal: ambiguous argument 'HEAD'")
+		}
+	}
+
 	switch strings.Join(args, " ") {
 	case "rev-parse --is-inside-work-tree":
 		if fake.OutsideWorkTree {
@@ -45,7 +89,7 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 	case "rev-parse --short=8 HEAD":
 		return fake.Commit + "\n", nil
 	case "rev-parse --abbrev-ref HEAD":
-		return fake.Branch + "\n", nil
+		return branch + "\n", nil
 	}
 
 	if strings.Join(args, " ") == "config --global --get core.excludesFile" {
