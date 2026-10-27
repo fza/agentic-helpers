@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 
-	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -486,92 +485,6 @@ func holdsGlob(value string) bool {
 	}
 
 	return false
-}
-
-// MayName reports whether a patterned word could expand to a path whose base
-// name is one of names: each brace alternative's last path element, matched as
-// the shell matches a glob (path.Match, with `[!...]` read as `[^...]`) and
-// lower-cased, as a case-insensitive filesystem matches. It errs towards yes:
-// an expansion in the word may hold any text, a `/` included, and an extended
-// glob, a POSIX class or a pattern path.Match cannot read may name anything.
-func MayName(word *syntax.Word, names ...string) bool {
-	split := &syntax.Word{Parts: slices.Clone(word.Parts)}
-	syntax.SplitBraces(split)
-
-	for alternative, err := range expand.BracesSeq(nil, split) {
-		if err != nil {
-			return true
-		}
-
-		pattern, readable := globPattern(alternative)
-		if !readable || strings.Contains(pattern, "[:") {
-			return true
-		}
-
-		base := strings.ToLower(path.Base(pattern))
-		for _, name := range names {
-			matched, err := path.Match(base, name)
-			if err != nil || matched {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// globPattern spells a word as a path.Match pattern: unquoted text as written,
-// quoted text with every pattern character escaped, and an expansion as `/*`,
-// any text after any directory. It reports false for an extended glob.
-func globPattern(word *syntax.Word) (string, bool) {
-	var pattern strings.Builder
-
-	for _, part := range word.Parts {
-		switch typed := part.(type) {
-		case *syntax.Lit:
-			pattern.WriteString(strings.ReplaceAll(typed.Value, "[!", "[^"))
-		case *syntax.SglQuoted:
-			decoded, resolved := ansiC(typed)
-			if !resolved {
-				pattern.WriteString("/*")
-
-				continue
-			}
-
-			pattern.WriteString(quoteGlob(decoded))
-		case *syntax.DblQuoted:
-			for _, inner := range typed.Parts {
-				innerLit, isLit := inner.(*syntax.Lit)
-				if !isLit {
-					pattern.WriteString("/*")
-
-					continue
-				}
-
-				pattern.WriteString(quoteGlob(unescape(innerLit.Value)))
-			}
-		case *syntax.ExtGlob:
-			return "", false
-		default:
-			pattern.WriteString("/*")
-		}
-	}
-
-	return pattern.String(), true
-}
-
-func quoteGlob(text string) string {
-	var quoted strings.Builder
-
-	for _, character := range text {
-		if strings.ContainsRune(`*?[]\`, character) {
-			quoted.WriteByte('\\')
-		}
-
-		quoted.WriteRune(character)
-	}
-
-	return quoted.String()
 }
 
 // Spelled is the word with its quoting removed, as Literal reads it, and every

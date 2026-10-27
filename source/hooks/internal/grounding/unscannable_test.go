@@ -333,11 +333,21 @@ func TestACallAPatternMayTurnIntoAWriteIsRefused(t *testing.T) {
 		where   string
 	}{
 		{command: "sd? new d tac x", where: "sd?"},
-		{command: "s*", where: "s*"},
+		{command: "{,}sdd new d tac x", where: "{,}sdd"},
+		{command: "[s]dd new", where: "[s]dd"},
+		{command: "sd[[=d=]] new", where: "sd[[=d=]]"},
+		{command: "SD? new", where: "SD?"},
+		{command: "x{,} sdd new", where: "x{,}"},
+		{command: "s{d,}d", where: "s{d,}d"},
+		{command: "S{D,}D", where: "S{D,}D"},
+		{command: "sd*d", where: "sd*d"},
+		{command: "sd?d", where: "sd?d"},
+		{command: "s[d]d", where: "s[d]d"},
 		{command: "{sdd,true} new d tac x", where: "{sdd,true}"},
 		{command: "agentic-captur[e] d.md", where: "agentic-captur[e]"},
 		{command: "sdd n?w d tac x", where: "n?w"},
 		{command: "sdd n{e,o}w d tac x", where: "n{e,o}w"},
+		{command: "sdd l?", where: "l?"},
 		{command: "/usr/local/bin/SD? new d tac x", where: "/usr/local/bin/SD?"},
 		{command: "sudo sd? new d tac x", where: "sd?"},
 		{command: "*/sdd new d tac x", where: "*/sdd"},
@@ -355,7 +365,7 @@ func TestACallAPatternMayTurnIntoAWriteIsRefused(t *testing.T) {
 		})
 	}
 
-	for _, command := range []string{"./scripts/*.sh", "l? -la", "echo s*", "find . -name s*", "sdd l?"} {
+	for _, command := range []string{"./scripts/*.sh", "l? -la", "echo s*", "find . -name s*", "s*", "l? new-ish", "s{d}d", "l[[=a=]] -la", "find . -name s[d]d", "echo s{d,}d", "sdd", "sdd new 'unterminated"} {
 		t.Run(command, func(t *testing.T) {
 			env := areaProject(t)
 			ground(t, env)

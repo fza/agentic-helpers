@@ -109,13 +109,14 @@ a write into another repository's graph is scanned too. What it scans:
   parsed word (`shellwalk.Patterned`), not its text: an unquoted, unescaped `*`, `?` or `[`, an
   extended glob, or a brace expansion; quoted or escaped, the same characters are text. A call
   the gate would never classify as a write is refused the same way, before classifying, where its
-  patterned command word could expand to `sdd` or `agentic-capture`, or `sdd`'s patterned
-  subcommand to `new`: `shellwalk.MayName` brace-expands the word and matches the last path
-  element of each alternative as the shell matches a glob (`path.Match`, `[!...]` as `[^...]`,
-  lower-cased for a case-insensitive filesystem). It errs towards a match: an expansion inside
-  the word counts as any text after any `/`, and an extended glob, a POSIX class or a pattern
-  `path.Match` rejects match anything. A call behind a launcher counts as `callsCapture` counts
-  one: certain, or handed an argument.
+  command word, or the subcommand of a call naming `sdd`, is patterned at all and any word of the
+  call names `new` or holds `sdd` or `capture`, lower-cased and stripped of `[]{},*?`. The gate
+  does not match the pattern: bracket classes (`[=d=]`, `[.d.]`), case folding inside brackets and
+  brace alternatives that shift every word along (`{,}sdd new`) each read differently in bash
+  from what a matcher would guess, so naming a write tool anywhere in such a call is enough. Code
+  the parser cannot read (`sd[[=d=]] new`, which bash runs and mvdan.cc/sh rejects) is refused
+  where it holds `*`, `?`, `[` or `{` and names a write tool the same way. A call behind a
+  launcher counts as `callsCapture` counts one: certain, or handed an argument.
 - **A call behind a launcher's options** the walk cannot place (`sudo -iD dir sdd new`,
   `flock lockfile agentic-capture d.md`) still counts as a write: `sdd new`, or `agentic-capture`
   handed an argument. It credits and checks no read.

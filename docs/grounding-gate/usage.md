@@ -55,10 +55,12 @@ reads the gate would weigh next go unread too:
   glob such as `@(...)`, or a brace expansion such as `{a,b}` or `{1..3}`, naming that word: the
   shell turns it into other words, so `run*.log` may attach files the gate never read and
   `--att{ach,x}` an `--attach` it never saw; quoted or escaped they stay text and are read, and a
-  draft header's `attach` is no shell word; so is any call whose patterned command word could
-  expand to `sdd` or `agentic-capture`, `sd? new` or `{sdd,true} new`, or whose patterned `sdd`
-  subcommand could expand to `new`, `sdd n?w`, naming that word, while a pattern that cannot,
-  `./scripts/*.sh` or `l?`, is left alone),
+  draft header's `attach` is no shell word; so is any call with a glob or brace in its command
+  word, or in the subcommand of a call naming `sdd`, where any word of the call names `new` or
+  holds `sdd` or `capture` once lower-cased and stripped of `[]{},*?`: `sd? new`, `{,}sdd new`,
+  `[s]dd new`, `SD? new`, `x{,} sdd new`, `sdd n?w`, naming that word. The pattern is never
+  matched, only refused, and code the parser cannot read, `sd[[=d=]] new`, is refused the same
+  way. A patterned command naming neither, `./scripts/*.sh` or `l? -la`, is left alone),
   `it is relative after a directory change` (`cd`,
   `pushd`, `popd`, a launcher's chdir option, anywhere in the command), or
   `it is relative behind a launcher` (`env`, `sudo`, `xargs`, `nice`, `timeout`, `flock`,

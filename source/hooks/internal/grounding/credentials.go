@@ -18,7 +18,6 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
-	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 const mcpStageAttachment = "mcp__sdd__stage_attachment"
@@ -117,8 +116,12 @@ func (held *scan) command(ctx context.Context, env Env, command string) {
 	heard := spokenIn(command, false)
 
 	for _, stretch := range heard {
+		words := []string{patternedUnparsed(stretch.unparsed)}
 		for _, called := range stretch.calls {
-			word := patternedWrite(called)
+			words = append(words, patternedWrite(called))
+		}
+
+		for _, word := range words {
 			if word != "" {
 				held.cannot(refusal("credential-unresolved.txt", "{where}", word, "{why}", "it holds a shell glob or brace"))
 			}
@@ -166,24 +169,57 @@ func (held *scan) patterned(called call) {
 }
 
 // patternedWrite is the word that may make a call a graph write once the shell
-// expands it, or nothing: a command word whose pattern could name `sdd` or
-// `agentic-capture` (`sd? new`, `{sdd,true} new`), or `sdd`'s subcommand
-// whose pattern could name `new` (`sdd n?w`). The gate never classifies such
-// a call as a write, so it would otherwise go unscanned. An uncertain call
-// counts where it is handed an argument, as callsCapture counts one.
+// expands it, or nothing: a glob or brace in the command word, or in `sdd`'s
+// subcommand, of a call any word of which names `new` or holds `sdd` or
+// `capture`. The gate never classifies such a call as a write, so it would
+// otherwise go unscanned. It refuses rather than resolves the pattern: bracket
+// classes, case folding and brace alternatives that shift every word along
+// (`{,}sdd new`) each read differently from what a matcher would guess. An
+// uncertain call counts where it is handed an argument, as callsCapture
+// counts one.
 func patternedWrite(called call) string {
-	if !called.certain && len(called.words) < 2 {
+	if !called.certain && len(called.words) < 2 || !namesWriteTool(called.words) {
 		return ""
 	}
 
 	switch {
-	case called.patterned[0] && shellwalk.MayName(called.args[0], "sdd", "agentic-capture"):
+	case called.patterned[0]:
 		return called.words[0]
-	case called.name == "sdd" && len(called.words) > 1 && called.patterned[1] && shellwalk.MayName(called.args[1], "new"):
+	case called.name == "sdd" && len(called.words) > 1 && called.patterned[1]:
 		return called.words[1]
 	}
 
 	return ""
+}
+
+// patternedUnparsed is the first word of code the parser could not read
+// (`sd[[=d=]] new`, a bracket class bash reads and mvdan.cc/sh refuses) that
+// holds a glob or brace character and names a write tool as patternedWrite
+// looks for one, or nothing.
+func patternedUnparsed(code string) string {
+	words := strings.Fields(code)
+	if !strings.ContainsAny(code, "*?[{") || !namesWriteTool(words) {
+		return ""
+	}
+
+	return words[0]
+}
+
+// patternMarks are what a glob or brace spells around a name: stripped before
+// looking, `agentic-captur[e]`, `s{d,}d` and `sd*d` still name their tool.
+var patternMarks = strings.NewReplacer("[", "", "]", "", "{", "", "}", "", ",", "", "*", "", "?", "")
+
+// namesWriteTool reports a word naming `new`, or holding `sdd` or `capture`,
+// once lower-cased and stripped of pattern marks.
+func namesWriteTool(words []string) bool {
+	for _, word := range words {
+		lowered := patternMarks.Replace(strings.ToLower(word))
+		if lowered == "new" || strings.Contains(lowered, "sdd") || strings.Contains(lowered, "capture") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // unanchored says why a relative attachment of the call cannot be placed, or

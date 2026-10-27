@@ -26,11 +26,10 @@ type spoken struct {
 // directory and environment the launcher may change; certain is false for a
 // word after a launcher that may be an option's value rather than the command.
 // patterned marks each word the shell may expand into others, a glob or a
-// brace, which the words hold only as spelled; args are the words as parsed.
+// brace, which the words hold only as spelled.
 type call struct {
 	words     []string
 	patterned []bool
-	args      []*syntax.Word
 	name      string
 	launched  bool
 	certain   bool
@@ -89,7 +88,7 @@ func (heard *listener) Command(found shellwalk.Call) {
 	}
 
 	heard.calls = append(heard.calls, call{
-		words: words, patterned: patterned, args: found.Args, name: strings.ToLower(path.Base(words[0])),
+		words: words, patterned: patterned, name: strings.ToLower(path.Base(words[0])),
 		launched: found.Launched, certain: found.Certain,
 	})
 }
