@@ -255,3 +255,62 @@ func TestPatternedFindsWhatTheShellExpands(t *testing.T) {
 		})
 	}
 }
+
+func TestMayNameMatchesAPatternAsTheShellDoes(t *testing.T) {
+	tools := []string{"sdd", "agentic-capture"}
+
+	cases := []struct {
+		word    string
+		names   []string
+		mayName bool
+	}{
+		{word: "sd?", names: tools, mayName: true},
+		{word: "s*", names: tools, mayName: true},
+		{word: "???", names: tools, mayName: true},
+		{word: "{sdd,true}", names: tools, mayName: true},
+		{word: "agentic-captur[e]", names: tools, mayName: true},
+		{word: "S[D]?", names: tools, mayName: true},
+		{word: "/usr/bin/sd?", names: tools, mayName: true},
+		{word: "s[!x]d", names: tools, mayName: true},
+		{word: "s[^x]d", names: tools, mayName: true},
+		{word: "'s'd?", names: tools, mayName: true},
+		{word: `"$dir"/sd?`, names: tools, mayName: true},
+		{word: `l"$x"?`, names: tools, mayName: true},
+		{word: "@(sdd)", names: tools, mayName: true},
+		{word: "[[:alpha:]]dd", names: tools, mayName: true},
+		{word: "{1..99999}", names: tools, mayName: true},
+		{word: "sd[", names: tools, mayName: true},
+		{word: `$'\9'd?`, names: tools, mayName: true},
+		{word: "l$x?", names: tools, mayName: true},
+		{word: `"s*"d`, names: tools},
+		{word: "n?w", names: []string{"new"}, mayName: true},
+		{word: "n{e,o}w", names: []string{"new"}, mayName: true},
+		{word: "./scripts/*.sh", names: tools},
+		{word: "l?", names: tools},
+		{word: "?", names: tools},
+		{word: "{l,m}?", names: tools},
+		{word: "s[!d]d", names: tools},
+		{word: "'s*'d", names: tools},
+		{word: `sd\?`, names: tools},
+		{word: `"$dir"/*.sh`, names: tools},
+		{word: "n?", names: []string{"new"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.word, func(t *testing.T) {
+			file, err := shellwalk.Parse("echo " + tc.word)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			call, isCall := file.Stmts[0].Cmd.(*syntax.CallExpr)
+			if !isCall {
+				t.Fatal("the command should parse as a call")
+			}
+
+			if shellwalk.MayName(call.Args[1], tc.names...) != tc.mayName {
+				t.Error("a pattern should name a tool exactly where the shell's matching could expand it to one")
+			}
+		})
+	}
+}

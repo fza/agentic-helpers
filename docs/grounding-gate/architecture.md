@@ -107,7 +107,15 @@ a write into another repository's graph is scanned too. What it scans:
   expands into other words, since the words the gate reads are spelled, not expanded: an
   attachment it never read, or an `--attach` it never saw, could reach sdd. That is decided on the
   parsed word (`shellwalk.Patterned`), not its text: an unquoted, unescaped `*`, `?` or `[`, an
-  extended glob, or a brace expansion; quoted or escaped, the same characters are text.
+  extended glob, or a brace expansion; quoted or escaped, the same characters are text. A call
+  the gate would never classify as a write is refused the same way, before classifying, where its
+  patterned command word could expand to `sdd` or `agentic-capture`, or `sdd`'s patterned
+  subcommand to `new`: `shellwalk.MayName` brace-expands the word and matches the last path
+  element of each alternative as the shell matches a glob (`path.Match`, `[!...]` as `[^...]`,
+  lower-cased for a case-insensitive filesystem). It errs towards a match: an expansion inside
+  the word counts as any text after any `/`, and an extended glob, a POSIX class or a pattern
+  `path.Match` rejects match anything. A call behind a launcher counts as `callsCapture` counts
+  one: certain, or handed an argument.
 - **A call behind a launcher's options** the walk cannot place (`sudo -iD dir sdd new`,
   `flock lockfile agentic-capture d.md`) still counts as a write: `sdd new`, or `agentic-capture`
   handed an argument. It credits and checks no read.

@@ -55,7 +55,10 @@ reads the gate would weigh next go unread too:
   glob such as `@(...)`, or a brace expansion such as `{a,b}` or `{1..3}`, naming that word: the
   shell turns it into other words, so `run*.log` may attach files the gate never read and
   `--att{ach,x}` an `--attach` it never saw; quoted or escaped they stay text and are read, and a
-  draft header's `attach` is no shell word),
+  draft header's `attach` is no shell word; so is any call whose patterned command word could
+  expand to `sdd` or `agentic-capture`, `sd? new` or `{sdd,true} new`, or whose patterned `sdd`
+  subcommand could expand to `new`, `sdd n?w`, naming that word, while a pattern that cannot,
+  `./scripts/*.sh` or `l?`, is left alone),
   `it is relative after a directory change` (`cd`,
   `pushd`, `popd`, a launcher's chdir option, anywhere in the command), or
   `it is relative behind a launcher` (`env`, `sudo`, `xargs`, `nice`, `timeout`, `flock`,

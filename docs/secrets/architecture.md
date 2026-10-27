@@ -82,7 +82,9 @@ scan (standard input, a file not on disk, input it cannot decode), and leaves th
 - **What a launcher or an expansion would change.** The grounding gate does not resolve a path the
   shell would rewrite or a launcher would run elsewhere: it refuses it. An attachment path holding
   `$` or `~`, a plain `sdd new` or `agentic-capture` call with any argument holding an unquoted
-  glob or brace the shell would expand into other words, or a relative path after a directory
+  glob or brace the shell would expand into other words, a call whose patterned command word could
+  expand to `sdd` or `agentic-capture` (`sd? new`, `{sdd,true} new`) or whose patterned `sdd`
+  subcommand could expand to `new` (`sdd n?w`), or a relative path after a directory
   change or behind a launcher, is refused rather
   than guessed at, and so is a write it cannot place behind a launcher's options. A path written so
   that sdd reads one file and the gate another would need the gate to follow the shell, which it

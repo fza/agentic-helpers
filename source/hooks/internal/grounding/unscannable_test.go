@@ -327,6 +327,47 @@ func TestAStagedFileIsScanned(t *testing.T) {
 	})
 }
 
+func TestACallAPatternMayTurnIntoAWriteIsRefused(t *testing.T) {
+	cases := []struct {
+		command string
+		where   string
+	}{
+		{command: "sd? new d tac x", where: "sd?"},
+		{command: "s*", where: "s*"},
+		{command: "{sdd,true} new d tac x", where: "{sdd,true}"},
+		{command: "agentic-captur[e] d.md", where: "agentic-captur[e]"},
+		{command: "sdd n?w d tac x", where: "n?w"},
+		{command: "sdd n{e,o}w d tac x", where: "n{e,o}w"},
+		{command: "/usr/local/bin/SD? new d tac x", where: "/usr/local/bin/SD?"},
+		{command: "sudo sd? new d tac x", where: "sd?"},
+		{command: "*/sdd new d tac x", where: "*/sdd"},
+		{command: "bash -c 'sd? new d tac x'", where: "sd?"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			env := areaProject(t)
+			ground(t, env)
+
+			refuses(t, run(t, env, "gate", bash(tc.command)),
+				"GROUNDING GATE: refused. The capture names "+tc.where+
+					", which cannot be read to scan for a credential: it holds a shell glob or brace")
+		})
+	}
+
+	for _, command := range []string{"./scripts/*.sh", "l? -la", "echo s*", "find . -name s*", "sdd l?"} {
+		t.Run(command, func(t *testing.T) {
+			env := areaProject(t)
+			ground(t, env)
+
+			got := run(t, env, "gate", bash(command))
+			if strings.Contains(got.said, "shell glob or brace") {
+				t.Errorf("a pattern that cannot name sdd new or agentic-capture should not be refused as one, got: %s", got.said)
+			}
+		})
+	}
+}
+
 func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 	const (
 		expansion = "it holds a shell expansion"

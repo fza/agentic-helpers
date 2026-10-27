@@ -18,6 +18,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 const mcpStageAttachment = "mcp__sdd__stage_attachment"
@@ -113,13 +114,23 @@ func leaksCredential(ctx context.Context, env Env, payload hookio.Payload) (stri
 }
 
 func (held *scan) command(ctx context.Context, env Env, command string) {
+	heard := spokenIn(command, false)
+
+	for _, stretch := range heard {
+		for _, called := range stretch.calls {
+			word := patternedWrite(called)
+			if word != "" {
+				held.cannot(refusal("credential-unresolved.txt", "{where}", word, "{why}", "it holds a shell glob or brace"))
+			}
+		}
+	}
+
 	if writeIn(command) == writesNothing {
 		return
 	}
 
 	held.text(ctx, command, "", "the command")
 
-	heard := spokenIn(command, false)
 	moved := false
 
 	for _, stretch := range heard {
@@ -141,17 +152,38 @@ func (held *scan) command(ctx context.Context, env Env, command string) {
 }
 
 // patterned refuses a write call holding a word the shell may expand into
-// others, a glob or a brace, in any argument: the words the gate reads are
+// others, a glob or a brace, in any word: the words the gate reads are
 // spelled, not expanded, so `--att{ach,x} f` or `--attac?=f` may reach sdd as
 // an `--attach` the gate never saw, and `run*.log` as files it never read.
 func (held *scan) patterned(called call) {
-	for index, patterned := range called.patterned[1:] {
+	for index, patterned := range called.patterned {
 		if patterned {
-			held.cannot(refusal("credential-unresolved.txt", "{where}", called.words[index+1], "{why}", "it holds a shell glob or brace"))
+			held.cannot(refusal("credential-unresolved.txt", "{where}", called.words[index], "{why}", "it holds a shell glob or brace"))
 
 			return
 		}
 	}
+}
+
+// patternedWrite is the word that may make a call a graph write once the shell
+// expands it, or nothing: a command word whose pattern could name `sdd` or
+// `agentic-capture` (`sd? new`, `{sdd,true} new`), or `sdd`'s subcommand
+// whose pattern could name `new` (`sdd n?w`). The gate never classifies such
+// a call as a write, so it would otherwise go unscanned. An uncertain call
+// counts where it is handed an argument, as callsCapture counts one.
+func patternedWrite(called call) string {
+	if !called.certain && len(called.words) < 2 {
+		return ""
+	}
+
+	switch {
+	case called.patterned[0] && shellwalk.MayName(called.args[0], "sdd", "agentic-capture"):
+		return called.words[0]
+	case called.name == "sdd" && len(called.words) > 1 && called.patterned[1] && shellwalk.MayName(called.args[1], "new"):
+		return called.words[1]
+	}
+
+	return ""
 }
 
 // unanchored says why a relative attachment of the call cannot be placed, or
