@@ -5,7 +5,8 @@
 // the sdd fork's scanner does, so both refuse the same strings. A finding
 // names the rule and the line, never the matched text: a caller refuses the
 // write rather than redacting it, since a redacted copy beside a missed
-// variant of the same credential is worse than a refusal.
+// variant of the same credential is worse than a refusal. Tool output, which
+// has no write to refuse, is the one place lines are withheld instead.
 package secrets
 
 import (

@@ -9,6 +9,9 @@
 // for any other interpreter cannot be parsed, so naming a removal or mktemp
 // there is judged by the nested-code guard.
 //
+// After every tool call, Output withholds each line of output from outside
+// the project that looks like a credential.
+//
 // Unlike every other piece it has no directory to wait for: it judges every
 // Bash call of every project.
 package shellguard

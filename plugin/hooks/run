@@ -11,7 +11,9 @@
 #
 # With no binary at all, the grounding gate refuses (exit 2) rather than let
 # work run ungrounded, shell-guard refuses (exit 2) rather than let a Bash call
-# run unguarded, and every other hook does nothing (exit 0). One notice
+# run unguarded, its output scan says the output went unscanned (exit 1, which
+# cannot block a call that has run), and every other hook does nothing (exit
+# 0). One notice
 # says why, at the SessionStart that failed to fetch. A command an agent runs
 # from the plugin's bin/, and the plugin's MCP server (--command), fetches a
 # missing release too, waiting on the lock a SessionStart fetch holds, since
@@ -243,6 +245,11 @@ fi
 if [ "$binary" = agentic-grounding-gate ] && [ "${1:-}" = gate ]; then
 	echo "agentic-helpers: no agentic-grounding-gate binary is installed, so the grounding gate refuses every call; start a session with network so release v$version can be fetched, or set AGENTIC_HELPERS_BIN_DIR" >&2
 	exit 2
+fi
+
+if [ "$binary" = agentic-shell-guard ] && [ "${1:-}" = output ]; then
+	echo "agentic-helpers: no agentic-shell-guard binary is installed, so tool output reaches the agent unscanned; start a session with network so release v$version can be fetched, or set AGENTIC_HELPERS_BIN_DIR" >&2
+	exit 1
 fi
 
 if [ "$binary" = agentic-shell-guard ]; then

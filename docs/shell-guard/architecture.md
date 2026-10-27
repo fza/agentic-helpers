@@ -6,7 +6,9 @@
 `tool_input.command`, and answers `permissionDecision` `deny` or `ask` with a reason, or nothing to
 let the call run. A call it cannot read, and a panic, exit 2, which blocks the call; any other exit
 would let it run. `agentic-shell-guard permission` is its `PermissionRequest` hook on `Bash`, which
-ends an ask in `auto` and `bypassPermissions` mode (see Permission modes).
+ends an ask in `auto` and `bypassPermissions` mode (see Permission modes). `agentic-shell-guard
+output` is its `PostToolUse` hook on every tool, which withholds credentials from tool output (see
+Tool output).
 
 ## Parsing
 
@@ -89,12 +91,57 @@ inline code. Any other guard's verdict found inside nested code counts as found 
 Every guard adds a verdict; `deny` outranks `ask`, which outranks letting the call run, and the first
 reason given for the strongest stands.
 
+## Tool output
+
+`agentic-shell-guard output` (`shellguard.Output`) answers `PostToolUse` for every tool, wired in
+the `hooks.json` group without a matcher. It reads `cwd`, `tool_name`, `tool_input` and
+`tool_response`, and returns nothing, which leaves the output as the tool returned it, unless it
+withholds a line: then `hookSpecificOutput.updatedToolOutput`, which Claude Code shows the agent in
+place of the tool's output, and `additionalContext` with the note. It returns before reading stdin
+when the piece is off or `shell_guard_secret_output` is `off`, and before scanning when the tool
+matches `shell_guard_secret_output_skip` or its output counts as the project's, so neither costs a
+scan.
+
+**Outside the project.** The project is `$CLAUDE_PROJECT_DIR` through its symlinks, none where it is
+unset, `/` or the home directory, as for removals. A path is inside when it resolves, against `cwd`
+for a relative one and through every symlink it passes (a file symlink included), to the project or
+below it; `~user`, a brace, a `..` step and a dot glob resolve to nothing, which is outside. Read
+and NotebookRead judge `file_path` and `notebook_path`, Grep `path` or `cwd`. Bash is judged by
+`ReadsOnlyProject`: the command is parsed, walked with `syntax.Walk` for statements (only simple
+commands, pipelines and lists, subshells and blocks; no assignment; every redirection a literal
+project path, `/dev/null`, a descriptor, or a here-document or here-string with no expansion) and
+with `shellwalk.Walk` for every call, those a launcher or a substitution runs included. Each
+call's words must be literal and unpatterned, its name one of the readers, and every word but the
+reader's program words inside the project, an option's `=value` included. No reader changes
+directory or runs code, so `cd`, `pushd`, a launcher's chdir option, a shell, `eval` and every
+interpreter fail on their name, before any nested code they carry is reached. `programWords` finds those words and holds them to reading nothing: grep's pattern (and
+no `-R`), sed's scripts through a small parser of the commands that touch no file, jq's filter
+(no `env`, `$ENV`, `import`, `include`, no `-f`, `-L`, `--args`) and its `--arg` values. Every
+other word counts as a path because telling a file from a count or a pattern is each reader's own
+knowledge; one that only looks like an outside path costs a redaction, never a leak. Under `files`
+every tool but Read, Grep, NotebookRead and Bash is left alone; under `all` it is outside.
+
+**The redaction.** The response is decoded with numbers kept as written, and every string value
+(`mapStrings`), at any depth, is scanned by `secrets.Scan` with no file name. Each finding covers
+the lines from `Line` to `LastLine`; each covered line becomes
+`[agentic-shell-guard: credential withheld (<rule ids>)]`, the distinct rules on it sorted, and the
+string is joined again, so every other line, key, number and boolean keeps its place and the output
+keeps the tool's shape. A finding of rule `scan-incomplete`, or an ended context, withholds every
+non-empty string of the response whole, with that rule, and the note says the scan could not
+finish. The count in the note is the lines withheld.
+
+**Failures.** The tool has already run, so the hook cannot block anything: a payload it cannot read,
+a panic and an answer it cannot write say so on stderr and exit 1, a non-blocking error Claude Code
+shows the user, and the output passes as returned. The launcher, finding no binary, does the same.
+
 ## Options
 
 `internal/pluginconfig` reads every `shell_guard_*` option from the user and managed settings
 files, as every other piece does. `shell_guard_ask_timeout` below 0 reads as 0 and above 3600 as
 3600, under the hook's own `timeout` in `hooks.json` (3660 seconds), past which Claude Code would
-stop the hook before it denies. A mode other than `ask`, `deny` or `off`, or a file it cannot read,
+stop the hook before it denies. `shell_guard_secret_output` takes `all`, `files` or `off`, empty
+reading as `all`; `shell_guard_secret_output_skip` is kept as written and split on commas by the
+hook. A mode other than those a guard takes, or a file it cannot read,
 leaves every option at its default, so a typo never switches a guard off.
 
 ## Permission modes

@@ -316,7 +316,7 @@ func TestTheHookArgumentsAreChecked(t *testing.T) {
 	status := shellguard.Run(context.Background(), []string{"sometimes"}, shellguard.Env{}, shellguard.Streams{
 		In: strings.NewReader("{}"), Out: &out, Err: &errs,
 	})
-	if status != 2 || !strings.Contains(errs.String(), "usage: agentic-shell-guard [permission]") {
+	if status != 2 || !strings.Contains(errs.String(), "usage: agentic-shell-guard [permission|output]") {
 		t.Errorf("an unknown event should refuse with the usage, exit %d: %s", status, errs.String())
 	}
 }

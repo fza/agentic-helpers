@@ -1,0 +1,8 @@
+# Provider settings for the embedding endpoint.
+provider: openai
+model: embedding-small
+# token: {token}
+endpoint: http://127.0.0.1:1235
+# the deploy key, kept here for now:
+{key}
+dimensions: 256

@@ -4,7 +4,7 @@ A stray `rm -rf` outside the project is the one mistake an agent cannot undo, an
 such as `cd ~ && rm -rf x` slips past any rule that reads targets without parsing the command.
 `agentic-shell-guard` runs before every Bash call, parses the command as bash, and holds an agent's
 removals (`rm`, `rmdir`, `unlink`, `git rm`) to the project and `/tmp`, asks before `find -delete`
-and before a command holding what looks like a credential, and bans `mktemp`. A removal named inside a quoted argument (a sed script, a grep pattern, a commit
+and before a command holding what looks like a credential, and bans `mktemp`. After every tool call it withholds each line of output from outside the project that looks like a credential (see [Credentials in tool output](#credentials-in-tool-output)). A removal named inside a quoted argument (a sed script, a grep pattern, a commit
 message) is text and passes; code handed to `eval`, `trap`, a shell's `-c`, or a shell's standard
 input by a here-document or here-string is parsed again.
 
@@ -98,6 +98,67 @@ command; refusing` on stderr. With no `agentic-shell-guard` binary installed, th
 refuses every Bash call the same way:
 `agentic-helpers: no agentic-shell-guard binary is installed, so shell-guard refuses every Bash call; start a session with network so release v<version> can be fetched, or set AGENTIC_HELPERS_BIN_DIR`.
 
+## Credentials in tool output
+
+An agent reading a file outside the project, such as `~/.config/sdd/config.yaml` with provider keys
+in its comments, takes every key into its context, where it can be quoted, filed or sent on. The
+guard before a Bash call cannot see what a glob, a script or a variable reads, so a second hook,
+`agentic-shell-guard output`, runs after every tool call and scans what the tool returned with the
+shared [credential scanner](../secrets/usage.md). Each line of output from outside the project that
+holds what looks like a credential reaches the agent as
+
+    [agentic-shell-guard: credential withheld (<rule ids>)]
+
+and the rest of the output as the tool returned it, with the note
+`agentic-shell-guard: <n> line(s) of this <tool> output held what looks like a credential and were withheld; the source is unchanged`.
+A key over several lines is withheld on every line it spans. Output with nothing to withhold is left
+alone, the hook answering nothing.
+
+Where output counts as outside the project:
+
+| Tool | Outside |
+|---|---|
+| Read, NotebookRead | the file named lies outside the project once its symlinks are resolved |
+| Grep | the path searched, or the working directory where it names none, lies outside the project |
+| Bash | unless every command is a known reader (below), every path it names lies inside the project, and nothing else runs |
+| every other tool (WebFetch, MCP tools, a subagent's answer) | always, under `shell_guard_secret_output` `all` |
+
+A Bash call shows the project as is only when:
+
+- every command is `cat`, `head`, `tail`, `grep`, `egrep`, `fgrep`, `sed`, `wc`, `sort`, `uniq`,
+  `cut`, `tr`, `nl` or `jq`, named bare (`/bin/cat` is not), with no assignment before it;
+- every word is a literal with no glob or brace, and every word but the reader's own program
+  (a grep pattern, a sed script, a jq filter and its `--arg` values) resolves inside the project;
+- it changes no directory, holds no nested code (`eval`, a shell's `-c`, a script, a substitution),
+  and redirects only from or to project files, `/dev/null` or another descriptor;
+- the reader's own program reads no other file and runs nothing: no `grep -R` (it follows
+  symlinks out of a named directory), a sed script made only of addresses, `!`, braces, `s` and `y`
+  without the `w` or `e` flag, and `p`, `d`, `D`, `n`, `N`, `g`, `G`, `h`, `H`, `x`, `l`, `P`,
+  `z`, `=`, `q`, `Q` (no `r`, `w`, `e` or `-f`, no `-i`), a jq filter naming no `env`, `$ENV`,
+  `import` or `include` and no `-f`, `-L`, `--args`; no `--files0-from` or `--compress-program`.
+
+`awk` is no reader here: its program can read any file and run commands. Any other call, a script
+or a test run included, has its output scanned; a project script printing a project credential is
+redacted too.
+
+| Option | Values | Default | Sets |
+|---|---|---|---|
+| `shell_guard_secret_output` | `all`, `files`, `off` | `all` | which output is scanned: every tool's, only Read, Grep, NotebookRead and Bash, or none |
+| `shell_guard_secret_output_skip` | comma-separated tool names or patterns | none | tools whose output is never scanned, as `path.Match` reads a pattern (`mcp__sdd__*`); a pattern that does not compile skips nothing |
+
+- **A scan that cannot finish withholds everything**: every string of the output becomes the marker
+  with rule `scan-incomplete`, and the note says
+  `agentic-shell-guard: the credential scan of this <tool> output could not finish, so all of it was withheld (<n> line(s)); the source is unchanged`.
+- **The tool has run**: only what it returns is withheld. A command that sends a file elsewhere
+  without printing it is not covered, and a whole line is withheld, its other text with it.
+- **A failure lets the output through and says so**, exit 1, which Claude Code shows the user:
+  `agentic-shell-guard: could not read the tool output; it reached the agent unscanned`,
+  `agentic-shell-guard: internal failure; the tool output reached the agent unscanned` or
+  `agentic-shell-guard: could not answer; the tool output reached the agent unscanned`. With no
+  binary installed the launcher says
+  `agentic-helpers: no agentic-shell-guard binary is installed, so tool output reaches the agent unscanned; ...`,
+  exit 1.
+
 ## What it does not stop
 
 shell-guard holds a careless command, not an agent set on getting around it: a command named
@@ -121,6 +182,7 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
         "shell_guard_outside_project": "deny",
         "shell_guard_find_delete": "ask",
         "shell_guard_secrets": "ask",
+        "shell_guard_secret_output": "all",
         "shell_guard_lone_removal": true,
         "shell_guard_expansion": true,
         "shell_guard_nested_code": true,
@@ -134,4 +196,4 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
 
 ## Off on the machine
 
-The plugin option `shell_guard_enabled` switches shell-guard on or off for the machine, on unless set. Off, every Bash call runs unjudged. With `scratch_enabled` off, the `mktemp` ban is off whatever `shell_guard_mktemp` says, and every other guard still judges.
+The plugin option `shell_guard_enabled` switches shell-guard on or off for the machine, on unless set. Off, every Bash call runs unjudged and no tool output is scanned. With `scratch_enabled` off, the `mktemp` ban is off whatever `shell_guard_mktemp` says, and every other guard still judges.

@@ -201,6 +201,18 @@
       "description": "ask, deny or off for a Bash command holding what looks like a credential (a token, a key); empty means ask",
       "required": false
     },
+    "shell_guard_secret_output": {
+      "type": "string",
+      "title": "Shell-guard: credentials in tool output",
+      "description": "all, files or off: withhold each line looking like a credential from tool output that comes from outside the project; files limits it to Read, Grep, NotebookRead and Bash; empty means all",
+      "required": false
+    },
+    "shell_guard_secret_output_skip": {
+      "type": "string",
+      "title": "Shell-guard: tools whose output is never withheld",
+      "description": "Comma-separated tool names or patterns, e.g. WebFetch, mcp__sdd__*; empty means none",
+      "required": false
+    },
     "shell_guard_ask_timeout": {
       "type": "number",
       "title": "Shell-guard: ask countdown",

@@ -139,6 +139,41 @@ func TestTheGateSeesSddsMCPTools(t *testing.T) {
 	}
 }
 
+func TestShellGuardScansEveryToolsOutput(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
+	if err != nil {
+		t.Fatalf("reading hooks.json: %v", err)
+	}
+
+	var wiring struct {
+		Hooks map[string][]struct {
+			Matcher *string `json:"matcher"`
+			Hooks   []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+
+	err = json.Unmarshal(content, &wiring)
+	if err != nil {
+		t.Fatalf("parsing hooks.json: %v", err)
+	}
+
+	everyTool := false
+
+	for _, group := range wiring.Hooks["PostToolUse"] {
+		for _, hook := range group.Hooks {
+			if strings.HasSuffix(hook.Command, "agentic-shell-guard output") {
+				everyTool = everyTool || group.Matcher == nil || *group.Matcher == "" || *group.Matcher == "*"
+			}
+		}
+	}
+
+	if !everyTool {
+		t.Error("agentic-shell-guard output should run after every tool, its group matching all of them")
+	}
+}
+
 func TestTheMCPServerRunsThroughTheCommandLauncher(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(pluginRoot, ".mcp.json"))
 	if err != nil {
@@ -584,9 +619,12 @@ func TestNoBinaryAtAll(t *testing.T) {
 		args   []string
 		code   int
 		notice bool
+		says   string
 	}{
 		{name: "the gate refuses", args: []string{"agentic-grounding-gate", "gate"}, code: 2},
 		{name: "shell-guard refuses", args: []string{"agentic-shell-guard"}, code: 2},
+		{name: "shell-guard's output scan says the output went unscanned", args: []string{"agentic-shell-guard", "output"}, code: 1,
+			says: "tool output reaches the agent unscanned"},
 		{name: "a session start says why once", args: []string{"--session-start", "agentic-scratch", "start"}, notice: true},
 		{name: "any other hook stays quiet", args: []string{"agentic-memory", "prompt"}},
 		{name: "the gate's own record stays quiet", args: []string{"agentic-grounding-gate", "record"}},
@@ -604,6 +642,10 @@ func TestNoBinaryAtAll(t *testing.T) {
 
 			if tc.code != 0 && !strings.Contains(got.Stderr, "start a session with network") {
 				t.Errorf("the refusal should name the fix, got: %+v", got)
+			}
+
+			if !strings.Contains(got.Stderr, tc.says) {
+				t.Errorf("the launcher should say what goes without the binary, got: %+v", got)
 			}
 
 			notices := strings.Count(got.Stdout, "agentic-helpers:")

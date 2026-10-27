@@ -1,5 +1,5 @@
 {
-  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-shell-guard, on Bash, holds removals to the project and bans mktemp, and as agentic-shell-guard permission ends its asks with a countdown in auto and bypassPermissions mode; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; agentic-tools offers tools near a prompt and notes newer versions and unregistered scripts; agentic-helpers check names features off because a piece they rest on is off; register.ts writes agentic-memory's context reading",
+  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-shell-guard, on Bash, holds removals to the project and bans mktemp, and as agentic-shell-guard permission ends its asks with a countdown in auto and bypassPermissions mode, and as agentic-shell-guard output, after every tool, withholds each output line from outside the project that looks like a credential; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; agentic-tools offers tools near a prompt and notes newer versions and unregistered scripts; agentic-helpers check names features off because a piece they rest on is off; register.ts writes agentic-memory's context reading",
   "modules": ["./register.ts"],
   "hooks": {
     "SessionStart": [
@@ -71,6 +71,7 @@
       },
       {
         "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-shell-guard output", "timeout": 30 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory tool", "timeout": 15 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-tools notice", "timeout": 15 }
         ]

@@ -27,7 +27,7 @@ files goes into `plugin/`.
 | PreToolUse on `Bash` | `agentic-shell-guard` |
 | PermissionRequest on `Bash` | `agentic-shell-guard permission`, with a timeout past the longest countdown `shell_guard_ask_timeout` allows |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next`, `Write`, `Edit` | `agentic-grounding-gate record` |
-| PostToolUse on every tool | `agentic-memory tool`, `agentic-tools notice` |
+| PostToolUse on every tool | `agentic-shell-guard output`, `agentic-memory tool`, `agentic-tools notice` |
 | Stop | `agentic-memory stop`, `agentic-tools stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
 | SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end` |
 
@@ -44,9 +44,10 @@ the release named by the plugin's own `version`, kept under the plugin's data di
    is unpacked only where its sha256 matches. A prompt or a tool-call hook never downloads.
 4. Otherwise the newest version already there runs. A session that cannot write the data directory,
    such as a sandboxed job, runs what an earlier session fetched.
-5. No binary at all: the grounding gate refuses every call it guards, with a message naming the fix,
-   rather than letting work run ungrounded, and every other hook does nothing. The SessionStart that
-   failed to fetch says why, once.
+5. No binary at all: the grounding gate refuses every call it guards and shell-guard every Bash
+   call, each with a message naming the fix, rather than letting work run ungrounded or unguarded;
+   shell-guard's output scan says on stderr, exit 1, that tool output reaches the agent unscanned;
+   every other hook does nothing. The SessionStart that failed to fetch says why, once.
 
 The archive is unpacked in the fetch's work directory and renamed into place, so a version
 directory is complete or absent.

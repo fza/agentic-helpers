@@ -1,7 +1,9 @@
 // Command agentic-shell-guard is the Claude Code PreToolUse hook on Bash that
 // holds an agent's removals to the project and /tmp and bans mktemp, and, as
 // `agentic-shell-guard permission`, the PermissionRequest hook that ends its
-// asks in auto and bypassPermissions mode.
+// asks in auto and bypassPermissions mode, and, as `agentic-shell-guard output`,
+// the PostToolUse hook on every tool that withholds each output line from
+// outside the project looking like a credential.
 package main
 
 import (

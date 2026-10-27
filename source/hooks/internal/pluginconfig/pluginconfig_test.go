@@ -29,6 +29,15 @@ func TestEveryShellGuardThatCanAskAsksByDefault(t *testing.T) {
 	}
 }
 
+func TestTheSecretOutputScanCoversEveryToolUnlessSet(t *testing.T) {
+	defaults := pluginconfig.Defaults()
+
+	if defaults.ShellGuardSecretOutput != pluginconfig.SecretOutputAll || defaults.ShellGuardSecretOutputSkip != "" {
+		t.Errorf("every tool's output from outside the project should be scanned unless set, got %q skipping %q",
+			defaults.ShellGuardSecretOutput, defaults.ShellGuardSecretOutputSkip)
+	}
+}
+
 func TestRead(t *testing.T) {
 	const own = `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":`
 
@@ -146,6 +155,28 @@ func TestRead(t *testing.T) {
 		{
 			name:    "a secrets mode of another word is an error",
 			user:    own + `{"shell_guard_secrets":"never"}}}}`,
+			wantErr: true,
+		},
+		{
+			name: "a secret output mode and the tools it skips",
+			user: own + `{"shell_guard_secret_output":"files","shell_guard_secret_output_skip":"WebFetch, mcp__sdd__*"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) {
+				options.ShellGuardSecretOutput, options.ShellGuardSecretOutputSkip = "files", "WebFetch, mcp__sdd__*"
+			}),
+		},
+		{
+			name: "the secret output scan off",
+			user: own + `{"shell_guard_secret_output":"off"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ShellGuardSecretOutput = "off" }),
+		},
+		{
+			name: "an empty secret output mode keeps all",
+			user: own + `{"shell_guard_secret_output":""}}}}`,
+			want: defaultsWith(func(*pluginconfig.Options) {}),
+		},
+		{
+			name:    "a secret output mode of another word is an error",
+			user:    own + `{"shell_guard_secret_output":"ask"}}}}`,
 			wantErr: true,
 		},
 		{

@@ -27,6 +27,14 @@ const (
 	ShellGuardOff  = "off"
 )
 
+// SecretOutputAll / SecretOutputFiles are the settings of
+// `shell_guard_secret_output` besides `off`: scan every tool's output from
+// outside the project, or only that of Read, Grep, NotebookRead and Bash.
+const (
+	SecretOutputAll   = "all"
+	SecretOutputFiles = "files"
+)
+
 // DefaultShellGuardAskTimeout / MaxShellGuardAskTimeout bound the seconds
 // shell-guard's ask waits for an answer in auto and bypassPermissions mode. The
 // ceiling stays under the PermissionRequest hook's own timeout in hooks.json,
@@ -103,6 +111,11 @@ type Options struct {
 	ShellGuardExpansion      bool
 	ShellGuardNestedCode     bool
 	ShellGuardMktemp         bool
+	// ShellGuardSecretOutput is `all`, `files` or `off`;
+	// ShellGuardSecretOutputSkip the comma-separated tool names or patterns
+	// whose output is never redacted.
+	ShellGuardSecretOutput     string
+	ShellGuardSecretOutputSkip string
 	// ShellGuardAskTimeout is the seconds an ask waits in auto and
 	// bypassPermissions mode before it denies; 0 waits without limit.
 	ShellGuardAskTimeout int
@@ -127,6 +140,7 @@ var Keys = []string{
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
+	"shell_guard_secret_output", "shell_guard_secret_output_skip",
 	"memory_enabled", "tools_enabled", "scratch_enabled", "grounding_gate_enabled", "capture_enabled",
 	"shell_guard_enabled",
 }
@@ -280,20 +294,21 @@ func Defaults() Options {
 		ToolsQueryFloor:          DefaultToolsQueryFloor,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
-		ShellGuardAskTimeout: DefaultShellGuardAskTimeout,
-		MemoryEnabled:        true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
+		ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
+		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
 		ShellGuardEnabled: true,
 	}
 }
 
 func (options *Options) apply(values map[string]json.RawMessage) error {
 	texts := map[string]*string{
-		"embedding_provider":      &options.EmbeddingProvider,
-		"embedding_model":         &options.EmbeddingModel,
-		"embedding_endpoint":      &options.EmbeddingEndpoint,
-		"embedding_api_key_env":   &options.EmbeddingAPIKeyEnv,
-		"memory_language":         &options.MemoryLanguage,
-		"temporary_seat_lifetime": &options.TemporarySeatLifetime,
+		"embedding_provider":             &options.EmbeddingProvider,
+		"embedding_model":                &options.EmbeddingModel,
+		"embedding_endpoint":             &options.EmbeddingEndpoint,
+		"embedding_api_key_env":          &options.EmbeddingAPIKeyEnv,
+		"memory_language":                &options.MemoryLanguage,
+		"temporary_seat_lifetime":        &options.TemporarySeatLifetime,
+		"shell_guard_secret_output_skip": &options.ShellGuardSecretOutputSkip,
 	}
 
 	for key, target := range texts {
@@ -372,6 +387,16 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
+	raw, found := values["shell_guard_secret_output"]
+	if found {
+		value, err := outputMode(raw, options.ShellGuardSecretOutput)
+		if err != nil {
+			return fmt.Errorf("shell_guard_secret_output: %w", err)
+		}
+
+		options.ShellGuardSecretOutput = value
+	}
+
 	switches := map[string]*bool{
 		"memory_require_git":       &options.MemoryRequireGit,
 		"memory_turns_off_auto":    &options.MemoryTurnsOffAuto,
@@ -421,6 +446,25 @@ func mode(raw json.RawMessage, fallback string) (string, error) {
 	}
 
 	return "", fmt.Errorf("%q is none of ask, deny, off", value)
+}
+
+// outputMode accepts `all`, `files` or `off`; an empty string keeps fallback.
+func outputMode(raw json.RawMessage, fallback string) (string, error) {
+	var value string
+
+	err := json.Unmarshal(raw, &value)
+	if err != nil {
+		return "", fmt.Errorf("%s is not a string", raw)
+	}
+
+	switch value {
+	case "":
+		return fallback, nil
+	case SecretOutputAll, SecretOutputFiles, ShellGuardOff:
+		return value, nil
+	}
+
+	return "", fmt.Errorf("%q is none of all, files, off", value)
 }
 
 // boolean accepts a JSON boolean or the string the dialog may store for one.

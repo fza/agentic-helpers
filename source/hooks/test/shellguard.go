@@ -1,8 +1,10 @@
 package test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -49,4 +51,31 @@ func NewGuardTree(t *testing.T, scratch bool) GuardTree {
 	}
 
 	return tree
+}
+
+// ProviderConfig is a settings file holding a token on one line and a private
+// key over several, built from the credential samples: the token's and the
+// key's lines are what a redaction withholds, every other line what it keeps.
+func ProviderConfig(t *testing.T) (string, string, string) {
+	t.Helper()
+
+	token := SecretFixture(t, "positive/github-pat.txt")
+	key := SecretFixture(t, "positive/private-key.txt")
+	content := strings.NewReplacer("{token}", token, "{key}", key).Replace(Fixture(t, "shellguard/provider-config.yaml"))
+
+	return content, token, key
+}
+
+// PostToolUse is the payload Claude Code hands a PostToolUse hook.
+func PostToolUse(t *testing.T, cwd string, tool string, input any, response any) []byte {
+	t.Helper()
+
+	encoded, err := json.Marshal(map[string]any{
+		"hook_event_name": "PostToolUse", "cwd": cwd, "tool_name": tool, "tool_input": input, "tool_response": response,
+	})
+	if err != nil {
+		t.Fatalf("encoding the tool call: %v", err)
+	}
+
+	return encoded
 }

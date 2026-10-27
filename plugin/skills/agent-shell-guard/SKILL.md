@@ -1,6 +1,6 @@
 ---
 name: agent-shell-guard
-description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
+description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
 license: MIT
 ---
 
@@ -77,6 +77,36 @@ The user may set these to `deny`. Then a removal outside the project is theirs: 
 `! rm ...` themselves. Never route around a refusal (another interpreter, a wrapper, a script): the
 guard exists for exactly that call.
 
+## Withheld output
+
+`agentic-shell-guard output` runs after every tool call. A line of output from outside the project
+that looks like a credential reaches you as
+
+    [agentic-shell-guard: credential withheld (<rule ids>)]
+
+with the note
+`agentic-shell-guard: <n> line(s) of this <tool> output held what looks like a credential and were withheld; the source is unchanged`.
+Every other line is as the tool returned it. The file or response itself is untouched.
+
+| Output | Counts as |
+|---|---|
+| Read, Grep, NotebookRead | by the path named: inside the project (through symlinks) → shown whole |
+| Bash | shown whole only when every command is `cat`, `head`, `tail`, `grep`, `egrep`, `fgrep`, `sed`, `wc`, `sort`, `uniq`, `cut`, `tr`, `nl` or `jq`, by bare name, every word literal and every path inside the project, no `cd`, no glob, no variable, no script, no nested code. Anything else, a test run included → scanned |
+| every other tool (WebFetch, MCP tools, a subagent) | outside |
+
+- **Need the value?** Don't read it. Use it by reference: `"$NAME"` or a file a command reads at
+  run time. Never route around the marker (another tool, an encoding, a copy into the project).
+- **A credential in a project file you must fix** → Read it by its project path; it shows whole.
+- `agentic-shell-guard: the credential scan of this <tool> output could not finish, so all of it was withheld (<n> line(s)); the source is unchanged`
+  → every string replaced by the marker with `scan-incomplete`. Run the same call again.
+- `agentic-shell-guard: could not read the tool output; it reached the agent unscanned`,
+  `agentic-shell-guard: internal failure; the tool output reached the agent unscanned` and
+  `agentic-shell-guard: could not answer; the tool output reached the agent unscanned` go to the
+  user; the output passed as the tool returned it.
+
+The user sets `shell_guard_secret_output` (`all` unless set, `files` for Read, Grep, NotebookRead
+and Bash only, `off`) and `shell_guard_secret_output_skip` (tool names or patterns never scanned).
+
 ## Fails closed
 
 - **Unreadable call** → blocked: `agentic-shell-guard: could not read the command; refusing`. The
@@ -88,4 +118,4 @@ guard exists for exactly that call.
 
 ## Off on the machine
 
-**Off on the machine** (`shell_guard_enabled: false`) → every Bash call runs unjudged; removals stay yours to keep inside the project. With `scratch_enabled` off, `mktemp` passes.
+**Off on the machine** (`shell_guard_enabled: false`) → every Bash call runs unjudged and no output is withheld; removals stay yours to keep inside the project. With `scratch_enabled` off, `mktemp` passes.
