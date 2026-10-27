@@ -1,6 +1,6 @@
 {
   "name": "agentic-helpers",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "description": "agentic-memory, the scratch sweep and grounding gate hooks, agentic-capture, and a skill for each",
   "author": {
     "name": "Felix Zandanel"
