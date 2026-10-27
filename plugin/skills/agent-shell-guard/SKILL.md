@@ -90,7 +90,8 @@ Every other line is as the tool returned it. The file or response itself is unto
 
 | Output | Counts as |
 |---|---|
-| Read, Grep, NotebookRead, Edit, Write, NotebookEdit | by the path named: inside the project (through symlinks) → shown whole |
+| Read, Grep, NotebookRead | by the path named: inside the project (through symlinks) → shown whole |
+| Edit, Write, NotebookEdit | always scanned, project files included: a credential line in the file they echo comes back withheld; the file itself is written as asked |
 | Bash | shown whole only when every command is `cat`, `head`, `tail`, `grep`, `egrep`, `fgrep`, `sed`, `wc`, `sort`, `uniq`, `cut`, `tr`, `nl` or `jq`, by bare name, only options on its list, all before the first operand (long ones spelled in full), every word literal, every file existing inside the project, no `cd`, no glob, no variable, no script, no nested code. Anything else, a test run included → scanned |
 | every other tool (WebFetch, MCP tools, a subagent) | outside |
 

@@ -106,10 +106,12 @@ scan.
 unset, `/` or the home directory, as for removals. A path is inside when it resolves, against `cwd`
 for a relative one and through every symlink it passes (a file symlink included), to the project or
 below it. A path that does not resolve counts as outside: `~user`, a brace, a `..` step, a dot glob,
-a dangling link, a file that does not exist. Read, Edit and Write judge `file_path`, NotebookRead
-and NotebookEdit `notebook_path`, Grep `path` or `cwd`, and a tool input that is no object counts as
-outside. Edit, Write and NotebookEdit are judged as readers, since Edit's response carries
-`originalFile`, the whole file it edited. Bash is
+a dangling link, a file that does not exist. Read judges `file_path`, NotebookRead `notebook_path`,
+Grep `path` or `cwd`, and a tool input that is no object counts as outside. Edit, Write and
+NotebookEdit always count as outside, under `all` and `files` alike, whatever their path: Edit's
+response carries `originalFile`, the whole file it edited, and the path could only be judged after
+the write, when a link swapped in between would steer where it resolves. Inside the project the
+cost is a withheld line in the file they echo. Bash is
 judged by `ReadsOnlyProject`: `cwd` must be inside the project, and the command is parsed, walked
 with `syntax.Walk` for statements (only simple commands, pipelines and lists, subshells and blocks;
 no assignment; every redirection a literal project path, `/dev/null`, a descriptor, or a

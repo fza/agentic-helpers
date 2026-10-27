@@ -23,9 +23,13 @@ const (
 	reasonOutputAnswer  = "could not answer; the tool output reached the agent unscanned"
 )
 
-// fileTools are the tools judged by what they read or write, under `all` and
-// `files` alike; every other tool's output is scanned only under `all`.
-var fileTools = []string{"Read", "Grep", "NotebookRead", "Edit", "Write", "NotebookEdit", "Bash"}
+// fileTools are the tools judged by what they read, and editTools those whose
+// output is always scanned, under `all` and `files` alike; every other tool's
+// output is scanned only under `all`.
+var (
+	fileTools = []string{"Read", "Grep", "NotebookRead", "Bash"}
+	editTools = []string{"Edit", "Write", "NotebookEdit"}
+)
 
 type outputPayload struct {
 	Cwd          string          `json:"cwd"`
@@ -154,10 +158,17 @@ func skipped(list string, tool string) bool {
 }
 
 // fromOutside is whether the call's output counts as coming from outside the
-// project: Read, Grep and NotebookRead by the path they name, Edit, Write and
-// NotebookEdit too (Edit's response carries the whole file it edited), Bash
-// by whether it only reads project files, every other tool under `all`.
+// project: Read, Grep and NotebookRead by the path they name, Bash by
+// whether it only reads project files, every other tool under `all`. Edit,
+// Write and NotebookEdit always count as outside: their path is judged only
+// after the write, when a link swapped in between could steer it, and inside
+// the project scanning costs only a withheld line of the file they echo
+// (Edit's response carries the whole file it edited).
 func fromOutside(env Env, setting string, call outputPayload) bool {
+	if slices.Contains(editTools, call.ToolName) {
+		return true
+	}
+
 	var input outputInput
 
 	err := json.Unmarshal(call.ToolInput, &input)
@@ -168,9 +179,9 @@ func fromOutside(env Env, setting string, call outputPayload) bool {
 	root := projectRoot(env)
 
 	switch call.ToolName {
-	case "Read", "Edit", "Write":
+	case "Read":
 		return !insideProject(input.FilePath, call.Cwd, env.Home, root)
-	case "NotebookRead", "NotebookEdit":
+	case "NotebookRead":
 		return !insideProject(input.NotebookPath, call.Cwd, env.Home, root)
 	case "Grep":
 		target := input.Path

@@ -198,12 +198,12 @@ func TestOutputFromOutsideTheProjectIsWithheldLineByLine(t *testing.T) {
 	}{
 		{name: "Read outside", tool: "Read", input: map[string]any{"file_path": "{outside}/config.yaml"}, withheld: true},
 		{name: "Edit outside", tool: "Edit", input: map[string]any{"file_path": "{outside}/config.yaml"}, withheld: true},
-		{name: "Edit inside", tool: "Edit", input: map[string]any{"file_path": "{project}/config.yaml"}},
+		{name: "Edit inside", tool: "Edit", input: map[string]any{"file_path": "{project}/config.yaml"}, withheld: true},
 		{name: "Edit a linked file", tool: "Edit", input: map[string]any{"file_path": "{project}/linked.yaml"}, withheld: true},
 		{name: "Write outside", tool: "Write", input: map[string]any{"file_path": "{outside}/config.yaml"}, withheld: true},
-		{name: "Write inside", tool: "Write", input: map[string]any{"file_path": "{project}/config.yaml"}},
+		{name: "Write inside", tool: "Write", input: map[string]any{"file_path": "{project}/config.yaml"}, withheld: true},
 		{name: "NotebookEdit outside", tool: "NotebookEdit", input: map[string]any{"notebook_path": "{outside}/config.yaml"}, withheld: true},
-		{name: "NotebookEdit inside", tool: "NotebookEdit", input: map[string]any{"notebook_path": "{project}/config.yaml"}},
+		{name: "NotebookEdit inside", tool: "NotebookEdit", input: map[string]any{"notebook_path": "{project}/config.yaml"}, withheld: true},
 		{name: "Read inside", tool: "Read", input: map[string]any{"file_path": "{project}/config.yaml"}},
 		{name: "Read relative inside", tool: "Read", input: map[string]any{"file_path": "config.yaml"}},
 		{name: "Read through a linked directory", tool: "Read", input: map[string]any{"file_path": "{project}/link/config.yaml"}, withheld: true},
@@ -292,6 +292,33 @@ func TestAToolInputItCannotReadCountsAsOutside(t *testing.T) {
 				t.Error("a file tool's input that is no object should count as reading outside the project")
 			}
 		})
+	}
+}
+
+func TestEditToolOutputIsScannedWhateverItsPath(t *testing.T) {
+	modes := []struct {
+		options  string
+		withheld bool
+	}{
+		{options: `"shell_guard_secret_output":"all"`, withheld: true},
+		{options: `"shell_guard_secret_output":"files"`, withheld: true},
+		{options: `"shell_guard_secret_output":"off"`, withheld: false},
+	}
+
+	for _, mode := range modes {
+		for _, tool := range []string{"Edit", "Write", "NotebookEdit"} {
+			t.Run(mode.options+" "+tool, func(t *testing.T) {
+				g := newGuard(t, false, mode.options)
+				content, _, _ := providerFiles(t, g)
+
+				input := map[string]any{"file_path": "{project}/config.yaml", "notebook_path": "{project}/config.yaml"}
+
+				call := g.output(context.Background(), tool, input, readResponse("config.yaml", content))
+				if call.status != 0 || call.answered != mode.withheld {
+					t.Errorf("an edit tool's output should be scanned in every mode but off, even inside the project, got %+v", call)
+				}
+			})
+		}
 	}
 }
 

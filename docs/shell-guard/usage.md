@@ -118,7 +118,8 @@ Where output counts as outside the project:
 
 | Tool | Outside |
 |---|---|
-| Read, NotebookRead, Edit, Write, NotebookEdit | the file named lies outside the project once its symlinks are resolved; Edit's output carries the whole file it edited |
+| Read, NotebookRead | the file named lies outside the project once its symlinks are resolved |
+| Edit, Write, NotebookEdit | always, under `all` and `files`, whatever the path: Edit's output carries the whole file it edited, and a path judged after the write can be steered by a link swapped in between; inside the project the cost is a withheld line in the echoed file |
 | Grep | the path searched, or the working directory where it names none, lies outside the project |
 | Bash | unless every command is a known reader (below), every path it names lies inside the project, and nothing else runs |
 | every other tool (WebFetch, MCP tools, a subagent's answer) | always, under `shell_guard_secret_output` `all` |
