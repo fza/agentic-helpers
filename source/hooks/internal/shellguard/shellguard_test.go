@@ -126,6 +126,8 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"ansi-c quoted rm", "{project}", "$'rm' sub/x", "allow"},
 		{"ansi-c quoted target with a control escape", "{project}", "rm $'a\\cb'", "deny"},
 		{"ansi-c quoted target past one byte", "{project}", "rm $'a\\400'", "deny"},
+		{"ansi-c quoted target with an octal escape", "{project}", "rm $'a\\18'", "deny"},
+		{"ansi-c quoted target with a nul", "{project}", "rm $'sub/x\\x00/../../etc'", "deny"},
 		{"ansi-c quoted target naming no character", "{project}", "rm $'a\\U110000'", "deny"},
 		{"ansi-c quoted rm after a command", "{project}", "ls && $'rm' a", "deny"},
 		{"ansi-c quoted rm under a launcher", "{project}", "sudo $'\\x72m' a", "deny"},

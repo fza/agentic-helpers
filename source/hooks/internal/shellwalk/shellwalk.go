@@ -17,9 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
-	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -535,68 +533,58 @@ func printPart(value *strings.Builder, part syntax.WordPart) {
 	}
 }
 
+// ansiEscapes are the `$'...'` escapes read as a fixed string, each one
+// character in bash whatever follows it.
+var ansiEscapes = map[byte]byte{'n': '\n', 't': '\t', 'r': '\r', '\\': '\\', '\'': '\'', '"': '"'}
+
 // ansiC is a single-quoted part's value, a `$'...'` one decoded as bash
-// decodes it. It reports false where an escape has no reading mvdan.cc/sh
-// gives as bash does: `\c`, a control character bash builds from what follows,
-// an octal escape past one byte, and a Unicode escape naming no character.
+// decodes it. Only a small set of escapes is read: those above, and `\x` with
+// exactly two hex digits naming no NUL. Every other escape reports false, so
+// the word stays unreadable: bash's octal, `\u`, `\U` and `\c` readings, a
+// one-digit `\x` and a NUL truncating the word each differ in ways a guard
+// reading one string where bash runs another would miss.
 func ansiC(part *syntax.SglQuoted) (string, bool) {
 	if !part.Dollar {
 		return part.Value, true
 	}
 
-	if !fixedEscapes(part.Value) {
-		return "", false
-	}
+	raw := part.Value
 
-	decoded, err := expand.Literal(nil, &syntax.Word{Parts: []syntax.WordPart{part}})
-	if err != nil {
-		return "", false
-	}
+	var decoded strings.Builder
 
-	return decoded, true
-}
+	for index := 0; index < len(raw); index++ {
+		character := raw[index]
 
-func fixedEscapes(raw string) bool {
-	for index := 0; index < len(raw)-1; index++ {
-		if raw[index] != '\\' {
-			continue
-		}
+		switch {
+		case character != '\\':
+			decoded.WriteByte(character)
+		case index+1 >= len(raw):
+			return "", false
+		default:
+			index++
 
-		index++
+			escaped, known := ansiEscapes[raw[index]]
+			if known {
+				decoded.WriteByte(escaped)
 
-		switch escape := raw[index]; {
-		case escape == 'c':
-			return false
-		case escape >= '0' && escape <= '7':
-			value, _ := strconv.ParseUint(leading(raw[index:], 3, "01234567"), 8, 32)
-			if value > 0o377 {
-				return false
-			}
-		case escape == 'u' || escape == 'U':
-			width := 4
-			if escape == 'U' {
-				width = 8
+				continue
 			}
 
-			value, _ := strconv.ParseUint(leading(raw[index+1:], width, "0123456789abcdefABCDEF"), 16, 32)
-			if !utf8.ValidRune(rune(value)) {
-				return false
+			if raw[index] != 'x' || index+3 > len(raw) {
+				return "", false
 			}
+
+			value, err := strconv.ParseUint(raw[index+1:index+3], 16, 8)
+			if err != nil || value == 0 {
+				return "", false
+			}
+
+			decoded.WriteByte(byte(value))
+			index += 2
 		}
 	}
 
-	return true
-}
-
-// leading is the longest run, up to limit, of text's opening characters that
-// are in set.
-func leading(text string, limit int, set string) string {
-	end := 0
-	for end < len(text) && end < limit && strings.IndexByte(set, text[end]) >= 0 {
-		end++
-	}
-
-	return text[:end]
+	return decoded.String(), true
 }
 
 func unescape(value string) string {

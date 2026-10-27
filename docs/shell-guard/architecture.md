@@ -12,10 +12,13 @@ ends an ask in `auto` and `bypassPermissions` mode (see Permission modes).
 
 The command is parsed with `mvdan.cc/sh/v3/syntax` as bash: a parse error denies. Words are judged
 by their literal value: plain text, single quotes, double quotes around plain text, and ANSI-C
-quoting (`$'...'`) read as their value, the last decoded by `mvdan.cc/sh/v3/expand` as bash decodes
-it; anything with an expansion (`$x`, `$(...)`, `` `...` ``) has none, and neither has a `$'...'`
-holding an escape that library does not read as bash does: `\c`, a control character built from
-what follows, an octal escape past one byte, a Unicode escape naming no character. The reading is
+quoting (`$'...'`) read as their value; anything with an expansion (`$x`, `$(...)`, `` `...` ``)
+has none. A `$'...'` is decoded only where every escape it holds is one whose bash reading is a
+single fixed character whatever follows: `\n`, `\t`, `\r`, `\\`, `\'`, `\"`, and `\x` with exactly
+two hex digits other than `00`. Any other escape leaves it no value, as an expansion: bash's octal
+(one to three digits, wrapped to a byte), `\u`, `\U`, `\c`, a one-digit `\x` and a NUL truncating
+the word each read in ways a decoder could get subtly wrong, and a guard reading one string where
+bash runs another would let that one through. The reading is
 `shellwalk.Literal`, shared with the grounding gate, so `$'rm'` is `rm` to both. A command's name
 is the base name of its first word, lower-cased, so `/bin/rm`, `\rm` and `RM` are `rm`.
 
