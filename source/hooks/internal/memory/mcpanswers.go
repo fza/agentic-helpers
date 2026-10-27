@@ -137,8 +137,8 @@ type jsonTopics struct {
 	Topics map[string]map[string]int `json:"topics"`
 }
 
-// jsonView is view's answer: the notice and its sections, each a list or a
-// count of topics, or, for `explain`, the message alone.
+// jsonView is view's answer: the notice and its sections, each a list, a
+// count of topics or groups of entries, or, for `explain`, the message alone.
 type jsonView struct {
 	Notice   string                     `json:"notice,omitempty"`
 	Sections map[string]jsonViewSection `json:"sections,omitempty"`
@@ -149,6 +149,7 @@ type jsonViewSection struct {
 	Entries []jsonEntry               `json:"entries,omitempty"`
 	More    *jsonMore                 `json:"more,omitempty"`
 	Topics  map[string]jsonTopicCount `json:"topics,omitempty"`
+	Groups  map[string]jsonGroup      `json:"groups,omitempty"`
 }
 
 // mcpOutputs are the answers per tool: a read's JSON object, or the fields of

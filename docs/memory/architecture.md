@@ -366,6 +366,9 @@ graph statuses, git). A layout compiles each section against it; `search`'s `--s
 the same filters through the same argument parsing, so a word means one thing wherever it is used.
 A section runs its filters in one pass over the folded log, the cheap ones first, then ranks, skips
 and cuts. A view reads `heat.json` for `rank(heat)` and `as-counts` and writes nothing.
+`rank(in-degree)` and `expand(refs)` read the inbound and outbound links every load works out
+(`annotateLinks`), so neither costs a read of its own; `as-grouped` blocks the page after the cut,
+so `n` and `skip` count entries, not blocks.
 
 The brief's rules, traps, todos and notes are the sections of a fixed layout (`briefLayout` in
 `internal/memory/brief.go`), compiled and run like any other with the note limit as `n`; the

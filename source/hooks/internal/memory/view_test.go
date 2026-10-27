@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 type viewAnswer struct {
@@ -103,6 +104,10 @@ func TestEveryViewWordFiltersAsStated(t *testing.T) {
 		{layout: "active:mine:kind(note):rank(heat):n(2):as-list", want: []string{"Note about the hotel finding", "Note about the golf finding"}},
 		{layout: "top(2):kind(note)", want: []string{"Note about the hotel finding", "Note about the golf finding"}},
 		{layout: "active:kind(note):rank(heat):skip(1):n(1):as-list", want: []string{"Note about the golf finding"}},
+		{layout: "topic(gate):kind(note):n(2):as-list", want: []string{"Note about the hotel finding", "Note about the golf finding"}},
+		{layout: "kind(note):topic(gate):n(2):as-list", want: []string{"Deploy runs at noon daily", "Staging DB moved to db2"}},
+		{layout: "topic(gate):kind(note):rank(by(date)):n(2):as-list", want: []string{"Deploy runs at noon daily", "Staging DB moved to db2"}},
+		{layout: "active:rank(in-degree):n(2):as-list", want: []string{"Note about the charlie finding", "Deploy runs at noon daily"}},
 	}
 
 	for _, tc := range cases {
@@ -118,6 +123,9 @@ func TestEveryViewWordFiltersAsStated(t *testing.T) {
 func TestViewRendersEachTerminator(t *testing.T) {
 	h := goldenStore(t)
 	trap := idOf(t, h, "Gate ignores MCP reads always")
+	bravo := idOf(t, h, "Note about the bravo finding")
+	charlie := idOf(t, h, "Note about the charlie finding")
+	citing := idOf(t, h, "Finding citing a closed decision")
 
 	cases := []struct {
 		layout string
@@ -132,6 +140,14 @@ func TestViewRendersEachTerminator(t *testing.T) {
 		{layout: "active:kind(note):n(3):as-list", want: []string{"  11 more: skip(3)"}},
 		{layout: "kind(rule):as-list,kind(todo):as-list", want: []string{"kind(rule):as-list:\n  ", "kind(todo):as-list:\n  "}},
 		{layout: "since(\"1h\"):as-list", want: []string{"since(\"1h\"):as-list:\n  no entry"}},
+		{layout: "active:kind(rule,trap):group(by(kind)):as-grouped", want: []string{
+			"as-grouped:\n  trap:\n    " + trap + " Gate ignores MCP reads always", "\n  rule:\n    "}},
+		{layout: "active:not(kind(note)):group(by(from)):brief:as-grouped", want: []string{"\n  user:\n    ", "\n  agent:\n    "}},
+		{layout: "active:since(\"4h\"):group(by(seat)):as-grouped", want: []string{"\n  idea:\n    "}, absent: []string{"\n  main:"}},
+		{layout: "for(all):group(by(shelf)):as-grouped", want: []string{"\n  idea:\n    "}},
+		{layout: "id(" + bravo + "):expand(refs):as-list", want: []string{"\n    → " + charlie + " Note about the charlie finding"}},
+		{layout: "id(" + citing + "):expand(refs):as-bodies", want: []string{"\n    → " + closedDecision + "  (closed by "}},
+		{layout: "id(" + bravo + "):as-list", absent: []string{"→ " + charlie}},
 	}
 
 	for _, tc := range cases {
@@ -198,10 +214,10 @@ func TestViewRefusesNamingTokenPositionAndNearestWord(t *testing.T) {
 	}{
 		{layout: "knd(trap):as-list", want: `layout: unknown word: "knd" at position 1; nearest valid word: kind`},
 		{layout: "kind(rul):as-list", want: `layout: kind takes rule, trap, todo or note: "rul" at position 6; nearest valid word: rule`},
-		{layout: "active:kind(trap)", want: `layout: a section ends with a render word: as-list, as-counts or as-bodies: "active:kind(trap)" at position 18; nearest valid word: as-list`},
+		{layout: "active:kind(trap)", want: `layout: a section ends with a render word: as-list, as-counts, as-bodies or as-grouped: "active:kind(trap)" at position 18; nearest valid word: as-list`},
 		{layout: "active:as-list:kind(trap)", want: `layout: a render word ends its section: "as-list" at position 8; nearest valid word: as-list`},
 		{layout: "active: as-list", want: `layout does not parse: unexpected " " at position 8; expected a word`},
-		{layout: "rank(hot):as-list", want: `layout: rank takes heat or by(date): "hot" at position 6; nearest valid word: heat`},
+		{layout: "rank(hot):as-list", want: `layout: rank takes heat, in-degree or by(date): "hot" at position 6; nearest valid word: heat`},
 		{layout: "n(x):as-list", want: `layout: n takes a number of 0 or more: "x" at position 3; nearest valid word: n(10)`},
 		{layout: `since("soon"):as-list`, want: `layout: since takes a span such as "7d" or a date: "soon" at position 7; nearest valid word: 7d`},
 		{layout: "status(gone):as-list", want: `layout: status takes live, retired or superseded: "gone" at position 8; nearest valid word: live`},
@@ -215,6 +231,14 @@ func TestViewRefusesNamingTokenPositionAndNearestWord(t *testing.T) {
 		{layout: `since("1d","2d"):as-list`, want: `layout: since takes one argument: "since(1d,2d)" at position 12; nearest valid word: since(1d)`},
 		{layout: "kind(note(x)):as-list", want: `layout: kind takes rule, trap, todo or note, not a function: "note(x)" at position 6; nearest valid word: note`},
 		{layout: "as-lst", want: `layout: unknown word: "as-lst" at position 1; nearest valid word: as-list`},
+		{layout: "rank(in-degre):as-list", want: `layout: rank takes heat, in-degree or by(date): "in-degre" at position 6; nearest valid word: in-degree`},
+		{layout: "active:as-grouped", want: `layout: as-grouped needs group(by(...)) in its section: "as-grouped" at position 8; nearest valid word: group(by(kind))`},
+		{layout: "group(by(kind)):as-list", want: `layout: group renders with as-grouped: "as-list" at position 17; nearest valid word: as-grouped`},
+		{layout: "group(by(layer)):as-grouped", want: `layout: group takes by(kind|seat|shelf|from): "layer" at position 10; nearest valid word: `},
+		{layout: "group(of(kind)):as-grouped", want: `layout: group takes by(kind|seat|shelf|from): "group(of(kind))" at position 1; nearest valid word: group(by(kind))`},
+		{layout: "group(kind):as-grouped", want: `layout: group takes by(kind|seat|shelf|from): "group(kind)" at position 1; nearest valid word: group(by(kind))`},
+		{layout: "expand(links):as-list", want: `layout: expand takes refs: "expand(links)" at position 1; nearest valid word: expand(refs)`},
+		{layout: "expand(refs):as-counts", want: `layout: expand lists links under entries, which as-counts does not show: "expand(refs)" at position 1; nearest valid word: as-list`},
 	}
 
 	for _, tc := range cases {
@@ -274,6 +298,66 @@ func TestViewExplainSpellsTheLayoutWhole(t *testing.T) {
 	if strings.TrimSpace(got) != want {
 		t.Errorf("--explain should spell every section whole, its macro expanded, got:\n%s", got)
 	}
+
+	got = h.must("", "view", "--explain", `topic(gate):group(by(seat)):expand(refs):as-grouped,kind(note):topic(gate):as-list`)
+
+	want = "topic(gate):group(by(seat)):expand(refs):rank(heat):as-grouped,\nkind(note):topic(gate):rank(by(date)):as-list"
+	if strings.TrimSpace(got) != want {
+		t.Errorf("--explain should spell topic's macro, the group and the expand out, got:\n%s", got)
+	}
+}
+
+func TestViewJSONGroupsAndExpands(t *testing.T) {
+	h := goldenStore(t)
+	bravo := idOf(t, h, "Note about the bravo finding")
+	charlie := idOf(t, h, "Note about the charlie finding")
+
+	raw := h.must("", "view", "--layout",
+		`active:kind(rule,trap):group(by(kind)):as-grouped,id(`+bravo+`):expand(refs):as-list`, "--json")
+
+	var answer struct {
+		Sections map[string]struct {
+			Groups map[string]struct {
+				Entries []struct {
+					Title string `json:"title"`
+				} `json:"entries"`
+			} `json:"groups"`
+			Entries []struct {
+				ID       string `json:"id"`
+				Expanded []struct {
+					ID string `json:"id"`
+				} `json:"expanded"`
+			} `json:"entries"`
+		} `json:"sections"`
+	}
+
+	err := json.Unmarshal([]byte(raw), &answer)
+	if err != nil {
+		t.Fatalf("view --json should answer one JSON object: %v", err)
+	}
+
+	groups := answer.Sections["active:kind(rule,trap):group(by(kind)):as-grouped"].Groups
+	if len(groups) != 2 || len(groups["trap"].Entries) != 1 || groups["rule"].Entries[0].Title != "Owner allows commits on main" {
+		t.Errorf("a grouped section should answer its entries under each value, got %s", raw)
+	}
+
+	listed := answer.Sections["id("+bravo+"):expand(refs):as-list"].Entries
+	if len(listed) != 1 || len(listed[0].Expanded) != 1 || listed[0].Expanded[0].ID != charlie {
+		t.Errorf("an expanded section should carry each linked memory entry, got %s", raw)
+	}
+
+	cut := h.must("", "view", "--layout", "active:kind(note):n(2):group(by(seat)):as-grouped", "--json")
+	if !strings.Contains(cut, `"more":{"skip":2}`) {
+		t.Errorf("a grouped section cut by n should name the next page's skip, got %s", cut)
+	}
+
+	if strings.Contains(h.must("", "view", "--layout", "id("+bravo+"):as-list", "--json"), `"expanded"`) {
+		t.Error("a section without expand should carry no expanded key")
+	}
+
+	if mcp := h.mcp(`{"name":"view","arguments":{"layout":"active:kind(rule,trap):group(by(kind)):as-grouped"}}`); !strings.Contains(mcp, `"groups"`) {
+		t.Errorf("MCP view should answer the groups too, got %s", mcp)
+	}
 }
 
 func TestAViewWarmsNothingAndMovesNoMark(t *testing.T) {
@@ -303,5 +387,22 @@ func TestAViewWarmsNothingAndMovesNoMark(t *testing.T) {
 		if string(now) != raw {
 			t.Errorf("a view should move no seen or brief mark, %s changed", filepath.Base(mark))
 		}
+	}
+}
+
+func TestInDegreeLeavesSupersededLinksOut(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	cited := h.file("Older finding cited live", "cited")
+	h.file("Live note citing it", "cites "+cited)
+	h.clock.Advance(time.Minute)
+
+	newer := h.file("Newer finding cited by a replaced note", "newer")
+	replaced := h.file("Replaced note citing it", "cites "+newer)
+	h.must("", "supersede", replaced, "--because", "wrong")
+
+	if got := viewTitles(t, h, "active:rank(in-degree):n(1):as-list"); !slices.Equal(got, []string{"Older finding cited live"}) {
+		t.Errorf("a superseded entry's link should not count toward in-degree, got %q", got)
 	}
 }

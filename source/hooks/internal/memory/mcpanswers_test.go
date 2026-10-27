@@ -192,3 +192,11 @@ func TestAMessageIsTheCommandLineText(t *testing.T) {
 		t.Errorf("the json key should change nothing: %s against %s", keyed, plain)
 	}
 }
+
+func TestTheViewSchemaTypesGroupedSections(t *testing.T) {
+	h := newHarness(t)
+
+	if schema := string(h.listedTools()["view"]); !strings.Contains(schema, `"groups"`) || !strings.Contains(schema, `"expanded"`) {
+		t.Errorf("view's output schema should type grouped sections and expanded entries: %s", schema)
+	}
+}

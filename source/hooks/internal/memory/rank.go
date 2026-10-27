@@ -12,6 +12,17 @@ import (
 // keeps them: hottest first, the newest first among equals, for rank(heat);
 // newest first otherwise. Each entry's heat is worked out once.
 func (scope *viewScope) order(kept []*entry, rank string) func(a, b int) int {
+	if rank == rankInDegree {
+		linked := make([]int, len(kept))
+		for index, held := range kept {
+			linked[index] = len(held.linkedFrom(false))
+		}
+
+		return func(a, b int) int {
+			return cmp.Or(cmp.Compare(linked[b], linked[a]), kept[b].filed.Compare(kept[a].filed), cmp.Compare(a, b))
+		}
+	}
+
 	if rank == rankHeat {
 		heats := make([]float64, len(kept))
 		for index, held := range kept {

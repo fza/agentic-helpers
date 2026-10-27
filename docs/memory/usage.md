@@ -596,6 +596,10 @@ agentic-memory view --layout 'active:kind(trap):rank(heat):n(5):as-list'
 agentic-memory view --layout 'top(10),active:topic(infra):as-counts'
 agentic-memory view --layout 'status(retired):since("7d"):rank(by(date)):brief:as-list'
 agentic-memory view --layout 'active:inbox(review):unread:as-list'   # what review has yet to hear of
+agentic-memory view --layout 'topic(gate):n(5):as-list'              # the gate's five hottest entries
+agentic-memory view --layout 'active:rank(in-degree):n(5):as-list'   # the entries most linked to
+agentic-memory view --layout 'active:shelf(row-7ah):group(by(seat)):as-grouped'   # who on the shelf filed what
+agentic-memory view --layout 'id(m-7q2k4f):expand(refs):as-list'     # an entry and what it links to
 agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(heat):n(5):as-list
 ```
 
@@ -619,14 +623,18 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `branch(<branch>)` | entries filed on the branch |
 | `linked(<id>)` | entries linking to the memory or graph id |
 | `anchored("<path>")` | entries anchored to the path, or to a file under it |
-| `rank(heat)`, `rank(by(date))` | hottest first, or newest first; newest first unless set |
+| `rank(heat)`, `rank(in-degree)`, `rank(by(date))` | hottest first, most linked to first (the links `← n` counts, superseded entries aside), or newest first; ties newest first; newest first unless set |
 | `n(<n>)`, `skip(<n>)` | the first `n`, after dropping the first `skip`; both 0 or more |
 | `name("<title>")` | the section's heading and JSON key; the section's own text unless set |
 | `brief` | the brief's short line in place of the full one |
 | `top(<n>)` | where a section starts: `active:rank(heat):n(<n>):as-list`, later words overriding it |
+| `topic(<topic>,...)` where a section starts | sdd's macro: the filter above, hottest first, later words overriding the rank; anywhere else in a section it only filters |
+| `group(by(kind\|seat\|shelf\|from))` | blocks the section's entries by their kind, filing seat, shelf, or source (`user`, `agent`, `tool`), each block in the section's rank and the blocks in the order their first entry ranks; renders only with `as-grouped`. sdd's `layer`, `type` and `participant` have no memory counterpart and are refused |
+| `expand(refs)` | under each entry, every link it makes: a memory target as its short line, a graph target as its id, each followed by what became of it where that is not ok; not with `as-counts` |
 | `as-list` | one line per entry under the section's heading, and `<k> more: skip(<next>)` where `n` cut some |
 | `as-counts` | each topic the kept entries carry, with their count and summed heat |
 | `as-bodies` | each entry whole, framed as `show` frames it |
+| `as-grouped` | the blocks `group` makes, each under its value; needs `group` |
 
 `returns` names under each entry it keeps every reason it needs attention, and what answers it:
 
@@ -658,7 +666,7 @@ names the token, where it stands, counted in characters from 1, and the nearest 
 
     agentic-memory: layout: unknown word: "knd" at position 1; nearest valid word: kind
     agentic-memory: layout: kind takes rule, trap, todo or note: "rul" at position 6; nearest valid word: rule
-    agentic-memory: layout: a section ends with a render word: as-list, as-counts or as-bodies: "active:kind(trap)" at position 18; nearest valid word: as-list
+    agentic-memory: layout: a section ends with a render word: as-list, as-counts, as-bodies or as-grouped: "active:kind(trap)" at position 18; nearest valid word: as-list
 
 A layout that does not parse names the token, where it stands, and what was expected there:
 `agentic-memory: layout does not parse: unexpected " " at position 8; expected a word`.
@@ -850,7 +858,7 @@ answers one JSON object on stdout in place of its text (over MCP every answer is
 | `show --json` | `{"notice", "entries": [entry...]}`, each entry carrying `body`, `null` where a merge dropped it, with `body_dropped` saying when (`body dropped 90 days after the retire`, `body dropped 14 days after the supersede`); `--with-superseded` lists superseded entries in `linked_from` |
 | `search --json` | `{"notice", "entries": [entry...], "more": {"skip": n}}`, no `body`, `more` absent on the last page |
 | `brief --json` | `{"notice", "seat", "shelf", "language", "live", "retired", "state": {"body", "at", "branch", "commit"}, "changed": [{"id", "change", "seat", "at"}], "rules", "traps", "todos", "notes", "news": [entry...], "topics": {name: count}, "do_now": [{"id", "title", "trigger", "proof"}]}` |
-| `view --json` | `{"notice", "sections": {name: section}}`, one section per layout section under its name, in the layout's order: `{"entries": [entry...], "more": {"skip": n}}` for `as-list` and `as-bodies` (`body` only for `as-bodies`, `more` absent where nothing is left), `{"topics": {name: {"count", "heat"}}}` for `as-counts` |
+| `view --json` | `{"notice", "sections": {name: section}}`, one section per layout section under its name, in the layout's order: `{"entries": [entry...], "more": {"skip": n}}` for `as-list` and `as-bodies` (`body` only for `as-bodies`, `more` absent where nothing is left), `{"topics": {name: {"count", "heat"}}}` for `as-counts`, `{"groups": {value: {"entries": [entry...]}}, "more": {"skip": n}}` for `as-grouped`; under `expand(refs)` each entry carries `expanded`, the memory entries it links to |
 | `who --json` | `{"seats": [{"name", "shelf", "state", "holder", "filed", "used"}]}`, `state` being `held`, `reserved` or `free`, `holder` the claim's `session_id`, `pid` and `claimed` or `null`, `filed` and `used` counting the last 14 days; `--all` adds `project` to every seat |
 | `topics --json` | `{"topics": {name: {seat: count}}}` |
 

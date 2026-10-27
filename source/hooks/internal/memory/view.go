@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/layout"
 )
@@ -21,19 +22,29 @@ import (
 // use.
 
 const (
-	rankDate = "by(date)"
-	rankHeat = "heat"
+	rankDate     = "by(date)"
+	rankHeat     = "heat"
+	rankInDegree = "in-degree"
 
-	renderList   = "as-list"
-	renderCounts = "as-counts"
-	renderBodies = "as-bodies"
+	renderList    = "as-list"
+	renderCounts  = "as-counts"
+	renderBodies  = "as-bodies"
+	renderGrouped = "as-grouped"
 )
 
-var renderWords = []string{renderList, renderCounts, renderBodies}
+var (
+	renderWords = []string{renderList, renderCounts, renderBodies, renderGrouped}
+	rankWords   = []string{rankHeat, rankInDegree, rankDate}
+)
 
-// shapeWords rank, page, name and render a section's entries without
-// choosing them.
-var shapeWords = []string{"rank", "n", "skip", "name", "brief"}
+// shapeWords rank, page, group, widen, name and render a section's entries
+// without choosing them.
+var shapeWords = []string{"rank", "n", "skip", "group", "expand", "name", "brief"}
+
+// groupFields are what group(by(...)) reads: sdd's kind, and seat where sdd
+// has participant, since a seat files an entry; sdd's layer and type have no
+// counterpart in memory.
+var groupFields = []string{"kind", "seat", "shelf", "from"}
 
 const macroTop = "top"
 
@@ -67,6 +78,13 @@ type viewSection struct {
 	skip     int
 	compact  bool
 	render   string
+	renderAt int
+	// group is the field as-grouped blocks the entries by; expand lists each
+	// entry's links under it.
+	group    string
+	groupAt  int
+	expand   bool
+	expandAt int
 	// returns is the reasons a returns filter shows under each entry, none
 	// where the section has none.
 	returns []string
@@ -147,6 +165,12 @@ func (scope *viewScope) compileSection(section layout.Section) (viewSection, err
 			compiled, err = scope.compileFilter(call)
 			held.filters = append(held.filters, compiled)
 
+			// topic(L) opening a section is sdd's macro, the topic's entries
+			// hottest first; anywhere else it only filters.
+			if call.Name == "topic" && index == 0 {
+				held.rank = rankHeat
+			}
+
 			if call.Name == "returns" {
 				held.returns = returnKinds
 				if len(call.Args) > 0 {
@@ -176,7 +200,26 @@ func (scope *viewScope) compileSection(section layout.Section) (viewSection, err
 			token: section.Text, position: section.Position + len([]rune(section.Text)), nearest: renderList}
 	}
 
-	return held, nil
+	return held, held.consistent()
+}
+
+// consistent refuses a section whose words do not fit together: as-grouped
+// needs a group, a group renders only as as-grouped, and as-counts shows no
+// entry to list links under.
+func (held viewSection) consistent() error {
+	switch {
+	case held.render == renderGrouped && held.group == "":
+		return &layoutRefusal{problem: "as-grouped needs group(by(...)) in its section", token: renderGrouped,
+			position: held.renderAt, nearest: "group(by(kind))"}
+	case held.group != "" && held.render != renderGrouped:
+		return &layoutRefusal{problem: "group renders with as-grouped", token: held.render, position: held.renderAt,
+			nearest: renderGrouped}
+	case held.expand && held.render == renderCounts:
+		return &layoutRefusal{problem: "expand lists links under entries, which as-counts does not show",
+			token: "expand(refs)", position: held.expandAt, nearest: renderList}
+	}
+
+	return nil
 }
 
 // top is the macro top(N): live entries, hottest first, the first N, as a
@@ -205,7 +248,7 @@ func (held *viewSection) terminate(call layout.Call, last bool) error {
 			nearest: call.Name}
 	}
 
-	held.render = call.Name
+	held.render, held.renderAt = call.Name, call.Position
 
 	return nil
 }
@@ -221,6 +264,12 @@ func (held *viewSection) shape(call layout.Call) error {
 		held.limited = true
 	case "skip":
 		held.skip, err = countArgument(call, 0)
+	case "group":
+		held.group, err = groupArgument(call)
+		held.groupAt = call.Position
+	case "expand":
+		err = expandArgument(call)
+		held.expand, held.expandAt = err == nil, call.Position
 	case "name":
 		if len(call.Args) != 1 {
 			return &layoutRefusal{problem: "name takes one quoted title", token: callText(call), position: call.Position,
@@ -251,8 +300,8 @@ func rankArgument(call layout.Call) (string, error) {
 		arg := call.Args[0]
 
 		word, isWord := arg.Word()
-		if isWord && !arg.Quoted && word == rankHeat {
-			return rankHeat, nil
+		if isWord && !arg.Quoted && (word == rankHeat || word == rankInDegree) {
+			return word, nil
 		}
 
 		if arg.Call != nil && callText(*arg.Call) == rankDate {
@@ -264,12 +313,46 @@ func rankArgument(call layout.Call) (string, error) {
 			token = callText(*arg.Call)
 		}
 
-		return "", &layoutRefusal{problem: "rank takes heat or by(date)", token: token, position: arg.Position,
-			nearest: nearestWord(token, []string{rankHeat, rankDate})}
+		return "", &layoutRefusal{problem: "rank takes heat, in-degree or by(date)", token: token, position: arg.Position,
+			nearest: nearestWord(token, rankWords)}
 	}
 
-	return "", &layoutRefusal{problem: "rank takes heat or by(date)", token: callText(call), position: call.Position,
-		nearest: "rank(heat)"}
+	return "", &layoutRefusal{problem: "rank takes heat, in-degree or by(date)", token: callText(call),
+		position: call.Position, nearest: "rank(heat)"}
+}
+
+func groupArgument(call layout.Call) (string, error) {
+	refusal := &layoutRefusal{problem: "group takes by(" + strings.Join(groupFields, "|") + ")", token: callText(call),
+		position: call.Position, nearest: "group(by(kind))"}
+
+	if len(call.Args) != 1 || call.Args[0].Call == nil || call.Args[0].Call.Name != "by" ||
+		len(call.Args[0].Call.Args) != 1 {
+		return "", refusal
+	}
+
+	field := call.Args[0].Call.Args[0]
+
+	word, isWord := field.Word()
+	if !isWord || field.Quoted || !slices.Contains(groupFields, word) {
+		refusal.token, refusal.position, refusal.nearest = cmp.Or(word, callText(call)), field.Position,
+			nearestWord(word, groupFields)
+
+		return "", refusal
+	}
+
+	return word, nil
+}
+
+func expandArgument(call layout.Call) error {
+	if len(call.Args) == 1 {
+		word, isWord := call.Args[0].Word()
+		if isWord && !call.Args[0].Quoted && word == "refs" {
+			return nil
+		}
+	}
+
+	return &layoutRefusal{problem: "expand takes refs", token: callText(call), position: call.Position,
+		nearest: "expand(refs)"}
 }
 
 func countArgument(call layout.Call, least int) (int, error) {
@@ -299,6 +382,14 @@ func (section viewSection) explain() string {
 	parts := make([]string, 0, len(section.filters)+6)
 	for _, held := range section.filters {
 		parts = append(parts, held.spelled)
+	}
+
+	if section.group != "" {
+		parts = append(parts, "group(by("+section.group+"))")
+	}
+
+	if section.expand {
+		parts = append(parts, "expand(refs)")
 	}
 
 	parts = append(parts, "rank("+section.rank+")")
@@ -409,18 +500,18 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 		case renderBodies:
 			for _, held := range page {
 				lines = append(lines, showBlock(scope.here, scope.folded, held, scope.mem.options().RetiredBodyDays, false))
+				lines = append(lines, scope.expandedLines(section, held, "  ")...)
+			}
+		case renderGrouped:
+			for _, group := range scope.grouped(page, section.group) {
+				lines = append(lines, "  "+group.value+":")
+				for _, held := range group.entries {
+					lines = append(lines, scope.entryLines(section, held, "    ", now)...)
+				}
 			}
 		default:
 			for _, held := range page {
-				if section.compact {
-					lines = append(lines, "  "+shortLine(scope.here, held, scope.reader, now))
-				} else {
-					lines = append(lines, "  "+line(scope.here, held))
-				}
-
-				for _, reason := range scope.returnsOf(held, section.returns) {
-					lines = append(lines, "    "+reason.text())
-				}
+				lines = append(lines, scope.entryLines(section, held, "  ", now)...)
 			}
 		}
 
@@ -435,6 +526,111 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// entryLines is one entry of a listed section: its line, then the reasons it
+// returns and the links expand(refs) lists, indented beneath it.
+func (scope *viewScope) entryLines(section viewSection, held *entry, indent string, now time.Time) []string {
+	text := line(scope.here, held)
+	if section.compact {
+		text = shortLine(scope.here, held, scope.reader, now)
+	}
+
+	lines := []string{indent + text}
+
+	for _, reason := range scope.returnsOf(held, section.returns) {
+		lines = append(lines, indent+"  "+reason.text())
+	}
+
+	return append(lines, scope.expandedLines(section, held, indent)...)
+}
+
+// expandedLines is each link of held, where its section expands them: a
+// memory target as its short line, a graph target as its id, either followed
+// by what became of it where that is not ok.
+func (scope *viewScope) expandedLines(section viewSection, held *entry, indent string) []string {
+	if !section.expand {
+		return nil
+	}
+
+	var lines []string
+
+	for _, link := range held.linkStates() {
+		text := link.Target
+
+		linked, found := scope.folded.entries[link.Target]
+		if found {
+			text = shortLine(scope.here, linked, scope.reader, scope.mem.now())
+		}
+
+		if link.State != "ok" {
+			text += "  (" + link.State + ")"
+		}
+
+		lines = append(lines, indent+"  → "+text)
+	}
+
+	return lines
+}
+
+// expandedJSON is the memory entries held links to, where its section
+// expands them.
+func (scope *viewScope) expandedJSON(section viewSection, held *entry) []jsonEntry {
+	if !section.expand {
+		return nil
+	}
+
+	expanded := []jsonEntry{}
+
+	for _, target := range held.links() {
+		linked, found := scope.folded.entries[target]
+		if found {
+			expanded = append(expanded, scope.mem.entryJSON(scope.here, scope.folded, linked, false))
+		}
+	}
+
+	return expanded
+}
+
+type entryGroup struct {
+	value   string
+	entries []*entry
+}
+
+// grouped blocks the page by a field's value, each block in the section's
+// rank and the blocks in the order their first entry ranks.
+func (scope *viewScope) grouped(page []*entry, field string) []entryGroup {
+	var groups []entryGroup
+
+	at := map[string]int{}
+
+	for _, held := range page {
+		value := scope.groupValue(held, field)
+
+		index, found := at[value]
+		if !found {
+			index = len(groups)
+			at[value] = index
+			groups = append(groups, entryGroup{value: value})
+		}
+
+		groups[index].entries = append(groups[index].entries, held)
+	}
+
+	return groups
+}
+
+func (scope *viewScope) groupValue(held *entry, field string) string {
+	switch field {
+	case "kind":
+		return held.kind
+	case "seat":
+		return held.seat
+	case "shelf":
+		return scope.mem.shelfName(scope.mem.entryShelf(held))
+	default:
+		return held.from
+	}
 }
 
 type topicCount struct {
@@ -483,6 +679,15 @@ type jsonListSection struct {
 	More    *jsonMore   `json:"more,omitempty"`
 }
 
+type jsonGroupedSection struct {
+	Groups map[string]jsonGroup `json:"groups"`
+	More   *jsonMore            `json:"more,omitempty"`
+}
+
+type jsonGroup struct {
+	Entries []jsonEntry `json:"entries"`
+}
+
 type jsonCountsSection struct {
 	Topics map[string]jsonTopicCount `json:"topics"`
 }
@@ -508,19 +713,22 @@ func (scope *viewScope) viewJSON(sections []viewSection) result {
 			}
 
 			value = jsonCountsSection{Topics: topics}
-		default:
-			listed := jsonListSection{Entries: make([]jsonEntry, 0, len(page))}
-			for _, held := range page {
-				object := scope.mem.entryJSON(scope.here, scope.folded, held, section.render == renderBodies)
-				for _, reason := range scope.returnsOf(held, section.returns) {
-					object.Returns = append(object.Returns, reason.json())
+		case renderGrouped:
+			grouped := jsonGroupedSection{Groups: map[string]jsonGroup{}, More: moreAfter(section, page, kept)}
+			for _, group := range scope.grouped(page, section.group) {
+				entries := make([]jsonEntry, 0, len(group.entries))
+				for _, held := range group.entries {
+					entries = append(entries, scope.entryObject(section, held))
 				}
 
-				listed.Entries = append(listed.Entries, object)
+				grouped.Groups[group.value] = jsonGroup{Entries: entries}
 			}
 
-			if next := min(section.skip, len(kept)) + len(page); next < len(kept) {
-				listed.More = &jsonMore{Skip: next}
+			value = grouped
+		default:
+			listed := jsonListSection{Entries: make([]jsonEntry, 0, len(page)), More: moreAfter(section, page, kept)}
+			for _, held := range page {
+				listed.Entries = append(listed.Entries, scope.entryObject(section, held))
 			}
 
 			value = listed
@@ -545,4 +753,27 @@ func (scope *viewScope) viewJSON(sections []viewSection) result {
 	answer.WriteString("}}")
 
 	return done(answer.String())
+}
+
+// entryObject is one entry of a listed section as JSON, with the reasons it
+// returns and the entries expand(refs) adds.
+func (scope *viewScope) entryObject(section viewSection, held *entry) jsonEntry {
+	object := scope.mem.entryJSON(scope.here, scope.folded, held, section.render == renderBodies)
+	for _, reason := range scope.returnsOf(held, section.returns) {
+		object.Returns = append(object.Returns, reason.json())
+	}
+
+	object.Expanded = scope.expandedJSON(section, held)
+
+	return object
+}
+
+// moreAfter is the paging a section cut leaves, nil on its last page.
+func moreAfter(section viewSection, page []*entry, kept []*entry) *jsonMore {
+	next := min(section.skip, len(kept)) + len(page)
+	if next < len(kept) {
+		return &jsonMore{Skip: next}
+	}
+
+	return nil
 }

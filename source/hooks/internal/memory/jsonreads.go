@@ -43,6 +43,9 @@ type jsonEntry struct {
 	BodyDropped string           `json:"body_dropped,omitempty"`
 	// Returns is why the entry needs attention, in a view's returns section.
 	Returns []jsonReturn `json:"returns,omitempty"`
+	// Expanded is the memory entries the entry links to, in a section
+	// expand(refs) widens.
+	Expanded []jsonEntry `json:"expanded,omitempty"`
 }
 
 type jsonStatusChange struct {
@@ -118,26 +121,7 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 		object.Anchors = append(object.Anchors, jsonAnchor{Path: anchored.Path, State: state})
 	}
 
-	for _, target := range held.links() {
-		link := jsonLink{Target: target, State: "ok", By: held.seat}
-
-		for _, made := range held.explicit {
-			if made.target == target {
-				link.By = made.seat
-			}
-		}
-
-		for _, flag := range held.flags() {
-			named := strings.TrimPrefix(flag, "→ ")
-			for _, name := range []string{target + " ", foreignName(target) + " "} {
-				if strings.HasPrefix(named, name) {
-					link.State = strings.TrimPrefix(named, name)
-				}
-			}
-		}
-
-		object.Links = append(object.Links, link)
-	}
+	object.Links = append(object.Links, held.linkStates()...)
 
 	for _, other := range held.linkedFrom(false) {
 		object.LinkedFrom = append(object.LinkedFrom, other.id)
@@ -347,4 +331,33 @@ func seatJSON(row seatRow, project string) jsonSeat {
 	}
 
 	return held
+}
+
+// linkStates is each link of held with the seat that made it and what became
+// of its target: ok, or the flag its line carries.
+func (held *entry) linkStates() []jsonLink {
+	links := make([]jsonLink, 0, len(held.links()))
+
+	for _, target := range held.links() {
+		link := jsonLink{Target: target, State: "ok", By: held.seat}
+
+		for _, made := range held.explicit {
+			if made.target == target {
+				link.By = made.seat
+			}
+		}
+
+		for _, flag := range held.flags() {
+			named := strings.TrimPrefix(flag, "→ ")
+			for _, name := range []string{target + " ", foreignName(target) + " "} {
+				if strings.HasPrefix(named, name) {
+					link.State = strings.TrimPrefix(named, name)
+				}
+			}
+		}
+
+		links = append(links, link)
+	}
+
+	return links
 }

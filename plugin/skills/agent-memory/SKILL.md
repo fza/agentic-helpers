@@ -299,7 +299,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # the layout spelled out who
 agentic-memory view --explain brief                 # the brief's fixed sections; nothing configures them
 ```
 
-- Section = colon-chained words, ending in `as-list`, `as-counts` or `as-bodies`. Commas split
+- Section = colon-chained words, ending in `as-list`, `as-counts`, `as-bodies` or `as-grouped`. Commas split
   sections. No spaces outside quotes. Quote paths, titles, dates: `anchored("internal/gate")`.
 - Filters: `active`, `status(...)`, `kind(...)`, `topic(t)` (prefix by component), `since("7d")`,
   `id(...)`, `not(<filter>)`, `seat(...)`, `shelf(...)`, `for(all|<shelf>)`, `mine` (own shelf and
@@ -313,8 +313,11 @@ agentic-memory view --explain brief                 # the brief's fixed sections
   `branch filed on <b>` → nothing until it merges. `unchecked` = could not tell: check by hand. A
   view reads only cached graph statuses; `link unchecked: ... cache is cold` → `show <id>` asks sdd,
   then view again.
-- Shape: `rank(heat|by(date))`, `n(N)`, `skip(N)`, `name("...")`, `brief` (short lines), macro
-  `top(N)`.
+- Shape: `rank(heat|in-degree|by(date))` (`in-degree` = most linked to), `n(N)`, `skip(N)`,
+  `name("...")`, `brief` (short lines), macro `top(N)`. `topic(t)` opening a section = hottest
+  first, as in sdd; later in a section it only filters.
+- `group(by(kind|seat|shelf|from))` + `as-grouped` → blocks per value: who on a shelf filed what.
+  `expand(refs)` → each entry's links under it, no `show` per link.
 - **A view warms nothing, moves no mark.** Reading is not using.
 - **Refused, never repaired**: `layout: unknown word: "knd" at position 1; nearest valid word: kind`.
   Take the nearest word, resend. `layout does not parse: ... expected <what>` → fix the syntax there.
