@@ -79,17 +79,19 @@ scan (standard input, a file not on disk, input it cannot decode), and leaves th
   file right before it runs `sdd new`, and sdd then reads the file itself: a file changed in
   between is never scanned. The grounding gate's earlier scan of a plain `sdd new` has the same
   window, wider.
-- **What a launcher or an expansion would change.** The grounding gate does not resolve a path the
-  shell would rewrite or a launcher would run elsewhere: it refuses it. An attachment path holding
-  `$` or `~`, a plain `sdd new` or `agentic-capture` call with any argument holding an unquoted
-  glob or brace the shell would expand into other words, a command naming `sdd`, `new` or
-  `agentic-capture` with any shell pattern in its command position (the command word, or `sdd`'s
-  subcommand: `sd? new`, `{,}sdd new`, `sdd n?w`), refused rather than resolved, or a relative
-  path after a directory
-  change or behind a launcher, is refused rather
-  than guessed at, and so is a write it cannot place behind a launcher's options. A path written so
-  that sdd reads one file and the gate another would need the gate to follow the shell, which it
-  does not try to do; refusing those spellings closes that class instead.
+- **What a launcher or an expansion would change.** The grounding gate does not resolve what the
+  shell would rewrite or a launcher would run elsewhere: it refuses it. Refused rather than resolved:
+  an attachment path holding `$` or `~`; a relative attachment path after a directory change or
+  behind a launcher; a plain `sdd new` or `agentic-capture` call with any argument holding an
+  unquoted glob or brace; a command naming `sdd`, `new` or `capture` with any shell pattern in its
+  command position (the command word, or `sdd`'s subcommand: `sd? new`, `{,}sdd new`, `sdd n?w`);
+  and a write it cannot place behind a launcher's options. A path written so that sdd reads one file
+  and the gate another would need the gate to follow the shell, which it does not try to do;
+  refusing those spellings closes that class instead.
+- **A pattern that cuts a tool's name.** A command word whose pattern stands for part of a tool's
+  name, with no word of the call naming `sdd`, `new` or `capture` (`agentic-* d.md`), is not seen
+  as a write. Refusing every patterned command word would close it, at the cost of refusing
+  ordinary commands such as `./scripts/*.sh`.
 
 A file is scanned by its name, so path rules fire, and as nameless text too: gitleaks' global
 allowlist skips whole files by name (`.bin`, images, fonts, office files), and a credential renamed
