@@ -200,3 +200,22 @@ func TestTheViewSchemaTypesGroupedSections(t *testing.T) {
 		t.Errorf("view's output schema should type grouped sections and expanded entries: %s", schema)
 	}
 }
+
+func TestTheViewLayoutKeyNamesEveryRenderWord(t *testing.T) {
+	h := newHarness(t)
+
+	refused := h.run("", "view", "--layout", "active")
+	_, words, found := strings.Cut(refused.out+refused.err, "a section ends with a render word: ")
+	words, _, _ = strings.Cut(words, `: "`)
+
+	if refused.code == 0 || !found || words == "" {
+		t.Fatalf("a section without a render word should be refused naming the render words: %+v", refused)
+	}
+
+	listed := h.must(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`+"\n"+
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`+"\n", "mcp")
+
+	if !strings.Contains(listed, "ending in "+words+";") {
+		t.Errorf("view's layout key should name the render words its refusal names (%s):\n%s", words, listed)
+	}
+}
