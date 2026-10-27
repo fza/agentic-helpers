@@ -21,6 +21,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
@@ -142,6 +143,41 @@ func writeClaim(path string, held Claim) error {
 	}
 
 	return atomicfile.Write(path, append(data, '\n'), 0o600)
+}
+
+// Lock holds the seats directory's lock until the returned function runs. A
+// claim is read, judged and written as one step under it: two sessions judging
+// one free seat apart would both write it, and both be told they hold it.
+func Lock(ctx context.Context, dir string) (func(), error) {
+	err := os.MkdirAll(dir, 0o700)
+	if err != nil {
+		return nil, fmt.Errorf("creating %s: %w", dir, err)
+	}
+
+	file, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("opening the seats lock: %w", err)
+	}
+
+	err = filelock.Exclusive(file)
+	if err != nil {
+		_ = file.Close()
+
+		return nil, fmt.Errorf("taking the seats lock: %w", err)
+	}
+
+	err = ctx.Err()
+	if err != nil {
+		_ = filelock.Unlock(file)
+		_ = file.Close()
+
+		return nil, fmt.Errorf("holding the seats lock: %w", err)
+	}
+
+	return func() {
+		_ = filelock.Unlock(file)
+		_ = file.Close()
+	}, nil
 }
 
 // Remove frees a seat, keeping what its holder left as the seat's last claim.

@@ -11,6 +11,7 @@
 ├── seats/<id>.json                                     who holds the seat, which process, which transcript
 ├── seats/<id>.last.json                                the claim of the seat's last holder
 ├── seats/<id>.slice                                    the last turns of the seat's last session
+├── seats/.lock                                         held while a claim is read, judged and written
 ├── attachments.refs                                    the attachment hashes its entries still holding a body name
 ├── credentials-found.json                              what the migration scan found, until each seat's brief tells it
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
@@ -235,6 +236,17 @@ seat, writes its owning `claude` process, start time and transcript into it. A h
 new seat's claim from the old one, process and all, with `moved_from` naming the old seat until the
 session's next hook reports it. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.
+
+Every change to a claim file reads, judges and writes it under the seats lock (`seats/.lock`): a
+claim, a reservation and its takeover, a handover, a hook re-pointing a claim at a new session id or
+transcript, a release, a SessionEnd close, and `who` freeing a gone holder. Two sessions judging one
+free seat apart would both write it and both be told they hold it; under the lock the second finds
+the first's claim and is refused. A hook's rewrite and `who`'s sweep change a claim only while it
+still names the holder they judged, so a claim written since stays. The lock is never held while
+the store's lock is taken: a seat is minted before its claim is judged. The memory MCP server reads
+`seats.json` and `shelves.json` afresh on every call, since other sessions mint, rename and shelve
+seats while it runs; a registry kept from an earlier call would judge a seat minted since as having
+no claim and overwrite its holder's.
 
 A holder is alive while its pid runs `claude` and that process started at the recorded instant, so a
 reused pid never passes. The process table is read from the kernel, never through a `ps` spawn:

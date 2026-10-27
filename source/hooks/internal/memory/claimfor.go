@@ -34,63 +34,31 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 		req.Name = name
 	}
 
-	dir := mem.seatsDir()
-
 	key := mem.seatKey(req.Name)
-	if key != "" {
-		if req.Shelf != "" {
-			on := mem.shelfName(mem.shelfOfKey(key))
-			if on != req.Shelf {
-				return refused("%s is on shelf %s", req.Name, on)
-			}
-		}
-
-		existing, found := seat.Read(dir, key)
-		if found && existing.SessionID != req.Session {
-			refusal := mem.inUseRefusal(ctx, req.Name, existing)
-			if refusal != "" {
-				return refused("%s", refusal)
-			}
+	if key != "" && req.Shelf != "" {
+		on := mem.shelfName(mem.shelfOfKey(key))
+		if on != req.Shelf {
+			return refused("%s is on shelf %s", req.Name, on)
 		}
 	}
-
-	fromKey, from := seat.OfSession(dir, req.Session)
-	if fromKey != "" && fromKey == key && mem.alive(ctx, from) {
-		return done(fmt.Sprintf("session %s already holds %s", short(req.Session), req.Name)).
-			with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
-	}
-
-	moving := fromKey != "" && fromKey != key && (mem.alive(ctx, from) || mem.freshReservation(from))
 
 	key, err := mem.ensureSeat(ctx, req.Name, req.Shelf)
 	if err != nil {
 		return refused("%v", err)
 	}
 
-	now := mem.now().Format(time.RFC3339Nano)
-	held := seat.Claim{SessionID: req.Session, Claimed: now, Reserved: now}
-	reply := fmt.Sprintf("reserved %s for session %s (shelf %s)", req.Name, short(req.Session),
-		mem.shelfName(mem.shelfOfKey(key)))
-
-	if moving {
-		held = from
-		held.Claimed = now
-
-		if mem.alive(ctx, from) {
-			held.MovedFrom = mem.seatName(fromKey)
-			reply = fmt.Sprintf("moved session %s from %s to %s (shelf %s)", short(req.Session), held.MovedFrom,
-				req.Name, mem.shelfName(mem.shelfOfKey(key)))
-		}
-
-		err = seat.Close(dir, fromKey, now)
-		if err != nil {
-			return refused("%v", err)
-		}
-	}
-
-	err = seat.Write(dir, key, held)
+	reply, moving, refusal, err := mem.reserve(ctx, req, key)
 	if err != nil {
 		return refused("%v", err)
+	}
+
+	if refusal != "" {
+		return refused("%s", refusal)
+	}
+
+	if reply == "" {
+		return done(fmt.Sprintf("session %s already holds %s", short(req.Session), req.Name)).
+			with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
 	}
 
 	lines := []string{reply}
@@ -111,6 +79,63 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 	}
 
 	return done(strings.Join(lines, "\n")).with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
+}
+
+// reserve writes the claim for req.Session on the seat filed under key, under
+// the seats lock: a reservation, or the session's own claim moved from the seat
+// it holds. It answers what it did and whether the session moved, nothing where
+// the session holds the seat already, or why the seat cannot be taken.
+func (mem *memory) reserve(ctx context.Context, req request, key string) (string, bool, string, error) {
+	dir := mem.seatsDir()
+
+	unlock, err := seat.Lock(ctx, dir)
+	if err != nil {
+		return "", false, "", err
+	}
+	defer unlock()
+
+	existing, found := seat.Read(dir, key)
+	if found && existing.SessionID != req.Session {
+		refusal := mem.inUseRefusal(ctx, req.Name, existing)
+		if refusal != "" {
+			return "", false, refusal, nil
+		}
+	}
+
+	fromKey, from := seat.OfSession(dir, req.Session)
+	if fromKey != "" && fromKey == key && mem.alive(ctx, from) {
+		return "", false, "", nil
+	}
+
+	moving := fromKey != "" && fromKey != key && (mem.alive(ctx, from) || mem.freshReservation(from))
+
+	now := mem.now().Format(time.RFC3339Nano)
+	held := seat.Claim{SessionID: req.Session, Claimed: now, Reserved: now}
+	reply := fmt.Sprintf("reserved %s for session %s (shelf %s)", req.Name, short(req.Session),
+		mem.shelfName(mem.shelfOfKey(key)))
+
+	if moving {
+		held = from
+		held.Claimed = now
+
+		if mem.alive(ctx, from) {
+			held.MovedFrom = mem.seatName(fromKey)
+			reply = fmt.Sprintf("moved session %s from %s to %s (shelf %s)", short(req.Session), held.MovedFrom,
+				req.Name, mem.shelfName(mem.shelfOfKey(key)))
+		}
+
+		err = seat.Close(dir, fromKey, now)
+		if err != nil {
+			return "", false, "", err
+		}
+	}
+
+	err = seat.Write(dir, key, held)
+	if err != nil {
+		return "", false, "", err
+	}
+
+	return reply, moving, "", nil
 }
 
 // inUseRefusal is why a claim may not take the seat from its claim, or nothing
@@ -146,18 +171,18 @@ func (mem *memory) adopt(ctx context.Context, payload hookio.Payload) {
 	}
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
-
 	started, running := mem.env.Processes.StartTime(ctx, owner)
-	if running {
-		held.Started = seat.FormatStarted(started)
-	}
 
-	held.PID = owner
-	held.Reserved = ""
-	held.TranscriptPath = payload.TranscriptPath
-	held.Claimed = mem.now().Format(time.RFC3339Nano)
+	mem.rewriteClaim(ctx, key, func(current seat.Claim) bool { return current == held }, func(claim *seat.Claim) {
+		if running {
+			claim.Started = seat.FormatStarted(started)
+		}
 
-	_ = seat.Write(mem.seatsDir(), key, held)
+		claim.PID = owner
+		claim.Reserved = ""
+		claim.TranscriptPath = payload.TranscriptPath
+		claim.Claimed = mem.now().Format(time.RFC3339Nano)
+	})
 }
 
 // moved tells a session a handover moved it, once: the seat it left, the seat
@@ -168,8 +193,7 @@ func (mem *memory) moved(ctx context.Context, seatName string, held seat.Claim) 
 	}
 
 	from := held.MovedFrom
-	held.MovedFrom = ""
-	_ = seat.Write(mem.seatsDir(), mem.seatKey(seatName), held)
+	mem.rewriteClaim(ctx, mem.seatKey(seatName), sameHolder(held), func(claim *seat.Claim) { claim.MovedFrom = "" })
 
 	folded, err := mem.load(ctx)
 	if err != nil {

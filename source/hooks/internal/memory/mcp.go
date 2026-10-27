@@ -40,7 +40,11 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 }
 
 func (mem *memory) callTool(ctx context.Context, held command, arguments json.RawMessage) mcpserver.Result {
+	// Another session mints, renames and shelves seats while this server runs,
+	// so every call reads the registries afresh.
 	mem.here = nil
+	mem.forgetRegistry()
+	mem.forgetShelves()
 
 	defer func() { mem.hashCache.save() }()
 

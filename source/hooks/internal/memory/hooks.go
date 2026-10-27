@@ -78,7 +78,7 @@ func (mem *memory) payload() hookio.Payload {
 // track keeps the claim pointing at the session and transcript its process
 // runs now: a `/clear` starts a new session id and transcript in the same
 // process, and a claim made from the Bash tool knew neither transcript.
-func (mem *memory) track(seatName string, held seat.Claim, payload hookio.Payload) seat.Claim {
+func (mem *memory) track(ctx context.Context, seatName string, held seat.Claim, payload hookio.Payload) seat.Claim {
 	changed := false
 
 	if payload.SessionID != "" && payload.SessionID != held.SessionID {
@@ -92,10 +92,41 @@ func (mem *memory) track(seatName string, held seat.Claim, payload hookio.Payloa
 	}
 
 	if changed {
-		_ = seat.Write(mem.seatsDir(), mem.seatKey(seatName), held)
+		mem.rewriteClaim(ctx, mem.seatKey(seatName), sameHolder(held), func(claim *seat.Claim) {
+			claim.SessionID, claim.TranscriptPath = held.SessionID, held.TranscriptPath
+		})
 	}
 
 	return held
+}
+
+// sameHolder is whether a claim still names the process holding held: a
+// claim another session wrote since stays as it is.
+func sameHolder(held seat.Claim) func(seat.Claim) bool {
+	return func(current seat.Claim) bool {
+		return current.PID == held.PID && current.Started == held.Started
+	}
+}
+
+// rewriteClaim changes the claim on the seat filed under key under the seats lock,
+// where still holds for the claim found there.
+func (mem *memory) rewriteClaim(ctx context.Context, key string, still func(seat.Claim) bool, change func(*seat.Claim)) {
+	dir := mem.seatsDir()
+
+	unlock, err := seat.Lock(ctx, dir)
+	if err != nil {
+		return
+	}
+	defer unlock()
+
+	// A missing claim reads as the zero claim, which no caller's still accepts.
+	current, _ := seat.Read(dir, key)
+	if !still(current) {
+		return
+	}
+
+	change(&current)
+	_ = seat.Write(dir, key, current)
 }
 
 func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
@@ -111,7 +142,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 
 	name, held := mem.ownSeat(ctx)
 	if name != "" {
-		held = mem.track(name, held, payload)
+		held = mem.track(ctx, name, held, payload)
 		mem.say(mem.moved(ctx, name, held))
 
 		if payload.Source == "compact" || payload.Source == "clear" {
@@ -427,7 +458,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		return 0
 	}
 
-	held = mem.track(name, held, payload)
+	held = mem.track(ctx, name, held, payload)
 	session := cmp.Or(held.SessionID, payload.SessionID)
 
 	var out []string
@@ -654,7 +685,7 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 		return 0
 	}
 
-	held = mem.track(name, held, payload)
+	held = mem.track(ctx, name, held, payload)
 	session := cmp.Or(held.SessionID, payload.SessionID)
 
 	pending := mem.holdForDoNow(name, session)
@@ -689,7 +720,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 		return 0
 	}
 
-	held = mem.track(name, held, payload)
+	held = mem.track(ctx, name, held, payload)
 	removeIfThere(mem.shownPath(held.SessionID))
 	promptvector.Remove(promptvector.Dir(mem.env.CacheRoot), held.SessionID)
 
@@ -720,7 +751,8 @@ func (mem *memory) closeAtEnd(ctx context.Context, seatName string, payload hook
 
 	mem.skipAtEnd(seatName)
 
-	_ = seat.Close(mem.seatsDir(), mem.seatKey(seatName), mem.now().Format(time.RFC3339Nano))
+	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
+	_, _, _ = mem.closeSeat(ctx, seatName, mem.seatKey(seatName), owner)
 	_ = mem.purgeExpired(ctx)
 }
 

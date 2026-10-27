@@ -250,7 +250,7 @@ func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 			row.status, row.holder = seatReserved, &claim
 			row.state = "reserved " + short(claim.SessionID)
 		case free:
-			_ = seat.Remove(mem.seatsDir(), key)
+			mem.sweep(ctx, key, claim)
 			row.state = fmt.Sprintf("free (holder %s gone, freed)", short(claim.SessionID))
 		}
 
@@ -266,6 +266,24 @@ func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 
 // seatRows is one line per seat of the store, grouped by shelf, freeing the
 // claims nobody uses any more where free is set.
+// sweep frees the seat filed under key from the claim a gone holder left,
+// under the seats lock, so a claim written since the holder was judged gone
+// stays.
+func (mem *memory) sweep(ctx context.Context, key string, gone seat.Claim) {
+	dir := mem.seatsDir()
+
+	unlock, err := seat.Lock(ctx, dir)
+	if err != nil {
+		return
+	}
+	defer unlock()
+
+	current, found := seat.Read(dir, key)
+	if found && current == gone {
+		_ = seat.Remove(dir, key)
+	}
+}
+
 func (mem *memory) seatRows(ctx context.Context, free bool) []string {
 	rows := mem.seatRecords(ctx, free)
 

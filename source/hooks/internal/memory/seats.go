@@ -171,57 +171,21 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		}
 	}
 
-	dir := mem.seatsDir()
-	existing, found := seat.Read(dir, key)
-	previous, hadPrevious := existing, found
-
-	if !hadPrevious {
-		previous, hadPrevious = seat.ReadLast(dir, key)
-	}
-
-	// A running holder may be mid-work, and nothing tells a stuck one from a busy
-	// one, so no claim ever takes its seat; a fresh reservation waits for its
-	// session the same way.
-	if found && current != req.Name {
-		refusal := mem.inUseRefusal(ctx, req.Name, existing)
-		if refusal != "" {
-			return refused("%s", refusal)
-		}
-	}
-
-	if current == req.Name {
-		previous, hadPrevious = seat.ReadLast(dir, key)
-	} else if found {
-		err := seat.Remove(dir, key)
-		if err != nil {
-			return refused("%v", err)
-		}
-	}
-
-	held := seat.Claim{
-		SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339Nano),
-	}
-
-	if current == req.Name {
-		held = existing
-	}
-
-	// Rewritten on every claim, a session's own again included, so a claim
-	// holding `started` in an earlier release's locale text gains an instant.
-	started, running := mem.env.Processes.StartTime(ctx, owner)
-	if running {
-		held.Started = seat.FormatStarted(started)
-	}
-
 	key, err := mem.ensureSeat(ctx, req.Name, req.Shelf)
 	if err != nil {
 		return refused("%v", err)
 	}
 
-	err = seat.Write(dir, key, held)
+	took, refusal, err := mem.take(ctx, req.Name, key, current == req.Name, owner)
 	if err != nil {
 		return refused("%v", err)
 	}
+
+	if refusal != "" {
+		return refused("%s", refusal)
+	}
+
+	held, previous, hadPrevious := took.held, took.previous, took.hadPrevious
 
 	folded, err := mem.load(ctx)
 	if err != nil {
@@ -265,6 +229,98 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	return done(strings.Join(lines, "\n")).with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOf(req.Name))})
+}
+
+// closeSeat closes the claim on the seat filed under key, under the seats
+// lock: a seat another process holds closes only once its holder is gone. It
+// answers whether a claim was closed, or why none may be.
+func (mem *memory) closeSeat(ctx context.Context, name string, key string, owner int) (bool, string, error) {
+	dir := mem.seatsDir()
+
+	unlock, err := seat.Lock(ctx, dir)
+	if err != nil {
+		return false, "", err
+	}
+	defer unlock()
+
+	held, found := seat.Read(dir, key)
+	if !found {
+		return false, "", nil
+	}
+
+	if held.PID != owner && mem.alive(ctx, held) {
+		return false, fmt.Sprintf("%s is held by session %s (pid %d); only its holder releases it", name,
+			short(held.SessionID), held.PID), nil
+	}
+
+	err = seat.Close(dir, key, mem.now().Format(time.RFC3339Nano))
+	if err != nil {
+		return false, "", err
+	}
+
+	return true, "", nil
+}
+
+type taken struct {
+	held        seat.Claim
+	previous    seat.Claim
+	hadPrevious bool
+}
+
+// take writes this session's claim on the seat filed under key, reading and
+// judging the claim it replaces under the seats lock, and answers the claim
+// written with the previous holder's, or why the seat cannot be taken.
+func (mem *memory) take(ctx context.Context, name string, key string, own bool, owner int) (taken, string, error) {
+	dir := mem.seatsDir()
+
+	unlock, err := seat.Lock(ctx, dir)
+	if err != nil {
+		return taken{}, "", err
+	}
+	defer unlock()
+
+	existing, found := seat.Read(dir, key)
+	took := taken{previous: existing, hadPrevious: found}
+
+	if !found {
+		took.previous, took.hadPrevious = seat.ReadLast(dir, key)
+	}
+
+	// A running holder may be mid-work, and nothing tells a stuck one from a busy
+	// one, so no claim ever takes its seat; a fresh reservation waits for its
+	// session the same way.
+	if found && !own {
+		refusal := mem.inUseRefusal(ctx, name, existing)
+		if refusal != "" {
+			return taken{}, refusal, nil
+		}
+	}
+
+	took.held = seat.Claim{SessionID: mem.env.SessionID, PID: owner, Claimed: mem.now().Format(time.RFC3339Nano)}
+
+	if own {
+		took.held = existing
+		took.previous, took.hadPrevious = seat.ReadLast(dir, key)
+	} else if found {
+		err = seat.Remove(dir, key)
+		if err != nil {
+			return taken{}, "", err
+		}
+	}
+
+	// Rewritten on every claim, a session's own again included, so a claim
+	// holding `started` in an earlier release's locale text gains an instant.
+	started, running := mem.env.Processes.StartTime(ctx, owner)
+	if running {
+		took.held.Started = seat.FormatStarted(started)
+	}
+
+	err = seat.Write(dir, key, took.held)
+	if err != nil {
+		return taken{}, "", err
+	}
+
+	return took, "", nil
 }
 
 // claimLifetime sets the lifetime --lifetime names on the claimed seat's
@@ -368,19 +424,17 @@ func (mem *memory) release(ctx context.Context, req request) result {
 
 	key := mem.seatKey(name)
 
-	held, found := seat.Read(mem.seatsDir(), key)
-	if !found {
-		return done(name + " is free").with(releasedFields{Seat: name})
-	}
-
-	if name != own && mem.alive(ctx, held) {
-		return refused("%s is held by session %s (pid %d); only its holder releases it", name, short(held.SessionID),
-			held.PID)
-	}
-
-	err := seat.Close(mem.seatsDir(), key, mem.now().Format(time.RFC3339Nano))
+	released, refusal, err := mem.closeSeat(ctx, name, key, seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName))
 	if err != nil {
 		return refused("%v", err)
+	}
+
+	if refusal != "" {
+		return refused("%s", refusal)
+	}
+
+	if !released {
+		return done(name + " is free").with(releasedFields{Seat: name})
 	}
 
 	_ = mem.purgeExpired(ctx)
