@@ -16,7 +16,7 @@
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
 ~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
 ~/.claude/agentic-memory/attachments/<sha256>[.gz]      every project's attached files, once each
-~/.cache/agentic-memory/<project>/                      vectors, heat, per-session state: rebuilt at will
+~/.cache/agentic-memory/<project>/                      vectors, heat, the folded log, anchor hashes, per-session state: rebuilt at will
 ~/.claude/agentic-helpers/<project>/writers.json        the checkouts that may use the store, shared with agentic-tools
 ```
 
@@ -28,7 +28,7 @@ MCP server checks each call, and starts without migrating where its checkout is 
 on a project with no store yet, other than `claim` and `trust`, makes no list.
 
 Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
-`shelves.json`, a claim, `vectors.gob`, `heat.json` and the cache's other JSON files) is written to
+`shelves.json`, a claim, `vectors.gob`, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
 a temporary file named for that one writer, `.<name>.<random>.tmp` beside it, then renamed over it
 (`internal/atomicfile`). The hooks of one event run in parallel, and a temporary name every writer
 shares would let two of them interleave in it and the second rename publish the mix; a reader sees
@@ -115,6 +115,28 @@ again by each MCP tool call and each look of the idle waiter, since a branch can
 runs. `--short` would make git verify a single revision and refuse the branch beside it, so the
 commit is the full one cut to eight characters. A checkout without a commit fails that one call and
 is asked question by question.
+
+## Read caches
+
+A read reuses what an earlier call worked out, from two files in the cache, and checks each against
+what it stands for first. Any sandboxed job can write the cache as it can the store, so a key that
+does not match costs the work again, never a wrong answer.
+
+- **`fold.gob`, the folded log.** Keyed by the stamp (name, size, modification time) of every sealed
+  segment, the number of tail rows it took in with a digest of every field of each, a digest of
+  `seats.json` (a fold carries the seat names), the zone its stamps were printed in, and the release.
+  `memorylog.Log.Unsealed` reads the manifest, stats the segments and reads the tail without mapping
+  a segment; where only the tail grew, the call folds the rows appended since onto the cached fold
+  and keeps the result. A second read of an unchanged store reads no segment and folds no row; any
+  other difference, a seal or a merge included, folds the whole log again.
+- **`anchor-hashes.json`, anchored files' content hashes**, keyed by absolute path, size and
+  modification time. A file whose stamp moved is hashed again. `returns` checks that a file can still
+  be opened before it trusts a cached hash, so a file no read could open reads as unchecked.
+
+What a read shows is worked out only for the entries it shows or a filter asks about: an entry's link
+flags, and with them the graph's statuses, the first time a line, a JSON entry or `retire?` asks for
+them; who links in, which needs no file, for every entry. A section cut by `n` keeps its best `skip`
+plus `n` entries in a bounded heap rather than sorting all it kept.
 
 ## Times
 
@@ -232,8 +254,8 @@ grounding gate resolves it), a memory id
 where the folded log holds the entry. A merge keeps one `link` row per net explicit link with its
 seat, dropping a link with its `unlink`, and drops a text link with the body it came from.
 
-A graph target's state comes from `sdd export --dependencies all`, run when a read carries a graph
-link, reading `repos[].entries[].{id,status,status_by}` of every repo it carries: the local one keyed by
+A graph target's state comes from `sdd export --dependencies all`, run when a read shows an entry carrying a
+graph link, the first time its flags are asked for, reading `repos[].entries[].{id,status,status_by}` of every repo it carries: the local one keyed by
 the bare id, each connected repo keyed by `<repo_id>:<id>` from `repos[].repo_id` (a connected repo with
 no `repo_id` is skipped). Memory keeps no list of connected repos of its own: sdd's dependency
 declaration decides what the export carries. The result is cached as `graph-status.json` in the cache

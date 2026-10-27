@@ -550,7 +550,9 @@ exists, merged or abandoned. Nothing is retired from it.
 Search is sdd's: `--term` is a case-insensitive regex, every term required, matched against the
 title, the body and the reason an ended entry gives; `--query` searches by
 meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or `other branch` as
-computed against the tree right then, and `confirm` re-anchors a verified entry.
+computed against the tree right then, and `confirm` re-anchors a verified entry. A file is hashed
+again only once its size or modification time moved since a read last hashed it, so an edit keeping
+both reads as no change.
 
 Heat orders the brief, and only using an entry adds it: `confirm` 1.0, `show` 0.5, `link <id>
 <target>` 0.5 to a memory target, `ack --done` 0.5 to each rule it settles, and each of a search's

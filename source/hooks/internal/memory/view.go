@@ -327,18 +327,14 @@ func (section viewSection) explain() string {
 func (scope *viewScope) run(section viewSection) ([]*entry, []*entry) {
 	kept := scope.selected(section.filters)
 
-	if section.rank == rankHeat {
-		scope.byHeat(kept)
-	} else {
-		byDate(kept)
-	}
-
-	page := kept[min(section.skip, len(kept)):]
+	shown := len(kept)
 	if section.limited {
-		page = page[:min(section.limit, len(page))]
+		shown = min(section.skip+section.limit, len(kept))
 	}
 
-	return page, kept
+	ordered := best(kept, shown, scope.order(kept, section.rank))
+
+	return ordered[min(section.skip, len(ordered)):], kept
 }
 
 func (mem *memory) view(ctx context.Context, req request) result {

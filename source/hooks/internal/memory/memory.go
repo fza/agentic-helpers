@@ -111,6 +111,7 @@ type memory struct {
 	// switch.
 	graphConfig *resolvedGraph
 	here        *tree
+	hashCache   *hashCache
 }
 
 // mainRoot is the main checkout; Main remembers the lookup, so a process asks
@@ -269,14 +270,7 @@ func (mem *memory) load(ctx context.Context) (*state, error) {
 		return nil, err
 	}
 
-	snapshot, err := log.Snapshot(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("reading the log: %w", err)
-	}
-
-	defer func() { _ = snapshot.Close() }()
-
-	folded, err := fold(snapshot, mem.seatName)
+	folded, err := mem.foldLog(ctx, log)
 	if err != nil {
 		return nil, err
 	}
@@ -379,6 +373,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	mem := &memory{env: env, streams: streams}
+	defer func() { mem.hashCache.save() }()
 
 	if !pieces.Memory.On(mem.options()) {
 		return mem.off(ctx, args[0])

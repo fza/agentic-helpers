@@ -437,35 +437,52 @@ func graphKey(dir string) string {
 	return fmt.Sprintf("%d@%d", count, newest)
 }
 
-// annotateLinks works out how every entry's line reads its links: a flag per
-// target that is no longer live, active or open, and who links in.
+// annotateLinks works out who links in to every entry, and how an entry's line
+// reads its links: a flag per target that is no longer live, active or open,
+// worked out only for an entry a read shows or a filter asks about, since a
+// graph target costs a file check and the graph's statuses.
 func (mem *memory) annotateLinks(ctx context.Context, folded *state) {
-	var statuses map[string]graphState
-
-	asked := false
-
 	for _, held := range folded.entries {
-		held.linkFlags, held.inbound = nil, nil
+		held.linkFlags, held.flagsKnown, held.inbound, held.folded = nil, false, nil, folded
 	}
 
 	for _, held := range folded.entryList() {
 		for _, target := range held.links() {
+			if linked, found := folded.entries[target]; found && !isGraphID(target) {
+				linked.inbound = append(linked.inbound, held)
+			}
+		}
+	}
+
+	var statuses map[string]graphState
+
+	asked := false
+	ask := func() map[string]graphState {
+		if !asked {
+			statuses, _ = mem.graphStatuses(ctx)
+			asked = true
+		}
+
+		return statuses
+	}
+
+	folded.flagger = func(held *entry) []string {
+		var flags []string
+
+		for _, target := range held.links() {
 			if _, _, qualified := splitQualified(target); qualified {
-				if !asked {
-					statuses, _ = mem.graphStatuses(ctx)
-					asked = true
-				}
+				known := ask()
 
 				// Without the export nothing says what became of it, so no flag.
-				foreign, found := statuses[target]
+				foreign, found := known[target]
 
 				state := graphLinkState(foreign)
-				if statuses != nil && !found {
+				if known != nil && !found {
 					state = "gone"
 				}
 
 				if state != "" {
-					held.linkFlags = append(held.linkFlags, "→ "+foreignName(target)+" "+state)
+					flags = append(flags, "→ "+foreignName(target)+" "+state)
 				}
 
 				continue
@@ -473,13 +490,10 @@ func (mem *memory) annotateLinks(ctx context.Context, folded *state) {
 
 			if !isGraphID(target) {
 				linked, found := folded.entries[target]
-				if found {
-					linked.inbound = append(linked.inbound, held)
-				}
 
 				state := memoryLinkState(linked, found)
 				if state != "" {
-					held.linkFlags = append(held.linkFlags, "→ "+target+" "+state)
+					flags = append(flags, "→ "+target+" "+state)
 				}
 
 				continue
@@ -487,21 +501,18 @@ func (mem *memory) annotateLinks(ctx context.Context, folded *state) {
 
 			_, err := os.Stat(mem.graphPath(ctx, target))
 			if err != nil {
-				held.linkFlags = append(held.linkFlags, "→ "+target+" gone")
+				flags = append(flags, "→ "+target+" gone")
 
 				continue
 			}
 
-			if !asked {
-				statuses, _ = mem.graphStatuses(ctx)
-				asked = true
-			}
-
-			state := graphLinkState(statuses[target])
+			state := graphLinkState(ask()[target])
 			if state != "" {
-				held.linkFlags = append(held.linkFlags, "→ "+target+" "+state)
+				flags = append(flags, "→ "+target+" "+state)
 			}
 		}
+
+		return flags
 	}
 }
 

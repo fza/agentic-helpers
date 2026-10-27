@@ -183,7 +183,7 @@ func (probe *endProbe) met(ctx context.Context, held *entry, end condition) bool
 
 		return state.exists && state.merged
 	case "changed":
-		hash, _ := fileHash(filepath.Join(probe.here.root, filepath.FromSlash(end.value)))
+		hash, _ := probe.here.fileHash(filepath.Join(probe.here.root, filepath.FromSlash(end.value)))
 
 		return hash != held.untilHashes[end.value]
 	case "gone":
@@ -390,7 +390,7 @@ func (probe *endProbe) inferredEnd(ctx context.Context, held *entry) string {
 	if links := held.links(); len(links) > 0 {
 		ended := 0
 
-		for _, flag := range held.linkFlags {
+		for _, flag := range held.flags() {
 			if !strings.HasSuffix(flag, " settled") {
 				ended++
 			}
@@ -402,7 +402,7 @@ func (probe *endProbe) inferredEnd(ctx context.Context, held *entry) string {
 	}
 
 	if len(held.anchors) > 0 && !slices.ContainsFunc(held.anchors, func(anchored anchor) bool {
-		_, found := fileHash(filepath.Join(probe.here.root, filepath.FromSlash(anchored.Path)))
+		_, found := probe.here.fileHash(filepath.Join(probe.here.root, filepath.FromSlash(anchored.Path)))
 
 		return found
 	}) {

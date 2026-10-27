@@ -106,7 +106,7 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 	for _, anchored := range held.anchors {
 		state := "ok"
 
-		hash, found := fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
+		hash, found := here.fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
 
 		switch {
 		case !found:
@@ -127,7 +127,7 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 			}
 		}
 
-		for _, flag := range held.linkFlags {
+		for _, flag := range held.flags() {
 			named := strings.TrimPrefix(flag, "→ ")
 			for _, name := range []string{target + " ", foreignName(target) + " "} {
 				if strings.HasPrefix(named, name) {

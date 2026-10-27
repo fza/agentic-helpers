@@ -146,10 +146,14 @@ type entry struct {
 	// the links `--link` and `link` made and no `unlink` dropped, each with
 	// the seat that made it. linkFlags and inbound are how its line reads them,
 	// filled in once the log is folded.
-	textLinks []string
-	explicit  []explicitLink
-	linkFlags []string
-	inbound   []*entry
+	textLinks  []string
+	explicit   []explicitLink
+	linkFlags  []string
+	flagsKnown bool
+	inbound    []*entry
+	// folded is the fold the entry belongs to, which works out its link
+	// flags the first time a read asks.
+	folded *state
 
 	until       []string
 	untilHashes map[string]string
@@ -218,6 +222,18 @@ type state struct {
 	order   []string
 	merges  []topicMerge
 	states  map[string]stateSlot
+	// flagger works out an entry's link flags; nil where nothing annotated
+	// the fold, which then flags no link.
+	flagger func(held *entry) []string
+}
+
+// flags is the entry's link flags, worked out the first time a read asks.
+func (held *entry) flags() []string {
+	if !held.flagsKnown && held.folded != nil && held.folded.flagger != nil {
+		held.linkFlags, held.flagsKnown = held.folded.flagger(held), true
+	}
+
+	return held.linkFlags
 }
 
 func newState() *state {
@@ -278,25 +294,36 @@ func fold(snapshot *memorylog.Snapshot, seatName func(key string) string) (*stat
 	folded := newState()
 
 	for index, row := range snapshot.Rows() {
-		key := row.Seat
-		row.Seat = seatName(key)
-
 		payload, err := snapshot.Payload(index)
 		if err != nil {
 			return nil, fmt.Errorf("reading the payload of %s %s: %w", row.Kind, row.Entry, err)
 		}
 
-		err = folded.apply(row, payload)
+		err = folded.take(row, payload, seatName)
 		if err != nil {
 			return nil, fmt.Errorf("folding %s %s: %w", row.Kind, row.Entry, err)
-		}
-
-		if row.Kind == memorylog.KindNew {
-			folded.entries[row.Entry].seatKey = key
 		}
 	}
 
 	return folded, nil
+}
+
+// take folds one row as the log stores it, its seat key turned into the name
+// the seat has now.
+func (folded *state) take(row memorylog.Row, payload []byte, seatName func(key string) string) error {
+	key := row.Seat
+	row.Seat = seatName(key)
+
+	err := folded.apply(row, payload)
+	if err != nil {
+		return err
+	}
+
+	if row.Kind == memorylog.KindNew {
+		folded.entries[row.Entry].seatKey = key
+	}
+
+	return nil
 }
 
 func (folded *state) apply(row memorylog.Row, payload []byte) error {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 )
 
 const snapshotAttempts = 16
@@ -20,10 +21,95 @@ var errMoved = errors.New("the log moved under the reader")
 type Snapshot struct {
 	dir      string
 	sealed   sealedSet
+	segments []SegmentStamp
 	tail     []Event
 	manifest os.FileInfo
 	tailInfo os.FileInfo
 	closed   bool
+}
+
+// SegmentStamp is a sealed segment as a reader found it: its name, size and
+// modification time. A reader keeping something derived from the sealed
+// segments keys it by their stamps.
+type SegmentStamp struct {
+	Name    string
+	Size    int64
+	ModTime time.Time
+}
+
+// Segments is the stamp of every sealed segment the snapshot holds, in order.
+func (s *Snapshot) Segments() []SegmentStamp {
+	return slices.Clone(s.segments)
+}
+
+// Sealed is how many of Rows the sealed segments hold; the rest are the
+// tail's, in the order they were appended.
+func (s *Snapshot) Sealed() int {
+	return s.sealed.count()
+}
+
+func (l *Log) stampSegments(names []string) ([]SegmentStamp, error) {
+	stamps := make([]SegmentStamp, 0, len(names))
+
+	for _, name := range names {
+		info, err := os.Stat(l.path(name))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, errMoved
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("measuring %s: %w", name, err)
+		}
+
+		stamps = append(stamps, SegmentStamp{Name: name, Size: info.Size(), ModTime: info.ModTime()})
+	}
+
+	return stamps, nil
+}
+
+// Unsealed is the stamps of the log's sealed segments and the events of its
+// tail as they stand, read without mapping a segment: what a reader holding
+// something derived from the sealed segments needs to take in only what was
+// appended since.
+func (l *Log) Unsealed(ctx context.Context) ([]SegmentStamp, []Event, error) {
+	err := ctx.Err()
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading the tail: %w", err)
+	}
+
+	for range snapshotAttempts {
+		current, manifestInfo, err := readManifest(l.path(manifestName))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		stamps, err := l.stampSegments(current.Segments)
+		if errors.Is(err, errMoved) {
+			continue
+		}
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		reading := &Snapshot{dir: l.dir}
+
+		err = reading.readTail(current.Sealing)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		after, err := statFile(l.path(manifestName))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if sameFile(manifestInfo, after) {
+			return stamps, reading.tail, nil
+		}
+	}
+
+	return nil, nil, ErrUnstable
 }
 
 func (l *Log) Snapshot(ctx context.Context) (*Snapshot, error) {
@@ -64,6 +150,13 @@ func (l *Log) read() (*Snapshot, error) {
 	}
 
 	snapshot := &Snapshot{dir: l.dir, sealed: sealed, manifest: manifestInfo}
+
+	snapshot.segments, err = l.stampSegments(current.Segments)
+	if err != nil {
+		_ = sealed.close()
+
+		return nil, err
+	}
 
 	err = snapshot.readTail(current.Sealing)
 	if err != nil {

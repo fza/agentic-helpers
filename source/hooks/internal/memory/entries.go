@@ -494,7 +494,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 // its full qualified id, and, where it is no longer live, active or open,
 // what became of it.
 func linkLine(folded *state, held *entry, target string) string {
-	for _, flag := range held.linkFlags {
+	for _, flag := range held.flags() {
 		named := "→ " + foreignName(target) + " "
 		if strings.HasPrefix(flag, named) {
 			return "→ " + target + " " + strings.TrimPrefix(flag, named)

@@ -2,8 +2,6 @@ package memory
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -120,25 +118,26 @@ func (scope *viewScope) reasonsFor(held *entry) []returnReason {
 
 // anchorState is how an anchored file stands against its hash at filing:
 // ok, drifted, gone, or unreadable where it cannot be read.
-func anchorState(root string, anchored anchor) string {
-	path := filepath.Join(root, filepath.FromSlash(anchored.Path))
+func anchorState(here tree, anchored anchor) string {
+	path := filepath.Join(here.root, filepath.FromSlash(anchored.Path))
 
 	info, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) || (err == nil && !info.Mode().IsRegular()) {
 		return "gone"
 	}
 
-	if err != nil {
+	// A cached hash would answer for a file no read could open now; one that
+	// cannot be read is unchecked whatever its stamp says.
+	if err != nil || unreadable(path) {
 		return "unreadable"
 	}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
+	hash, found := here.fileHash(path)
+	if !found {
 		return "unreadable"
 	}
 
-	sum := sha256.Sum256(data)
-	if hex.EncodeToString(sum[:])[:16] != anchored.Hash {
+	if hash != anchored.Hash {
 		return "drifted"
 	}
 
@@ -153,7 +152,7 @@ func (scope *viewScope) anchorReasons(held *entry) (bool, []returnReason) {
 	gone := 0
 
 	for _, anchored := range held.anchors {
-		switch anchorState(scope.here.root, anchored) {
+		switch anchorState(scope.here, anchored) {
 		case "drifted":
 			reasons = append(reasons, returnReason{kind: returnAnchor, detail: "drifted: " + anchored.Path,
 				verbs: []string{"confirm", "supersede"}, answer: "confirm where the entry still holds, else supersede"})

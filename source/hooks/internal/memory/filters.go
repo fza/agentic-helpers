@@ -648,17 +648,3 @@ func (scope *viewScope) selected(filters []filter) []*entry {
 
 	return kept
 }
-
-// byHeat orders entries hottest first, the newest first among equals.
-func (scope *viewScope) byHeat(entries []*entry) {
-	slices.SortStableFunc(entries, func(a, b *entry) int {
-		return cmp.Or(cmp.Compare(scope.heat(b), scope.heat(a)), b.filed.Compare(a.filed))
-	})
-}
-
-// byDate orders entries newest first.
-func byDate(entries []*entry) {
-	slices.SortStableFunc(entries, func(a, b *entry) int {
-		return cmp.Or(b.filed.Compare(a.filed), strings.Compare(a.id, b.id))
-	})
-}

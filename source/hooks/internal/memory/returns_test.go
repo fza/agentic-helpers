@@ -88,6 +88,10 @@ func TestReturnsReportsEachReason(t *testing.T) {
 
 	h.clock.Advance(time.Hour)
 
+	// A read showing a graph link asks sdd export and caches the statuses; a
+	// view reads only that cache.
+	h.must("", "search", "--term", "closed decision", "--no-heat")
+
 	got := returnsByTitle(t, h, "returns:as-list")
 
 	cases := []struct {

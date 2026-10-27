@@ -24,6 +24,8 @@ type tree struct {
 	commit   string
 	branch   string
 	workTree bool
+	// hashes is the call's cache of anchored files' content hashes.
+	hashes *hashCache
 }
 
 const commitLength = 8
@@ -33,6 +35,7 @@ const commitLength = 8
 func (mem *memory) checkout(ctx context.Context) tree {
 	if mem.here == nil {
 		held := mem.askCheckout(ctx)
+		held.hashes = mem.hashes()
 		mem.here = &held
 	}
 
@@ -178,7 +181,7 @@ func staleness(here tree, held *entry) []string {
 	var flags []string
 
 	for _, anchored := range held.anchors {
-		hash, found := fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
+		hash, found := here.fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
 
 		switch {
 		case !found:

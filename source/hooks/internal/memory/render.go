@@ -62,7 +62,7 @@ func shortLine(here tree, held *entry, reader string, now time.Time) string {
 func flagsOf(here tree, held *entry) []string {
 	flags := statusFlags(held)
 	flags = append(flags, staleness(here, held)...)
-	flags = append(flags, held.linkFlags...)
+	flags = append(flags, held.flags()...)
 
 	if inbound := held.linkedFrom(false); len(inbound) > 0 {
 		flags = append(flags, fmt.Sprintf("← %d", len(inbound)))

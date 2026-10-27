@@ -142,9 +142,8 @@ func (mem *memory) ownLive(folded *state, seatName string, word string, values .
 	}
 
 	live := scope.selected(filters)
-	scope.byHeat(live)
 
-	return live
+	return best(live, len(live), scope.order(live, rankHeat))
 }
 
 const rulesHeading = "rules (from the user, verify before relying)"
