@@ -118,7 +118,7 @@ Where output counts as outside the project:
 
 | Tool | Outside |
 |---|---|
-| Read, NotebookRead | the file named lies outside the project once its symlinks are resolved |
+| Read, NotebookRead, Edit, Write, NotebookEdit | the file named lies outside the project once its symlinks are resolved; Edit's output carries the whole file it edited |
 | Grep | the path searched, or the working directory where it names none, lies outside the project |
 | Bash | unless every command is a known reader (below), every path it names lies inside the project, and nothing else runs |
 | every other tool (WebFetch, MCP tools, a subagent's answer) | always, under `shell_guard_secret_output` `all` |
@@ -132,17 +132,22 @@ A Bash call shows the project as is only when:
   of one-letter options letter by letter, a letter taking a value taking the rest of the group or
   the next word (`grep -fe x` reads patterns from the file `e`), and a long option only when
   spelled out in full, never abbreviated (`--files0` and `--deref` count as outside);
-- every file it names, an operand or the value of an option taking a file (`grep -f`, `sort -o`,
-  `jq --rawfile`), resolves inside the project through every symlink; one that does not resolve, a
-  dangling link or a missing file, counts as outside;
+- no word after the first operand starts with `-` (`grep x notes.md -n`, `cat a -- b`): GNU reads
+  it as an option, BSD as a file, so it counts as outside;
+- every file it names, an operand or the value of an option taking a file (`grep -f`,
+  `--exclude-from`, `sort -o`, `-T`, `--random-source`, `jq --rawfile`, `--slurpfile`), resolves
+  inside the project through every symlink; one that does not resolve, a dangling link or a missing
+  file, counts as outside. `-` passes only as a plain operand of a reader that reads standard input
+  there (every reader but `jq` and `tr`), never as a file an option takes;
 - it changes no directory, holds no nested code (`eval`, a shell's `-c`, a script, a substitution),
   and redirects only from or to project files, `/dev/null` or another descriptor;
 - the reader's own program reads no other file and runs nothing: a sed script made only of
   addresses, `!`, braces, `s` and `y` without the `w` or `e` flag, and `p`, `d`, `D`, `n`, `N`, `g`,
   `G`, `h`, `H`, `x`, `l`, `P`, `z`, `=`, `q`, `Q`; a jq filter naming no `env`, `$ENV`, `import` or
   `include`. Off every list: `grep -R`, `-S` and `-p` (they follow symlinks out of a named
-  directory), `sed -i` and `-f`, `--files0-from`, `--compress-program`, `jq -f`, `-L`, `--args`
-  and `--jsonargs`.
+  directory), `sed -i` and `-f`, `sed -l` and `--line-length` (GNU and BSD read `-l` differently),
+  `--files0-from`, `--compress-program`, `jq -f`, `-L`, `--args` and `--jsonargs`. Every script
+  sed is given, each `-e` and the first operand where no `-e` is, must pass.
 
 `awk` is no reader here: its program can read any file and run commands. Any other call, a script
 or a test run included, has its output scanned; a project script printing a project credential is
@@ -150,7 +155,7 @@ redacted too.
 
 | Option | Values | Default | Sets |
 |---|---|---|---|
-| `shell_guard_secret_output` | `all`, `files`, `off` | `all` | which output is scanned: every tool's, only Read, Grep, NotebookRead and Bash, or none |
+| `shell_guard_secret_output` | `all`, `files`, `off` | `all` | which output is scanned: every tool's, only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash, or none |
 | `shell_guard_secret_output_skip` | comma-separated tool names or patterns | none | tools whose output is never scanned, as `path.Match` reads a pattern (`mcp__sdd__*`); a pattern that does not compile skips nothing |
 
 - **A scan that cannot finish withholds everything**: every string of the output becomes the marker

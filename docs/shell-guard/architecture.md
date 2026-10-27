@@ -106,8 +106,10 @@ scan.
 unset, `/` or the home directory, as for removals. A path is inside when it resolves, against `cwd`
 for a relative one and through every symlink it passes (a file symlink included), to the project or
 below it. A path that does not resolve counts as outside: `~user`, a brace, a `..` step, a dot glob,
-a dangling link, a file that does not exist. Read and NotebookRead judge `file_path` and
-`notebook_path`, Grep `path` or `cwd`, and a tool input that is no object counts as outside. Bash is
+a dangling link, a file that does not exist. Read, Edit and Write judge `file_path`, NotebookRead
+and NotebookEdit `notebook_path`, Grep `path` or `cwd`, and a tool input that is no object counts as
+outside. Edit, Write and NotebookEdit are judged as readers, since Edit's response carries
+`originalFile`, the whole file it edited. Bash is
 judged by `ReadsOnlyProject`: `cwd` must be inside the project, and the command is parsed, walked
 with `syntax.Walk` for statements (only simple commands, pipelines and lists, subshells and blocks;
 no assignment; every redirection a literal project path, `/dev/null`, a descriptor, or a
@@ -125,11 +127,16 @@ refusing `=value`, an optional one taking a value only through `=`, a pair such 
 taking the next two words). An option off the list, an abbreviation getopt_long would accept among
 them, counts as outside rather than being guessed at: a wrong outside costs only a withheld line. The
 first operand is the program where the reader takes one and no option gave it (grep's pattern, sed's
-script, jq's filter), tr's operands are sets, and every other operand is a file. Every file, an
-option's file value included, must be inside the project. A sed script must pass
-`sedScriptReadsNothing`, a parser of the commands that touch no file; a jq filter must name no `env`,
-`$ENV`, `import` or `include`. Under `files` every tool but Read, Grep, NotebookRead and Bash is left
-alone; under `all` it is outside.
+script, jq's filter), tr's operands are sets, and every other operand is a file. A word starting
+with `-` after the first operand counts as outside: GNU's getopt reads it as an option and BSD's as
+a file, and a parse that guessed either way would misplace the other. Every file, an option's file
+value included, must be inside the project; `-` is dropped only as a plain operand of a reader whose
+`stdinDash` says it reads standard input there, never as an option's file. A sed script, every
+`-e` and the first operand where no `-e` is, must pass `sedScriptReadsNothing`, a parser of the
+commands that touch no file; sed's `-l` is off the list, as GNU reads it as a line length and BSD as
+line buffering. A jq filter must name no `env`, `$ENV`, `import` or `include`. Under `files` every
+tool but Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash is left alone; under `all` it
+is outside.
 
 
 **The redaction.** The response is decoded with numbers kept as written, and every string value

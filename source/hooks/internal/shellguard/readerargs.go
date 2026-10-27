@@ -40,6 +40,10 @@ type readerOptions struct {
 	longFilePairs    []string
 
 	program programKind
+
+	// stdinDash is whether a plain operand `-` reads standard input; a file an
+	// option takes never does.
+	stdinDash bool
 }
 
 var grepOptions = readerOptions{
@@ -56,7 +60,7 @@ var grepOptions = readerOptions{
 		"binary-files", "include", "exclude", "exclude-dir",
 	},
 	longFiles: []string{"file", "exclude-from"}, longScripts: []string{"regexp"}, longProgramFiles: []string{"file"},
-	program: firstOperandIsPattern,
+	program: firstOperandIsPattern, stdinDash: true,
 }
 
 // readerTable is every reader and its options. awk is not among them: its
@@ -66,17 +70,17 @@ var grepOptions = readerOptions{
 // --compress-program, jq -f, -L, --args and --jsonargs.
 var readerTable = map[string]readerOptions{
 	"cat": {
-		flags: "AbeEnstTuvl",
+		flags: "AbeEnstTuvl", stdinDash: true,
 		longFlags: []string{
 			"show-all", "number-nonblank", "show-ends", "number", "squeeze-blank", "show-tabs", "show-nonprinting",
 		},
 	},
 	"head": {
-		flags: "qvz0123456789", values: "nc",
+		flags: "qvz0123456789", values: "nc", stdinDash: true,
 		longFlags: []string{"quiet", "silent", "verbose", "zero-terminated"}, longValues: []string{"lines", "bytes"},
 	},
 	"tail": {
-		flags: "fFqrvz0123456789", values: "ncsb",
+		flags: "fFqrvz0123456789", values: "ncsb", stdinDash: true,
 		longFlags:    []string{"quiet", "silent", "verbose", "zero-terminated", "retry"},
 		longOptional: []string{"follow"},
 		longValues:   []string{"lines", "bytes", "sleep-interval", "max-unchanged-stats", "pid"},
@@ -85,18 +89,18 @@ var readerTable = map[string]readerOptions{
 	"egrep": grepOptions,
 	"fgrep": grepOptions,
 	"sed": {
-		flags: "nErsuz", values: "l", scripts: "e",
+		flags: "nErsuz", scripts: "e", stdinDash: true,
 		longFlags: []string{
 			"quiet", "silent", "regexp-extended", "separate", "unbuffered", "null-data", "posix", "debug", "sandbox",
 		},
-		longValues: []string{"line-length"}, longScripts: []string{"expression"},
-		program: firstOperandIsSedScript,
+		longScripts: []string{"expression"},
+		program:     firstOperandIsSedScript,
 	},
 	"wc": {
-		flags: "clmwL", longFlags: []string{"bytes", "chars", "lines", "words", "max-line-length"},
+		flags: "clmwL", stdinDash: true, longFlags: []string{"bytes", "chars", "lines", "words", "max-line-length"},
 	},
 	"sort": {
-		flags: "bdfgiMhnRrcCmsuVz", values: "ktS", files: "oT",
+		flags: "bdfgiMhnRrcCmsuVz", values: "ktS", files: "oT", stdinDash: true,
 		longFlags: []string{
 			"ignore-leading-blanks", "dictionary-order", "ignore-case", "general-numeric-sort", "ignore-nonprinting",
 			"month-sort", "human-numeric-sort", "numeric-sort", "random-sort", "reverse", "version-sort", "merge",
@@ -107,12 +111,12 @@ var readerTable = map[string]readerOptions{
 		longFiles:    []string{"output", "temporary-directory", "random-source"},
 	},
 	"uniq": {
-		flags: "cdDiuz", values: "fsw",
+		flags: "cdDiuz", values: "fsw", stdinDash: true,
 		longFlags:  []string{"count", "repeated", "ignore-case", "unique", "zero-terminated"},
 		longValues: []string{"skip-fields", "skip-chars", "check-chars"},
 	},
 	"cut": {
-		flags: "nsz", values: "bcdf",
+		flags: "nsz", values: "bcdf", stdinDash: true,
 		longFlags:  []string{"complement", "only-delimited", "zero-terminated"},
 		longValues: []string{"bytes", "characters", "delimiter", "fields", "output-delimiter"},
 	},
@@ -121,7 +125,7 @@ var readerTable = map[string]readerOptions{
 		program: operandsAreText,
 	},
 	"nl": {
-		flags: "p", values: "bdfhilnsvw",
+		flags: "p", values: "bdfhilnsvw", stdinDash: true,
 		longFlags: []string{"no-renumber"},
 		longValues: []string{
 			"body-numbering", "section-delimiter", "footer-numbering", "header-numbering", "line-increment",
@@ -188,7 +192,14 @@ func readerFiles(options readerOptions, args []string) ([]string, bool) {
 		return nil, false
 	}
 
-	return append(parsed.files, operands...), true
+	files := parsed.files
+	for _, operand := range operands {
+		if operand != "-" || !options.stdinDash {
+			files = append(files, operand)
+		}
+	}
+
+	return files, true
 }
 
 func parseReader(options readerOptions, args []string) (readerArgs, bool) {
@@ -198,6 +209,10 @@ func parseReader(options readerOptions, args []string) (readerArgs, bool) {
 		arg := args[index]
 
 		switch {
+		// GNU reads an option after an operand as an option, BSD as a file:
+		// a word that is either counts as outside.
+		case len(parsed.operands) > 0 && strings.HasPrefix(arg, "-") && arg != "-":
+			return readerArgs{}, false
 		case arg == "--":
 			parsed.operands = append(parsed.operands, args[index+1:]...)
 			index = len(args)

@@ -29,7 +29,8 @@ const (
 
 // SecretOutputAll / SecretOutputFiles are the settings of
 // `shell_guard_secret_output` besides `off`: scan every tool's output from
-// outside the project, or only that of Read, Grep, NotebookRead and Bash.
+// outside the project, or only that of Read, Grep, NotebookRead, Edit, Write,
+// NotebookEdit and Bash.
 const (
 	SecretOutputAll   = "all"
 	SecretOutputFiles = "files"

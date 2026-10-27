@@ -197,6 +197,13 @@ func TestOutputFromOutsideTheProjectIsWithheldLineByLine(t *testing.T) {
 		withheld bool
 	}{
 		{name: "Read outside", tool: "Read", input: map[string]any{"file_path": "{outside}/config.yaml"}, withheld: true},
+		{name: "Edit outside", tool: "Edit", input: map[string]any{"file_path": "{outside}/config.yaml"}, withheld: true},
+		{name: "Edit inside", tool: "Edit", input: map[string]any{"file_path": "{project}/config.yaml"}},
+		{name: "Edit a linked file", tool: "Edit", input: map[string]any{"file_path": "{project}/linked.yaml"}, withheld: true},
+		{name: "Write outside", tool: "Write", input: map[string]any{"file_path": "{outside}/config.yaml"}, withheld: true},
+		{name: "Write inside", tool: "Write", input: map[string]any{"file_path": "{project}/config.yaml"}},
+		{name: "NotebookEdit outside", tool: "NotebookEdit", input: map[string]any{"notebook_path": "{outside}/config.yaml"}, withheld: true},
+		{name: "NotebookEdit inside", tool: "NotebookEdit", input: map[string]any{"notebook_path": "{project}/config.yaml"}},
 		{name: "Read inside", tool: "Read", input: map[string]any{"file_path": "{project}/config.yaml"}},
 		{name: "Read relative inside", tool: "Read", input: map[string]any{"file_path": "config.yaml"}},
 		{name: "Read through a linked directory", tool: "Read", input: map[string]any{"file_path": "{project}/link/config.yaml"}, withheld: true},
@@ -234,6 +241,13 @@ func TestOutputFromOutsideTheProjectIsWithheldLineByLine(t *testing.T) {
 				response = []any{map[string]any{"type": "text", "text": content}}
 			}
 
+			if tc.tool == "Edit" {
+				response = map[string]any{
+					"filePath": "config.yaml", "oldString": "provider: openai", "newString": "provider: ollama",
+					"originalFile": content, "structuredPatch": []any{}, "userModified": false, "replaceAll": false,
+				}
+			}
+
 			if tc.tool == "WebFetch" {
 				response = map[string]any{"result": content, "code": 200, "durationMs": 12}
 			}
@@ -268,7 +282,7 @@ func TestOutputFromOutsideTheProjectIsWithheldLineByLine(t *testing.T) {
 }
 
 func TestAToolInputItCannotReadCountsAsOutside(t *testing.T) {
-	for _, tool := range []string{"Read", "Grep", "NotebookRead", "Bash"} {
+	for _, tool := range []string{"Read", "Grep", "NotebookRead", "Edit", "Write", "NotebookEdit", "Bash"} {
 		t.Run(tool, func(t *testing.T) {
 			g := newGuard(t, false, `"shell_guard_secret_output":"files"`)
 			content, _, _ := test.ProviderConfig(t)
@@ -292,21 +306,21 @@ func TestCleanOutputFromOutsideIsUntouched(t *testing.T) {
 }
 
 func TestTheOptionsDecideWhichOutputIsScanned(t *testing.T) {
-	tools := []string{"WebFetch", "mcp__sdd__search", "Read"}
+	tools := []string{"WebFetch", "mcp__sdd__search", "Read", "Edit", "Write", "NotebookEdit"}
 
 	cases := []struct {
 		name     string
 		options  string
 		withheld []bool
 	}{
-		{name: "all unless set", options: ``, withheld: []bool{true, true, true}},
-		{name: "all", options: `"shell_guard_secret_output":"all"`, withheld: []bool{true, true, true}},
-		{name: "files", options: `"shell_guard_secret_output":"files"`, withheld: []bool{false, false, true}},
-		{name: "off", options: `"shell_guard_secret_output":"off"`, withheld: []bool{false, false, false}},
-		{name: "a tool skipped by name", options: `"shell_guard_secret_output_skip":"WebFetch, Read"`, withheld: []bool{false, true, false}},
-		{name: "a tool skipped by pattern", options: `"shell_guard_secret_output_skip":"mcp__sdd__*"`, withheld: []bool{true, false, true}},
-		{name: "a pattern that does not compile skips nothing", options: `"shell_guard_secret_output_skip":"[mcp"`, withheld: []bool{true, true, true}},
-		{name: "shell-guard off", options: `"shell_guard_enabled":false`, withheld: []bool{false, false, false}},
+		{name: "all unless set", options: ``, withheld: []bool{true, true, true, true, true, true}},
+		{name: "all", options: `"shell_guard_secret_output":"all"`, withheld: []bool{true, true, true, true, true, true}},
+		{name: "files", options: `"shell_guard_secret_output":"files"`, withheld: []bool{false, false, true, true, true, true}},
+		{name: "off", options: `"shell_guard_secret_output":"off"`, withheld: []bool{false, false, false, false, false, false}},
+		{name: "a tool skipped by name", options: `"shell_guard_secret_output_skip":"WebFetch, Read, Write"`, withheld: []bool{false, true, false, true, false, true}},
+		{name: "a tool skipped by pattern", options: `"shell_guard_secret_output_skip":"mcp__sdd__*"`, withheld: []bool{true, false, true, true, true, true}},
+		{name: "a pattern that does not compile skips nothing", options: `"shell_guard_secret_output_skip":"[mcp"`, withheld: []bool{true, true, true, true, true, true}},
+		{name: "shell-guard off", options: `"shell_guard_enabled":false`, withheld: []bool{false, false, false, false, false, false}},
 	}
 
 	for _, tc := range cases {
@@ -315,7 +329,7 @@ func TestTheOptionsDecideWhichOutputIsScanned(t *testing.T) {
 				g := newGuard(t, false, tc.options)
 				content, _, _ := test.ProviderConfig(t)
 
-				call := g.output(context.Background(), tool, map[string]any{"file_path": "{outside}/config.yaml"}, bashResponse(content))
+				call := g.output(context.Background(), tool, map[string]any{"file_path": "{outside}/config.yaml", "notebook_path": "{outside}/config.yaml"}, bashResponse(content))
 				if call.status != 0 {
 					t.Fatalf("the hook should answer, exit %d: %s", call.status, call.stderr)
 				}

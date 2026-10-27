@@ -154,7 +154,7 @@ func (check *projectReads) Command(call shellwalk.Call) {
 	}
 
 	for _, file := range files {
-		if file != "-" && !check.inside(file) {
+		if !check.inside(file) {
 			check.only = false
 
 			return

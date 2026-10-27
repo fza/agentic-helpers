@@ -204,7 +204,7 @@
     "shell_guard_secret_output": {
       "type": "string",
       "title": "Shell-guard: credentials in tool output",
-      "description": "all, files or off: withhold each line looking like a credential from tool output that comes from outside the project; files limits it to Read, Grep, NotebookRead and Bash; empty means all",
+      "description": "all, files or off: withhold each line looking like a credential from tool output that comes from outside the project; files limits it to Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; empty means all",
       "required": false
     },
     "shell_guard_secret_output_skip": {
