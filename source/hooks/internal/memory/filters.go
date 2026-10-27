@@ -91,6 +91,11 @@ type viewScope struct {
 	// whose seen mark unread reads.
 	inbox string
 
+	// reasons is each entry's returns, computed the first time a filter or a
+	// section asks; probe answers the end conditions they check.
+	reasons map[string][]returnReason
+	probe   *endProbe
+
 	heatsRead bool
 	heatsHeld map[string]heatValue
 }
@@ -119,6 +124,7 @@ func (problem *argumentError) Error() string { return problem.problem }
 var sinceSpan = regexp.MustCompile(`^([0-9]+)([hdwmy])$`)
 
 var filterWords = []filterWord{
+	returnsWord,
 	{
 		name: "active", arity: takesNone, describe: "live entries",
 		build: func(*viewScope, []string) (predicate, error) {

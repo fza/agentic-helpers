@@ -305,6 +305,11 @@ agentic-memory view --explain 'top(5):kind(trap)'   # the layout spelled out who
   what it receives), `from(...)`, `branch(b)`, `linked(<id>)`, `anchored("<path>")`,
   `inbox(<seat>)` (addressed to it from other shelves), `unread` (after its seen mark; needs
   `inbox` in the section). A view never moves the seen mark: the arrival notice still tells it.
+- **`returns` → what needs you, and the verb.** `active:mine:returns:as-list` at a claim or before
+  relying on old entries. Under each entry: `anchor drifted` → `confirm` if it still holds, else
+  `supersede`; `anchor gone` → `supersede`/`retire`; `link ... closed by|superseded by <id>` → read
+  `<id>`, then `supersede`/`retire`; `link ... gone` → `unlink`; `until end met|inferred` → `retire`;
+  `branch filed on <b>` → nothing until it merges. `unchecked` = could not tell: check by hand.
 - Shape: `rank(heat|by(date))`, `n(N)`, `skip(N)`, `name("...")`, `brief` (short lines), macro
   `top(N)`.
 - **A view warms nothing, moves no mark.** Reading is not using.

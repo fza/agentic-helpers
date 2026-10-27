@@ -612,6 +612,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `mine` | the calling seat's shelf and what it receives, as a search without `--seat` and the brief cover; refused without a seat |
 | `inbox(<seat>)` | everything addressed to the seat from another shelf: filed `--for all`, for its shelf, or under a topic its shelf follows; through the one routing function the arrival notice uses, so the two never disagree |
 | `unread` | entries filed after the seen mark of the seat `inbox` names in the same section, as the arrival notice counts them; a seat without a mark has seen everything; refused without `inbox(<seat>)` |
+| `returns`, `returns(anchor\|link\|until\|branch,...)` | live entries that need attention, each listed with why and the verbs that answer it (below); with arguments, only reasons of those kinds |
 | `from(user\|agent\|tool,...)` | entries filed from any of the sources |
 | `branch(<branch>)` | entries filed on the branch |
 | `linked(<id>)` | entries linking to the memory or graph id |
@@ -624,6 +625,27 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `as-list` | one line per entry under the section's heading, and `<k> more: skip(<next>)` where `n` cut some |
 | `as-counts` | each topic the kept entries carry, with their count and summed heat |
 | `as-bodies` | each entry whole, framed as `show` frames it |
+
+`returns` names under each entry it keeps every reason it needs attention, and what answers it:
+
+| Reason | Answer |
+|---|---|
+| `anchor drifted: <path>` | `confirm` where the entry still holds, else `supersede` |
+| `anchor gone: <path>` | `supersede` or `retire` |
+| `link <target> closed by <id>`, `superseded by <id>` | read the successor, then `supersede` or `retire` |
+| `link <target> retired` | `supersede` or `retire` |
+| `link <target> gone` | `unlink` |
+| `until end met: <condition>`, `until end inferred: <why>` | `retire` (a rule ends only by hand, so it carries no end) |
+| `branch filed on <branch>` | none until that branch merges |
+
+    m-7q2k4f Gate reads only Bash calls  [main, trap, from agent, 2026-10-25 10:00 CET, 15af1a8c]  drifted: internal/gate/gate.go
+        anchor drifted: internal/gate/gate.go → confirm where the entry still holds, else supersede
+
+A reason that cannot be checked shows as unchecked, never as absent: `link unchecked: <target>: the
+graph status cache is cold` where no cached `sdd export` answers for the graph as it stands (a view
+never runs one), `anchor unchecked: <path> cannot be read`, `until unchecked: <condition>: the file
+cannot be read`. `view --json` carries them on each entry as `returns`: `[{"reason", "detail",
+"verbs", "answer", "unchecked"}]`.
 
 An entry superseded by another reads as its successor and never lists. A view warms nothing and
 moves no mark: a listing is not a use, so heat, the seen mark and the brief mark stay as they were.

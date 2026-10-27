@@ -282,20 +282,14 @@ type graphState struct {
 // command falls back silently: no stock release carries `export`, so its
 // absence says nothing about the graph.
 func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bool) {
-	if mem.graphKnown != nil {
-		return mem.graphKnown, true
+	known, cached := mem.cachedGraphStatuses(ctx)
+	if cached {
+		return known, true
 	}
 
 	root := mem.mainRoot(ctx)
 	local := mem.graphProject(ctx).entries
 	cachePath := filepath.Join(mem.cacheDir(), "graph-status.json")
-
-	var cached graphStatus
-	if readJSON(cachePath, &cached) && cached.Key == mem.statusKey(local, cached.Repos) && cached.Statuses != nil {
-		mem.graphKnown = cached.Statuses
-
-		return cached.Statuses, true
-	}
 
 	if !mem.exports(ctx, root) {
 		return nil, false
@@ -315,6 +309,24 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 	mem.graphKnown = statuses
 
 	return statuses, true
+}
+
+// cachedGraphStatuses is the graph's statuses where this process or the cache
+// already holds them for the graph as it stands; it never runs sdd export.
+func (mem *memory) cachedGraphStatuses(ctx context.Context) (map[string]graphState, bool) {
+	if mem.graphKnown != nil {
+		return mem.graphKnown, true
+	}
+
+	var cached graphStatus
+	if readJSON(filepath.Join(mem.cacheDir(), "graph-status.json"), &cached) && cached.Statuses != nil &&
+		cached.Key == mem.statusKey(mem.graphProject(ctx).entries, cached.Repos) {
+		mem.graphKnown = cached.Statuses
+
+		return cached.Statuses, true
+	}
+
+	return nil, false
 }
 
 // statusKey changes whenever the local graph or the cache of one of the

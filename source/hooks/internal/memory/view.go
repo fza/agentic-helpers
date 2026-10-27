@@ -62,6 +62,9 @@ type viewSection struct {
 	skip     int
 	compact  bool
 	render   string
+	// returns is the reasons a returns filter shows under each entry, none
+	// where the section has none.
+	returns []string
 }
 
 func viewWords() []string {
@@ -138,6 +141,17 @@ func (scope *viewScope) compileSection(section layout.Section) (viewSection, err
 
 			compiled, err = scope.compileFilter(call)
 			held.filters = append(held.filters, compiled)
+
+			if call.Name == "returns" {
+				held.returns = returnKinds
+				if len(call.Args) > 0 {
+					held.returns = nil
+					for _, arg := range call.Args {
+						kind, _ := arg.Word()
+						held.returns = append(held.returns, kind)
+					}
+				}
+			}
 		case slices.Contains(renderWords, call.Name):
 			err = held.terminate(call, index == last)
 		case slices.Contains(shapeWords, call.Name):
@@ -387,6 +401,10 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 				} else {
 					lines = append(lines, "  "+line(scope.here, held))
 				}
+
+				for _, reason := range scope.returnsOf(held, section.returns) {
+					lines = append(lines, "    "+reason.text())
+				}
 			}
 		}
 
@@ -477,8 +495,12 @@ func (scope *viewScope) viewJSON(sections []viewSection) result {
 		default:
 			listed := jsonListSection{Entries: make([]jsonEntry, 0, len(page))}
 			for _, held := range page {
-				listed.Entries = append(listed.Entries, scope.mem.entryJSON(scope.here, scope.folded, held,
-					section.render == renderBodies))
+				object := scope.mem.entryJSON(scope.here, scope.folded, held, section.render == renderBodies)
+				for _, reason := range scope.returnsOf(held, section.returns) {
+					object.Returns = append(object.Returns, reason.json())
+				}
+
+				listed.Entries = append(listed.Entries, object)
 			}
 
 			if next := min(section.skip, len(kept)) + len(page); next < len(kept) {

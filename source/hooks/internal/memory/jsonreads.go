@@ -41,6 +41,8 @@ type jsonEntry struct {
 	// Body is null where a merge dropped it, BodyDropped then saying when.
 	Body        *json.RawMessage `json:"body,omitempty"`
 	BodyDropped string           `json:"body_dropped,omitempty"`
+	// Returns is why the entry needs attention, in a view's returns section.
+	Returns []jsonReturn `json:"returns,omitempty"`
 }
 
 type jsonStatusChange struct {

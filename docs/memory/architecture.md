@@ -290,6 +290,13 @@ and cuts. A view reads `heat.json` for `rank(heat)` and `as-counts` and writes n
 function the arrival notice routes by, so a view and the notice cannot diverge; `unread` reads the
 seat's seen mark, `briefs/<id>.seen.json`, once per section and never writes it.
 
+`returns` computes an entry's reasons once per read, the first time a filter or a section asks:
+each anchor's file hashed against its hash at filing, each link's target from the folded log or the
+graph entry's file and the cached graph statuses (`graph-status.json`, read only while its key
+matches the graph; a view never runs `sdd export`), each declared end through the end check's probe,
+`merged:` asking git once per branch, and the inferred ends `retire?` names. What the cache or a file
+cannot answer is `unchecked`.
+
 ## Attachments
 
 One attachment store serves every project on the machine: `~/.claude/agentic-memory/attachments/`,
