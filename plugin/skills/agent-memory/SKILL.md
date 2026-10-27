@@ -302,7 +302,9 @@ agentic-memory view --explain 'top(5):kind(trap)'   # the layout spelled out who
   sections. No spaces outside quotes. Quote paths, titles, dates: `anchored("internal/gate")`.
 - Filters: `active`, `status(...)`, `kind(...)`, `topic(t)` (prefix by component), `since("7d")`,
   `id(...)`, `not(<filter>)`, `seat(...)`, `shelf(...)`, `for(all|<shelf>)`, `mine` (own shelf and
-  what it receives), `from(...)`, `branch(b)`, `linked(<id>)`, `anchored("<path>")`.
+  what it receives), `from(...)`, `branch(b)`, `linked(<id>)`, `anchored("<path>")`,
+  `inbox(<seat>)` (addressed to it from other shelves), `unread` (after its seen mark; needs
+  `inbox` in the section). A view never moves the seen mark: the arrival notice still tells it.
 - Shape: `rank(heat|by(date))`, `n(N)`, `skip(N)`, `name("...")`, `brief` (short lines), macro
   `top(N)`.
 - **A view warms nothing, moves no mark.** Reading is not using.

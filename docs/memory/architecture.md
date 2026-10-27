@@ -286,6 +286,10 @@ the same filters through the same argument parsing, so a word means one thing wh
 A section runs its filters in one pass over the folded log, the cheap ones first, then ranks, skips
 and cuts. A view reads `heat.json` for `rank(heat)` and `as-counts` and writes nothing.
 
+`inbox(<seat>)` keeps what `receives` (`internal/memory/shared.go`) says reaches the seat, the
+function the arrival notice routes by, so a view and the notice cannot diverge; `unread` reads the
+seat's seen mark, `briefs/<id>.seen.json`, once per section and never writes it.
+
 ## Attachments
 
 One attachment store serves every project on the machine: `~/.claude/agentic-memory/attachments/`,

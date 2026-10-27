@@ -114,6 +114,14 @@ func (scope *viewScope) compileSection(section layout.Section) (viewSection, err
 	held := viewSection{text: section.Text, position: section.Position, rank: rankDate}
 	last := len(section.Calls) - 1
 
+	scope.inbox = ""
+
+	for _, call := range section.Calls {
+		if call.Name == "inbox" && len(call.Args) == 1 {
+			scope.inbox, _ = call.Args[0].Word()
+		}
+	}
+
 	for index, call := range section.Calls {
 		_, isFilter := filterWordNamed(call.Name)
 

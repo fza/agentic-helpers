@@ -87,6 +87,9 @@ type viewScope struct {
 	folded *state
 	here   tree
 	reader string
+	// inbox is the seat the section being compiled names in inbox(<seat>),
+	// whose seen mark unread reads.
+	inbox string
 
 	heatsRead bool
 	heatsHeld map[string]heatValue
@@ -224,6 +227,36 @@ var filterWords = []filterWord{
 			return func(scope *viewScope, held *entry) bool {
 				return scope.mem.ownOrReceived(scope.folded, held, scope.reader)
 			}, nil
+		},
+	},
+	{
+		name: "inbox", arity: takesOne, takes: "a seat",
+		describe: "entries addressed to the seat from another shelf: filed for all, for its shelf, or under a topic its shelf follows",
+		suggest:  seatNames,
+		build: func(scope *viewScope, values []string) (predicate, error) {
+			if scope.mem.shelfOf(values[0]) == "" {
+				return nil, &argumentError{problem: "inbox takes a seat of this project"}
+			}
+
+			return func(scope *viewScope, held *entry) bool {
+				return scope.mem.receives(scope.folded, held, values[0])
+			}, nil
+		},
+	},
+	{
+		name: "unread", arity: takesNone, needs: needSeen,
+		describe: "entries filed after the seen mark of the seat inbox names in the same section; a seat without a mark has seen everything",
+		build: func(scope *viewScope, _ []string) (predicate, error) {
+			if scope.inbox == "" {
+				return nil, &argumentError{problem: "unread needs inbox(<seat>) in its section", nearest: "inbox"}
+			}
+
+			var mark seenMark
+			if !readJSON(scope.mem.seenPath(scope.inbox), &mark) {
+				return func(*viewScope, *entry) bool { return false }, nil
+			}
+
+			return func(_ *viewScope, held *entry) bool { return held.filed.After(mark.At) }, nil
 		},
 	},
 	{

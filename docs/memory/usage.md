@@ -593,6 +593,7 @@ for `sdd view` composes here.
 agentic-memory view --layout 'active:kind(trap):rank(heat):n(5):as-list'
 agentic-memory view --layout 'top(10),active:topic(infra):as-counts'
 agentic-memory view --layout 'status(retired):since("7d"):rank(by(date)):brief:as-list'
+agentic-memory view --layout 'active:inbox(review):unread:as-list'   # what review has yet to hear of
 agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(heat):n(5):as-list
 ```
 
@@ -609,6 +610,8 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `shelf(<shelf>,...)` | entries on any of the shelves; a seat's name names its shelf |
 | `for(all\|<shelf>,...)` | entries filed `--for all`, or `--for` any of the shelves |
 | `mine` | the calling seat's shelf and what it receives, as a search without `--seat` and the brief cover; refused without a seat |
+| `inbox(<seat>)` | everything addressed to the seat from another shelf: filed `--for all`, for its shelf, or under a topic its shelf follows; through the one routing function the arrival notice uses, so the two never disagree |
+| `unread` | entries filed after the seen mark of the seat `inbox` names in the same section, as the arrival notice counts them; a seat without a mark has seen everything; refused without `inbox(<seat>)` |
 | `from(user\|agent\|tool,...)` | entries filed from any of the sources |
 | `branch(<branch>)` | entries filed on the branch |
 | `linked(<id>)` | entries linking to the memory or graph id |
