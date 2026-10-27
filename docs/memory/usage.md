@@ -39,7 +39,7 @@ repository's, where `project_dir` names one), which any checkout can declare. Th
 one list `~/.claude/agentic-helpers/<project>/writers.json`, which agentic-tools reads too; every
 worktree of a listed checkout is listed with it. The first call that writes an unlisted
 project's store (a `claim`, a filing, any change) lists the calling checkout; a read (`search`,
-`show`, `brief`, `topics`) claims nothing. While the project's list is missing, a library's own
+`show`, `brief`, `view`, `topics`) claims nothing. While the project's list is missing, a library's own
 `writers.json` from agentic-tools binds memory too, and moves into the project's list on the first
 write. Any other checkout is refused every subcommand and memory MCP tool, its hooks stay
 silent, and none of its calls migrates the store:

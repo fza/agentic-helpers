@@ -20,7 +20,7 @@ import (
 // or an unclaimed project's runs them, and they claim nothing.
 var (
 	readOnly = []string{"help", "--help", "-h", "who", "holder"}
-	reads    = []string{"search", "show", "brief", "topics", "dump", "mcp"}
+	reads    = []string{"search", "show", "brief", "topics", "view", "dump", "mcp"}
 )
 
 func (mem *memory) writersList() writers.List {

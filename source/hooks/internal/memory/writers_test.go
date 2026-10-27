@@ -178,10 +178,12 @@ func TestAReadOfAnUnclaimedStoreClaimsNothing(t *testing.T) {
 	h.must("", "claim", "main")
 	_ = os.Remove(h.writersFile())
 
-	h.must("", "search", "--term", "gate")
+	for _, read := range [][]string{{"search", "--term", "gate"}, {"view", "--layout", "active:as-list"}} {
+		h.must("", read...)
 
-	if test.Exists(t, h.writersFile()) {
-		t.Error("a read should claim nothing")
+		if test.Exists(t, h.writersFile()) {
+			t.Errorf("a read should claim nothing, %s did", read[0])
+		}
 	}
 
 	h.file("Gate reads Bash only today", "finding")
