@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/capture"
+	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -132,6 +133,51 @@ func TestTheDraftBecomesOneSddNewCall(t *testing.T) {
 
 	if !test.Exists(t, filepath.Join(f.root, ".sdd", "tmp", "capture.lock")) {
 		t.Error("the capture should run under the lock")
+	}
+}
+
+func TestACaptureWaitsForTheCaptureLock(t *testing.T) {
+	f := newFixture(t, "grounding/area-prefix.yaml")
+	draft := f.draft("capture/full.md")
+
+	lockPath := filepath.Join(f.root, ".sdd", "tmp", "capture.lock")
+	test.WriteFile(t, lockPath, "")
+
+	holder, err := os.OpenFile(lockPath, os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatalf("opening the capture lock: %v", err)
+	}
+	defer holder.Close()
+
+	err = filelock.Exclusive(holder)
+	if err != nil {
+		t.Fatalf("taking the capture lock: %v", err)
+	}
+
+	finished := make(chan result, 1)
+
+	go func() {
+		finished <- f.run(draft)
+	}()
+
+	select {
+	case <-finished:
+		t.Fatal("a capture should wait while another holds the capture lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	err = filelock.Unlock(holder)
+	if err != nil {
+		t.Fatalf("releasing the capture lock: %v", err)
+	}
+
+	select {
+	case got := <-finished:
+		if got.code != 0 || len(f.runner.CallsOf("capture")) != 1 {
+			t.Errorf("the capture should run once the lock is released, got: %+v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("the capture should run once the lock is released")
 	}
 }
 

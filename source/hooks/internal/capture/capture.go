@@ -42,6 +42,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
@@ -878,7 +879,7 @@ func (run *capture) lock() (func(), error) {
 		return nil, fmt.Errorf("opening the capture lock: %w", err)
 	}
 
-	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
+	err = filelock.Exclusive(file)
 	if err != nil {
 		_ = file.Close()
 
@@ -886,7 +887,7 @@ func (run *capture) lock() (func(), error) {
 	}
 
 	return func() {
-		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		_ = filelock.Unlock(file)
 		_ = file.Close()
 	}, nil
 }
