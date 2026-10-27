@@ -232,7 +232,7 @@ func launchedAt(args []*syntax.Word) int {
 			// An unquoted expansion may split into the value and a command of its
 			// own (`sudo -u $user` with user='root rm -rf /'): the value word is
 			// then the command, as nothing tells which word runs.
-			if index < len(args) && !oneKnownWord(args[index]) {
+			if index < len(args) && !OneKnownWord(args[index]) {
 				return index
 			}
 		case strings.HasPrefix(value, "-") || assignment.MatchString(value) || count.MatchString(value):
@@ -244,10 +244,10 @@ func launchedAt(args []*syntax.Word) int {
 	return -1
 }
 
-// oneKnownWord is whether the shell hands the word on as one word: fixed text
+// OneKnownWord is whether the shell hands the word on as one word: fixed text
 // with no glob or brace, or text wholly inside double quotes whose expansions
 // use no `@` or `*`, which split even there, and no `!` indirection.
-func oneKnownWord(word *syntax.Word) bool {
+func OneKnownWord(word *syntax.Word) bool {
 	if Patterned(word) {
 		return false
 	}

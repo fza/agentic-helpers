@@ -49,7 +49,11 @@ carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A 
 stood alone. A call whose name has no literal value (`$CMD`, `"$tool"`, `$(...)`, a `$'...'` holding
 an escape outside the decoded set) could be any command, a removal among them: passed at least one
 argument, it takes `shell_guard_outside_project`'s verdict, reason `cannot judge: the command name
-<word> is not fixed text`, the word as the command spells it; with none it runs. Under a launcher
+<word> is not fixed text`, the word as the command spells it. Passed none, it runs only where the
+name stays one word (`shellwalk.OneKnownWord`, the test a launcher's option value takes below:
+wholly double-quoted with no `@`, `*` or `!` expansion, as `"$tool"`); a name that may split (`$CMD`,
+`$(...)`, `{rm,-rf,/}`, a glob) takes the verdict with no argument, since `CMD='rm -rf /'; $CMD`
+runs a removal with no argument written. Under a launcher
 only the word `shellwalk` marks as the command it certainly runs counts, past the launcher's
 options, their values, assignments and counts, since any other word may be an option's value (`sudo
 -u "$user"`, `find -name "$x"`). A known value option's value counts as its value only when it is
@@ -190,3 +194,29 @@ with three countdowns run out since it, the hook denies at once, message
 `agentic-shell-guard: 3 countdowns ran out unanswered since the last prompt; <reason>`, until the
 person prompts again. A note it cannot read or write counts nothing, which costs only the
 deny-at-once.
+
+## Asks a rewrite fixes
+
+Two asks name something the agent can fix by rewriting the command: `cannot judge: the command name
+<word> is not fixed text` (the name spelled out, a launcher's option value double-quoted) and `the
+command holds what looks like a credential (...)` (the value referenced as `"$NAME"`). A guard's
+verdict carries the reason's count key (`Verdict.Rewrite`: `not_fixed`, `credential`); the
+`PreToolUse` hook, finding the call's verdict an ask with a key, counts the attempt in the session's
+state file, the one the countdowns are noted in, under `attempts`. Before the third attempt it
+answers `deny`, reason `<reason>; rewrite the command (attempt <n> of 3)`; from the third on it
+answers the ask, put as the permission mode says, so a person is prompted only for a command the
+agent could not make judgeable. Each key counts apart and never resets within a session. The
+`PermissionRequest` hook judges without counting: it runs only for a call the `PreToolUse` hook
+asked about. Only the deciding verdict counts: where a stronger or earlier guard decides, a
+rewritable finding behind it counts nothing.
+
+A setting of `deny` denies every attempt and `off` passes; neither counts. An outside-project
+removal, `find -delete` and the cut-short credential scan prompt at once: no rewording makes them
+judgeable.
+
+A call without a usable session id (missing, or not a file name) or without a state directory keeps
+no count and is on its first attempt every time, so it is refused every time. Claude Code sends a
+session id with every call, and a refusal of one of these reasons always leaves the agent a rewrite;
+asking at once instead would put in front of the person the very prompt the rule spares them. A
+state file it cannot write leaves the count where it was. The hooks read and rewrite the whole file
+with no lock, so two calls of one session landing at once may lose one attempt or countdown note.

@@ -28,6 +28,7 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		"`" + modeDontAsk + "`", "`" + modeAuto + "`", "`" + modeBypass + "`",
 		strings.NewReplacer("%s", "<rule ids>", "%d", "<n>").Replace(reasonSecrets), "shell_guard_secrets",
 		reasonSecretsCut, fmt.Sprintf(reasonNotFixed, "<word>"),
+		fmt.Sprintf(strings.Replace(noteRewrite, "%d", "<n>", 1), "<reason>", rewriteLimit),
 		fmt.Sprintf(markerWithheld, "<rule ids>"),
 		strings.NewReplacer("%s", "<tool>", "%d", "<n>").Replace(noteScanUnfinished),
 		strings.NewReplacer("%d", "<n>", "%s", "<tool>").Replace(noteWithheld),

@@ -33,7 +33,7 @@ user or managed settings):
 
 | Option | Values | Default | Judges |
 |---|---|---|---|
-| `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a `..` step, which a symlink before it would carry elsewhere, a glob that can match a name starting with a dot, `..` among them), or that names no target; and a command passed an argument whose name is not fixed text (`$CMD -rf /`, `"$tool" build`, `$'\162m' -rf /`), which could be a removal |
+| `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a `..` step, which a symlink before it would carry elsewhere, a glob that can match a name starting with a dot, `..` among them), or that names no target; and a command passed an argument whose name is not fixed text (`$CMD -rf /`, `"$tool" build`, `$'\162m' -rf /`), or passed none with a name that may split into words of its own (`$CMD`, `{rm,-rf,/}`), which could be a removal |
 | `shell_guard_find_delete` | `ask`, `deny`, `off` | `ask` | `find ... -delete` |
 | `shell_guard_secrets` | `ask`, `deny`, `off` | `ask` | a command whose text holds what looks like a credential, found by the shared [credential scanner](../secrets/usage.md) |
 | `shell_guard_lone_removal` | boolean | `true` | a removal that is not the whole command |
@@ -63,6 +63,14 @@ options say**: the guard cannot judge it.
   until the next prompt: nobody is watching. With `shell_guard_ask_timeout` at `0` the prompt waits
   as in `default` mode. An unattended session in `default`, `acceptEdits` or `plan` mode still
   stalls on an ask.
+- **An ask a rewrite fixes refuses twice first.** For a command name that is not fixed text (a
+  launcher's option value that may split among them) and a command holding what looks like a
+  credential, the first and second ask in a session for that reason come back as a deny,
+  `<reason>; rewrite the command (attempt <n> of 3)`; the third is the ask above, put as the mode
+  says. Each reason counts apart, per session, so the person is asked only about a command the agent
+  could not make judgeable. A guard set to `deny` denies every time and one set to `off` passes;
+  a removal outside the project and `find -delete` ask at once, since no rewording makes them
+  judgeable.
 - **A switched-off supporting guard falls to the outside-project verdict.** The lone-removal,
   expansion and nested-code guards are what let a removal's target be placed before it runs. With one
   of them off, a removal it no longer denies takes `shell_guard_outside_project`'s verdict, reason
@@ -83,10 +91,11 @@ Every reason starts `agentic-shell-guard: `:
 | `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | nested code |
 | `outside project: <targets>`, `no project: <targets>`, `unresolvable: <targets>`, `no target` | outside project; several join with `; ` |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | outside project, for a supporting guard switched off |
-| `cannot judge: the command name <word> is not fixed text` | outside project, for a command passed an argument whose name the shell builds when it runs; a launcher's assignment, option or option value holding an expansion asks too (`env FOO=$x make build`, `timeout $secs make test`, `nice -n$n make build`, `sudo -u $user make build`, `nice -n $n make build`, naming that word), and so does an option value or a command name holding a glob or brace (`sudo -u {root,rm} -rf /`, `nice -n ?? make build`), which expands into several words, since the walk cannot tell which word the launcher runs; an option value wholly in double quotes with no `@`, `*` or `!` expansion (`sudo -u "$user" make build`) stays one word and runs |
+| `cannot judge: the command name <word> is not fixed text` | outside project, for a command passed an argument whose name the shell builds when it runs, or passed none with a name that may split into words of its own (`$CMD`, `{rm,-rf,/}`, a glob, `$(...)`), while a name wholly in double quotes passing none (`"$tool"`) runs; a launcher's assignment, option or option value holding an expansion asks too (`env FOO=$x make build`, `timeout $secs make test`, `nice -n$n make build`, `sudo -u $user make build`, `nice -n $n make build`, naming that word), and so does an option value or a command name holding a glob or brace (`sudo -u {root,rm} -rf /`, `nice -n ?? make build`), which expands into several words, since the walk cannot tell which word the launcher runs; an option value wholly in double quotes with no `@`, `*` or `!` expansion (`sudo -u "$user" make build`) stays one word and runs |
 | `find -delete` | find -delete |
 | `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | secrets; `scan-incomplete` as the rule when the scan could not finish |
 | `the hook was cut short before its credential scan finished; nothing says whether the command holds one` | secrets, when the hook's own context ended during the scan |
+| `<reason>; rewrite the command (attempt <n> of 3)` | the first and second ask for a command name that is not fixed text or a credential, per session and reason |
 | `cannot parse the command; refusing` | always |
 | `nobody answered within <n>s; <reason>` | an ask in `auto` or `bypassPermissions` mode whose countdown ran out |
 | `3 countdowns ran out unanswered since the last prompt; <reason>` | an ask in `auto` or `bypassPermissions` mode after three countdowns ran out |
@@ -175,7 +184,7 @@ redacted too.
 ## What it does not stop
 
 shell-guard holds a careless command, not an agent set on getting around it: a command named
-through a variable with no argument (`$RM`, `ls | xargs $RM`), `env -S`, a script file a shell or
+through a double-quoted variable with no argument (`"$RM"`, `ls | xargs "$RM"`), `env -S`, a script file a shell or
 interpreter runs, and inline code removing through a call it does not name all run unjudged.
 
 ## Locking it on

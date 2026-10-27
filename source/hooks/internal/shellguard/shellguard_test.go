@@ -24,6 +24,7 @@ type guard struct {
 	tree         test.GuardTree
 	env          shellguard.Env
 	placeholders *strings.Replacer
+	session      string
 }
 
 func newGuard(t *testing.T, scratch bool, options string) guard {
@@ -53,9 +54,44 @@ type reply struct {
 func (g guard) judge(command string, cwd string) (string, string) {
 	g.t.Helper()
 
-	input, err := json.Marshal(map[string]any{
+	return g.answer(command, cwd, "")
+}
+
+// judgeIn is the decision on the command in the permission mode.
+func (g guard) judgeIn(command string, mode string) (string, string) {
+	g.t.Helper()
+
+	return g.answer(command, "{project}", mode)
+}
+
+// inSession is the guard judging every call in a session that keeps its state.
+func (g guard) inSession(session string) guard {
+	g.t.Helper()
+
+	if g.env.StateDir == "" {
+		g.env.StateDir = g.t.TempDir()
+	}
+
+	g.session = session
+
+	return g
+}
+
+func (g guard) answer(command string, cwd string, mode string) (string, string) {
+	g.t.Helper()
+
+	call := map[string]any{
 		"cwd": g.placeholders.Replace(cwd), "tool_input": map[string]string{"command": g.placeholders.Replace(command)},
-	})
+	}
+	if mode != "" {
+		call["permission_mode"] = mode
+	}
+
+	if g.session != "" {
+		call["session_id"] = g.session
+	}
+
+	input, err := json.Marshal(call)
 	if err != nil {
 		g.t.Fatalf("encoding the call: %v", err)
 	}
@@ -349,6 +385,14 @@ func TestACommandNameThatIsNotFixedTextTakesTheOutsideVerdict(t *testing.T) {
 		{"a brace as an option value", "sudo -u {root,rm} -rf /", "{root,rm}"},
 		{"a glob as an option value", "nice -n ?? make build", "??"},
 		{"a variable run by find", `find . -exec "$cmd" {} \;`, `"$cmd"`},
+		{"a variable alone", "$CMD", "$CMD"},
+		{"a variable alone with a redirection", "$CMD > out.log", "$CMD"},
+		{"a brace alone", "{rm,-rf,/}", "{rm,-rf,/}"},
+		{"a glob alone", "./*", "./*"},
+		{"a command substitution alone", "$(cat cmd)", "$(cat cmd)"},
+		{"a quoted array alone", `"${cmd[@]}"`, `"${cmd[@]}"`},
+		{"an unquoted variable alone under a launcher", "sudo $CMD", "$CMD"},
+		{"an unquoted variable as an option value with nothing after it", "sudo -u $user", "$user"},
 	}
 
 	unchanged := []struct {
@@ -356,8 +400,9 @@ func TestACommandNameThatIsNotFixedTextTakesTheOutsideVerdict(t *testing.T) {
 		command  string
 		expected string
 	}{
-		{"a variable with no argument", "$CMD", "allow"},
-		{"a variable with no argument but a redirection", "$CMD > out.log", "allow"},
+		{"a quoted variable alone", `"$tool"`, "allow"},
+		{"a quoted variable alone with a redirection", `"$tool" > out.log`, "allow"},
+		{"a quoted variable alone under a launcher", `sudo "$tool"`, "allow"},
 		{"a quoted variable as sudo's option value", `sudo -u "$user" ls -la`, "allow"},
 		{"a quoted variable as nice's option value", `nice -n "$n" make build`, "allow"},
 		{"a quoted command substitution as an option value", `sudo -u "$(whoami)" ls -la`, "allow"},
@@ -369,16 +414,20 @@ func TestACommandNameThatIsNotFixedTextTakesTheOutsideVerdict(t *testing.T) {
 	for _, outside := range []string{"ask", "deny", "off"} {
 		g := newGuard(t, true, `"shell_guard_outside_project":"`+outside+`"`)
 
-		want, prefix := outside, "agentic-shell-guard: "
-		if outside == "off" {
-			want, prefix = "allow", ""
+		// A session that keeps no count is on its first attempt, so an ask refuses.
+		want, suffix := outside, ""
+		switch outside {
+		case "ask":
+			want, suffix = "deny", "; rewrite the command (attempt 1 of 3)"
+		case "off":
+			want = "allow"
 		}
 
 		for _, tc := range judged {
 			t.Run(outside+" "+tc.name, func(t *testing.T) {
 				reason := ""
 				if want != "allow" {
-					reason = prefix + "cannot judge: the command name " + tc.word + " is not fixed text"
+					reason = "agentic-shell-guard: cannot judge: the command name " + tc.word + " is not fixed text" + suffix
 				}
 
 				decision, said := g.judge(tc.command, "{project}")

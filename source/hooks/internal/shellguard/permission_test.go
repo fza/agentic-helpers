@@ -33,10 +33,17 @@ func TestAnAskFollowsThePermissionMode(t *testing.T) {
 		{mode: "dontAsk", want: "deny"},
 	}
 
-	for _, command := range []string{askedRemoval, askedFind, askedName} {
+	// A rewritable ask prompts on its third attempt, the first two refused.
+	refusedFirst := map[string]int{askedRemoval: 0, askedFind: 0, askedName: 2}
+
+	for command, refused := range refusedFirst {
 		for _, tc := range modes {
 			t.Run(command+" in "+tc.mode, func(t *testing.T) {
-				g := newGuard(t, false, "")
+				g := newGuard(t, false, "").inSession(test.Session)
+
+				for range refused {
+					g.judgeIn(command, tc.mode)
+				}
 
 				decision, reason := g.judgeIn(command, tc.mode)
 				if decision != tc.want {
@@ -86,39 +93,6 @@ func newCountdown(t *testing.T, options string) countdown {
 	test.WriteFile(t, transcript, test.Fixture(t, "shellguard/prompted-early.jsonl"))
 
 	return countdown{guard: g, clock: clock, transcript: transcript, session: test.Session}
-}
-
-// judgeIn is the PreToolUse decision on the command in the permission mode.
-func (g guard) judgeIn(command string, mode string) (string, string) {
-	g.t.Helper()
-
-	input, err := json.Marshal(map[string]any{
-		"cwd": g.tree.Project, "permission_mode": mode,
-		"tool_input": map[string]string{"command": g.placeholders.Replace(command)},
-	})
-	if err != nil {
-		g.t.Fatalf("encoding the call: %v", err)
-	}
-
-	var out, errs bytes.Buffer
-
-	status := shellguard.Main(context.Background(), g.env, shellguard.Streams{In: bytes.NewReader(input), Out: &out, Err: &errs})
-	if status != 0 {
-		g.t.Fatalf("the guard should answer, exit %d: %s", status, errs.String())
-	}
-
-	if out.Len() == 0 {
-		return "allow", ""
-	}
-
-	var decoded reply
-
-	err = json.Unmarshal(out.Bytes(), &decoded)
-	if err != nil {
-		g.t.Fatalf("decoding the answer: %v", err)
-	}
-
-	return decoded.HookSpecificOutput.PermissionDecision, decoded.HookSpecificOutput.PermissionDecisionReason
 }
 
 type permissionReply struct {

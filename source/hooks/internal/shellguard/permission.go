@@ -116,8 +116,8 @@ func Permission(ctx context.Context, env Env, streams Streams) (code int) {
 		return 0
 	}
 
-	held := countdownsOf(ctx, env, call)
-	if held.unanswered() >= unansweredLimit {
+	held := stateOf(env, call.SessionID)
+	if held.unanswered(lastPrompt(ctx, call.TranscriptPath)) >= unansweredLimit {
 		return deny(streams, fmt.Sprintf("%s: %d countdowns ran out unanswered since the last prompt; %s",
 			self, unansweredLimit, verdict.Reason))
 	}
@@ -144,27 +144,23 @@ func deny(streams Streams, message string) int {
 	return 0
 }
 
-// countdowns are the session's countdowns that ran out since its last prompt.
-// A session without a usable state file counts none and notes none.
-type countdowns struct {
-	path       string
-	lastPrompt time.Time
-	RanOut     []time.Time `json:"ran_out"`
+// sessionState is what shell-guard keeps for a session: its countdowns that
+// ran out, and how often each rewritable ask was refused. A session without a
+// usable state file reads as fresh and keeps nothing.
+type sessionState struct {
+	path     string
+	RanOut   []time.Time    `json:"ran_out"`
+	Attempts map[string]int `json:"attempts,omitempty"`
 }
 
-func countdownsOf(ctx context.Context, env Env, call payload) *countdowns {
-	held := &countdowns{}
+func stateOf(env Env, session string) *sessionState {
+	held := &sessionState{}
 
-	if env.StateDir == "" || !sessionName.MatchString(call.SessionID) {
+	if env.StateDir == "" || !sessionName.MatchString(session) {
 		return held
 	}
 
-	held.path = filepath.Join(env.StateDir, "shell-guard", call.SessionID+".json")
-
-	turns, err := transcript.Since(ctx, call.TranscriptPath, time.Time{})
-	if err == nil && len(turns) > 0 {
-		held.lastPrompt = turns[len(turns)-1].At
-	}
+	held.path = filepath.Join(env.StateDir, "shell-guard", session+".json")
 
 	content, err := os.ReadFile(held.path)
 	if err != nil {
@@ -176,11 +172,20 @@ func countdownsOf(ctx context.Context, env Env, call payload) *countdowns {
 	return held
 }
 
-func (held *countdowns) unanswered() int {
+func lastPrompt(ctx context.Context, transcriptPath string) time.Time {
+	turns, err := transcript.Since(ctx, transcriptPath, time.Time{})
+	if err != nil || len(turns) == 0 {
+		return time.Time{}
+	}
+
+	return turns[len(turns)-1].At
+}
+
+func (held *sessionState) unanswered(since time.Time) int {
 	count := 0
 
 	for _, at := range held.RanOut {
-		if at.After(held.lastPrompt) {
+		if at.After(since) {
 			count++
 		}
 	}
@@ -190,12 +195,15 @@ func (held *countdowns) unanswered() int {
 
 // ranOut notes a countdown that ran out. A note it cannot write costs only the
 // deny-at-once.
-func (held *countdowns) ranOut(at time.Time) {
+func (held *sessionState) ranOut(at time.Time) {
+	held.RanOut = append(held.RanOut, at)
+	held.save()
+}
+
+func (held *sessionState) save() {
 	if held.path == "" {
 		return
 	}
-
-	held.RanOut = append(held.RanOut, at)
 
 	content, err := json.Marshal(held)
 	if err != nil {

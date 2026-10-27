@@ -45,16 +45,20 @@ const (
 	Deny
 )
 
+// Verdict / Rewrite names the count an ask the agent can fix by rewriting the
+// command is kept under; an ask without one prompts at once.
 type Verdict struct {
 	Decision Decision
 	Reason   string
+	Rewrite  string
 }
 
 // Env / ProjectDir is $CLAUDE_PROJECT_DIR, the directory the session started
 // in. The payload's cwd follows every cd, so it only anchors relative targets
 // and never widens the project. Settings are the files the plugin's options
-// are read from. StateDir holds each session's countdowns that ran out, and
-// Clock times them; only the PermissionRequest hook reads either.
+// are read from. StateDir holds each session's countdowns that ran out and
+// its refused rewritable asks; Clock times the countdowns, read only by the
+// PermissionRequest hook.
 type Env struct {
 	ProjectDir string
 	Home       string
@@ -179,6 +183,10 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 		return 0
 	}
 
+	if verdict.Decision == Ask && verdict.Rewrite != "" {
+		verdict = refuseFirst(env, call.SessionID, verdict)
+	}
+
 	var reply answer
 
 	reply.HookSpecificOutput.HookEventName = "PreToolUse"
@@ -278,7 +286,7 @@ func holdsCredential(ctx context.Context, command string, options Options) Verdi
 
 	rules, line := secrets.Describe(findings)
 
-	return mode(options.Secrets, fmt.Sprintf(reasonSecrets, rules, line))
+	return rewritable(options.Secrets, fmt.Sprintf(reasonSecrets, rules, line), rewriteCredential)
 }
 
 // loneRemoval returns the call when the whole command is one removal and
@@ -350,8 +358,10 @@ func (inspection *inspector) removal(args []*syntax.Word, from int) {
 // Command judges every call the walk offers, a launcher's every word among
 // them: a guard errs on the side of reading a word as the command it runs.
 // A name the shell builds at run time, by an expansion, a glob or a brace,
-// could be any command, a removal among them, so a call passing it an
-// argument takes the outside-project verdict.
+// could be any command, a removal among them, so it takes the outside-project
+// verdict when the call passes it an argument, or when the name may split
+// into words carrying their own (`CMD='rm -rf /'; $CMD`). A name wholly in
+// double quotes passing nothing runs: it stays one word.
 // Only the word a launcher certainly runs counts: any other may be an
 // option's value.
 func (inspection *inspector) Command(call shellwalk.Call) {
@@ -361,8 +371,9 @@ func (inspection *inspector) Command(call shellwalk.Call) {
 	fixed := literal && !shellwalk.Patterned(args[0])
 
 	switch {
-	case !fixed && call.Certain && len(args) > 1:
-		inspection.found.add(mode(inspection.options.OutsideProject, fmt.Sprintf(reasonNotFixed, shellwalk.Text(args[0]))))
+	case !fixed && call.Certain && (len(args) > 1 || !shellwalk.OneKnownWord(args[0])):
+		reason := fmt.Sprintf(reasonNotFixed, shellwalk.Text(args[0]))
+		inspection.found.add(rewritable(inspection.options.OutsideProject, reason, rewriteNotFixed))
 	case slices.Contains(removers, name):
 		inspection.removal(args, 1)
 	case name == "mktemp":

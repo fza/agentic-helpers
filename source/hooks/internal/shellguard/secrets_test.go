@@ -73,26 +73,31 @@ func samples(t *testing.T, directory string) map[string]string {
 }
 
 func TestACommandHoldingACredentialIsJudgedByItsOption(t *testing.T) {
+	// An ask refuses twice in a session, then prompts.
 	modes := []struct {
 		options string
-		want    string
+		want    []string
 	}{
-		{options: "", want: "ask"},
-		{options: `"shell_guard_secrets":"ask"`, want: "ask"},
-		{options: `"shell_guard_secrets":"deny"`, want: "deny"},
-		{options: `"shell_guard_secrets":"off"`, want: "allow"},
+		{options: "", want: []string{"deny", "deny", "ask"}},
+		{options: `"shell_guard_secrets":"ask"`, want: []string{"deny", "deny", "ask"}},
+		{options: `"shell_guard_secrets":"deny"`, want: []string{"deny", "deny", "deny"}},
+		{options: `"shell_guard_secrets":"off"`, want: []string{"allow", "allow", "allow"}},
 	}
 
 	for name, sample := range samples(t, "positive") {
 		for _, tc := range modes {
 			t.Run(name+" "+tc.options, func(t *testing.T) {
-				decision, reason := newGuard(t, false, tc.options).judge(carrying(sample), "{project}")
-				if decision != tc.want {
-					t.Errorf("a credential should be judged as shell_guard_secrets says, got %s: %s", decision, reason)
-				}
+				g := newGuard(t, false, tc.options).inSession(test.Session)
 
-				if tc.want != "allow" && !strings.HasPrefix(reason, credentialReason) {
-					t.Errorf("the reason should name the credential, got %q", reason)
+				for _, want := range tc.want {
+					decision, reason := g.judge(carrying(sample), "{project}")
+					if decision != want {
+						t.Errorf("a credential should be judged as shell_guard_secrets says, got %s: %s", decision, reason)
+					}
+
+					if want != "allow" && !strings.HasPrefix(reason, credentialReason) {
+						t.Errorf("the reason should name the credential, got %q", reason)
+					}
 				}
 			})
 		}
@@ -100,7 +105,7 @@ func TestACommandHoldingACredentialIsJudgedByItsOption(t *testing.T) {
 }
 
 func TestTheCredentialReasonNamesRuleAndLine(t *testing.T) {
-	_, reason := newGuard(t, false, "").judge(carrying(test.SecretFixture(t, "positive/github-pat.txt")), "{project}")
+	_, reason := newGuard(t, false, `"shell_guard_secrets":"deny"`).judge(carrying(test.SecretFixture(t, "positive/github-pat.txt")), "{project}")
 
 	want := credentialReason + `generic-api-key, github-pat, line 2); history, logs and files keep it; reference it instead: "$NAME" or a file`
 	if reason != want {
@@ -136,9 +141,11 @@ func TestACredentialAskFollowsThePermissionMode(t *testing.T) {
 	}
 }
 
-func TestALoneRemovalHoldingACredentialIsAsked(t *testing.T) {
-	decision, reason := newGuard(t, false, "").judge("rm {project}/sub/ghp_IwYFIN7BydgwTrXtXdH03eNopxtfuT1OFgAY", "{project}")
-	if decision != "ask" || !strings.HasPrefix(reason, credentialReason) {
+func TestALoneRemovalHoldingACredentialIsJudged(t *testing.T) {
+	_, token, _ := strings.Cut(test.SecretFixture(t, "positive/github-pat.txt"), "=")
+
+	decision, reason := newGuard(t, false, `"shell_guard_secrets":"deny"`).judge("rm {project}/sub/"+token, "{project}")
+	if decision != "deny" || !strings.HasPrefix(reason, credentialReason) {
 		t.Errorf("a removal passing on its own should still be judged for a credential, got %s: %s", decision, reason)
 	}
 }

@@ -1,6 +1,6 @@
 ---
 name: agent-shell-guard
-description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
+description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, refusing an ask a rewrite fixes twice first, and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
 license: MIT
 ---
 
@@ -59,12 +59,22 @@ Questions it asks:
 | `unresolvable: <targets>` | `~user` or a brace: placed only once the shell expands it |
 | `no target` | a removal naming nothing |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | a guard the user switched off no longer denies it; its target cannot be placed |
-| `cannot judge: the command name <word> is not fixed text` | a command named by an expansion (`$CMD x`, `"$tool" build`, `$'\162m'`) and passed an argument: it could be a removal. Spell the name out (`/usr/local/bin/tool build`). A launcher's assignment, option or option value holding an expansion, glob or brace (`env FOO=$x make`, `timeout $secs make`, `sudo -u $user make`, `sudo -u {a,b} make`) asks too: the walk cannot tell which word runs. Double-quote an option value: `sudo -u "$user" make` |
+| `cannot judge: the command name <word> is not fixed text` | a command named by an expansion (`$CMD x`, `"$tool" build`, `$'\162m'`) and passed an argument, or a name that may split into words of its own even with none (`$CMD`, `{rm,-rf,/}`, a glob): it could be a removal. Spell the name out (`/usr/local/bin/tool build`); a name wholly in double quotes passing nothing (`"$tool"`) runs. A launcher's assignment, option or option value holding an expansion, glob or brace (`env FOO=$x make`, `timeout $secs make`, `sudo -u $user make`, `sudo -u {a,b} make`) asks too: the walk cannot tell which word runs. Double-quote an option value: `sudo -u "$user" make` |
 | `find -delete` | `find ... -delete` anywhere |
 | `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | a token or key typed into the command, found by the shared scanner; rewrite it to read from a variable or a file rather than asking again (`scan-incomplete` = the scan could not finish) |
 | `the hook was cut short before its credential scan finished; nothing says whether the command holds one` | the hook's own interrupt ended the scan; it names no credential. Follows `shell_guard_secrets` like a finding. Run the same call again |
 
 The secrets guard follows `shell_guard_secrets`: `ask` unless the user set `deny` or `off`.
+
+**Rewrite first.** The asks a rewrite fixes, `cannot judge: the command name <word> is not fixed text`
+and `the command holds what looks like a credential (...)`, come back as a deny the first and second
+time in a session for that reason:
+
+    agentic-shell-guard: <reason>; rewrite the command (attempt <n> of 3)
+
+Rewrite it as the reason says: the name spelled out, the credential as `"$NAME"`. The third attempt
+asks the user, as the mode table says. Each reason counts apart, per session. `outside project`,
+`find -delete` and every other ask prompt at once: no rewording makes them judgeable.
 
 A countdown that runs out comes back as a deny:
 

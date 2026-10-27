@@ -271,3 +271,44 @@ func TestPatternedFindsWhatTheShellExpands(t *testing.T) {
 		})
 	}
 }
+
+func TestOneKnownWordFindsWhatStaysOneWord(t *testing.T) {
+	cases := []struct {
+		word string
+		one  bool
+	}{
+		{word: "make", one: true},
+		{word: `"make"`, one: true},
+		{word: `'make'`, one: true},
+		{word: `"$tool"`, one: true},
+		{word: `"${tool}-x"`, one: true},
+		{word: `"$(which make)"`, one: true},
+		{word: "$tool"},
+		{word: "$(which make)"},
+		{word: "{rm,-rf,/}"},
+		{word: "./*"},
+		{word: `"${tools[@]}"`},
+		{word: `"$*"`},
+		{word: `"${!name}"`},
+		{word: `x"$tool"`},
+		{word: `"$tool"$x`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.word, func(t *testing.T) {
+			file, err := shellwalk.Parse("echo " + tc.word)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			call, isCall := file.Stmts[0].Cmd.(*syntax.CallExpr)
+			if !isCall {
+				t.Fatal("the command should parse as a call")
+			}
+
+			if shellwalk.OneKnownWord(call.Args[1]) != tc.one {
+				t.Error("a word should count as one word only where no expansion, glob or brace can split it")
+			}
+		})
+	}
+}
