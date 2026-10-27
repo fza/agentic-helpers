@@ -237,7 +237,7 @@ var filterWords = []filterWord{
 	},
 	{
 		name: "inbox", arity: takesOne, takes: "a seat",
-		describe: "entries addressed to the seat from another shelf: filed for all, for its shelf, or under a topic its shelf follows",
+		describe: "entries the seat is told of: a shelf mate's, or another shelf's filed for all, for its shelf, or under a topic its shelf follows; never its own",
 		suggest:  seatNames,
 		build: func(scope *viewScope, values []string) (predicate, error) {
 			if scope.mem.shelfOf(values[0]) == "" {
@@ -245,7 +245,7 @@ var filterWords = []filterWord{
 			}
 
 			return func(scope *viewScope, held *entry) bool {
-				return scope.mem.receives(scope.folded, held, values[0])
+				return scope.mem.arrives(scope.folded, held, values[0])
 			}, nil
 		},
 	},

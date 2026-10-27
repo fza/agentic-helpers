@@ -612,7 +612,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `shelf(<shelf>,...)` | entries on any of the shelves; a seat's name names its shelf |
 | `for(all\|<shelf>,...)` | entries filed `--for all`, or `--for` any of the shelves |
 | `mine` | the calling seat's shelf and what it receives, as a search without `--seat` and the brief cover; refused without a seat |
-| `inbox(<seat>)` | everything addressed to the seat from another shelf: filed `--for all`, for its shelf, or under a topic its shelf follows; through the one routing function the arrival notice uses, so the two never disagree |
+| `inbox(<seat>)` | every entry the seat is told of: a shelf mate's, and another shelf's filed `--for all`, for its shelf, or under a topic its shelf follows, never its own; through the one function the arrival notice uses, so the two never disagree |
 | `unread` | entries filed after the seen mark of the seat `inbox` names in the same section, as the arrival notice counts them; a seat without a mark has seen everything; refused without `inbox(<seat>)` |
 | `returns`, `returns(anchor\|link\|until\|branch,...)` | live entries that need attention, each listed with why and the verbs that answer it (below); with arguments, only reasons of those kinds |
 | `from(user\|agent\|tool,...)` | entries filed from any of the sources |

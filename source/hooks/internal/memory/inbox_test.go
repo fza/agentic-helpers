@@ -30,6 +30,12 @@ func inboxStore(t *testing.T) (*harness, *harness, []string) {
 	h.file("Main keeps this one to itself", "no one else's")
 	other.file("Idea files its own finding", "its own shelf")
 
+	h.must("", "release")
+	h.must("", "claim", "idea-scout", "--shelf", "idea")
+	addressed = append(addressed, h.file("Scout found the flaky lock test", "a shelf mate's finding"))
+	h.must("", "release")
+	h.must("", "claim", "main")
+
 	return h, other, addressed
 }
 

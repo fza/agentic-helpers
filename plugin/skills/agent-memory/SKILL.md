@@ -304,7 +304,7 @@ agentic-memory view --explain brief                 # the brief's fixed sections
 - Filters: `active`, `status(...)`, `kind(...)`, `topic(t)` (prefix by component), `since("7d")`,
   `id(...)`, `not(<filter>)`, `seat(...)`, `shelf(...)`, `for(all|<shelf>)`, `mine` (own shelf and
   what it receives), `from(...)`, `branch(b)`, `linked(<id>)`, `anchored("<path>")`,
-  `inbox(<seat>)` (addressed to it from other shelves), `unread` (after its seen mark; needs
+  `inbox(<seat>)` (what it is told of: shelf mates' entries and those addressed to it), `unread` (after its seen mark; needs
   `inbox` in the section). A view never moves the seen mark: the arrival notice still tells it.
 - **`returns` → what needs you, and the verb.** `active:mine:returns:as-list` at a claim or before
   relying on old entries. Under each entry: `anchor drifted` → `confirm` if it still holds, else
