@@ -645,7 +645,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 
 A reason that cannot be checked shows as unchecked, never as absent: `link unchecked: <target>: the
 graph status cache is cold` where no cached `sdd export` answers for the graph as it stands (a view
-never runs one), `anchor unchecked: <path> cannot be read`, `until unchecked: <condition>: the file
+never runs one; `show` or `search` showing the entry asks sdd and fills it), `anchor unchecked: <path> cannot be read`, `until unchecked: <condition>: the file
 cannot be read`. `view --json` carries them on each entry as `returns`: `[{"reason", "detail",
 "verbs", "answer", "unchecked"}]`.
 

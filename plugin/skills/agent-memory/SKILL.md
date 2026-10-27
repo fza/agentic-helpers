@@ -310,13 +310,15 @@ agentic-memory view --explain brief                 # the brief's fixed sections
   relying on old entries. Under each entry: `anchor drifted` → `confirm` if it still holds, else
   `supersede`; `anchor gone` → `supersede`/`retire`; `link ... closed by|superseded by <id>` → read
   `<id>`, then `supersede`/`retire`; `link ... gone` → `unlink`; `until end met|inferred` → `retire`;
-  `branch filed on <b>` → nothing until it merges. `unchecked` = could not tell: check by hand.
+  `branch filed on <b>` → nothing until it merges. `unchecked` = could not tell: check by hand. A
+  view reads only cached graph statuses; `link unchecked: ... cache is cold` → `show <id>` asks sdd,
+  then view again.
 - Shape: `rank(heat|by(date))`, `n(N)`, `skip(N)`, `name("...")`, `brief` (short lines), macro
   `top(N)`.
 - **A view warms nothing, moves no mark.** Reading is not using.
 - **Refused, never repaired**: `layout: unknown word: "knd" at position 1; nearest valid word: kind`.
   Take the nearest word, resend. `layout does not parse: ... expected <what>` → fix the syntax there.
-- `search --topic` now matches a topic and those below it, as `topic(t)` does.
+- `search --topic` and `brief --topic` match a topic and those below it, as `topic(t)` does.
 
 ## Links
 
