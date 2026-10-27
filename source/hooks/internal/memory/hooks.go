@@ -91,9 +91,20 @@ func (mem *memory) track(ctx context.Context, seatName string, held seat.Claim, 
 		changed = true
 	}
 
+	// Read again while empty: a claim made before the session's first prompt
+	// finds no record yet, and a compaction empties it, since its boundary
+	// record lands in the transcript only after the SessionStart hook it runs.
+	if held.TranscriptPath != "" && (changed || held.ForkUUID == "") {
+		start, _ := transcript.ForkStart(ctx, held.TranscriptPath)
+		if start != "" && start != held.ForkUUID {
+			held.ForkUUID = start
+			changed = true
+		}
+	}
+
 	if changed {
 		mem.rewriteClaim(ctx, mem.seatKey(seatName), sameHolder(held), func(claim *seat.Claim) {
-			claim.SessionID, claim.TranscriptPath = held.SessionID, held.TranscriptPath
+			claim.SessionID, claim.TranscriptPath, claim.ForkUUID = held.SessionID, held.TranscriptPath, held.ForkUUID
 		})
 	}
 
@@ -145,6 +156,10 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		held = mem.track(ctx, name, held, payload)
 		mem.say(mem.moved(ctx, name, held))
 
+		if payload.Source == "compact" {
+			mem.rewriteClaim(ctx, mem.seatKey(name), sameHolder(held), func(claim *seat.Claim) { claim.ForkUUID = "" })
+		}
+
 		if payload.Source == "compact" || payload.Source == "clear" {
 			mem.resetWindow(held.SessionID)
 
@@ -159,6 +174,13 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	}
 
 	_ = mem.seatRows(ctx, true)
+
+	inherited := mem.inherit(ctx, payload)
+	if inherited != "" {
+		mem.say(inherited)
+
+		return 0
+	}
 
 	folded, err := mem.load(ctx)
 	if err != nil {
@@ -864,4 +886,85 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	_ = writeJSON(mem.shownPath(session), shown)
 
 	return strings.Join(lines, "\n")
+}
+
+// inherit seats a process holding no seat on the seat its session held before
+// a resume or a fork: the seat itself where its holder is gone, a new seat on
+// its shelf where the holder still runs, since a running holder keeps its
+// seat. A resume keeps its session id; a fork starts its transcript with the
+// claim's fork uuid. It answers what the claim printed, or nothing where no
+// claim matches.
+func (mem *memory) inherit(ctx context.Context, payload hookio.Payload) string {
+	first := ""
+	if payload.TranscriptPath != "" {
+		first, _ = transcript.FirstUUID(ctx, payload.TranscriptPath)
+	}
+
+	// A session id names the session itself, where a fork uuid is shared by
+	// every fork of one parent, so a resumed fork finds its own seat first.
+	match := func(held seat.Claim) int {
+		switch {
+		case payload.SessionID != "" && held.SessionID == payload.SessionID:
+			return 2
+		case first != "" && held.ForkUUID == first:
+			return 1
+		default:
+			return 0
+		}
+	}
+
+	dir := mem.seatsDir()
+
+	var (
+		gone, running string
+		goneMatch     int
+		goneAt        string
+	)
+
+	for _, key := range seat.Known(dir) {
+		current, found := seat.Read(dir, key)
+		if found && match(current) > 0 && mem.alive(ctx, current) {
+			if running == "" {
+				running = key
+			}
+
+			continue
+		}
+
+		last, _ := seat.ReadLast(dir, key)
+
+		for _, held := range []seat.Claim{current, last} {
+			matched := match(held)
+			if matched > goneMatch || (matched > 0 && matched == goneMatch && held.Claimed > goneAt) {
+				gone, goneMatch, goneAt = key, matched, held.Claimed
+			}
+		}
+	}
+
+	if payload.SessionID != "" && mem.env.SessionID == "" {
+		mem.env.SessionID = payload.SessionID
+	}
+
+	req := request{}
+
+	switch {
+	case gone != "":
+		req.Name = mem.seatName(gone)
+	case running != "":
+		req.Shelf = mem.shelfName(mem.shelfOfKey(running))
+	default:
+		return ""
+	}
+
+	claimed := mem.claim(ctx, req)
+	if claimed.failed {
+		return ""
+	}
+
+	name, held := mem.ownSeat(ctx)
+	if name != "" {
+		mem.track(ctx, name, held, payload)
+	}
+
+	return claimed.text
 }

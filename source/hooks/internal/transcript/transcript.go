@@ -4,6 +4,8 @@ package transcript
 
 import (
 	"bufio"
+	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -176,4 +178,86 @@ func parseContent(content json.RawMessage) ([]string, []contentBlock) {
 	}
 
 	return texts, blocks
+}
+
+// FirstUUID is the uuid of the first record in the transcript carrying one,
+// or nothing where none does yet or the transcript is gone.
+func FirstUUID(ctx context.Context, path string) (string, error) {
+	first := ""
+
+	err := eachUUID(ctx, path, func(uuid string, _ bool) bool {
+		first = uuid
+
+		return false
+	})
+
+	return first, err
+}
+
+// ForkStart is the uuid a fork of the transcript's session would start with:
+// its latest compaction boundary's, else its first record's.
+func ForkStart(ctx context.Context, path string) (string, error) {
+	first, boundary := "", ""
+
+	err := eachUUID(ctx, path, func(uuid string, isBoundary bool) bool {
+		if first == "" {
+			first = uuid
+		}
+
+		if isBoundary {
+			boundary = uuid
+		}
+
+		return true
+	})
+
+	return cmp.Or(boundary, first), err
+}
+
+var boundaryKey = []byte(`"compactMetadata"`)
+
+// eachUUID hands every record carrying a uuid to visit, saying whether it is a
+// compaction boundary, until visit answers false. A transcript that is gone
+// holds none.
+func eachUUID(ctx context.Context, path string, visit func(uuid string, isBoundary bool) bool) error {
+	file, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("opening the transcript: %w", err)
+	}
+
+	defer func() { _ = file.Close() }()
+
+	reader := bufio.NewReader(file)
+
+	for {
+		err := ctx.Err()
+		if err != nil {
+			return fmt.Errorf("reading the transcript: %w", err)
+		}
+
+		line, readErr := reader.ReadBytes('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return fmt.Errorf("reading the transcript: %w", readErr)
+		}
+
+		var record struct {
+			UUID     string          `json:"uuid"`
+			Boundary json.RawMessage `json:"compactMetadata"`
+		}
+
+		if json.Unmarshal(line, &record) == nil && record.UUID != "" {
+			isBoundary := bytes.Contains(line, boundaryKey) && len(record.Boundary) > 0 && string(record.Boundary) != "null"
+			if !visit(record.UUID, isBoundary) {
+				return nil
+			}
+		}
+
+		if readErr != nil {
+			return nil
+		}
+	}
 }

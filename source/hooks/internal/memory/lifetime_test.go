@@ -112,7 +112,7 @@ func TestATemporaryShelfIsPurgedOnceItsRetentionRunsOut(t *testing.T) {
 
 	h.must(h.sessionEnd("prompt_input_exit"), "session-end")
 	h.clock.Advance(48 * time.Hour)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.must(unrelatedStart(), "session-start")
 
 	if out := other.must("", "show", gone); !strings.Contains(out, gone) {
 		t.Fatal("a shelf with a seat still held should never be purged")
@@ -120,7 +120,7 @@ func TestATemporaryShelfIsPurgedOnceItsRetentionRunsOut(t *testing.T) {
 
 	other.must("", "release")
 	h.clock.Advance(12 * time.Hour)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.must(unrelatedStart(), "session-start")
 
 	if out := other.must("", "search", "--all-seats", "--status", "retired", "--no-heat"); !strings.Contains(out, gone) {
 		t.Fatal("a shelf should keep everything until its retention has run out since its last seat closed")
@@ -130,7 +130,7 @@ func TestATemporaryShelfIsPurgedOnceItsRetentionRunsOut(t *testing.T) {
 	other.must("", "release")
 	h.clock.Advance(25 * time.Hour)
 
-	otherProject(h).must(hookPayload("startup", "", ""), "session-start")
+	otherProject(h).must(unrelatedStart(), "session-start")
 
 	h.must("", "claim", "main")
 
@@ -205,14 +205,14 @@ func TestAHolderGoneWithoutSessionEndClosedAtItsTranscript(t *testing.T) {
 	}
 
 	h.processes.Kill(test.OtherOwnerPID)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.must(unrelatedStart(), "session-start")
 
 	if _, found := mustShelf(h, "row-7ah"); !found {
 		t.Fatal("a holder gone without SessionEnd should count as closed at its transcript's last write, not at its claim")
 	}
 
 	h.clock.Advance(13 * time.Hour)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.must(unrelatedStart(), "session-start")
 
 	if _, found := mustShelf(h, "row-7ah"); found {
 		t.Error("the retention should run from the transcript's last write")

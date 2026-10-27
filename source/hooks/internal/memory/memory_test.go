@@ -180,6 +180,15 @@ func hookPayload(source string, transcript string, prompt string) string {
 	return string(data)
 }
 
+// unrelatedStart is the SessionStart of a session no claim names, as any later
+// session on the machine runs it: a SessionStart carrying a claim's own session
+// id is that session resumed, and takes its seat back.
+func unrelatedStart() string {
+	data, _ := json.Marshal(map[string]string{"session_id": "f00dbabe-0000-4000-8000-0000000000ff", "source": "startup"})
+
+	return string(data)
+}
+
 func TestFilingNeedsASeat(t *testing.T) {
 	h := newHarness(t)
 
@@ -974,7 +983,7 @@ func TestSessionStart(t *testing.T) {
 
 	other := newHarnessSharing(h)
 
-	out := other.must(hookPayload("startup", "", ""), "session-start")
+	out := other.must(other.startHook("startup", ""), "session-start")
 	if !strings.Contains(out, "agentic-memory: this session holds no seat. Seats: main ("+test.Session[:8]+", 1 live)") {
 		t.Errorf("a seatless session should hear the seats where memory exists:\n%s", out)
 	}

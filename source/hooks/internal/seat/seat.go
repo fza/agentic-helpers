@@ -57,6 +57,11 @@ type Claim struct {
 	Closed         string `json:"closed,omitempty"`
 	Reserved       string `json:"reserved,omitempty"`
 	MovedFrom      string `json:"moved_from,omitempty"`
+	// ForkUUID is the uuid a fork of the holder's session would start its
+	// transcript with: a fork names no parent, but copies the parent's records
+	// with their uuids unchanged from its latest compaction boundary on, or
+	// from its first message where it never compacted.
+	ForkUUID string `json:"fork_uuid,omitempty"`
 }
 
 type Processes interface {

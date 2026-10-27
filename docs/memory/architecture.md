@@ -237,6 +237,19 @@ new seat's claim from the old one, process and all, with `moved_from` naming the
 session's next hook reports it. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.
 
+`fork_uuid` is the uuid a fork of the holder's session would start its transcript with. A fork
+names no parent and runs under a session id of its own, but copies the parent's records with their
+uuids unchanged from the parent's latest compaction boundary on, or from its first message where it
+never compacted; a resume continues the same transcript under the same session id. Every hook that
+writes a transcript into a claim, and every hook finding `fork_uuid` empty, sets it to the uuid of
+the transcript's latest `compactMetadata` record, else its first record carrying a uuid. A
+compaction's SessionStart empties it, since the boundary record lands in the transcript after that
+hook runs, so the session's next hook reads it afresh. A SessionStart in a process holding no seat
+looks through every claim and last claim for its parent: one naming its session id, else one whose
+`fork_uuid` is the uuid its own transcript starts with, the latest claimed among equals. A parent
+whose holder is gone is claimed as a seat is; one whose holder runs is left to it, and a new seat is
+claimed on its shelf. A claim from a release without `fork_uuid` matches by session id alone.
+
 Every change to a claim file reads, judges and writes it under the seats lock (`seats/.lock`): a
 claim, a reservation and its takeover, a handover, a hook re-pointing a claim at a new session id or
 transcript, a release, a SessionEnd close, and `who` freeing a gone holder. Two sessions judging one
@@ -291,7 +304,7 @@ Every hook exits at once in a project without a store.
 
 | Event | What memory does |
 |---|---|
-| SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone and names the project's seats |
+| SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
 | UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
 | PostToolUse (`tool`) | tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
