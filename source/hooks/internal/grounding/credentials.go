@@ -1,6 +1,7 @@
 package grounding
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -21,13 +22,15 @@ import (
 
 const mcpStageAttachment = "mcp__sdd__stage_attachment"
 
-// scan is what a graph write's scan found: the first credential, and the
-// first file it could not scan (standard input, a file it cannot read, a
-// capture naming no draft). Scanning goes on past an unscannable file, so a
-// credential elsewhere still refuses first.
+// scan is what a graph write's scan found: the first credential, whether an
+// ended context cut a scan short, and the first file it could not scan
+// (standard input, a file it cannot read, a capture naming no draft). Scanning
+// goes on past an unscannable file, so a credential elsewhere still refuses
+// first.
 type scan struct {
-	leaked    string
-	unscanned string
+	leaked      string
+	interrupted string
+	unscanned   string
 }
 
 func (held *scan) found(refused string) {
@@ -43,7 +46,7 @@ func (held *scan) cannot(refused string) {
 }
 
 func (held *scan) text(ctx context.Context, text string, name string, where string) {
-	held.report(secrets.Scan(ctx, text, name), where)
+	held.report(ctx, secrets.Scan(ctx, text, name), where)
 }
 
 // file scans a file by its name, so path rules fire on it, and where that finds
@@ -57,11 +60,22 @@ func (held *scan) file(ctx context.Context, content string, name string, where s
 		found = secrets.Scan(ctx, content, "")
 	}
 
-	held.report(found, where)
+	held.report(ctx, found, where)
 }
 
-func (held *scan) report(findings []secrets.Finding, where string) {
+// report refuses on a finding. Once the context has ended a finding is no
+// credential: a scan it cut short reports `scan-incomplete`, and the hook
+// itself is being cut short, so it refuses as an unfinished scan.
+func (held *scan) report(ctx context.Context, findings []secrets.Finding, where string) {
 	if len(findings) == 0 {
+		return
+	}
+
+	if ctx.Err() != nil {
+		if held.interrupted == "" {
+			held.interrupted = refusal("credential-interrupted.txt")
+		}
+
 		return
 	}
 
@@ -75,10 +89,12 @@ func (held *scan) report(findings []secrets.Finding, where string) {
 // params an sdd engine call carries, and a file staged for the engine. An
 // entry is immutable and every session, worktree and seat reads the graph, so
 // a credential written to it can never be taken back: the scan runs whichever
-// sdd is installed. It returns the credential refusal, and apart from it the
+// sdd is installed. It returns the refusal ahead of every other check (a
+// credential, else a scan an ended context cut short), and apart from it the
 // refusal for what it could not scan, since the gate fails closed. A scan that
-// could not finish refuses as a credential. agentic-capture scans the bytes it
-// sends again right before sdd runs, since a file may change after this check.
+// could not finish for any other reason refuses as a credential.
+// agentic-capture scans the bytes it sends again right before sdd runs, since
+// a file may change after this check.
 func leaksCredential(ctx context.Context, env Env, payload hookio.Payload) (string, string) {
 	var held scan
 
@@ -93,7 +109,7 @@ func leaksCredential(ctx context.Context, env Env, payload hookio.Payload) (stri
 		held.staged(ctx, env, payload)
 	}
 
-	return held.leaked, held.unscanned
+	return cmp.Or(held.leaked, held.interrupted), held.unscanned
 }
 
 func (held *scan) command(ctx context.Context, env Env, command string) {

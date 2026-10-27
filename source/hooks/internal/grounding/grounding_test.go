@@ -73,8 +73,25 @@ func run(t *testing.T, env grounding.Env, mode string, payload map[string]any) r
 func runRaw(t *testing.T, env grounding.Env, mode string, stdin string) result {
 	t.Helper()
 
+	return runRawIn(context.Background(), t, env, mode, stdin)
+}
+
+func runIn(ctx context.Context, t *testing.T, env grounding.Env, mode string, payload map[string]any) result {
+	t.Helper()
+
+	stdin, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("encoding the payload: %v", err)
+	}
+
+	return runRawIn(ctx, t, env, mode, string(stdin))
+}
+
+func runRawIn(ctx context.Context, t *testing.T, env grounding.Env, mode string, stdin string) result {
+	t.Helper()
+
 	captured := &test.Captured{}
-	code := grounding.Main(context.Background(), []string{mode}, env, captured.Streams(stdin))
+	code := grounding.Main(ctx, []string{mode}, env, captured.Streams(stdin))
 
 	got := result{code: code, stdout: captured.Out.String(), stderr: captured.Err.String()}
 	got.said = got.stderr

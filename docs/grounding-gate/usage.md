@@ -31,7 +31,10 @@ since an entry is never edited and every session reads it:
 `GROUNDING GATE: refused. The capture holds what looks like a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable`.
 `<where>` is `the command`, the draft or attached file as the command or header names it,
 `the mcp__sdd__next report` / `the mcp__sdd__start_procedure params`, or `the staged <name>`. A scan
-that could not finish refuses as `scan-incomplete`.
+that could not finish refuses as `scan-incomplete`, except one the hook's own interrupt cut short:
+that names no credential and refuses ahead of every other check but a credential found, since the
+reads the gate would weigh next go unread too:
+`GROUNDING GATE: refused. The hook was cut short before its credential scan finished, and nothing passes unscanned; run the call again`.
 
 **What the gate cannot scan is refused**, once nothing else refuses the call:
 

@@ -11,15 +11,38 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-func TestAScanThatCannotFinishIsJudgedAsAFinding(t *testing.T) {
-	cancelled, cancel := context.WithCancel(context.Background())
-	cancel()
+func TestAnInterruptDuringTheScanIsNoCredential(t *testing.T) {
+	const cutShort = "the hook was cut short before its credential scan finished"
 
-	options := shellguard.Options{Secrets: "deny", OutsideProject: "ask", FindDelete: "ask"}
+	cases := []struct {
+		secrets  string
+		decision shellguard.Decision
+	}{
+		{secrets: "ask", decision: shellguard.Ask},
+		{secrets: "deny", decision: shellguard.Deny},
+		{secrets: "off", decision: shellguard.Allow},
+	}
 
-	verdict := shellguard.Judge(cancelled, "echo token=x", t.TempDir(), shellguard.Env{}, options)
-	if verdict.Decision != shellguard.Deny || !strings.Contains(verdict.Reason, "(scan-incomplete, line 1)") {
-		t.Errorf("a scan that could not finish should be judged as a finding, got %+v", verdict)
+	sample := test.SecretFixture(t, "positive/github-pat.txt")
+
+	for _, tc := range cases {
+		for _, command := range []string{"echo token=x", carrying(sample)} {
+			t.Run(tc.secrets+" "+command[:4], func(t *testing.T) {
+				cancelled, cancel := context.WithCancel(context.Background())
+				cancel()
+
+				options := shellguard.Options{Secrets: tc.secrets, OutsideProject: "ask", FindDelete: "ask"}
+
+				verdict := shellguard.Judge(cancelled, command, t.TempDir(), shellguard.Env{}, options)
+				if verdict.Decision != tc.decision || strings.Contains(verdict.Reason, "looks like a credential") {
+					t.Errorf("an interrupted scan should take the secrets guard's verdict without naming a credential, got %+v", verdict)
+				}
+
+				if tc.decision != shellguard.Allow && !strings.Contains(verdict.Reason, cutShort) {
+					t.Errorf("an interrupted scan should say the scan was cut short, got %+v", verdict)
+				}
+			})
+		}
 	}
 }
 

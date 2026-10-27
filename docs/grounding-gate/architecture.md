@@ -118,7 +118,10 @@ a write into another repository's graph is scanned too. What it scans:
 
 A finding refuses with `refusals/credential.txt`, naming the rules on the first line found and that
 line (`secrets.Describe`), never the matched text, ahead of every other check. A `scan-incomplete`
-finding refuses like any other.
+finding refuses like any other, except once the hook's context has ended: the scan it cut short
+found no credential, so any finding then refuses with `refusals/credential-interrupted.txt`, after
+a credential an earlier scan found and ahead of every other check, since under an ended context the
+ledger reads as empty and the reads check would name reads owed that are not.
 
 The gate fails closed: what it cannot scan refuses. Standard input (`refusals/credential-stdin.txt`),
 a file that cannot be read or a draft header that does not parse

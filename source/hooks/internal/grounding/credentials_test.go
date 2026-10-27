@@ -2,7 +2,6 @@ package grounding_test
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -217,22 +216,58 @@ func TestACredentialIsRefusedForAnExemptSeat(t *testing.T) {
 	refuses(t, run(t, env, "gate", as(test.Session, bash(newWithBody(test.SecretFixture(t, "positive/github-pat.txt"))))), leaked)
 }
 
-func TestAScanThatCannotFinishRefusesTheWrite(t *testing.T) {
-	env := areaProject(t)
-	ground(t, env)
+func TestAnInterruptDuringTheScanIsNoCredential(t *testing.T) {
+	const interrupted = "GROUNDING GATE: refused. The hook was cut short before its credential scan finished"
 
-	stdin, err := json.Marshal(bash("sdd new d tac body"))
-	if err != nil {
-		t.Fatalf("encoding the payload: %v", err)
+	sample := test.SecretFixture(t, "positive/github-pat.txt")
+
+	cases := []struct {
+		name    string
+		prepare func(t *testing.T, env grounding.Env) map[string]any
+	}{
+		{
+			name:    "a clean sdd new",
+			prepare: func(*testing.T, grounding.Env) map[string]any { return bash(newWithBody("A body with nothing secret in it.")) },
+		},
+		{
+			name:    "an sdd new holding a credential",
+			prepare: func(*testing.T, grounding.Env) map[string]any { return bash(newWithBody(sample)) },
+		},
+		{
+			name: "a capture's draft",
+			prepare: func(t *testing.T, env grounding.Env) map[string]any {
+				return bash("agentic-capture " + draftHolding(t, env, ""))
+			},
+		},
+		{
+			name: "an engine report",
+			prepare: func(*testing.T, grounding.Env) map[string]any {
+				return mcp("next", map[string]any{"instance": "i-1", "session": "s-1", "report": map[string]any{"body": "clean"}})
+			},
+		},
+		{
+			name: "a staged file",
+			prepare: func(*testing.T, grounding.Env) map[string]any {
+				return mcp("stage_attachment", map[string]any{"name": "a.txt", "content": "clean"})
+			},
+		},
 	}
 
-	cancelled, cancel := context.WithCancel(context.Background())
-	cancel()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := areaProject(t)
+			payload := tc.prepare(t, env)
+			ground(t, env)
 
-	captured := &test.Captured{}
-	code := grounding.Main(cancelled, []string{"gate"}, env, captured.Streams(string(stdin)))
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
 
-	if code != 2 || !strings.HasPrefix(captured.Err.String(), leaked+"scan-incomplete, the command, line 1)") {
-		t.Errorf("a scan that could not finish should refuse the write, got exit %d: %s", code, captured.Err.String())
+			got := runIn(ctx, t, env, "gate", payload)
+			refuses(t, got, interrupted)
+
+			if strings.Contains(got.stderr, leaked) || strings.Contains(got.stderr, "Standing reads:") {
+				t.Errorf("an interrupted scan should refuse as unfinished, never as a credential or as reads owed, got: %s", got.stderr)
+			}
+		})
 	}
 }

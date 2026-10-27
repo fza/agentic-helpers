@@ -19,6 +19,7 @@ func TestTheSkillQuotesEveryCredentialRefusal(t *testing.T) {
 		"credential-no-draft.txt":    {},
 		"credential-unresolved.txt":  {"{where}", "<file>", "{why}", "<why>"},
 		"credential-undecodable.txt": {"{tool}", "<tool>"},
+		"credential-interrupted.txt": {},
 	} {
 		quoted := strings.TrimSpace(refusal(name, placeholders...))
 		if !strings.Contains(string(skill), quoted) {

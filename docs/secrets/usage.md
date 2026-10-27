@@ -38,4 +38,6 @@ read at run time. A false positive, a credential-shaped example, is rewritten un
 reads as one; nothing overrides a refusal, gitleaks' inline `gitleaks:allow` marker included.
 
 A rule id `scan-incomplete` means the scan could not finish (the context ended, or a vendored rule
-failed to load), and the text was refused rather than passed unscanned.
+failed to load), and the text was refused rather than passed unscanned. Where the hook's own
+context ended, `agentic-capture`, the grounding gate and shell-guard say the scan was cut short
+instead, and name no credential.

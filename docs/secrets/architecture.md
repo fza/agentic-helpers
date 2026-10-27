@@ -57,7 +57,9 @@ finding's line, sorted and comma-separated, and that line.
 A scan that cannot finish, the context ended or a vendored pattern failed to compile, returns one
 finding of rule `scan-incomplete`, so a caller refusing on any finding refuses rather than passes
 unscanned text. The vendored rules decode and compile in a test, so in a released binary only an
-ended context reaches it.
+ended context reaches it. A caller whose context ended checks that itself and reports the scan as
+cut short rather than as a credential: `agentic-capture` as an interrupt, the grounding gate with
+its own refusal, shell-guard with its own reason under `shell_guard_secrets`.
 
 ## What it guards against
 

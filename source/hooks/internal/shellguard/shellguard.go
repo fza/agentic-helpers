@@ -99,6 +99,7 @@ const (
 	reasonUnparsable    = "cannot parse the command; refusing"
 	reasonFindDelete    = "find -delete"
 	reasonSecrets       = `the command holds what looks like a credential (%s, line %d); history, logs and files keep it; reference it instead: "$NAME" or a file`
+	reasonSecretsCut    = "the hook was cut short before its credential scan finished; nothing says whether the command holds one"
 	whyNotAlone         = "not alone"
 	whyExpansion        = "expansion"
 	whyNestedCode       = "nested code"
@@ -259,11 +260,16 @@ func Judge(ctx context.Context, command string, workingDir string, env Env, opti
 // holdsCredential is the secrets guard's verdict on the command's whole text:
 // a credential typed into a command stays in the shell's history, the
 // transcript and any log it reaches. A scan that could not finish counts as a
-// finding.
+// finding, but once the context has ended it names no credential: the hook
+// itself is being cut short, and the verdict says only that the scan was.
 func holdsCredential(ctx context.Context, command string, options Options) Verdict {
 	findings := secrets.Scan(ctx, command, "")
 	if len(findings) == 0 {
 		return Verdict{Decision: Allow}
+	}
+
+	if ctx.Err() != nil {
+		return mode(options.Secrets, reasonSecretsCut)
 	}
 
 	rules, line := secrets.Describe(findings)

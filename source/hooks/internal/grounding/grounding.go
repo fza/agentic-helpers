@@ -389,13 +389,15 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 }
 
 // gate returns the refusal this call earns, or nothing. A graph write holding
-// a credential is refused first, an exempt seat included. One whose files
+// a credential is refused first, an exempt seat included, and so is one whose
+// scan an ended context cut short: the reads the gate would weigh next go
+// unread then too, and would name reads owed that are not. One whose files
 // cannot be scanned is refused last, once nothing else refuses it: the reads
 // or the engine say more about what to do next.
 func gate(ctx context.Context, env Env, payload hookio.Payload) string {
-	leaked, unscanned := leaksCredential(ctx, env, payload)
-	if leaked != "" {
-		return leaked
+	first, unscanned := leaksCredential(ctx, env, payload)
+	if first != "" {
+		return first
 	}
 
 	return cmp.Or(judge(ctx, env, payload), unscanned)
