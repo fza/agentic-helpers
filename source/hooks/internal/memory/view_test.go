@@ -202,7 +202,7 @@ func TestViewRefusesNamingTokenPositionAndNearestWord(t *testing.T) {
 		{layout: "active:as-list:kind(trap)", want: `layout: a render word ends its section: "as-list" at position 8; nearest valid word: as-list`},
 		{layout: "active: as-list", want: `layout does not parse: unexpected " " at position 8; expected a word`},
 		{layout: "rank(hot):as-list", want: `layout: rank takes heat or by(date): "hot" at position 6; nearest valid word: heat`},
-		{layout: "n(0):as-list", want: `layout: n takes a positive number: "0" at position 3; nearest valid word: n(10)`},
+		{layout: "n(x):as-list", want: `layout: n takes a number of 0 or more: "x" at position 3; nearest valid word: n(10)`},
 		{layout: `since("soon"):as-list`, want: `layout: since takes a span such as "7d" or a date: "soon" at position 7; nearest valid word: 7d`},
 		{layout: "status(gone):as-list", want: `layout: status takes live, retired or superseded: "gone" at position 8; nearest valid word: live`},
 		{layout: "not(n(2)):as-list", want: `layout: not takes a filter: "n" at position 5; nearest valid word: not`},
@@ -254,7 +254,7 @@ func TestViewTakesOneOfLayoutAndExplain(t *testing.T) {
 
 	for _, args := range [][]string{{"view"}, {"view", "--layout", "as-list", "--explain", "as-list"}} {
 		got := h.run("", args...)
-		if got.code != 1 || !strings.Contains(got.err, "view takes --layout '<layout>' or --explain '<layout>'") {
+		if got.code != 1 || !strings.Contains(got.err, "view takes --layout '<layout>' or --explain '<layout>'|brief") {
 			t.Errorf("view should take exactly one of --layout and --explain, got %d %q", got.code, got.err)
 		}
 	}

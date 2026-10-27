@@ -425,12 +425,12 @@ func allCommands() []command {
 				`"kind":{"type":"string","enum":["rule","trap","todo","note"]},` + jsonKey + `}}`,
 		},
 		{
-			name: "view", usage: "view --layout '<layout>' | view --explain '<layout>'",
+			name: "view", usage: "view --layout '<layout>' | view --explain '<layout>'|brief",
 			description: "read the store through a layout of sdd's view language: filters, rank, paging, a render word; warms nothing",
 			flags:       []flagSpec{{"layout", flagText}, {"explain", flagText}}, run: (*memory).view,
 			schema: `{"type":"object","properties":{` +
 				`"layout":{"type":"string","description":"colon-chained filters, rank and paging, ending in as-list, as-counts or as-bodies; sections split by commas"},` +
-				`"explain":{"type":"string","description":"a layout to print spelled out whole in place of reading"},` +
+				`"explain":{"type":"string","description":"a layout, or brief for the brief's fixed one, to print spelled out whole in place of reading"},` +
 				jsonKey + `}}`,
 		},
 		{

@@ -37,6 +37,10 @@ var shapeWords = []string{"rank", "n", "skip", "name", "brief"}
 
 const macroTop = "top"
 
+// briefName is the brief's fixed layout, which --explain prints and no
+// --layout runs: the brief has its own command.
+const briefName = "brief"
+
 // layoutRefusal is a layout refused: what is wrong, the token at fault, where
 // it stands, and the nearest valid word.
 type layoutRefusal struct {
@@ -59,6 +63,7 @@ type viewSection struct {
 	filters  []filter
 	rank     string
 	limit    int
+	limited  bool
 	skip     int
 	compact  bool
 	render   string
@@ -185,7 +190,7 @@ func (held *viewSection) top(call layout.Call) error {
 	held.filters = append(held.filters, filter{spelled: "active", keep: func(_ *viewScope, entry *entry) bool {
 		return entry.status == statusLive
 	}})
-	held.rank, held.limit, held.render = rankHeat, count, renderList
+	held.rank, held.limit, held.limited, held.render = rankHeat, count, true, renderList
 
 	return nil
 }
@@ -212,7 +217,8 @@ func (held *viewSection) shape(call layout.Call) error {
 	case "rank":
 		held.rank, err = rankArgument(call)
 	case "n":
-		held.limit, err = countArgument(call, 1)
+		held.limit, err = countArgument(call, 0)
+		held.limited = true
 	case "skip":
 		held.skip, err = countArgument(call, 0)
 	case "name":
@@ -301,7 +307,7 @@ func (section viewSection) explain() string {
 		parts = append(parts, fmt.Sprintf("skip(%d)", section.skip))
 	}
 
-	if section.limit > 0 {
+	if section.limited {
 		parts = append(parts, fmt.Sprintf("n(%d)", section.limit))
 	}
 
@@ -328,7 +334,7 @@ func (scope *viewScope) run(section viewSection) ([]*entry, []*entry) {
 	}
 
 	page := kept[min(section.skip, len(kept)):]
-	if section.limit > 0 {
+	if section.limited {
 		page = page[:min(section.limit, len(page))]
 	}
 
@@ -337,7 +343,11 @@ func (scope *viewScope) run(section viewSection) ([]*entry, []*entry) {
 
 func (mem *memory) view(ctx context.Context, req request) result {
 	if (req.Layout == "") == (req.Explain == "") {
-		return refused("view takes --layout '<layout>' or --explain '<layout>'")
+		return refused("view takes --layout '<layout>' or --explain '<layout>'|brief")
+	}
+
+	if req.Layout == briefName {
+		return refused("brief is the brief's own layout: %s brief prints it, %s view --explain brief shows it", self, self)
 	}
 
 	folded, err := mem.load(ctx)
@@ -348,18 +358,28 @@ func (mem *memory) view(ctx context.Context, req request) result {
 	reader, _ := mem.seated(ctx)
 	scope := mem.scope(ctx, folded, reader)
 
-	sections, err := scope.compileLayout(cmp.Or(req.Layout, req.Explain))
+	text := cmp.Or(req.Layout, req.Explain)
+	if req.Explain == briefName {
+		text = briefLayout(mem.options().BriefNoteLimit)
+	}
+
+	sections, err := scope.compileLayout(text)
 	if err != nil {
 		return refused("%v", err)
 	}
 
 	if req.Explain != "" {
-		lines := make([]string, 0, len(sections))
-		for _, section := range sections {
-			lines = append(lines, section.explain())
+		lines := make([]string, 0, len(sections)+1)
+		if req.Explain == briefName {
+			lines = append(lines, briefParts)
 		}
 
-		return done(strings.Join(lines, ",\n"))
+		explained := make([]string, 0, len(sections))
+		for _, section := range sections {
+			explained = append(explained, section.explain())
+		}
+
+		return done(strings.Join(append(lines, strings.Join(explained, ",\n")), "\n"))
 	}
 
 	if req.JSON {

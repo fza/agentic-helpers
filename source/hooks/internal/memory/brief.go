@@ -147,6 +147,30 @@ func (mem *memory) ownLive(folded *state, seatName string, word string, values .
 	return live
 }
 
+const rulesHeading = "rules (from the user, verify before relying)"
+
+// briefLayout is the brief's kind sections as a fixed layout, which
+// `view --explain brief` prints and nothing configures: each the seat's live
+// entries of one kind, hottest first, in the short line, notes cut at the
+// brief_note_limit.
+func briefLayout(noteLimit int) string {
+	section := func(kind string, heading string, cut string) string {
+		return fmt.Sprintf(`active:mine:kind(%s):rank(heat):%sname(%q):brief:as-list`, kind, cut, heading)
+	}
+
+	return strings.Join([]string{
+		section(kindRule, rulesHeading, ""),
+		section(kindTrap, "traps", ""),
+		section(kindTodo, "todos", ""),
+		section(kindNote, "notes", fmt.Sprintf("n(%d):", noteLimit)),
+	}, ",")
+}
+
+// briefParts is what `view --explain brief` says stands around the layout:
+// the parts of the brief that are not lists of entries.
+const briefParts = "brief, fixed: its first line, the state slot, changed by other seats and ended since last " +
+	"brief; then these sections; then retire?, new from other seats and the topics. Nothing configures it."
+
 // brief is what a fresh context gets: the seat's state slot, what other seats
 // changed since its last brief, its live rules, traps, todos and notes, each by
 // heat, what other seats filed, then the topics. Claim and compaction share it.
@@ -218,51 +242,49 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 	}
 
-	byKind := map[string][]*entry{}
 	listed := map[string]bool{}
-
 	for _, held := range live {
-		byKind[held.kind] = append(byKind[held.kind], held)
 		listed[held.id] = true
 	}
 
-	if rules := byKind[kindRule]; len(rules) > 0 {
-		out.add("rules (from the user, verify before relying):")
+	scope := &viewScope{mem: mem, ctx: ctx, folded: folded, here: here, reader: seatName}
 
-		third := &budget{limit: briefBudget / 3}
-		for _, held := range rules {
-			third.add("  " + shortLine(here, held, seatName, now))
-		}
-
-		for _, text := range third.lines {
-			out.add(text)
-		}
-
-		if third.cut > 0 {
-			out.add(fmt.Sprintf("rules exceed a third of the brief: %d; retire or rekind some", len(rules)))
-		}
+	sections, err := scope.compileLayout(briefLayout(mem.options().BriefNoteLimit))
+	if err != nil {
+		out.add(fmt.Sprintf("%s: the brief's layout: %v", self, err))
 	}
 
 	missing := 0
 
-	for _, section := range []struct{ kind, header string }{
-		{kindTrap, "traps:"}, {kindTodo, "todos:"}, {kindNote, "notes:"},
-	} {
-		held := byKind[section.kind]
-		if len(held) == 0 {
+	for _, section := range sections {
+		page, kept := scope.run(section)
+		if len(kept) == 0 {
 			continue
 		}
 
-		out.add(section.header)
+		out.add(section.name + ":")
 
-		// Notes are capped, hottest first; traps are rare and todos end through
-		// their declared conditions, so both print whole.
-		capped := 0
-		if limit := mem.options().BriefNoteLimit; section.kind == kindNote && len(held) > limit {
-			held, capped = held[:limit], len(held)-limit
+		// Rules take at most a third of the brief. Notes are capped by n,
+		// hottest first; traps are rare and todos end through their declared
+		// conditions, so both print whole.
+		if section.name == rulesHeading {
+			third := &budget{limit: briefBudget / 3}
+			for _, held := range page {
+				third.add("  " + shortLine(here, held, seatName, now))
+			}
+
+			for _, text := range third.lines {
+				out.add(text)
+			}
+
+			if third.cut > 0 {
+				out.add(fmt.Sprintf("rules exceed a third of the brief: %d; retire or rekind some", len(kept)))
+			}
+
+			continue
 		}
 
-		for _, one := range held {
+		for _, one := range page {
 			if !out.add("  " + shortLine(here, one, seatName, now)) {
 				missing++
 
@@ -274,7 +296,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 			}
 		}
 
-		if capped > 0 {
+		if capped := len(kept) - len(page); capped > 0 {
 			out.add(fmt.Sprintf("+%d more notes: %s brief --kind note", capped, self))
 		}
 	}

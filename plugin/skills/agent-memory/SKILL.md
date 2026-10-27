@@ -296,6 +296,7 @@ agentic-memory view --layout 'active:kind(trap):rank(heat):n(5):as-list'
 agentic-memory view --layout 'for(all):active:as-list,top(10)'
 agentic-memory view --layout 'active:topic(infra):as-counts'
 agentic-memory view --explain 'top(5):kind(trap)'   # the layout spelled out whole
+agentic-memory view --explain brief                 # the brief's fixed sections; nothing configures them
 ```
 
 - Section = colon-chained words, ending in `as-list`, `as-counts` or `as-bodies`. Commas split

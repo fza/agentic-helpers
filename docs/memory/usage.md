@@ -618,7 +618,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `linked(<id>)` | entries linking to the memory or graph id |
 | `anchored("<path>")` | entries anchored to the path, or to a file under it |
 | `rank(heat)`, `rank(by(date))` | hottest first, or newest first; newest first unless set |
-| `n(<n>)`, `skip(<n>)` | the first `n`, after dropping the first `skip` |
+| `n(<n>)`, `skip(<n>)` | the first `n`, after dropping the first `skip`; both 0 or more |
 | `name("<title>")` | the section's heading and JSON key; the section's own text unless set |
 | `brief` | the brief's short line in place of the full one |
 | `top(<n>)` | where a section starts: `active:rank(heat):n(<n>):as-list`, later words overriding it |
@@ -662,7 +662,8 @@ A layout that does not parse names the token, where it stands, and what was expe
 `agentic-memory: layout does not parse: unexpected " " at position 8; expected a word`.
 
 `view --explain '<layout>'` (MCP key `explain`) prints each section spelled out whole, its macro
-expanded and its rank named, in place of reading.
+expanded and its rank named, in place of reading; `view --explain brief` prints the brief's fixed
+layout (see [What comes back](#what-comes-back)).
 
 ## What comes back
 
@@ -680,6 +681,19 @@ plugin option `brief_note_limit`, 10 unless set, then
 `+<n> more notes: agentic-memory brief --kind note`; traps and todos print whole.
 `brief --kind rule|trap|todo|note` (MCP key `kind`) lists one kind's live entries whole, as
 `brief --topic <name>` lists one topic's and those below it, as `topic(<name>)` reads it.
+
+The kind sections are a fixed layout of the view language, and nothing configures it: its wording is
+a contract skills quote, and one seat's layout could crowd rules out of another's digest.
+`view --explain brief` prints it, the note limit the option's:
+
+    active:mine:kind(rule):rank(heat):name("rules (from the user, verify before relying)"):brief:as-list,
+    active:mine:kind(trap):rank(heat):name("traps"):brief:as-list,
+    active:mine:kind(todo):rank(heat):name("todos"):brief:as-list,
+    active:mine:kind(note):rank(heat):n(10):name("notes"):brief:as-list
+
+`view --layout brief` is refused, `brief is the brief's own layout: agentic-memory brief prints it,
+agentic-memory view --explain brief shows it`: the brief retires reached ends and moves its mark, and
+a view does neither.
 
 The brief and prompt recall print a short line, read at every claim and compaction:
 
