@@ -325,6 +325,68 @@ func TestASwitchedOffSupportingGuardFallsToTheOutsideVerdict(t *testing.T) {
 	}
 }
 
+func TestACommandNameThatIsNotFixedTextTakesTheOutsideVerdict(t *testing.T) {
+	judged := []struct {
+		name    string
+		command string
+		word    string
+	}{
+		{"an octal escape spelling rm", `$'\162m' -rf /`, `$'\162m'`},
+		{"a variable", "$CMD -rf /", "$CMD"},
+		{"a quoted variable", `"$tool" build`, `"$tool"`},
+		{"a command substitution", "$(which rm) -rf /", "$(which rm)"},
+		{"a variable after another command", "ls && $CMD x", "$CMD"},
+		{"a variable after an assignment", "LC_ALL=C $CMD x", "$CMD"},
+		{"a variable in shell code", `bash -c '$CMD -rf /'`, "$CMD"},
+		{"a variable under a launcher", "sudo -u root $CMD -rf /", "$CMD"},
+		{"a variable run by find", `find . -exec "$cmd" {} \;`, `"$cmd"`},
+	}
+
+	unchanged := []struct {
+		name     string
+		command  string
+		expected string
+	}{
+		{"a variable with no argument", "$CMD", "allow"},
+		{"a variable with no argument but a redirection", "$CMD > out.log", "allow"},
+		{"a variable as a launcher's option value", "sudo -u $user ls -la", "allow"},
+		{"a variable in a find expression", `find . -name "$pattern" -print`, "allow"},
+		{"a lone removal inside the project", "rm -rf ./build", "allow"},
+		{"a fixed name with a variable argument", `echo "$CMD" -rf /`, "allow"},
+	}
+
+	for _, outside := range []string{"ask", "deny", "off"} {
+		g := newGuard(t, true, `"shell_guard_outside_project":"`+outside+`"`)
+
+		want, prefix := outside, "agentic-shell-guard: "
+		if outside == "off" {
+			want, prefix = "allow", ""
+		}
+
+		for _, tc := range judged {
+			t.Run(outside+" "+tc.name, func(t *testing.T) {
+				reason := ""
+				if want != "allow" {
+					reason = prefix + "cannot judge: the command name " + tc.word + " is not fixed text"
+				}
+
+				decision, said := g.judge(tc.command, "{project}")
+				if decision != want || said != reason {
+					t.Errorf("a command name the shell builds should take the outside verdict, naming the word, got %s %q", decision, said)
+				}
+			})
+		}
+
+		for _, tc := range unchanged {
+			t.Run(outside+" "+tc.name, func(t *testing.T) {
+				if decision, said := g.judge(tc.command, "{project}"); decision != tc.expected {
+					t.Errorf("the command should keep its verdict, got %s %q", decision, said)
+				}
+			})
+		}
+	}
+}
+
 func TestAnUnparsableCommandIsDeniedWithEveryGuardOff(t *testing.T) {
 	g := newGuard(t, true, `"shell_guard_outside_project":"off","shell_guard_find_delete":"off",`+
 		`"shell_guard_lone_removal":false,"shell_guard_expansion":false,"shell_guard_nested_code":false,"shell_guard_mktemp":false`)

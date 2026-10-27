@@ -100,6 +100,7 @@ const (
 	reasonFindDelete    = "find -delete"
 	reasonSecrets       = `the command holds what looks like a credential (%s, line %d); history, logs and files keep it; reference it instead: "$NAME" or a file`
 	reasonSecretsCut    = "the hook was cut short before its credential scan finished; nothing says whether the command holds one"
+	reasonNotFixed      = "cannot judge: the command name %s is not fixed text"
 	whyNotAlone         = "not alone"
 	whyExpansion        = "expansion"
 	whyNestedCode       = "nested code"
@@ -345,11 +346,18 @@ func (inspection *inspector) removal(args []*syntax.Word, from int) {
 
 // Command judges every call the walk offers, a launcher's every word among
 // them: a guard errs on the side of reading a word as the command it runs.
+// A name the shell builds at run time could be any command, a removal among
+// them, so a call passing it an argument takes the outside-project verdict.
+// Only the word a launcher certainly runs counts: any other may be an
+// option's value.
 func (inspection *inspector) Command(call shellwalk.Call) {
 	args := call.Args
 	name := shellwalk.CommandName(args[0])
+	_, fixed := shellwalk.Literal(args[0])
 
 	switch {
+	case !fixed && call.Certain && len(args) > 1:
+		inspection.found.add(mode(inspection.options.OutsideProject, fmt.Sprintf(reasonNotFixed, shellwalk.Text(args[0]))))
 	case slices.Contains(removers, name):
 		inspection.removal(args, 1)
 	case name == "mktemp":

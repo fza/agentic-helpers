@@ -16,6 +16,7 @@ import (
 const (
 	askedRemoval = "rm -rf {outside}/build"
 	askedFind    = "find {project} -name '*.o' -delete"
+	askedName    = "$CMD -rf /"
 )
 
 func TestAnAskFollowsThePermissionMode(t *testing.T) {
@@ -32,7 +33,7 @@ func TestAnAskFollowsThePermissionMode(t *testing.T) {
 		{mode: "dontAsk", want: "deny"},
 	}
 
-	for _, command := range []string{askedRemoval, askedFind} {
+	for _, command := range []string{askedRemoval, askedFind, askedName} {
 		for _, tc := range modes {
 			t.Run(command+" in "+tc.mode, func(t *testing.T) {
 				g := newGuard(t, false, "")
@@ -184,6 +185,15 @@ func TestACountdownDeniesAnAskNobodyAnswers(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("a command name that is not fixed text", func(t *testing.T) {
+		c := newCountdown(t, "")
+
+		said := c.request(context.Background(), askedName, "auto")
+		if said != "agentic-shell-guard: nobody answered within 120s; cannot judge: the command name $CMD is not fixed text" {
+			t.Errorf("the deny should name the countdown and the unjudged name, got %q", said)
+		}
+	})
 
 	t.Run("the countdown is the option's", func(t *testing.T) {
 		c := newCountdown(t, `"shell_guard_ask_timeout":30`)

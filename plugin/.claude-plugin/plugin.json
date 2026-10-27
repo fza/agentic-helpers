@@ -158,7 +158,7 @@
     "shell_guard_outside_project": {
       "type": "string",
       "title": "Shell-guard: removals outside the project",
-      "description": "ask, deny or off for an rm, rmdir, unlink or git rm reaching outside the project and /tmp; empty means ask",
+      "description": "ask, deny or off for an rm, rmdir, unlink or git rm reaching outside the project and /tmp, or a command passed arguments whose name is not fixed text; empty means ask",
       "required": false
     },
     "shell_guard_find_delete": {

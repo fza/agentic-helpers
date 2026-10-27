@@ -44,7 +44,13 @@ Any other command is walked call by call. A removal (or `git ... rm`) denies und
 alone)`. `mktemp` denies under `shell_guard_mktemp`, its reason naming `.tmp/` by whether the project
 carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A launcher (`sudo`,
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
-stood alone. The walk that finds calls, launchers, nested code and pipe feeds lives in
+stood alone. A call whose name has no literal value (`$CMD`, `"$tool"`, `$(...)`, a `$'...'` holding
+an escape outside the decoded set) could be any command, a removal among them: passed at least one
+argument, it takes `shell_guard_outside_project`'s verdict, reason `cannot judge: the command name
+<word> is not fixed text`, the word as the command spells it; with none it runs. Under a launcher
+only the word `shellwalk` marks as the command it certainly runs counts, past the launcher's
+options, their values, assignments and counts, since any other word may be an option's value (`sudo
+-u $user`, `find -name "$x"`). The walk that finds calls, launchers, nested code and pipe feeds lives in
 `internal/shellwalk`, which the grounding gate walks commands through too.
 
 ## Credentials
