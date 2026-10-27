@@ -27,13 +27,35 @@ var localStamp = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2} [A-Z0-9+-]+`)
 func goldenStore(t *testing.T) *harness {
 	t.Helper()
 
-	h, other := twoSeats(t)
+	h := newHarness(t)
+	h.clock.Hold()
+
+	// Each call moves the clock a minute on, so every entry has its own time
+	// however often the code under test reads the clock.
+	run := func(on *harness, stdin string, args ...string) {
+		t.Helper()
+		on.must(stdin, args...)
+		h.clock.Advance(time.Minute)
+	}
+	file := func(on *harness, title string, body string, extra ...string) string {
+		t.Helper()
+
+		id := on.file(title, body, extra...)
+		h.clock.Advance(time.Minute)
+
+		return id
+	}
+
+	run(h, "", "claim", "main")
+
+	other := newHarnessSharing(h)
+	run(other, "", "claim", "idea")
 	withGraph(t, h)
 
-	h.must("commit when asked", "new", "--title", "Owner allows commits on main", "--topic", "grants",
+	run(h, "commit when asked", "new", "--title", "Owner allows commits on main", "--topic", "grants",
 		"--kind", "rule", "--from", "user")
-	h.file("Gate ignores MCP reads always", "the gate reads internal/gate/gate.go only for Bash", "--kind", "trap")
-	h.file("Port the waiter to Linux", "the waiter polls darwin only", "--kind", "todo",
+	file(h, "Gate ignores MCP reads always", "the gate reads internal/gate/gate.go only for Bash", "--kind", "trap")
+	file(h, "Port the waiter to Linux", "the waiter polls darwin only", "--kind", "todo",
 		"--until", "at:2027-01-01T00:00:00Z")
 
 	var notes []string
@@ -46,26 +68,26 @@ func goldenStore(t *testing.T) *harness {
 			topic = "infra"
 		}
 
-		notes = append(notes, h.file("Note about the "+word+" finding", word+" "+word, "--topic", topic))
+		notes = append(notes, file(h, "Note about the "+word+" finding", word+" "+word, "--topic", topic))
 	}
 
-	h.file("Finding citing a closed decision", "see the decision", "--link", closedDecision)
-	h.file("Readme names the build steps", "the README.md lists them")
-	h.must("ten words of where the gate fix stands", "state")
+	file(h, "Finding citing a closed decision", "see the decision", "--link", closedDecision)
+	file(h, "Readme names the build steps", "the README.md lists them")
+	run(h, "ten words of where the gate fix stands", "state")
 
 	h.clock.Advance(time.Hour)
-	other.file("Review owes the API diff", "a handover", "--for", "main")
-	other.file("Staging DB moved to db2", "a changed fact", "--for", "all")
-	h.must("", "follow", "deploy")
-	other.file("Deploy runs at noon daily", "a schedule", "--topic", "deploy")
-	other.must("", "link", notes[1], notes[2])
+	file(other, "Review owes the API diff", "a handover", "--for", "main")
+	file(other, "Staging DB moved to db2", "a changed fact", "--for", "all")
+	run(h, "", "follow", "deploy")
+	file(other, "Deploy runs at noon daily", "a schedule", "--topic", "deploy")
+	run(other, "", "link", notes[1], notes[2])
 
-	h.must("", "retire", notes[3], "--because", "done with it")
-	h.must("", "supersede", notes[4], "--by", notes[5])
-	h.must("", "supersede", notes[9], "--because", "it was wrong")
-	h.must("", "show", notes[6])
-	h.must("", "show", notes[7])
-	h.must("", "show", notes[7])
+	run(h, "", "retire", notes[3], "--because", "done with it")
+	run(h, "", "supersede", notes[4], "--by", notes[5])
+	run(h, "", "supersede", notes[9], "--because", "it was wrong")
+	run(h, "", "show", notes[6])
+	run(h, "", "show", notes[7])
+	run(h, "", "show", notes[7])
 
 	test.WriteFile(t, filepath.Join(h.repo, "internal", "gate", "gate.go"), "package gate\n\nfunc Changed() {}\n")
 

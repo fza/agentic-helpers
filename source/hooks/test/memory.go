@@ -236,6 +236,9 @@ func (fake *Embedder) Factory(configured bool) func(embed.Config) (embed.Embedde
 type Clock struct {
 	mutex sync.Mutex
 	now   time.Time
+	// held stops the clock moving a second per read, so what a test pins
+	// does not hang on how often the code under test reads the time.
+	held bool
 }
 
 func NewClock(start time.Time) *Clock {
@@ -246,9 +249,19 @@ func (clock *Clock) Now() time.Time {
 	clock.mutex.Lock()
 	defer clock.mutex.Unlock()
 
-	clock.now = clock.now.Add(time.Second)
+	if !clock.held {
+		clock.now = clock.now.Add(time.Second)
+	}
 
 	return clock.now
+}
+
+// Hold stops the clock moving on its own: from then on only Advance moves it.
+func (clock *Clock) Hold() {
+	clock.mutex.Lock()
+	defer clock.mutex.Unlock()
+
+	clock.held = true
 }
 
 func (clock *Clock) Advance(by time.Duration) {
