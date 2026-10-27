@@ -34,13 +34,14 @@ type outputCall struct {
 	stderr   string
 }
 
-func (g guard) output(ctx context.Context, tool string, input map[string]any, response any) outputCall {
+func (g guard) output(ctx context.Context, tool string, input any, response any) outputCall {
 	g.t.Helper()
 
-	for key, value := range input {
+	fields, isObject := input.(map[string]any)
+	for key, value := range fields {
 		text, isText := value.(string)
-		if isText {
-			input[key] = g.placeholders.Replace(text)
+		if isText && isObject {
+			fields[key] = g.placeholders.Replace(text)
 		}
 	}
 
@@ -266,6 +267,20 @@ func TestOutputFromOutsideTheProjectIsWithheldLineByLine(t *testing.T) {
 	}
 }
 
+func TestAToolInputItCannotReadCountsAsOutside(t *testing.T) {
+	for _, tool := range []string{"Read", "Grep", "NotebookRead", "Bash"} {
+		t.Run(tool, func(t *testing.T) {
+			g := newGuard(t, false, `"shell_guard_secret_output":"files"`)
+			content, _, _ := test.ProviderConfig(t)
+
+			call := g.output(context.Background(), tool, "cat config.yaml", bashResponse(content))
+			if !call.answered {
+				t.Error("a file tool's input that is no object should count as reading outside the project")
+			}
+		})
+	}
+}
+
 func TestCleanOutputFromOutsideIsUntouched(t *testing.T) {
 	g := newGuard(t, false, "")
 
@@ -341,6 +356,21 @@ func TestAScanThatCannotFinishWithholdsEveryString(t *testing.T) {
 	note := "agentic-shell-guard: the credential scan of this Bash output could not finish, so all of it was withheld (4 line(s)); the source is unchanged"
 	if call.reply.HookSpecificOutput.AdditionalContext != note {
 		t.Errorf("the note should say the scan could not finish, got %q", call.reply.HookSpecificOutput.AdditionalContext)
+	}
+}
+
+func TestAnAnswerItCannotWriteSaysTheOutputWentUnscanned(t *testing.T) {
+	g := newGuard(t, false, "")
+	content, _, _ := test.ProviderConfig(t)
+
+	var errs bytes.Buffer
+
+	payload := test.PostToolUse(t, g.tree.Project, "WebFetch", map[string]any{}, bashResponse(content))
+	status := shellguard.Run(context.Background(), []string{"output"}, g.env, shellguard.Streams{
+		In: bytes.NewReader(payload), Out: test.FailingWriter{Err: os.ErrClosed}, Err: &errs,
+	})
+	if status != 1 || !strings.Contains(errs.String(), "agentic-shell-guard: could not answer; the tool output reached the agent unscanned") {
+		t.Errorf("an answer that cannot be written should say on stderr that the output went unscanned, exit %d: %s", status, errs.String())
 	}
 }
 

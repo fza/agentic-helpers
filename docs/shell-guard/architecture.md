@@ -105,21 +105,32 @@ scan.
 **Outside the project.** The project is `$CLAUDE_PROJECT_DIR` through its symlinks, none where it is
 unset, `/` or the home directory, as for removals. A path is inside when it resolves, against `cwd`
 for a relative one and through every symlink it passes (a file symlink included), to the project or
-below it; `~user`, a brace, a `..` step and a dot glob resolve to nothing, which is outside. Read
-and NotebookRead judge `file_path` and `notebook_path`, Grep `path` or `cwd`. Bash is judged by
-`ReadsOnlyProject`: the command is parsed, walked with `syntax.Walk` for statements (only simple
-commands, pipelines and lists, subshells and blocks; no assignment; every redirection a literal
-project path, `/dev/null`, a descriptor, or a here-document or here-string with no expansion) and
-with `shellwalk.Walk` for every call, those a launcher or a substitution runs included. Each
-call's words must be literal and unpatterned, its name one of the readers, and every word but the
-reader's program words inside the project, an option's `=value` included. No reader changes
-directory or runs code, so `cd`, `pushd`, a launcher's chdir option, a shell, `eval` and every
-interpreter fail on their name, before any nested code they carry is reached. `programWords` finds those words and holds them to reading nothing: grep's pattern (and
-no `-R`), sed's scripts through a small parser of the commands that touch no file, jq's filter
-(no `env`, `$ENV`, `import`, `include`, no `-f`, `-L`, `--args`) and its `--arg` values. Every
-other word counts as a path because telling a file from a count or a pattern is each reader's own
-knowledge; one that only looks like an outside path costs a redaction, never a leak. Under `files`
-every tool but Read, Grep, NotebookRead and Bash is left alone; under `all` it is outside.
+below it. A path that does not resolve counts as outside: `~user`, a brace, a `..` step, a dot glob,
+a dangling link, a file that does not exist. Read and NotebookRead judge `file_path` and
+`notebook_path`, Grep `path` or `cwd`, and a tool input that is no object counts as outside. Bash is
+judged by `ReadsOnlyProject`: `cwd` must be inside the project, and the command is parsed, walked
+with `syntax.Walk` for statements (only simple commands, pipelines and lists, subshells and blocks;
+no assignment; every redirection a literal project path, `/dev/null`, a descriptor, or a
+here-document or here-string with no expansion) and with `shellwalk.Walk` for every call, those a
+launcher or a substitution runs included. Each call's words must be literal and unpatterned and its
+name a key of `readerTable`. No reader changes directory or runs code, so `cd`, `pushd`, a
+launcher's chdir option, a shell, `eval` and every interpreter fail on their name, before any nested
+code they carry is reached.
+
+**Reader options** (`readerargs.go`). Each reader has a closed `readerOptions` list, and
+`parseReader` reads its arguments as getopt does: a group of one-letter options letter by letter,
+where a flag letter goes on and a letter taking a value takes the rest of the group, or the next
+word, as a text value, a file or the program; a long option matched exactly against its list (a flag
+refusing `=value`, an optional one taking a value only through `=`, a pair such as jq's `--arg`
+taking the next two words). An option off the list, an abbreviation getopt_long would accept among
+them, counts as outside rather than being guessed at: a wrong outside costs only a withheld line. The
+first operand is the program where the reader takes one and no option gave it (grep's pattern, sed's
+script, jq's filter), tr's operands are sets, and every other operand is a file. Every file, an
+option's file value included, must be inside the project. A sed script must pass
+`sedScriptReadsNothing`, a parser of the commands that touch no file; a jq filter must name no `env`,
+`$ENV`, `import` or `include`. Under `files` every tool but Read, Grep, NotebookRead and Bash is left
+alone; under `all` it is outside.
+
 
 **The redaction.** The response is decoded with numbers kept as written, and every string value
 (`mapStrings`), at any depth, is scanned by `secrets.Scan` with no file name. Each finding covers

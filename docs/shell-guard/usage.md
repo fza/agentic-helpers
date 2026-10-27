@@ -127,15 +127,22 @@ A Bash call shows the project as is only when:
 
 - every command is `cat`, `head`, `tail`, `grep`, `egrep`, `fgrep`, `sed`, `wc`, `sort`, `uniq`,
   `cut`, `tr`, `nl` or `jq`, named bare (`/bin/cat` is not), with no assignment before it;
-- every word is a literal with no glob or brace, and every word but the reader's own program
-  (a grep pattern, a sed script, a jq filter and its `--arg` values) resolves inside the project;
+- every word is a literal with no glob or brace;
+- each reader carries only the options on its own closed list, read as getopt reads them: a group
+  of one-letter options letter by letter, a letter taking a value taking the rest of the group or
+  the next word (`grep -fe x` reads patterns from the file `e`), and a long option only when
+  spelled out in full, never abbreviated (`--files0` and `--deref` count as outside);
+- every file it names, an operand or the value of an option taking a file (`grep -f`, `sort -o`,
+  `jq --rawfile`), resolves inside the project through every symlink; one that does not resolve, a
+  dangling link or a missing file, counts as outside;
 - it changes no directory, holds no nested code (`eval`, a shell's `-c`, a script, a substitution),
   and redirects only from or to project files, `/dev/null` or another descriptor;
-- the reader's own program reads no other file and runs nothing: no `grep -R` (it follows
-  symlinks out of a named directory), a sed script made only of addresses, `!`, braces, `s` and `y`
-  without the `w` or `e` flag, and `p`, `d`, `D`, `n`, `N`, `g`, `G`, `h`, `H`, `x`, `l`, `P`,
-  `z`, `=`, `q`, `Q` (no `r`, `w`, `e` or `-f`, no `-i`), a jq filter naming no `env`, `$ENV`,
-  `import` or `include` and no `-f`, `-L`, `--args`; no `--files0-from` or `--compress-program`.
+- the reader's own program reads no other file and runs nothing: a sed script made only of
+  addresses, `!`, braces, `s` and `y` without the `w` or `e` flag, and `p`, `d`, `D`, `n`, `N`, `g`,
+  `G`, `h`, `H`, `x`, `l`, `P`, `z`, `=`, `q`, `Q`; a jq filter naming no `env`, `$ENV`, `import` or
+  `include`. Off every list: `grep -R`, `-S` and `-p` (they follow symlinks out of a named
+  directory), `sed -i` and `-f`, `--files0-from`, `--compress-program`, `jq -f`, `-L`, `--args`
+  and `--jsonargs`.
 
 `awk` is no reader here: its program can read any file and run commands. Any other call, a script
 or a test run included, has its output scanned; a project script printing a project credential is

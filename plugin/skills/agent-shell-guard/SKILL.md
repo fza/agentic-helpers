@@ -91,7 +91,7 @@ Every other line is as the tool returned it. The file or response itself is unto
 | Output | Counts as |
 |---|---|
 | Read, Grep, NotebookRead | by the path named: inside the project (through symlinks) → shown whole |
-| Bash | shown whole only when every command is `cat`, `head`, `tail`, `grep`, `egrep`, `fgrep`, `sed`, `wc`, `sort`, `uniq`, `cut`, `tr`, `nl` or `jq`, by bare name, every word literal and every path inside the project, no `cd`, no glob, no variable, no script, no nested code. Anything else, a test run included → scanned |
+| Bash | shown whole only when every command is `cat`, `head`, `tail`, `grep`, `egrep`, `fgrep`, `sed`, `wc`, `sort`, `uniq`, `cut`, `tr`, `nl` or `jq`, by bare name, only options on its list (long ones spelled in full), every word literal, every file existing inside the project, no `cd`, no glob, no variable, no script, no nested code. Anything else, a test run included → scanned |
 | every other tool (WebFetch, MCP tools, a subagent) | outside |
 
 - **Need the value?** Don't read it. Use it by reference: `"$NAME"` or a file a command reads at
