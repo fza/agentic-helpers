@@ -359,12 +359,17 @@ func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 		{command: "sdd new d tac body --attach ~/run.log", where: "~/run.log", why: expansion},
 		{command: "sdd new d tac body --attach 'logs~/run.log'", where: "logs~/run.log", why: expansion},
 		{command: "sdd new d tac body --attach run*.log", where: "run*.log", why: patterned},
-		{command: "sdd new d tac body --attach=ru?.log", where: "ru?.log", why: patterned},
+		{command: "sdd new d tac body --attach=ru?.log", where: "--attach=ru?.log", why: patterned},
 		{command: "sdd new d tac body --attach 'run'[.]log", where: "run[.]log", why: patterned},
 		{command: "sdd new d tac body --attach 'run'[.log", where: "run[.log", why: patterned},
 		{command: "sdd new d tac body --attach run.{log,txt}", where: "run.{log,txt}", why: patterned},
-		{command: "sdd new d tac body --attach=@(run).log:copy.log", where: "@(run).log", why: patterned},
+		{command: "sdd new d tac body --attach=@(run).log:copy.log", where: "--attach=@(run).log:copy.log", why: patterned},
 		{command: "sdd new d tac body --attach /tmp/*.log", where: "/tmp/*.log", why: patterned},
+		{command: "sdd new d tac x --att{ach,x} run.log", where: "--att{ach,x}", why: patterned},
+		{command: "sdd new d tac x --attac?=run.log", where: "--attac?=run.log", why: patterned},
+		{command: "sdd new d tac body* --attach run.log", where: "body*", why: patterned},
+		{command: "agentic-capture .sdd/tmp/drafts/attache?.md", where: ".sdd/tmp/drafts/attache?.md", why: patterned},
+		{command: "agentic-capture --preflight-route={a,b} {draft}", where: "--preflight-route={a,b}", why: patterned},
 	}
 
 	for _, tc := range cases {
@@ -412,6 +417,7 @@ func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 		passes(t, run(t, env, "gate", bash(`sdd new d tac body --attach "run*.{log}"`)))
 		passes(t, run(t, env, "gate", bash(`sdd new d tac body --attach run\*.\{log\}`)))
 		passes(t, run(t, env, "gate", bash(`sdd new d tac body --attach=$'run*.{log}'`)))
+		passes(t, run(t, env, "gate", bash(`sdd new d tac 'a body * {a,b}' --attach 'run*.{log}'`)))
 	})
 
 	t.Run("a draft header's glob is no shell word", func(t *testing.T) {

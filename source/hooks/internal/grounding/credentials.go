@@ -130,10 +130,26 @@ func (held *scan) command(ctx context.Context, env Env, command string) {
 		for _, called := range stretch.calls {
 			switch {
 			case callsCapture(called):
+				held.patterned(called)
 				held.capture(ctx, env, command, called.words[1:], unanchored(called, moved))
 			case callsNew(called):
-				held.attached(ctx, attachValues(called), env.WorkingDir, unanchored(called, moved))
+				held.patterned(called)
+				held.attached(ctx, attachValues(called.words[2:]), env.WorkingDir, unanchored(called, moved))
 			}
+		}
+	}
+}
+
+// patterned refuses a write call holding a word the shell may expand into
+// others, a glob or a brace, in any argument: the words the gate reads are
+// spelled, not expanded, so `--att{ach,x} f` or `--attac?=f` may reach sdd as
+// an `--attach` the gate never saw, and `run*.log` as files it never read.
+func (held *scan) patterned(called call) {
+	for index, patterned := range called.patterned[1:] {
+		if patterned {
+			held.cannot(refusal("credential-unresolved.txt", "{where}", called.words[index+1], "{why}", "it holds a shell glob or brace"))
+
+			return
 		}
 	}
 }
@@ -198,7 +214,7 @@ func (held *scan) capture(ctx context.Context, env Env, command string, args []s
 			governing = graphconfig.GraphDir(env.WorkingDir)
 		}
 
-		held.attached(ctx, headerValues(values), filepath.Dir(governing), unplaced)
+		held.attached(ctx, values, filepath.Dir(governing), unplaced)
 	}
 }
 
@@ -241,61 +257,39 @@ func readNamed(env Env, name string) (string, []byte, bool) {
 	return "", nil, false
 }
 
-// attachValue is one `--attach` value as written; patterned marks a shell
-// word the shell may expand into other files, a glob or a brace.
-type attachValue struct {
-	value     string
-	patterned bool
-}
-
 // attachValues lists the `--attach` values of a plain `sdd new`, in both the
 // `--attach value` and `--attach=value` forms.
-func attachValues(called call) []attachValue {
-	var values []attachValue
+func attachValues(args []string) []string {
+	var values []string
 
-	for index := 2; index < len(called.words); index++ {
-		value, inline := strings.CutPrefix(called.words[index], "--attach=")
+	for index := 0; index < len(args); index++ {
+		value, inline := strings.CutPrefix(args[index], "--attach=")
 
 		switch {
 		case inline:
-			values = append(values, attachValue{value: value, patterned: called.patterned[index]})
-		case called.words[index] == "--attach" && index+1 < len(called.words):
+			values = append(values, value)
+		case args[index] == "--attach" && index+1 < len(args):
 			index++
-			values = append(values, attachValue{value: called.words[index], patterned: called.patterned[index]})
+			values = append(values, args[index])
 		}
 	}
 
 	return values
 }
 
-// headerValues are a draft header's `attach` values: agentic-capture hands
-// them to sdd as arguments no shell expands.
-func headerValues(values []string) []attachValue {
-	written := make([]attachValue, 0, len(values))
-	for _, value := range values {
-		written = append(written, attachValue{value: value})
-	}
-
-	return written
-}
-
 // attached scans every file the `--attach` values name, reading a relative
-// one from base. Only a literal path is read: one holding `$` or `~`, or a
-// glob or brace the shell expands, is whatever the shell expands it to, and a
-// relative one is refused where unplaced says why it cannot be placed.
-// Standard input, and a file that cannot be read, cannot be scanned here
-// either.
-func (held *scan) attached(ctx context.Context, values []attachValue, base string, unplaced string) {
-	for _, written := range values {
-		attached := sddcaps.Attachment(written.value)
+// one from base. Only a literal path is read: one holding `$` or `~` is
+// whatever the shell expands it to (a glob or brace refuses the whole call
+// first), and a relative one is refused where unplaced says why it cannot be
+// placed. Standard input, and a file that cannot be read, cannot be scanned
+// here either.
+func (held *scan) attached(ctx context.Context, values []string, base string, unplaced string) {
+	for _, value := range values {
+		attached := sddcaps.Attachment(value)
 
 		switch {
 		case attached.Stdin:
 			held.cannot(refusal("credential-stdin.txt", "{name}", attached.Name))
-
-			continue
-		case written.patterned:
-			held.cannot(refusal("credential-unresolved.txt", "{where}", attached.Path, "{why}", "it holds a shell glob or brace"))
 
 			continue
 		case expands(attached.Path):

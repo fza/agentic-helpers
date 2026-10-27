@@ -102,10 +102,12 @@ a write into another repository's graph is scanned too. What it scans:
   pass unscanned. Only a literal path is read, never expanded: an absolute one, or a relative one
   in a command with no directory change anywhere and no launcher in front of the call (the
   launchers and their chdir options are `shellwalk.Options`, the table the walk reads too).
-  Anything a launcher or an expansion would change is refused, not resolved. Whether an
-  `--attach` word is a glob or brace the shell expands into other files is decided on the parsed
-  word (`shellwalk.Patterned`), not its text: an unquoted, unescaped `*`, `?` or `[`, an extended
-  glob, or a brace expansion; quoted or escaped, the same characters are the file's name.
+  Anything a launcher or an expansion would change is refused, not resolved. A plain `sdd new` or
+  `agentic-capture` call is refused outright where any argument is a glob or brace the shell
+  expands into other words, since the words the gate reads are spelled, not expanded: an
+  attachment it never read, or an `--attach` it never saw, could reach sdd. That is decided on the
+  parsed word (`shellwalk.Patterned`), not its text: an unquoted, unescaped `*`, `?` or `[`, an
+  extended glob, or a brace expansion; quoted or escaped, the same characters are text.
 - **A call behind a launcher's options** the walk cannot place (`sudo -iD dir sdd new`,
   `flock lockfile agentic-capture d.md`) still counts as a write: `sdd new`, or `agentic-capture`
   handed an argument. It credits and checks no read.
@@ -129,8 +131,8 @@ ledger reads as empty and the reads check would name reads owed that are not.
 The gate fails closed: what it cannot scan refuses. Standard input (`refusals/credential-stdin.txt`),
 a file that cannot be read or a draft header that does not parse
 (`refusals/credential-unreadable.txt`), a capture naming no draft
-(`refusals/credential-no-draft.txt`), an attachment path it will not place, holding `$` or `~`,
-a shell glob or brace, or relative after a directory change or behind a launcher (`refusals/credential-unresolved.txt`,
+(`refusals/credential-no-draft.txt`), a write call with any argument holding a shell glob or
+brace, an attachment path it will not place, holding `$` or `~`, or relative after a directory change or behind a launcher (`refusals/credential-unresolved.txt`,
 naming why), and an engine input that is no JSON object
 (`refusals/credential-undecodable.txt`) refuse once no other
 check does, so a turn still owing reads
