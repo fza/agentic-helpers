@@ -256,3 +256,27 @@ func TestTheBriefOrdersItsSections(t *testing.T) {
 		last = at
 	}
 }
+
+func TestRecallNeverOffersTheStateSlot(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	prompt := hookPayload("", "", "how does the tail seal manifest rename work")
+	target := h.file("Tail seal manifest rename", "the tail seal writes the manifest by rename")
+
+	for _, word := range unrelated[:19] {
+		h.file("Unrelated finding about "+word, word+" "+word+" "+word)
+	}
+
+	h.must("halfway through the tail seal manifest rename", "state")
+	h.clock.Advance(time.Hour)
+
+	out := h.must(prompt, "prompt")
+	if !strings.Contains(out, target) {
+		t.Fatalf("the prompt should recall the entry it touches:\n%s", out)
+	}
+
+	if strings.Contains(out, "halfway through") {
+		t.Errorf("recall should offer entries only, never the seat's state slot:\n%s", out)
+	}
+}

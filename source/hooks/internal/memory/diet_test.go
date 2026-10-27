@@ -92,3 +92,27 @@ func TestInboundLinksLeaveOutSuperseded(t *testing.T) {
 		t.Errorf("the brief's citing lines should leave out superseded entries:\n%s", brief)
 	}
 }
+
+func TestTheNotesCapKeepsTheHottest(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"brief_note_limit":2}}}}`)
+
+	ids := make([]string, 0, 5)
+	for index := range 5 {
+		ids = append(ids, h.file(fmt.Sprintf("Gate note number %d here", index), "note"))
+	}
+
+	for _, used := range []string{ids[1], ids[3]} {
+		h.must("", "confirm", used)
+	}
+
+	brief := h.must("", "brief")
+
+	for index, id := range ids {
+		kept := index == 1 || index == 3
+		if strings.Contains(brief, id) != kept {
+			t.Errorf("the capped notes should be the hottest ones, %s kept %v:\n%s", id, kept, brief)
+		}
+	}
+}

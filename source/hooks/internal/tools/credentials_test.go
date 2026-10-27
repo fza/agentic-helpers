@@ -291,3 +291,53 @@ func TestTheMCPAddRefusesACredential(t *testing.T) {
 		t.Error("a refused MCP add should keep nothing")
 	}
 }
+
+func TestTheMCPUpdateRefusesACredential(t *testing.T) {
+	h := newHarness(t)
+	h.tool("word-count", "Count the words of standard input")
+
+	credential := test.SecretFixture(t, "positive/github-pat.txt")
+	token := credential[strings.Index(credential, "ghp_"):strings.LastIndex(credential, `"`)]
+	current := h.read("word-count/current")
+	calls := h.embedder.Calls()
+
+	arguments, err := json.Marshal(map[string]any{"name": "word-count", "summary": "Count words anew", "why": "uses " + token})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := []string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"update","arguments":` + string(arguments) + `}}`,
+	}
+
+	out := h.must2(strings.Join(lines, "\n")+"\n", "mcp")
+
+	var answer struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			IsError bool `json:"isError"`
+		} `json:"result"`
+	}
+
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if strings.Contains(line, `"id":2`) {
+			err = json.Unmarshal([]byte(line), &answer)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	if !answer.Result.IsError || len(answer.Result.Content) != 1 || !strings.HasPrefix(answer.Result.Content[0].Text, "refused: ") {
+		t.Fatalf("the MCP update should be refused as an error, got %s", out)
+	}
+
+	checkCredentialRefusal(t, strings.TrimPrefix(answer.Result.Content[0].Text, "refused: "), "--why", "1", "github-pat", token)
+
+	if h.read("word-count/current") != current || h.embedder.Calls() != calls {
+		t.Error("a refused MCP update should keep nothing and embed nothing")
+	}
+}

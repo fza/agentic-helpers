@@ -416,3 +416,23 @@ func TestTheCaptureNotice(t *testing.T) {
 		t.Errorf("a session's first look should only mark the graph, whatever waits:\n%s", first)
 	}
 }
+
+func TestRetireQuestionReadsAConnectedRepo(t *testing.T) {
+	h := newHarness(t)
+	withConnectedRepos(t, h)
+	h.must("", "claim", "main")
+
+	ended := h.file("Gate finding citing a closed fdbox decision", "body", "--link", fdbox+":"+foreignClosed)
+	kept := h.file("Gate finding citing an active fdbox decision", "body", "--link", fdbox+":"+foreignActive)
+
+	brief := h.must("", "brief")
+
+	_, listed, found := strings.Cut(brief, "retire?\n")
+	if !found || !strings.Contains(listed, ended) || !strings.Contains(listed, "(every link ended)") {
+		t.Errorf("an entry whose only link is a closed entry of a connected repo should be listed under retire?:\n%s", brief)
+	}
+
+	if strings.Contains(listed, kept) {
+		t.Errorf("an entry whose connected-repo link is live should not be listed:\n%s", listed)
+	}
+}

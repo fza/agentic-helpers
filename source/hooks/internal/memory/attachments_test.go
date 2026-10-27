@@ -429,3 +429,44 @@ func TestReadToWritesOnlyInsideTheWorkTreeOrTmp(t *testing.T) {
 		t.Errorf("--to inside the work tree should write the file, got %d %q", got.code, got.err)
 	}
 }
+
+func TestAttachingACredentialLaterIsRefused(t *testing.T) {
+	cases := []struct {
+		name   string
+		attach func(h *harness, id string, file string) (int, string)
+	}{
+		{name: "the command", attach: func(h *harness, id string, file string) (int, string) {
+			got := h.run("", "attach", id, file)
+
+			return got.code, got.err
+		}},
+		{name: "the MCP tool", attach: func(h *harness, id string, file string) (int, string) {
+			answer := h.mcp(`{"name":"attach","arguments":{"id":"` + id + `","paths":["` + file + `"]}}`)
+			if !strings.Contains(answer, `"isError":true`) {
+				return 0, answer
+			}
+
+			return 1, answer
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+			id := h.file("Gate finding without a file yet", "body")
+
+			file := filepath.Join(t.TempDir(), "env.sh")
+			test.WriteFile(t, file, test.SecretFixture(t, "positive/github-pat.txt"))
+
+			code, says := tc.attach(h, id, file)
+			if code != 1 || !strings.Contains(says, "attachment env.sh looks like a credential (") {
+				t.Errorf("attaching a file holding a credential should be refused, got %d %q", code, says)
+			}
+
+			if len(h.attachmentFiles()) != 0 || strings.Contains(h.must("", "show", id, "--no-heat"), "attachments:") {
+				t.Error("a refused attach should store nothing and leave the entry without attachments")
+			}
+		})
+	}
+}
