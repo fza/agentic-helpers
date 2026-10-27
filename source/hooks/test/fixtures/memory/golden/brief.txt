@@ -1,0 +1,30 @@
+agentic-memory: seat main, 17 live, 1 retired, entries in en
+state (4h old, branch main): ten words of where the gate fix stands
+changed by other seats:
+  m-me1alo linked to m-ub7z38 by idea (<stamp>)
+rules (from the user, verify before relying):
+  m-1oqsjs Owner allows commits on main  [5h]
+traps:
+  m-0ztvbn Gate ignores MCP reads always  [5h]  drifted: internal/gate/gate.go
+todos:
+  m-wmwufs Port the waiter to Linux  [5h]
+notes:
+  m-qja513 Note about the hotel finding  [4h]
+  m-z5jz1j Note about the golf finding  [4h]
+  m-ub7z38 Note about the charlie finding  [5h]  ← 1
+  m-atlo54 Deploy runs at noon daily  [3h, idea]
+  m-qxmnz0 Staging DB moved to db2  [3h, idea]
+  m-o7axno Review owes the API diff  [3h, idea]
+  m-9nvycp Readme names the build steps  [4h]  gone: README.md
+  m-xsqupf Finding citing a closed decision  [4h]  → 20261025-162357-d-tac-427 closed by 20261026-101500-s-tac-a1b
+  m-g6cqa7 Note about the lima finding  [4h]
+  m-adr7gq Note about the kilo finding  [4h]
++4 more notes: agentic-memory brief --kind note
+retire?
+  m-xsqupf Finding citing a closed decision  [4h]  → 20261025-162357-d-tac-427 closed by 20261026-101500-s-tac-a1b  (every link ended)
+  m-9nvycp Readme names the build steps  [4h]  gone: README.md  (every anchor gone)
+new from other seats:
+  m-atlo54 Deploy runs at noon daily  [3h, idea]
+  m-qxmnz0 Staging DB moved to db2  [3h, idea]
+  m-o7axno Review owes the API diff  [3h, idea]
+topics: gate (16) infra (2) deploy (1) grants (1)
