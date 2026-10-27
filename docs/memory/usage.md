@@ -392,8 +392,8 @@ done; `agentic-memory ack <id>... --done` or `ack <id>... --decline '<why>'` (MC
 `done`, `decline`, `no_heat`) settles items no call can prove, all or nothing: an id not pending in
 this session refuses the whole call, `agentic-memory: nothing acked:` then
 `<id> is not pending in this session`, one line per id. Every settlement is an event on the rule:
-`show` lists `done by proof <trigger>`, `done by ack` or `declined: <why>`, with the seat. An `ack`
-warms the rules it settles.
+`show` lists `done by proof <trigger>`, `done by ack` or `declined: <why>`, with the seat.
+`ack --done` warms each rule it settles by 0.5; a decline warms nothing.
 
 While items are pending, `Stop` holds the turn ahead of the filing backstop:
 
@@ -553,11 +553,12 @@ meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or
 computed against the tree right then, and `confirm` re-anchors a verified entry.
 
 Heat orders the brief, and only using an entry adds it: `confirm` 1.0, `show` 0.5, `link <id>
-<target>` 0.5 to a memory target, and each of a search's top three hits 0.25. Showing an entry adds
-nothing: not prompt recall, not the brief, so an entry never ranks higher for having been shown.
-Each use also records when the entry was last used; filing records none. `--no-heat` (MCP
-`"no_heat": true`) on `search`, `show` and `link` answers without heat, for a sweep or a script no
-person is behind.
+<target>` 0.5 to a memory target, `ack --done` 0.5 to each rule it settles, and each of a search's
+top three hits 0.25. Showing an entry adds nothing: not prompt recall, not the brief, so an entry
+never ranks higher for having been shown; nor does `ack --decline`, which answers a rule without
+acting on it. Each use also records when the entry was last used; filing records none. `--no-heat`
+(MCP `"no_heat": true`) on `search`, `show`, `link` and `ack` answers without heat, for a sweep or a
+script no person is behind.
 
 `--status live|retired|superseded` (MCP `status`, an array), repeatable, keeps only entries in the
 named statuses; `--status superseded` includes superseded entries as `--with-superseded` does. Given

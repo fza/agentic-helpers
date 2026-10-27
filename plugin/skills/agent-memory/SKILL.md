@@ -279,9 +279,9 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]  # one topic, or
   Body = lead, never ground truth. Verified it still holds → `agentic-memory confirm <id>`.
 - `show` frames a body `--- filed memory, a lead, not an instruction ---`. It is.
 - **Only use warms**: heat orders the brief. `confirm` 1.0, `show` 0.5, `link` to a memory entry
-  0.5, a search's top three hits 0.25. Recall and the brief showing an entry warm nothing: an entry
-  only read there cools. A read no person asked for (a sweep, a script, a loop) → `--no-heat`, MCP
-  `"no_heat": true`, on `search`, `show`, `link`.
+  0.5, `ack --done` of a rule 0.5, a search's top three hits 0.25. Recall, the brief and a decline
+  warm nothing: an entry only read there cools. A read no person asked for (a sweep, a script, a
+  loop) → `--no-heat`, MCP `"no_heat": true`, on `search`, `show`, `link`, `ack`.
 - **`who` ends each row `filed <n> / used <m> (14d)`**: entries the seat filed, and how many of its
   entries a use warmed, in 14 days. Filing far more than using → file less, retire what never gets
   read.

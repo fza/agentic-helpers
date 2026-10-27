@@ -143,3 +143,51 @@ func TestWhoCountsFiledAndUsedEntriesPerSeat(t *testing.T) {
 		t.Errorf("filings and uses older than 14 days should fall out of the counts, got:\n%s", out)
 	}
 }
+
+func TestADoneAckWarmsTheRule(t *testing.T) {
+	cases := []struct {
+		name  string
+		ack   func(h *harness, rule string)
+		warms bool
+	}{
+		{name: "ack --done", warms: true, ack: func(h *harness, rule string) {
+			h.must("", "ack", rule, "--done")
+		}},
+		{name: "the MCP ack done", warms: true, ack: func(h *harness, rule string) {
+			h.mcp(`{"name":"ack","arguments":{"ids":["` + rule + `"],"done":true}}`)
+		}},
+		{name: "ack --done --no-heat", ack: func(h *harness, rule string) {
+			h.must("", "ack", rule, "--done", "--no-heat")
+		}},
+		{name: "ack --decline", ack: func(h *harness, rule string) {
+			h.must("", "ack", rule, "--decline", "no board here")
+		}},
+	}
+
+	for _, acked := range cases {
+		t.Run(acked.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+			rule := h.file("Read the board on claim", "body", "--kind", "rule", "--from", "user", "--on", "claim")
+			h.must("", "claim", "main")
+
+			before := h.heatOf(rule)
+
+			acked.ack(h, rule)
+
+			after := h.heatOf(rule)
+
+			if !acked.warms {
+				if after != before {
+					t.Error("an ack that is no done use should leave the rule's heat and use as they were")
+				}
+
+				return
+			}
+
+			if math.Abs(after.Value-before.Value-0.5) > 1e-3 || after.Used.IsZero() {
+				t.Errorf("a done ack should warm the rule by half a use and record the use, got %+v from %+v", after, before)
+			}
+		})
+	}
+}

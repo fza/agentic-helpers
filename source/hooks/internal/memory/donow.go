@@ -278,7 +278,9 @@ func (mem *memory) ack(ctx context.Context, req request) result {
 	pending.Items = slices.DeleteFunc(pending.Items, func(item doNowItem) bool { return slices.Contains(unique, item.ID) })
 	mem.savePending(name, pending)
 
-	if !req.NoHeat {
+	// A decline answers the rule without acting on it, so only a done ack is a
+	// use that warms.
+	if !req.NoHeat && because == "" {
 		folded, err := mem.load(ctx)
 		if err == nil {
 			mem.warm(folded, heatLink, unique...)
