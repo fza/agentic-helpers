@@ -1,7 +1,6 @@
 package shellguard
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 )
@@ -13,7 +12,6 @@ const (
 	operandsAreText
 	firstOperandIsPattern
 	firstOperandIsSedScript
-	firstOperandIsJqFilter
 )
 
 // readerOptions is the closed list of options a reader may carry and still
@@ -63,11 +61,13 @@ var grepOptions = readerOptions{
 	program: firstOperandIsPattern, stdinDash: true,
 }
 
-// readerTable is every reader and its options. awk is not among them: its
-// program can read any file (getline, ARGV) and run commands. Left out on
+// readerTable is every reader and its options. awk and jq are not among them:
+// awk's program can read any file (getline, ARGV) and run commands, and jq's
+// filter language reads the environment and loads modules in spellings no
+// pattern list can close. Left out on
 // purpose: grep -R, -S and -p (they follow symlinks out of a named
-// directory), sed -i and -f, sort and wc --files0-from, sort
-// --compress-program, jq -f, -L, --args and --jsonargs.
+// directory), sed -i and -f, sort and wc --files0-from and sort
+// --compress-program.
 var readerTable = map[string]readerOptions{
 	"cat": {
 		flags: "AbeEnstTuvl", stdinDash: true,
@@ -132,20 +132,7 @@ var readerTable = map[string]readerOptions{
 			"join-blank-lines", "number-format", "number-separator", "starting-line-number", "number-width",
 		},
 	},
-	"jq": {
-		flags: "nrjascCMSeR",
-		longFlags: []string{
-			"null-input", "raw-input", "slurp", "compact-output", "raw-output", "raw-output0", "join-output",
-			"ascii-output", "sort-keys", "color-output", "monochrome-output", "tab", "exit-status", "seq", "stream",
-			"stream-errors",
-		},
-		longValues: []string{"indent"}, longPairs: []string{"arg", "argjson"},
-		longFilePairs: []string{"slurpfile", "rawfile"},
-		program:       firstOperandIsJqFilter,
-	},
 }
-
-var jqUnsafe = regexp.MustCompile(`\$ENV\b|\benv\b|\bimport\b|\binclude\b|\$__prog_args`)
 
 type readerArgs struct {
 	files        []string
@@ -168,7 +155,7 @@ func readerFiles(options readerOptions, args []string) ([]string, bool) {
 	switch options.program {
 	case operandsAreText:
 		operands = nil
-	case firstOperandIsPattern, firstOperandIsSedScript, firstOperandIsJqFilter:
+	case firstOperandIsPattern, firstOperandIsSedScript:
 		if !parsed.programGiven && len(operands) > 0 {
 			parsed.scripts = append(parsed.scripts, operands[0])
 			operands = operands[1:]
@@ -179,10 +166,6 @@ func readerFiles(options readerOptions, args []string) ([]string, bool) {
 		switch options.program {
 		case firstOperandIsSedScript:
 			if !sedScriptReadsNothing(script) {
-				return nil, false
-			}
-		case firstOperandIsJqFilter:
-			if jqUnsafe.MatchString(script) {
 				return nil, false
 			}
 		}
