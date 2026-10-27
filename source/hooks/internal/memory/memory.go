@@ -65,6 +65,9 @@ type Env struct {
 	Git           Git
 	Embedders     EmbedderFactory
 	Version       string
+	// Tmp is the machine's shared temporary directory, the one place outside
+	// the work tree `read --to` may write; empty takes /tmp.
+	Tmp string
 	// Graph asks sdd for the graph's statuses, which link flags read; Sdd says
 	// whether the sdd on the PATH has `export` at all, nil taking it as given.
 	Graph GraphExporter

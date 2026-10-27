@@ -77,6 +77,7 @@ func main() {
 			return embed.New(config, &http.Client{Timeout: 30 * time.Second})
 		},
 		Version: version,
+		Tmp:     "/tmp",
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

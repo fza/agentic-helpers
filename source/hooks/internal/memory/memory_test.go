@@ -113,7 +113,7 @@ func (h *harness) store() string {
 func (h *harness) env() memory.Env {
 	return memory.Env{
 		Base: cmp.Or(h.base, h.repo), Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
-		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now,
+		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
 		Random: test.Random(), Processes: h.processes, Checkout: test.GitDirOf{Worktrees: h.worktrees},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,

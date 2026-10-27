@@ -428,6 +428,13 @@ func TestReadToWritesOnlyInsideTheWorkTreeOrTmp(t *testing.T) {
 	if got := h.run("", "read", id, "--to", inside); got.code != 0 || !test.Exists(t, inside) {
 		t.Errorf("--to inside the work tree should write the file, got %d %q", got.code, got.err)
 	}
+
+	tmp := filepath.Join(h.home, "tmp", "notes-copy.txt")
+	test.WriteFile(t, filepath.Join(h.home, "tmp", ".keep"), "")
+
+	if got := h.run("", "read", id, "--to", tmp); got.code != 0 || !test.Exists(t, tmp) {
+		t.Errorf("--to inside the shared temporary directory should write the file, got %d %q", got.code, got.err)
+	}
 }
 
 func TestAttachingACredentialLaterIsRefused(t *testing.T) {

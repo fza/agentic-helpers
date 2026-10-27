@@ -544,7 +544,9 @@ func (mem *memory) writableTarget(ctx context.Context, path string) (string, err
 	target := filepath.Join(parent, filepath.Base(absolute))
 	root := mem.checkout(ctx).root
 
-	for _, place := range []string{root, "/tmp"} {
+	tmp := cmp.Or(mem.env.Tmp, "/tmp")
+
+	for _, place := range []string{root, tmp} {
 		resolved, err := filepath.EvalSymlinks(place)
 		if err != nil {
 			continue
@@ -556,7 +558,7 @@ func (mem *memory) writableTarget(ctx context.Context, path string) (string, err
 		}
 	}
 
-	return "", fmt.Errorf("--to writes only inside this work tree (%s) or /tmp, not %s", root, path)
+	return "", fmt.Errorf("--to writes only inside this work tree (%s) or %s, not %s", root, tmp, path)
 }
 
 // writeRefs keeps, beside the log, the hashes this project's entries still
