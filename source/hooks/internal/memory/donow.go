@@ -144,7 +144,7 @@ func (mem *memory) doNow(folded *state, seatName string, moment string, session 
 
 	var owed []doNowItem
 
-	for _, held := range mem.ownLive(folded, seatName) {
+	for _, held := range mem.ownLive(folded, seatName, "") {
 		if held.kind != kindRule || !slices.Contains(held.on, moment) {
 			continue
 		}

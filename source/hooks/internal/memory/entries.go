@@ -712,38 +712,14 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
-	var wanted []string
-	for _, topic := range req.Topics {
-		wanted = append(wanted, folded.resolve(topic))
+	scope := mem.scope(ctx, folded, own)
+
+	filters, err := scope.searchFilters(req)
+	if err != nil {
+		return refused("%v", err)
 	}
 
-	withSuperseded := req.WithSuperseded || slices.Contains(req.Statuses, statusSuperseded)
-
-	var candidates []*entry
-
-	for _, held := range folded.entryList() {
-		inScope := req.AllSeats || slices.Contains(req.Seats, held.seat) ||
-			(len(req.Seats) == 0 && mem.ownOrReceived(folded, held, own))
-		if !inScope {
-			continue
-		}
-
-		if held.shadowed() || (held.status == statusSuperseded && !withSuperseded) {
-			continue
-		}
-
-		if len(req.Statuses) > 0 && !slices.Contains(req.Statuses, held.status) {
-			continue
-		}
-
-		if len(wanted) > 0 && !slices.ContainsFunc(folded.topicsOf(held), func(topic string) bool {
-			return slices.Contains(wanted, topic)
-		}) {
-			continue
-		}
-
-		candidates = append(candidates, held)
-	}
+	candidates := scope.selected(filters)
 
 	limit := cmp.Or(req.Limit, defaultLimit)
 	window := req.Skip + limit
@@ -835,6 +811,51 @@ func (mem *memory) search(ctx context.Context, req request) result {
 }
 
 var searchStatuses = []string{statusLive, statusRetired, statusSuperseded}
+
+// searchFilters is what search's flags compile to: the own shelf and what it
+// receives unless --seat or --all-seats widens it, the statuses named, else
+// every one but superseded unless --with-superseded, and the topics named.
+func (scope *viewScope) searchFilters(req request) ([]filter, error) {
+	var calls [][]string
+
+	switch {
+	case req.AllSeats:
+	case len(req.Seats) > 0:
+		calls = append(calls, append([]string{"seat"}, req.Seats...))
+	default:
+		calls = append(calls, []string{"mine"})
+	}
+
+	if len(req.Statuses) > 0 {
+		calls = append(calls, append([]string{"status"}, req.Statuses...))
+	}
+
+	if len(req.Topics) > 0 {
+		calls = append(calls, append([]string{"topic"}, req.Topics...))
+	}
+
+	filters := make([]filter, 0, len(calls)+1)
+
+	for _, call := range calls {
+		held, err := scope.filterOf(call[0], call[1:]...)
+		if err != nil {
+			return nil, err
+		}
+
+		filters = append(filters, held)
+	}
+
+	if len(req.Statuses) == 0 && !req.WithSuperseded {
+		held, err := scope.filterOf("status", statusSuperseded)
+		if err != nil {
+			return nil, err
+		}
+
+		filters = append(filters, negated(held))
+	}
+
+	return filters, nil
+}
 
 // listingArm orders entries by when they last changed status: the most
 // recently ended first for a retired or superseded entry, the most recently

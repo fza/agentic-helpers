@@ -272,7 +272,7 @@ type jsonBrief struct {
 // from its own last one. It retires nothing.
 func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seatName string) result {
 	since := mem.previousBrief(seatName)
-	live := mem.ownLive(folded, seatName)
+	live := mem.ownLive(folded, seatName, "")
 
 	answer := jsonBrief{
 		Notice: filedNotice, Seat: seatName, Shelf: mem.shelfName(mem.shelfOf(seatName)), Language: mem.language(ctx), Live: len(live),

@@ -78,6 +78,8 @@ type request struct {
 	All            bool     `json:"all,omitempty"`
 	JSON           bool     `json:"json,omitempty"`
 	NoHeat         bool     `json:"no_heat,omitempty"`
+	Layout         string   `json:"layout,omitempty"`
+	Explain        string   `json:"explain,omitempty"`
 
 	given map[string]bool
 }
@@ -240,6 +242,7 @@ func (req *request) set(spec flagSpec, value string) error {
 		"title": &req.Title, "kind": &req.Kind, "from": &req.From, "query": &req.Query,
 		"by": &req.By, "because": &req.Because, "session": &req.Session, "shelf": &req.Shelf,
 		"lifetime": &req.Lifetime, "decline": &req.Decline, "to": &req.To,
+		"layout": &req.Layout, "explain": &req.Explain,
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
@@ -338,7 +341,7 @@ func commands() []command {
 
 // jsonReads are the read commands that answer one JSON object under --json;
 // each schema lists the MCP key json, as jsonKey spells it.
-var jsonReads = []string{"show", "search", "brief", "who", "topics"}
+var jsonReads = []string{"show", "search", "brief", "who", "topics", "view"}
 
 const jsonKey = `"json":{"type":"boolean","description":"answer one JSON object in place of the text"}`
 
@@ -420,6 +423,15 @@ func allCommands() []command {
 			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}}, run: (*memory).briefCommand,
 			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"}},` +
 				`"kind":{"type":"string","enum":["rule","trap","todo","note"]},` + jsonKey + `}}`,
+		},
+		{
+			name: "view", usage: "view --layout '<layout>' | view --explain '<layout>'",
+			description: "read the store through a layout of sdd's view language: filters, rank, paging, a render word; warms nothing",
+			flags:       []flagSpec{{"layout", flagText}, {"explain", flagText}}, run: (*memory).view,
+			schema: `{"type":"object","properties":{` +
+				`"layout":{"type":"string","description":"colon-chained filters, rank and paging, ending in as-list, as-counts or as-bodies; sections split by commas"},` +
+				`"explain":{"type":"string","description":"a layout to print spelled out whole in place of reading"},` +
+				jsonKey + `}}`,
 		},
 		{
 			name: "topics", usage: "topics", description: "every topic with live counts per seat",

@@ -270,6 +270,22 @@ graph resolver), that directory's modification time and size, and the entry file
 `graph-seen/<session>.json` in the cache. A call `stat`s the directory; only a changed stamp lists
 it, and an entry file not listed before is a gain. A session's first look records and says nothing.
 
+## Views
+
+`internal/layout` parses sdd's view layout grammar and knows no vocabulary: sections, each a run of
+functions, each argument a function or a quoted string, every part keeping where it starts in
+characters. sdd's own parser lives in sdd's module, which no other module may import, and memory must
+need no change to sdd; the grammar is small enough to own.
+
+The vocabulary is one filter set (`internal/memory/filters.go`): every filter word is defined once
+with its arity, its closed set of values or what a free value may be (the nearest-word candidates a
+refusal draws from), its predicate, and the costly state it needs (links, the seen mark, files,
+graph statuses, git). A layout compiles each section against it; `search`'s `--seat`, `--all-seats`,
+`--status`, `--topic` and `--with-superseded`, and the `brief`'s `--kind` and `--topic`, compile to
+the same filters through the same argument parsing, so a word means one thing wherever it is used.
+A section runs its filters in one pass over the folded log, the cheap ones first, then ranks, skips
+and cuts. A view reads `heat.json` for `rank(heat)` and `as-counts` and writes nothing.
+
 ## Attachments
 
 One attachment store serves every project on the machine: `~/.claude/agentic-memory/attachments/`,

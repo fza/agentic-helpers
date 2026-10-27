@@ -234,7 +234,7 @@ func (mem *memory) trapIndexPath(seatName string) string {
 func (mem *memory) indexTraps(folded *state, seatName string) int {
 	var index trapIndex
 
-	for _, held := range mem.ownLive(folded, seatName) {
+	for _, held := range mem.ownLive(folded, seatName, "") {
 		if held.kind != kindTrap {
 			continue
 		}

@@ -37,7 +37,7 @@ func forbidsFor(kind string, given []string) ([]string, error) {
 func (mem *memory) forbidden(folded *state, held *entry, seatName string) []string {
 	var lines []string
 
-	for _, rule := range mem.ownLive(folded, seatName) {
+	for _, rule := range mem.ownLive(folded, seatName, "") {
 		if rule.kind != kindRule {
 			continue
 		}

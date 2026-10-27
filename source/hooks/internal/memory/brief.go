@@ -86,10 +86,8 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 func (mem *memory) kindBrief(here tree, folded *state, seatName string, kind string) string {
 	var lines []string
 
-	for _, held := range mem.ownLive(folded, seatName) {
-		if held.kind == kind {
-			lines = append(lines, shortLine(here, held, seatName, mem.now()))
-		}
+	for _, held := range mem.ownLive(folded, seatName, "kind", kind) {
+		lines = append(lines, shortLine(here, held, seatName, mem.now()))
 	}
 
 	if len(lines) == 0 {
@@ -107,10 +105,8 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 
 	held := &budget{limit: briefBudget}
 
-	for _, entry := range mem.ownLive(folded, seatName) {
-		if slices.ContainsFunc(folded.topicsOf(entry), func(topic string) bool { return slices.Contains(wanted, topic) }) {
-			held.add(shortLine(here, entry, seatName, mem.now()))
-		}
+	for _, entry := range mem.ownLive(folded, seatName, "topic", topics...) {
+		held.add(shortLine(here, entry, seatName, mem.now()))
 	}
 
 	if len(held.lines) == 0 {
@@ -125,21 +121,28 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 	return strings.Join(held.lines, "\n")
 }
 
-// ownLive is the seat's live entries, hottest first.
-func (mem *memory) ownLive(folded *state, seatName string) []*entry {
-	heats := mem.heats()
+// ownLive is the seat's live entries, hottest first: active:mine:rank(heat),
+// narrowed by one more filter where a word is given.
+func (mem *memory) ownLive(folded *state, seatName string, word string, values ...string) []*entry {
+	scope := &viewScope{mem: mem, folded: folded, reader: seatName}
 
-	var live []*entry
+	var filters []filter
 
-	for _, held := range folded.entryList() {
-		if held.status == statusLive && mem.ownOrReceived(folded, held, seatName) {
-			live = append(live, held)
+	for _, call := range [][]string{{"active"}, {"mine"}, append([]string{word}, values...)} {
+		if call[0] == "" {
+			continue
 		}
+
+		held, err := scope.filterOf(call[0], call[1:]...)
+		if err != nil {
+			return nil
+		}
+
+		filters = append(filters, held)
 	}
 
-	slices.SortStableFunc(live, func(a, b *entry) int {
-		return cmp.Or(cmp.Compare(mem.heat(heats, b), mem.heat(heats, a)), b.filed.Compare(a.filed))
-	})
+	live := scope.selected(filters)
+	scope.byHeat(live)
 
 	return live
 }
@@ -151,7 +154,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	since := mem.previousBrief(seatName)
 	mem.reachEnds(ctx, folded, seatName, "", "")
 	now := mem.now()
-	live := mem.ownLive(folded, seatName)
+	live := mem.ownLive(folded, seatName, "")
 
 	retired := 0
 
