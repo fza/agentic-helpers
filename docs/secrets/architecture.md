@@ -110,8 +110,9 @@ it once per prompt.
 
 ## Tests
 
-`internal/secrets` holds the engine to the fixtures under `test/fixtures/secrets/`, the same files
-the sdd fork tests against: positive samples each raising the rule their file names, negative
+`internal/secrets` holds the engine to the fixtures under `test/fixtures/secrets/`, the same samples
+the sdd fork tests against, stored here base64-encoded as `<name>.b64` and decoded by the `test`
+package on load: positive samples each raising the rule their file names, negative
 samples and `clean.txt` raising nothing, and gitleaks' own per-rule samples, `gitleaks/<rule-id>.json`
 (`{rule, truePositives: [{text} | {path, text}], falsePositives: [...]}`), dumped from gitleaks
 v8.30.1's config generator. A sample with a path is scanned as a file of that name, which covers
@@ -119,5 +120,6 @@ the path rules. Hand-made rule sets pin each engine check on its own: the entrop
 allowlist target and condition, stopwords, `secretGroup`, the group fallbacks, the keyword gate,
 the path rules. Further tests check that text with no keyword compiles no pattern, that every
 vendored rule compiles, and that `rules.json` is the fork's file byte for byte with the pin in its
-`source`. The fixtures are synthetic; `.github/secret_scanning.yml` keeps GitHub's push protection
-from refusing them.
+`source`. The fixtures are synthetic. They are stored encoded because GitHub's push protection
+refuses a push holding them in plain form, and `.github/secret_scanning.yml`'s `paths-ignore` does
+not lift that refusal for this repository; encoded, no committed blob holds a token.
