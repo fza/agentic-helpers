@@ -543,14 +543,38 @@ func holdsGlob(value string, closedAfter bool) bool {
 	return false
 }
 
+// closesLater is whether a later part of the word may close a bracket: a `]` in
+// its text, or any part whose value is only known at run time, since an
+// expansion can produce the `]` itself.
 func closesLater(parts []syntax.WordPart) bool {
 	var printed strings.Builder
 
 	for _, part := range parts {
+		if !fixedPart(part) {
+			return true
+		}
+
 		printPart(&printed, part)
 	}
 
 	return strings.Contains(printed.String(), "]")
+}
+
+func fixedPart(part syntax.WordPart) bool {
+	switch typed := part.(type) {
+	case *syntax.Lit, *syntax.SglQuoted:
+		return true
+	case *syntax.DblQuoted:
+		for _, inner := range typed.Parts {
+			if _, literal := inner.(*syntax.Lit); !literal {
+				return false
+			}
+		}
+
+		return true
+	default:
+		return false
+	}
 }
 
 // Spelled is the word with its quoting removed, as Literal reads it, and every
