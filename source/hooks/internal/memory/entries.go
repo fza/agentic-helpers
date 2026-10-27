@@ -137,6 +137,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
 		TextLinks: textLinks, Links: links, Until: until, UntilHashes: untilHashes,
 		When: declaredLife.when, On: declaredLife.on, Proof: declaredLife.proof, Forbids: forbids,
+		About: declaredPaths(here.root, req.About),
 	}
 
 	raw, err := json.Marshal(filed)

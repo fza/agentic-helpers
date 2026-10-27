@@ -161,6 +161,21 @@ func anchorsFor(root string, text string, explicit []string) []anchor {
 	return anchors
 }
 
+// declaredPaths is the paths --about names, relative to the work tree's root,
+// each once; a path outside the tree is left out.
+func declaredPaths(root string, given []string) []string {
+	var paths []string
+
+	for _, token := range given {
+		path := relative(root, token)
+		if path != "" && !slices.Contains(paths, path) {
+			paths = append(paths, path)
+		}
+	}
+
+	return paths
+}
+
 // rehash anchors the same paths to the tree as it stands; a path gone from it
 // drops out.
 func rehash(root string, anchors []anchor) []anchor {

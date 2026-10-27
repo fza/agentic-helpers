@@ -222,6 +222,9 @@ agentic-memory ack <id>... --done | --decline '<why>'   # settle what no tool ca
   crosses directories), `command:<regex>` (Bash, case-sensitive), `tool:<name>`. Traps only.
   `agentic-memory: trap for <what matched>:` then the trap's line → stop and read it before going
   on. Once per session; again after a compaction.
+- **A note or todo about a file → `--about <path>`.** Told at the first call naming that path:
+  `agentic-memory: about <path>: <line>` → read it before going on. A path only mentioned in the body
+  tells nothing. Once per session; again after a compaction.
 - **A rule owed at a moment → `--on claim|compact`**, the user's rules only, `--proof <trigger>` for
   the call that proves it. `do now (<moment>):` then numbered items, before the brief → do each
   now, first. `proof: <trigger>` → the matching tool call settles it. `ack when done` → do it, then

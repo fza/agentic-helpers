@@ -202,9 +202,19 @@ func firstMatch(texts []string, call toolCall) string {
 }
 
 // trapIndex is the traps a seat holds, its own and received, as the tool hook
-// matches them: the file anchors and the declared triggers.
+// matches them: the file anchors and the declared triggers; and its notes and
+// todos declaring the paths they are about.
 type trapIndex struct {
 	Traps []indexedTrap `json:"traps"`
+	Notes []indexedNote `json:"notes,omitempty"`
+}
+
+// indexedNote is a note or todo the tool hook tells of at a call touching a
+// path it declares with --about. Only declared paths count: a note mentions
+// many paths, and telling it at each would print a notice on most calls.
+type indexedNote struct {
+	ID    string   `json:"id"`
+	About []string `json:"about"`
 }
 
 type indexedTrap struct {
@@ -235,6 +245,10 @@ func (mem *memory) indexTraps(folded *state, seatName string) int {
 	var index trapIndex
 
 	for _, held := range mem.ownLive(folded, seatName, "") {
+		if (held.kind == kindNote || held.kind == kindTodo) && len(held.about) > 0 {
+			index.Notes = append(index.Notes, indexedNote{ID: held.id, About: held.about})
+		}
+
 		if held.kind != kindTrap {
 			continue
 		}
@@ -247,7 +261,7 @@ func (mem *memory) indexTraps(folded *state, seatName string) int {
 		index.Traps = append(index.Traps, trap)
 	}
 
-	if len(index.Traps) == 0 {
+	if len(index.Traps) == 0 && len(index.Notes) == 0 {
 		removeIfThere(mem.trapIndexPath(seatName))
 
 		return 0
@@ -255,7 +269,7 @@ func (mem *memory) indexTraps(folded *state, seatName string) int {
 
 	_ = writeJSON(mem.trapIndexPath(seatName), index)
 
-	return len(index.Traps)
+	return len(index.Traps) + len(index.Notes)
 }
 
 // trapNotices tells the session, once per trap until its next compaction,
@@ -274,6 +288,25 @@ func (mem *memory) trapNotices(ctx context.Context, seatName string, session str
 
 	var order []string
 
+	noted := map[string]string{}
+
+	var notes []string
+
+	for _, note := range index.Notes {
+		if slices.Contains(shown.Notes, note.ID) {
+			continue
+		}
+
+		for _, path := range call.paths {
+			if slices.Contains(note.About, path) {
+				noted[note.ID] = path
+				notes = append(notes, note.ID)
+
+				break
+			}
+		}
+	}
+
 	for _, trap := range index.Traps {
 		if slices.Contains(shown.Traps, trap.ID) {
 			continue
@@ -286,7 +319,7 @@ func (mem *memory) trapNotices(ctx context.Context, seatName string, session str
 		}
 	}
 
-	if len(order) == 0 {
+	if len(order) == 0 && len(notes) == 0 {
 		return nil
 	}
 
@@ -310,7 +343,37 @@ func (mem *memory) trapNotices(ctx context.Context, seatName string, session str
 		shown.Traps = append(shown.Traps, id)
 	}
 
+	told := mem.hottest(folded, notes)
+	if told != nil {
+		lines = append(lines, fmt.Sprintf("%s: about %s: %s", self, noted[told.id], shortLine(here, told, seatName, mem.now())))
+		shown.Notes = append(shown.Notes, told.id)
+	}
+
 	_ = writeJSON(mem.shownPath(session), shown)
 
 	return lines
+}
+
+// hottest is the entry of ids with the most heat, the first named on a tie:
+// one notice per call, so a call touching several notes tells the one most used.
+func (mem *memory) hottest(folded *state, ids []string) *entry {
+	heats := mem.heats()
+
+	var best *entry
+
+	bestHeat := 0.0
+
+	for _, id := range ids {
+		held, found := folded.entries[id]
+		if !found {
+			continue
+		}
+
+		heat := mem.heat(heats, held)
+		if best == nil || heat > bestHeat {
+			best, bestHeat = held, heat
+		}
+	}
+
+	return best
 }

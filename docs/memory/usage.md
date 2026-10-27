@@ -372,6 +372,20 @@ the next session. A trap received through `--for` or a followed topic triggers a
 is about`, as is a malformed trigger or an invalid pattern: `--when: a trigger takes path:<glob>,
 command:<regex> or tool:<name>, not "<trigger>"`. A line names the triggers as `when: <trigger>, ...`.
 
+### Notes and todos at the file they are about
+
+A note or todo filed with `--about <path>` (repeatable; MCP key `about`, an array) reaches the agent
+at the first tool call naming that path, read from the call as a trap's paths are:
+
+    agentic-memory: about <path>: <the entry's short brief line>
+
+Only declared paths count. A path the title or body merely mentions anchors the entry but tells
+nothing at a call: notes mention many paths, and telling each at every call naming one would print a
+notice on most calls. A call touching several such entries tells one, the one with the most heat; the
+others wait for the next call touching their paths. Each is told once per session and again after a
+compaction, entries received through `--for` or a followed topic as the seat's own. Being told adds no
+heat: the entry warms only once the agent shows, confirms or links it.
+
 ## Do-now rules
 
 A rule may be an action owed at a moment. `new --kind rule --from user --on claim|compact`

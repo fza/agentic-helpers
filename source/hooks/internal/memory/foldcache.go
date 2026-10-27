@@ -27,7 +27,7 @@ import (
 
 // foldLayout changes whenever the cached shape does, so a cache of another
 // release's shape is folded again rather than misread.
-const foldLayout = 1
+const foldLayout = 2
 
 type foldKey struct {
 	Layout     int
@@ -84,7 +84,7 @@ type cachedEntry struct {
 	Title, Body, Kind, Retention, Override string
 	From, Commit, Branch, Status           string
 	Topics, History, ForKeys, TextLinks    []string
-	Until, When, On, Proof, Forbids        []string
+	Until, When, On, Proof, Forbids, About []string
 	Anchors                                []anchor
 	Dropped, ForAll                        bool
 	Transitions                            []cachedTransition
@@ -258,7 +258,7 @@ func cacheOf(key foldKey, folded *state) cachedFold {
 			Verified: held.verified, Title: held.title, Body: held.body, Kind: held.kind, Retention: held.retention,
 			Override: held.override, From: held.from, Commit: held.commit, Branch: held.branch, Status: held.status,
 			Topics: held.topics, History: held.history, ForKeys: held.forKeys, TextLinks: held.textLinks,
-			Until: held.until, When: held.when, On: held.on, Proof: held.proof, Forbids: held.forbids,
+			Until: held.until, When: held.when, On: held.on, Proof: held.proof, Forbids: held.forbids, About: held.about,
 			Anchors: held.anchors, Dropped: held.dropped, ForAll: held.forAll, UntilHashes: held.untilHashes,
 			Attachments: held.attachments,
 		}
@@ -303,7 +303,7 @@ func (cached cachedFold) state() *state {
 			verified: one.Verified, title: one.Title, body: one.Body, kind: one.Kind, retention: one.Retention,
 			override: one.Override, from: one.From, commit: one.Commit, branch: one.Branch, status: one.Status,
 			topics: one.Topics, history: one.History, forKeys: one.ForKeys, textLinks: one.TextLinks,
-			until: one.Until, when: one.When, on: one.On, proof: one.Proof, forbids: one.Forbids,
+			until: one.Until, when: one.When, on: one.On, proof: one.Proof, forbids: one.Forbids, about: one.About,
 			anchors: one.Anchors, dropped: one.Dropped, forAll: one.ForAll, untilHashes: one.UntilHashes,
 			attachments: one.Attachments,
 		}

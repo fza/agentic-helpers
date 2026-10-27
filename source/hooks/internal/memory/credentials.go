@@ -49,7 +49,7 @@ type eventText struct {
 var fieldNames = map[string]string{
 	"title": "the title", "body": "the body", "because": "the reason", "topics": "a topic", "into": "a topic",
 	"links": "a link", "text_links": "a link", "until": "--until", "when": "--when", "on": "--on",
-	"proof": "--proof", "forbids": "--forbids", "anchors": "an anchor", "until_hashes": "--until", "for": "--for",
+	"proof": "--proof", "forbids": "--forbids", "anchors": "an anchor", "about": "an anchor", "until_hashes": "--until", "for": "--for",
 }
 
 // eventTexts is every text an event carries: its target and every string its

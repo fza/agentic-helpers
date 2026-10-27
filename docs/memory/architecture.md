@@ -422,10 +422,13 @@ A `new` row carries a trap's `when`, and a rule's `on` and `proof`, each trigger
 since `path.Match` has no `**`; command patterns are RE2.
 
 The tool hook keeps the seat's traps, its own and received, in `traps/<seat id>.json` in the cache:
-each trap's id, anchored paths and triggers, rebuilt whenever the hook finds the log changed, and
-removed where the seat holds none. The seat's seen mark records how many traps it held then
-(`traps`), so a seat holding none reads nothing more on a tool call than it did before. A trap told
-is added to the session's shown set (`shown/<session>.json`), which a compaction empties.
+each trap's id, anchored paths and triggers, and each note or todo declaring `--about` paths
+(`notes`, the paths as `new` stored them in the event's `about`), rebuilt whenever the hook finds the
+log changed, and removed where the seat holds neither. The seat's seen mark records how many it held
+then (`traps`), so a seat holding none reads nothing more on a tool call than it did before. A trap or
+note told is added to the session's shown set (`shown/<session>.json`, `traps` and `notes`), which a
+compaction empties. The index lists notes hottest first when built, but a `show` warms without a log
+event, so the hook ranks the matching notes by the heat read at the call.
 
 Do-now items pending for a seat sit beside the nudge ladder, `ladder/<seat id>.do-now.json`: the
 session they are owed in, each item's rule, moment and proofs, and how often `Stop` held a turn per

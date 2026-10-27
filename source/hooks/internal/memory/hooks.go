@@ -762,6 +762,7 @@ type shownSet struct {
 	IDs      []string `json:"ids"`
 	Notified bool     `json:"notified"`
 	Traps    []string `json:"traps,omitempty"`
+	Notes    []string `json:"notes,omitempty"`
 }
 
 func (mem *memory) shownPath(session string) string {
