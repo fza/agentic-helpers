@@ -84,21 +84,45 @@ sha256() {
 }
 
 # fetch downloads, checks and unpacks the release into $data/$version. The
-# SessionStart hooks run in parallel, so a lock directory lets one of them
-# fetch while the rest wait for it. The archive is unpacked inside the lock and
+# SessionStart hooks run in parallel, so a lock lets one of them fetch while the
+# rest wait for it. The archive is unpacked in the owner's work directory and
 # renamed into place, so the version directory is complete or absent.
+#
+# The lock is a symlink whose target is the owner's pid: symlink(2) creates the
+# name and its target in one call and refuses a name that exists, so no lock is
+# ever visible without its owner. A lock directory with the pid written into it
+# afterwards leaves a gap a SIGKILL can land in, and renaming a prepared
+# directory into place cannot refuse an existing one, as macOS mv has no -T.
 #
 # A fetch must never die holding the lock: Claude Code kills an MCP server that
 # has not connected within 30 seconds, and the memory server fetches first. The
-# fetching process writes its pid to the lock's owner file and removes the lock
-# on any signal it can catch, the download running in the background so `wait`
-# lets the trap run at once. A waiter finding the owner gone, as after SIGKILL,
-# takes the lock over; a lock with no owner file is one an earlier launcher
-# wrote, and is taken over once older than five minutes.
+# fetch removes its lock on any signal it can catch, the download running in
+# the background so `wait` lets the trap run at once. A waiter finding the
+# owner gone, as after SIGKILL, takes the lock over. A lock directory is one an
+# earlier launcher wrote: its owner file is honoured, and without one it is
+# taken over once older than five minutes.
 child=''
 
+held() {
+	[ -L "$lock" ] || [ -d "$lock" ]
+}
+
+lock_owner() {
+	readlink "$lock" 2>/dev/null || cat "$lock/owner" 2>/dev/null
+}
+
+# take creates the lock. Given an earlier launcher's lock directory, ln puts
+# its link inside it and succeeds, so only a lock naming this process is taken.
+take() {
+	ln -s "$$" "$lock" 2>/dev/null || return 1
+	[ "$(readlink "$lock" 2>/dev/null)" = "$$" ] && return 0
+	rm -f "$lock/$$"
+	return 1
+}
+
 unlock() {
-	rm -rf "$lock"
+	rm -rf "$work"
+	rm -f "$lock"
 	trap - HUP INT TERM
 }
 
@@ -108,38 +132,39 @@ download() {
 	wait "$child"
 }
 
-# take_over removes a lock whose owner is gone, once: the mkdir guards against
-# two waiters both seeing the dead owner and one removing the lock the other
-# has just taken.
+# take_over removes a lock whose owner is gone, and that owner's work, once:
+# the mkdir guards against two waiters both seeing the dead owner and one
+# removing the lock the other has just taken.
 take_over() {
 	mkdir "$lock.takeover" 2>/dev/null || return 0
-	if [ "$(cat "$lock/owner" 2>/dev/null)" = "$1" ]; then
-		rm -rf "$lock"
+	if [ "$(lock_owner)" = "$1" ]; then
+		rm -rf "$lock" "$lock.$1"
 	fi
 	rmdir "$lock.takeover"
 }
 
 fetch() {
 	lock="$data/.fetch-$version"
+	work="$lock.$$"
 
 	mkdir -p "$data" 2>/dev/null || {
 		reason="cannot write $data"
 		return 1
 	}
 
-	if [ ! -f "$lock/owner" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then
+	if [ ! -L "$lock" ] && [ ! -f "$lock/owner" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then
 		rm -rf "$lock"
 	fi
 
-	if ! mkdir "$lock" 2>/dev/null; then
-		if [ ! -d "$lock" ]; then
+	if ! take; then
+		if ! held; then
 			reason="cannot write $data"
 			return 1
 		fi
 
 		waited=0
-		while [ -d "$lock" ] && [ "$waited" -lt 100 ]; do
-			owner=$(cat "$lock/owner" 2>/dev/null)
+		while held && [ "$waited" -lt 100 ]; do
+			owner=$(lock_owner)
 			if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
 				take_over "$owner"
 				fetch
@@ -153,10 +178,15 @@ fetch() {
 		return
 	fi
 
-	echo $$ >"$lock/owner"
 	trap 'unlock; [ -n "$child" ] && kill "$child" 2>/dev/null; exit 129' HUP
 	trap 'unlock; [ -n "$child" ] && kill "$child" 2>/dev/null; exit 130' INT
 	trap 'unlock; [ -n "$child" ] && kill "$child" 2>/dev/null; exit 143' TERM
+
+	mkdir "$work" 2>/dev/null || {
+		unlock
+		reason="cannot write $data"
+		return 1
+	}
 
 	target=$(platform) || {
 		unlock
@@ -166,15 +196,15 @@ fetch() {
 
 	archive="agentic-helpers_${version}_${target}.tar.gz"
 
-	if ! download "$lock/checksums.txt" "$releases/v$version/checksums.txt" ||
-		! download "$lock/$archive" "$releases/v$version/$archive"; then
+	if ! download "$work/checksums.txt" "$releases/v$version/checksums.txt" ||
+		! download "$work/$archive" "$releases/v$version/$archive"; then
 		unlock
 		reason="downloading release v$version failed"
 		return 1
 	fi
 
-	expected=$(awk -v name="$archive" '$2 == name { print $1 }' "$lock/checksums.txt")
-	actual=$(sha256 "$lock/$archive")
+	expected=$(awk -v name="$archive" '$2 == name { print $1 }' "$work/checksums.txt")
+	actual=$(sha256 "$work/$archive")
 
 	if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
 		unlock
@@ -182,13 +212,13 @@ fetch() {
 		return 1
 	fi
 
-	mkdir "$lock/unpacked" && tar -xzf "$lock/$archive" -C "$lock/unpacked" || {
+	mkdir "$work/unpacked" && tar -xzf "$work/$archive" -C "$work/unpacked" || {
 		unlock
 		reason="unpacking $archive failed"
 		return 1
 	}
 
-	mv "$lock/unpacked" "$data/$version"
+	mv "$work/unpacked" "$data/$version"
 	unlock
 }
 

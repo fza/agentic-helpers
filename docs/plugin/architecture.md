@@ -48,23 +48,33 @@ the release named by the plugin's own `version`, kept under the plugin's data di
    rather than letting work run ungrounded, and every other hook does nothing. The SessionStart that
    failed to fetch says why, once.
 
-The archive is unpacked inside the lock and renamed into place, so a version directory is complete
-or absent.
+The archive is unpacked in the fetch's work directory and renamed into place, so a version
+directory is complete or absent.
 
 ## The fetch lock
 
 Claude Code starts the MCP server alongside the SessionStart hooks, and the SessionStart hooks run
-in parallel, so the first to fetch holds a lock, `.fetch-<version>/` in the data directory, and the
+in parallel, so the first to fetch holds a lock, `.fetch-<version>` in the data directory, and the
 rest wait for it, up to 100 seconds.
 
-- **Owner**: the fetching process writes its pid to `.fetch-<version>/owner`.
-- **Signals**: on `HUP`, `INT` or `TERM` the fetch removes its lock and stops its download, which
-  runs in the background so the trap fires at once. Claude Code kills an MCP server that has not
-  connected within 30 seconds, and the server fetches first, so a fetch can be killed mid-download.
-- **Takeover**: a waiter finding the owner's process gone, as after `SIGKILL`, takes the lock over
-  at once and fetches itself; a `.fetch-<version>.takeover` directory keeps two waiters from both
-  doing so. A lock with no `owner` file is taken over once older than five minutes. A lock whose
-  owner runs is waited on, however old.
+- **Owner**: the lock is a symlink whose target is the fetching process's pid, created with
+  `ln -s`. `symlink(2)` creates the name and its target in one call and fails on a name that exists,
+  on darwin and Linux alike, so no lock is ever visible without its owner. A lock directory with the
+  pid written into it afterwards leaves a gap a `SIGKILL` can land in, and renaming a prepared
+  directory into place cannot refuse an existing one, since macOS `mv` has no `-T`.
+- **Work**: the fetch downloads and unpacks in `.fetch-<version>.<pid>/`, beside the lock.
+- **Signals**: on `HUP`, `INT` or `TERM` the fetch removes its lock and its work and stops its
+  download, which runs in the background so the trap fires at once. Claude Code kills an MCP server
+  that has not connected within 30 seconds, and the server fetches first, so a fetch can be killed
+  mid-download.
+- **Takeover**: a waiter finding the owner's process gone, as after `SIGKILL`, removes the lock and
+  that owner's work at once and fetches itself; a `.fetch-<version>.takeover` directory keeps two
+  waiters from both doing so. A lock whose owner runs is waited on, however old.
+- **Earlier launchers** took the lock as a directory, `.fetch-<version>/`, with the pid in its
+  `owner` file. Such a lock is still honoured: waited on while its owner runs, taken over once its
+  owner is gone, and, with no `owner` file, taken over once older than five minutes. `ln -s` onto
+  an existing directory puts its link inside and succeeds, so a fetch takes the lock only when the
+  symlink names its own pid, and removes the stray link otherwise.
 
 ## The release
 

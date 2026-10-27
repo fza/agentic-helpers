@@ -197,7 +197,7 @@ func TestParallelSessionStartsFetchOnce(t *testing.T) {
 	}
 }
 
-func TestAStaleLockIsTakenOver(t *testing.T) {
+func TestAnEarlierLaunchersOwnerlessLockIsTakenOverOnceStale(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Release(t, "1.4.0", "", "agentic-scratch")
 
@@ -207,7 +207,11 @@ func TestAStaleLockIsTakenOver(t *testing.T) {
 
 	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
 	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-scratch")) {
-		t.Errorf("a lock left by a dead fetch should not hold the release back, got: %+v", got)
+		t.Errorf("an earlier launcher's lock directory with no owner, five minutes old, should not hold the release back, got: %+v", got)
+	}
+
+	if plugin.FetchLeftovers(t) != nil {
+		t.Errorf("the takeover should leave no lock behind, got: %v", plugin.FetchLeftovers(t))
 	}
 }
 
@@ -243,8 +247,9 @@ func TestAFetchSignalledMidDownloadLeavesNothingBehind(t *testing.T) {
 				t.Fatal("a signalled fetch should end without waiting for its download")
 			}
 
-			if test.Exists(t, lock) {
-				t.Error("a fetch signalled mid-download should take its lock with it")
+			if test.Exists(t, lock) || plugin.FetchLeftovers(t) != nil {
+				t.Errorf("a fetch signalled mid-download should take its lock and its work with it, got: %v",
+					plugin.FetchLeftovers(t))
 			}
 
 			if downloadRunning(t, plugin.CurlLog+".pids") {
@@ -284,33 +289,65 @@ func downloadRunning(t *testing.T, pids string) bool {
 }
 
 func TestALockWhoseOwnerIsGoneIsTakenOverAtOnce(t *testing.T) {
-	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
-	plugin.Release(t, "1.4.0", "", "agentic-scratch")
-
-	gone := exec.Command("true")
-
-	err := gone.Run()
-	if err != nil {
-		t.Fatalf("running a process to outlive: %v", err)
+	cases := []struct {
+		name  string
+		leave func(t *testing.T, plugin *test.Plugin, lock string, owner int)
+	}{
+		{
+			name: "killed the moment it took the lock",
+			leave: func(t *testing.T, plugin *test.Plugin, _ string, owner int) {
+				t.Helper()
+				plugin.Lock(t, "1.4.0", owner, 0)
+			},
+		},
+		{
+			name: "killed mid-download",
+			leave: func(t *testing.T, plugin *test.Plugin, lock string, owner int) {
+				t.Helper()
+				plugin.Lock(t, "1.4.0", owner, 0)
+				test.WriteFile(t, filepath.Join(lock+"."+strconv.Itoa(owner), "checksums.txt"), "left by a fetch that was killed\n")
+			},
+		},
+		{
+			name: "an earlier launcher's lock directory naming its owner",
+			leave: func(t *testing.T, _ *test.Plugin, lock string, owner int) {
+				t.Helper()
+				test.WriteFile(t, filepath.Join(lock, "checksums.txt"), "left by a fetch that was killed\n")
+				test.WriteFile(t, filepath.Join(lock, "owner"), strconv.Itoa(owner)+"\n")
+			},
+		},
 	}
 
-	lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
-	test.WriteFile(t, filepath.Join(lock, "checksums.txt"), "left by a fetch that was killed\n")
-	test.WriteFile(t, filepath.Join(lock, "owner"), strconv.Itoa(gone.Process.Pid)+"\n")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+			plugin.Release(t, "1.4.0", "", "agentic-scratch")
 
-	started := time.Now()
+			gone := exec.Command("true")
 
-	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
-	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-scratch")) {
-		t.Errorf("a lock whose owner is gone should not hold the release back, got: %+v", got)
-	}
+			err := gone.Run()
+			if err != nil {
+				t.Fatalf("running a process to outlive: %v", err)
+			}
 
-	if time.Since(started) > 20*time.Second {
-		t.Errorf("a dead owner's lock should be taken over at once, not waited out, took %v", time.Since(started))
-	}
+			tc.leave(t, plugin, filepath.Join(plugin.Data, ".fetch-1.4.0"), gone.Process.Pid)
 
-	if test.Exists(t, lock) || test.Exists(t, lock+".takeover") {
-		t.Error("the takeover should leave no lock behind")
+			started := time.Now()
+
+			got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
+			if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.4.0", "agentic-scratch")) {
+				t.Errorf("a lock whose owner is gone should not hold the release back, got: %+v", got)
+			}
+
+			if time.Since(started) > 20*time.Second {
+				t.Errorf("a dead owner's lock should be taken over at once, not waited out, took %v", time.Since(started))
+			}
+
+			if plugin.FetchLeftovers(t) != nil {
+				t.Errorf("the takeover should leave neither the lock nor the dead owner's work behind, got: %v",
+					plugin.FetchLeftovers(t))
+			}
+		})
 	}
 }
 
@@ -320,10 +357,23 @@ func TestAFetchKilledUncaughtIsTakenOver(t *testing.T) {
 
 	lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
 	first := plugin.Start(t, "hooks/run", []string{"FAKE_CURL_DELAY=30"}, "--session-start", "agentic-scratch", "start")
+	pid := strconv.Itoa(first.Process.Pid)
 
-	deadline := time.Now().Add(10 * time.Second)
-	for !test.Exists(t, filepath.Join(lock, "owner")) && time.Now().Before(deadline) {
+	owned := func() bool {
+		owner, err := os.Readlink(lock)
+
+		return err == nil && owner == pid
+	}
+
+	deadline := time.Now().Add(20 * time.Second)
+	for !owned() && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
+	}
+
+	if !owned() {
+		_ = first.Process.Kill()
+		_ = first.Wait()
+		t.Fatal("the first fetch should take a lock naming itself")
 	}
 
 	err := first.Process.Kill()
@@ -343,16 +393,23 @@ func TestAFetchKilledUncaughtIsTakenOver(t *testing.T) {
 	if time.Since(started) > 20*time.Second {
 		t.Errorf("the lock of a fetch killed beyond any trap should be taken over at once, took %v", time.Since(started))
 	}
+
+	if plugin.FetchLeftovers(t) != nil {
+		t.Errorf("the takeover should leave neither the lock nor the killed fetch's work behind, got: %v",
+			plugin.FetchLeftovers(t))
+	}
 }
 
 func TestALockOfALiveFetchIsWaitedOn(t *testing.T) {
 	cases := []struct {
-		name  string
-		owner bool
-		age   time.Duration
+		name      string
+		directory bool
+		owner     bool
+		age       time.Duration
 	}{
-		{name: "an owner still running, the lock old", owner: true, age: 10 * time.Minute},
-		{name: "no owner file, the lock young"},
+		{name: "a lock naming a running owner, the lock old", owner: true, age: 10 * time.Minute},
+		{name: "an earlier launcher's lock directory, its owner running, the lock old", directory: true, owner: true, age: 10 * time.Minute},
+		{name: "an earlier launcher's lock directory with no owner file, the lock young", directory: true},
 	}
 
 	for _, tc := range cases {
@@ -361,21 +418,45 @@ func TestALockOfALiveFetchIsWaitedOn(t *testing.T) {
 			plugin.Release(t, "1.4.0", "", "agentic-scratch")
 
 			lock := filepath.Join(plugin.Data, ".fetch-1.4.0")
-			test.WriteFile(t, filepath.Join(lock, "checksums.txt"), "a fetch in progress\n")
 
-			if tc.owner {
-				test.WriteFile(t, filepath.Join(lock, "owner"), strconv.Itoa(os.Getpid())+"\n")
+			if !tc.directory {
+				plugin.Lock(t, "1.4.0", os.Getpid(), tc.age)
 			}
 
-			if tc.age > 0 {
-				test.Age(t, lock, tc.age)
+			if tc.directory {
+				test.WriteFile(t, filepath.Join(lock, "checksums.txt"), "a fetch in progress\n")
+
+				if tc.owner {
+					test.WriteFile(t, filepath.Join(lock, "owner"), strconv.Itoa(os.Getpid())+"\n")
+				}
+
+				if tc.age > 0 {
+					test.Age(t, lock, tc.age)
+				}
 			}
+
+			found := func() []string {
+				described := plugin.FetchLeftovers(t)
+
+				entries, _ := os.ReadDir(lock)
+				for _, entry := range entries {
+					described = append(described, entry.Name())
+				}
+
+				return described
+			}
+
+			before := found()
 
 			waiter := plugin.Start(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
 			time.Sleep(2 * time.Second)
 
 			if len(plugin.CurlCalls(t)) != 0 {
 				t.Error("a lock held by a live fetch should be waited on, never fetched past")
+			}
+
+			if !slices.Equal(found(), before) {
+				t.Error("a waiter should leave the lock it waits on as it found it")
 			}
 
 			plugin.Installed(t, "1.4.0", "agentic-scratch")

@@ -12,8 +12,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // Plugin is a copy of the plugin's launcher and shims in a temporary tree,
@@ -207,6 +211,46 @@ func (plugin *Plugin) CurlCalls(t *testing.T) []string {
 	}
 
 	return strings.Fields(string(content))
+}
+
+// Lock leaves the fetch lock of version as a launcher takes it: a symlink
+// naming owner, its own times set age into the past.
+func (plugin *Plugin) Lock(t *testing.T, version string, owner int, age time.Duration) string {
+	t.Helper()
+
+	lock := filepath.Join(plugin.Data, ".fetch-"+version)
+
+	err := os.MkdirAll(plugin.Data, 0o755)
+	if err != nil {
+		t.Fatalf("creating the data directory: %v", err)
+	}
+
+	err = os.Symlink(strconv.Itoa(owner), lock)
+	if err != nil {
+		t.Fatalf("taking the lock: %v", err)
+	}
+
+	then := unix.NsecToTimeval(time.Now().Add(-age).UnixNano())
+
+	err = unix.Lutimes(lock, []unix.Timeval{then, then})
+	if err != nil {
+		t.Fatalf("aging the lock: %v", err)
+	}
+
+	return lock
+}
+
+// FetchLeftovers lists what any fetch left in the data directory: a lock, a
+// takeover guard, a work directory.
+func (plugin *Plugin) FetchLeftovers(t *testing.T) []string {
+	t.Helper()
+
+	matches, err := filepath.Glob(filepath.Join(plugin.Data, ".fetch-*"))
+	if err != nil {
+		t.Fatalf("listing the fetch leftovers: %v", err)
+	}
+
+	return matches
 }
 
 func writeExecutable(t *testing.T, path string, content string) {
