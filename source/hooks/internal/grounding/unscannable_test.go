@@ -343,6 +343,7 @@ func TestACallAPatternMayTurnIntoAWriteIsRefused(t *testing.T) {
 		{command: "sd*d", where: "sd*d"},
 		{command: "sd?d", where: "sd?d"},
 		{command: "s[d]d", where: "s[d]d"},
+		{command: "sd[d] new", where: "sd[d]"},
 		{command: "{sdd,true} new d tac x", where: "{sdd,true}"},
 		{command: "agentic-captur[e] d.md", where: "agentic-captur[e]"},
 		{command: "sdd n?w d tac x", where: "n?w"},
@@ -365,7 +366,7 @@ func TestACallAPatternMayTurnIntoAWriteIsRefused(t *testing.T) {
 		})
 	}
 
-	for _, command := range []string{"./scripts/*.sh", "l? -la", "echo s*", "find . -name s*", "s*", "l? new-ish", "s{d}d", "l[[=a=]] -la", "find . -name s[d]d", "echo s{d,}d", "sdd", "sdd new 'unterminated"} {
+	for _, command := range []string{"./scripts/*.sh", "l? -la", "echo s*", "find . -name s*", "s*", "l? new-ish", "s{d}d", "l[[=a=]] -la", "find . -name s[d]d", "echo s{d,}d", "[ -f x ]", "[ -f x ] && sdd info", "[ sdd = new ]", "sdd", "sdd new 'unterminated"} {
 		t.Run(command, func(t *testing.T) {
 			env := areaProject(t)
 			ground(t, env)
@@ -412,7 +413,7 @@ func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 		{command: "sdd new d tac body --attach run*.log", where: "run*.log", why: patterned},
 		{command: "sdd new d tac body --attach=ru?.log", where: "--attach=ru?.log", why: patterned},
 		{command: "sdd new d tac body --attach 'run'[.]log", where: "run[.]log", why: patterned},
-		{command: "sdd new d tac body --attach 'run'[.log", where: "run[.log", why: patterned},
+		{command: "sdd new d tac body --attach run.lo[g]", where: "run.lo[g]", why: patterned},
 		{command: "sdd new d tac body --attach run.{log,txt}", where: "run.{log,txt}", why: patterned},
 		{command: "sdd new d tac body --attach=@(run).log:copy.log", where: "--attach=@(run).log:copy.log", why: patterned},
 		{command: "sdd new d tac body --attach /tmp/*.log", where: "/tmp/*.log", why: patterned},

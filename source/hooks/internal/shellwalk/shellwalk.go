@@ -494,16 +494,19 @@ func Literal(word *syntax.Word) (string, bool) {
 }
 
 // Patterned reports a word the shell may turn into other words before the
-// command sees it: an unquoted, unescaped `*`, `?` or `[` (a `[` bash would
-// keep for want of a `]` included), an extended glob, or a brace expansion.
+// command sees it: an unquoted, unescaped `*` or `?`, an unquoted, unescaped
+// `[` with a `]` after it in the same word, an extended glob, or a brace
+// expansion. Bash keeps a `[` no `]` closes as text, so the test command `[`
+// is fixed text; any later `]`, quoted or escaped included, counts as closing
+// it, the side a guard errs on.
 // Literal and Spelled read such a word as the text it spells.
 func Patterned(word *syntax.Word) bool {
-	for _, part := range word.Parts {
+	for index, part := range word.Parts {
 		switch typed := part.(type) {
 		case *syntax.ExtGlob:
 			return true
 		case *syntax.Lit:
-			if holdsGlob(typed.Value) {
+			if holdsGlob(typed.Value, closesLater(word.Parts[index+1:])) {
 				return true
 			}
 		}
@@ -521,17 +524,33 @@ func Patterned(word *syntax.Word) bool {
 	})
 }
 
-func holdsGlob(value string) bool {
+// holdsGlob reads one unquoted part of a word; closedAfter is whether a later
+// part holds a `]`.
+func holdsGlob(value string, closedAfter bool) bool {
 	for index := 0; index < len(value); index++ {
 		switch value[index] {
 		case '\\':
 			index++
-		case '*', '?', '[':
+		case '*', '?':
 			return true
+		case '[':
+			if closedAfter || strings.Contains(value[index+1:], "]") {
+				return true
+			}
 		}
 	}
 
 	return false
+}
+
+func closesLater(parts []syntax.WordPart) bool {
+	var printed strings.Builder
+
+	for _, part := range parts {
+		printPart(&printed, part)
+	}
+
+	return strings.Contains(printed.String(), "]")
 }
 
 // Spelled is the word with its quoting removed, as Literal reads it, and every

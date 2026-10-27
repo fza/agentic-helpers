@@ -108,8 +108,10 @@ a write into another repository's graph is scanned too. What it scans:
   `agentic-capture` call is refused outright where any argument is a glob or brace the shell
   expands into other words, since the words the gate reads are spelled, not expanded: an
   attachment it never read, or an `--attach` it never saw, could reach sdd. That is decided on the
-  parsed word (`shellwalk.Patterned`), not its text: an unquoted, unescaped `*`, `?` or `[`, an
-  extended glob, or a brace expansion; quoted or escaped, the same characters are text. A call
+  parsed word (`shellwalk.Patterned`), not its text: an unquoted, unescaped `*` or `?`, an
+  unquoted, unescaped `[` with a `]` after it in the same word (a lone `[`, as the test command
+  `[`, is text in bash), an extended glob, or a brace expansion; quoted or escaped, the same
+  characters are text. A call
   the gate would never classify as a write is refused the same way, before classifying, where its
   command word, or the subcommand of a call naming `sdd`, is patterned at all and any word of the
   call names `new` or holds `sdd` or `capture`, lower-cased and stripped of `[]{},*?`. The gate

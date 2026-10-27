@@ -60,7 +60,8 @@ options, their values, assignments and counts, since any other word may be an op
 fixed text with no glob or brace, or wholly double-quoted with no `@`, `*` or `!` expansion; any
 other (`sudo -u $user`, `nice -n $n`, `sudo -u {root,rm}`) may split into the value and a command of
 its own, so the walk takes it for the command and it takes this verdict. A name holding a glob or
-brace counts as not fixed text too, since it expands into other words. The walk that finds calls, launchers, nested code and pipe feeds lives in
+brace counts as not fixed text too, since it expands into other words; a `[` counts as a glob only
+with a `]` after it in the same word, so the test command `[ -f x ]` is fixed text. The walk that finds calls, launchers, nested code and pipe feeds lives in
 `internal/shellwalk`, which the grounding gate walks commands through too.
 
 ## Credentials
