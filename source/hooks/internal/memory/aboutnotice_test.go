@@ -95,3 +95,13 @@ func TestTellingANoteAddsNoHeat(t *testing.T) {
 		t.Errorf("a show after the notice should warm the note")
 	}
 }
+
+func TestAReceivedNoteIsToldAtTheFileItIsAbout(t *testing.T) {
+	h, other := twoSeats(t)
+	note := other.file("Gate note for the main seat", "body", "--about", "internal/gate/gate.go", "--for", "main")
+
+	out := h.callTool("Read", map[string]string{"file_path": filepath.Join(h.repo, "internal", "gate", "gate.go")})
+	if !strings.Contains(out, "about internal/gate/gate.go: "+note) {
+		t.Errorf("a note received through --for should be told as the seat's own:\n%s", out)
+	}
+}
