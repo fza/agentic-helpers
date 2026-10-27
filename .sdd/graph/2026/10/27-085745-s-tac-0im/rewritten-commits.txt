@@ -1,0 +1,70 @@
+bddbfce -> cf06f03  sdd: summarize 20261027-082547-s-tac-jf2 (manual)
+e2b1258 -> 1a7d29a  sdd: capture 20261027-082547-s-tac-jf2
+f59334a -> 5cc440b  fix: let inbox list what the arrival notice tells, shelf mates' entries included
+1b1055d -> ed3d3bb  docs: tell the memory skill how a cold graph cache fills and that brief --topic reads by prefix
+0145165 -> d79caf3  fix: let a view of an unclaimed project claim nothing, as every read
+0534f93 -> ba17907  feat: cache the folded log and anchor hashes, and flag links only for entries a read shows
+490aead -> 8484596  test: hold the golden store's clock so the goldens pin reads, not how often code reads the time
+9bb34fa -> 6edf427  feat: build the brief from a fixed view layout that view --explain brief prints
+580c881 -> 3e3513d  feat: list entries needing attention with returns, each reason with the verbs that answer it
+c03981d -> d2a08ef  feat: list what a seat receives and has yet to hear of with the view words inbox and unread
+4a197bc -> be5604a  feat: read memory through sdd's view layout language with one filter set behind search and brief
+a527858 -> e304884  test: pin the brief text and search --json reads to golden files
+9527cf4 -> cd1d87e  fix: ask git about the checkout once per memory call, not once per link
+3d7de28 -> 9b0808a  docs: list a pattern cutting a tool name among the credential scan limits
+7ed7850 -> c8e3d82  fix: refuse any patterned command word or sdd subcommand in a call naming sdd, new or capture
+e152b06 -> e20dda3  fix: refuse a call a glob or brace could turn into sdd new or agentic-capture, naming the word
+167ba2c -> 09a42e9  fix: take the temporary directory read --to may write from the environment, as shell-guard does
+e045ba3 -> 0c093ff  fix: refuse a gate write call holding a shell glob or brace in any argument, not just an attachment
+d0ed7d2 -> 2e03754  fix: read only escapes bash reads one fixed way in ANSI-C quoting, any other leaves the word unread
+6fc7317 -> b1d17d3  fix: refuse a gate attachment word holding an unquoted shell glob or brace, which it never scanned
+157a525 -> fd1a2b1  fix: read ANSI-C quoted words as literals, so shell-guard judges $'rm' -rf as rm
+cf54ad8 -> 6ca1e2c  fix: never name a credential when an interrupt cuts the gate or shell-guard credential scan short
+4644341 -> 3a6bcf6  fix: retry the agentic-capture lock when a signal interrupts its flock
+00c8b35 -> 8ec38ca  sdd: summarize 20261027-012518-s-tac-74f (manual)
+b63279c -> a144fd0  sdd: capture 20261027-012518-s-tac-74f
+25b85f6 -> 178d04e  sdd: summarize 20261027-012337-s-tac-jdz (manual)
+837f0ea -> 69659e3  sdd: capture 20261027-012337-s-tac-jdz
+55b6bc7 -> d025063  sdd: capture 20261027-012153-s-tac-qbi
+6331610 -> 068f6cd  sdd: summarize 20261027-012048-s-tac-1pt (manual)
+571ef0d -> 71043c6  sdd: capture 20261027-012048-s-tac-1pt
+b0e6159 -> 62fac58  sdd: summarize 20261027-011932-s-tac-ix1 (manual)
+309123e -> d16538a  sdd: capture 20261027-011932-s-tac-ix1
+0d6fdab -> 23b0114  test: cover the state slot in recall, hottest notes, foreign retire? and credential attaches
+417fc11 -> 037154a  fix: warm a memory rule only on ack --done, never on a decline
+c76f5af -> 382f34a  sdd: summarize 20261027-011424-s-tac-zi3 (manual)
+50904c6 -> 07d4d25  sdd: capture 20261027-011424-s-tac-zi3
+0c0b8aa -> e286876  sdd: summarize 20261027-011232-s-tac-n4g (manual)
+9cd09a9 -> c669060  sdd: capture 20261027-011232-s-tac-n4g
+13881b7 -> 4abae42  sdd: summarize 20261027-011126-s-tac-3gl (manual)
+a9b338e -> 1c5881d  sdd: capture 20261027-011126-s-tac-3gl
+4dce676 -> 1101609  sdd: capture 20261027-010946-s-tac-kp0
+7ac0b16 -> f224569  sdd: summarize 20261027-010802-s-tac-cyh (manual)
+5bd5148 -> 21e1f1d  sdd: capture 20261027-010802-s-tac-cyh
+a2c0b3f -> 6c87abd  fix: never read a stored attachment past its size, and restore one only inside the work tree or /tmp
+2624947 -> 0c7b675  feat: keep files with memory entries by path, stored once by hash and ending with the body
+3028b14 -> e047bfa  fix: scan every text a memory log write carries for a credential through one gate
+0d9e60c -> 2c46c3a  fix: frame memory JSON answers as filed memory and read a dropped body as null
+6011074 -> 9269d32  feat: refuse memory writes holding a credential and list the ones the migration scan finds
+7f3248b -> 28f86b9  feat: answer memory show, search, brief, who and topics as one JSON object under --json
+c778d84 -> 1b6b880  feat: warn when a memory entry matches a forbids pattern of a user rule the seat receives
+80a38ee -> c8b35c1  feat: tell memory traps at the matching tool call and track do-now rules at claim and compaction
+0cdaaa7 -> 09433d4  feat: print short memory brief lines, cap its notes and leave superseded backlinks out
+fa29937 -> a204719  feat: end memory entries on declared conditions and list inferred ends in the brief
+3c7ed93 -> badab8c  feat: file memory entries by kind and keep a state slot per seat, store format 4
+73f9bc6 -> e79fdb9  fix: report an interrupt during the credential rescan as an interrupt, never as a credential
+f54c764 -> 1e5bda3  sdd: summarize 20261027-004736-d-tac-abm (manual)
+8192f52 -> 805518d  sdd: capture 20261027-004736-d-tac-abm
+9556fe0 -> 92b3e76  fix: read only literal attachment paths the gate can place, and scan past path allowlists
+92eab2f -> 0ff8f25  fix: refuse relative attachments after a cd, fail closed on undecodable engine input
+0251702 -> eea5365  fix: credential scans fail closed, read sdd attach specs, and agentic-capture rescans before sdd new
+a0eb1e8 -> e5ff931  feat: the grounding gate refuses a graph write holding a credential, mcp__sdd__next included
+9036cde -> 8092ba3  feat: shell-guard asks before a Bash command holding a credential, by shell_guard_secrets
+25dec3e -> 3e2701a  sdd: summarize 20261026-233115-s-tac-3bp (manual)
+db203c9 -> 6dd5f78  sdd: capture 20261026-233115-s-tac-3bp
+3bd3598 -> 26406b3  sdd: summarize 20261026-232935-s-tac-r3w (manual)
+4177038 -> b842bf9  sdd: capture 20261026-232935-s-tac-r3w
+5bd2ff6 -> d771acc  fix: scan every tool version written, its files past path allowlists and forked descriptions
+123ddab -> 4cf600d  feat: keep a prompt holding a credential from the embedding endpoint
+d036eae -> 30c41c3  feat: refuse agentic-tools add and update holding a credential
+972b834 -> 3c16cd0  feat: add a shared credential scanner on the vendored gitleaks rules
