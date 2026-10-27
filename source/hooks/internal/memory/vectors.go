@@ -1,20 +1,21 @@
 package memory
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
+	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
 )
 
 // embedLimit bounds one call to the embedder, so a hook never hangs on a model
@@ -23,14 +24,11 @@ const embedLimit = 20 * time.Second
 
 var ErrNoEmbedder = errors.New("semantic search needs an embedder")
 
-type vectorRow struct {
+// legacyRow is one entry's vectors in vectors.gob, the whole-file store
+// segments replace; it is read once, to migrate.
+type legacyRow struct {
 	Hash   string
 	Chunks [][]float32
-}
-
-type vectorStore struct {
-	path string
-	rows map[string]vectorRow
 }
 
 func (mem *memory) embedder() (embed.Embedder, error) {
@@ -63,53 +61,85 @@ func contentHash(held *entry) string {
 
 // vectors opens the vector store of one embedder: a changed embedder starts a
 // fresh store instead of mixing two vector spaces.
-func (mem *memory) vectors(embedder embed.Embedder) *vectorStore {
+func (mem *memory) vectors(embedder embed.Embedder) *vectorseg.Store {
 	sum := sha256.Sum256([]byte(embedder.Fingerprint()))
-	path := filepath.Join(mem.cacheDir(), hex.EncodeToString(sum[:])[:12], "vectors.gob")
 
-	store := &vectorStore{path: path, rows: map[string]vectorRow{}}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return store
-	}
-
-	defer func() { _ = file.Close() }()
-
-	decoded := map[string]vectorRow{}
-
-	err = gob.NewDecoder(file).Decode(&decoded)
-	if err == nil {
-		store.rows = decoded
-	}
-
-	return store
+	return vectorseg.Open(filepath.Join(mem.cacheDir(), hex.EncodeToString(sum[:])[:12], "segments"))
 }
 
-func (store *vectorStore) save() error {
-	err := os.MkdirAll(filepath.Dir(store.path), 0o700)
-	if err != nil {
-		return fmt.Errorf("creating the vector store: %w", err)
+// counted is which rows a search counts: an entry's rows embedded from its
+// current content, or any row of an entry whose body was dropped, since
+// nothing embeds it again.
+func counted(folded *state) vectorseg.Live {
+	current := map[string]string{}
+
+	for _, held := range folded.entryList() {
+		if held.dropped {
+			current[held.id] = ""
+
+			continue
+		}
+
+		current[held.id] = contentHash(held)
 	}
 
-	var encoded bytes.Buffer
+	return func(id string, hash string) bool {
+		want, live := current[id]
 
-	err = gob.NewEncoder(&encoded).Encode(store.rows)
-	if err != nil {
-		return fmt.Errorf("encoding the vector store: %w", err)
+		return live && (want == "" || want == hash)
+	}
+}
+
+// migrate moves vectors.gob, beside the segments, into one segment, so an
+// existing store is never embedded again. A file that does not decode is a
+// cache lost: its entries are embedded again.
+func migrate(store *vectorseg.Store, live vectorseg.Live) error {
+	legacy := filepath.Join(filepath.Dir(store.Dir()), "vectors.gob")
+
+	file, err := os.Open(legacy)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
 	}
 
-	err = atomicfile.Write(store.path, encoded.Bytes(), 0o600)
 	if err != nil {
-		return fmt.Errorf("replacing the vector store: %w", err)
+		return fmt.Errorf("opening the vector store to migrate: %w", err)
+	}
+
+	decoded := map[string]legacyRow{}
+	decodeErr := gob.NewDecoder(file).Decode(&decoded)
+	_ = file.Close()
+
+	if decodeErr == nil {
+		rows := make([]vectorseg.Row, 0, len(decoded))
+		for id, row := range decoded {
+			rows = append(rows, vectorseg.Row{ID: id, Hash: row.Hash, Chunks: row.Chunks})
+		}
+
+		slices.SortFunc(rows, func(a vectorseg.Row, b vectorseg.Row) int { return strings.Compare(a.ID, b.ID) })
+
+		err = store.Write(rows, live)
+		if err != nil {
+			return fmt.Errorf("migrating the vector store: %w", err)
+		}
+	}
+
+	err = os.Remove(legacy)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("removing the migrated vector store: %w", err)
 	}
 
 	return nil
 }
 
-// fill embeds every entry whose vectors are missing or older than its content:
-// filing never waits on the embedder, so the next call reaching it catches up.
-func (mem *memory) fill(ctx context.Context, embedder embed.Embedder, store *vectorStore, folded *state) error {
+// fill embeds every entry the snapshot holds no rows of for its current
+// content, and returns the snapshot to search: filing never waits on the
+// embedder, so the next call reaching it catches up.
+func (mem *memory) fill(ctx context.Context, embedder embed.Embedder, store *vectorseg.Store, folded *state, live vectorseg.Live) (*vectorseg.Snapshot, error) {
+	snapshot, err := store.Snapshot()
+	if err != nil {
+		return nil, err
+	}
+
 	type pending struct {
 		id     string
 		hash   string
@@ -126,7 +156,7 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Embedder, store *vec
 		}
 
 		hash := contentHash(held)
-		if store.rows[held.id].Hash == hash {
+		if snapshot.Holds(held.id, hash) {
 			continue
 		}
 
@@ -136,28 +166,37 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Embedder, store *vec
 	}
 
 	if len(todo) == 0 {
-		return nil
+		return snapshot, nil
 	}
+
+	_ = snapshot.Close()
 
 	bounded, cancel := context.WithTimeout(ctx, embedLimit)
 	defer cancel()
 
 	vectors, err := embedder.Embed(bounded, texts)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrNoEmbedder, err)
+		return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
 	}
 
 	if len(vectors) != len(texts) {
-		return fmt.Errorf("%w: the embedder answered %d vectors for %d texts", ErrNoEmbedder, len(vectors), len(texts))
+		return nil, fmt.Errorf("%w: the embedder answered %d vectors for %d texts", ErrNoEmbedder, len(vectors), len(texts))
 	}
 
+	rows := make([]vectorseg.Row, 0, len(todo))
 	next := 0
+
 	for _, item := range todo {
-		store.rows[item.id] = vectorRow{Hash: item.hash, Chunks: vectors[next : next+len(item.chunks)]}
+		rows = append(rows, vectorseg.Row{ID: item.id, Hash: item.hash, Chunks: vectors[next : next+len(item.chunks)]})
 		next += len(item.chunks)
 	}
 
-	return store.save()
+	err = store.Write(rows, live)
+	if err != nil {
+		return nil, err
+	}
+
+	return store.Snapshot()
 }
 
 // semantic scores entries against a phrase by their best chunk.
@@ -175,11 +214,19 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 	}
 
 	store := mem.vectors(embedder)
+	live := counted(folded)
 
-	err = mem.fill(ctx, embedder, store, folded)
+	err = migrate(store, live)
 	if err != nil {
 		return nil, err
 	}
+
+	snapshot, err := mem.fill(ctx, embedder, store, folded, live)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = snapshot.Close() }()
 
 	slots := promptvector.Dir(mem.env.CacheRoot)
 
@@ -204,25 +251,5 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 		}
 	}
 
-	scores := map[string]float32{}
-
-	for id, row := range store.rows {
-		if _, live := folded.entries[id]; !live {
-			continue
-		}
-
-		best := float32(-1)
-		for _, chunk := range row.Chunks {
-			score := embed.Cosine(query[0], chunk)
-			if score > best {
-				best = score
-			}
-		}
-
-		if len(row.Chunks) > 0 {
-			scores[id] = best
-		}
-	}
-
-	return scores, nil
+	return snapshot.Scores(query[0], live)
 }

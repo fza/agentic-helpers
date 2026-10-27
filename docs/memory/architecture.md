@@ -28,7 +28,7 @@ MCP server checks each call, and starts without migrating where its checkout is 
 on a project with no store yet, other than `claim` and `trust`, makes no list.
 
 Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
-`shelves.json`, a claim, `vectors.gob`, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
+`shelves.json`, a claim, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
 a temporary file named for that one writer, `.<name>.<random>.tmp` beside it, then renamed over it
 (`internal/atomicfile`). The hooks of one event run in parallel, and a temporary name every writer
 shares would let two of them interleave in it and the second rename publish the mix; a reader sees
@@ -137,6 +137,50 @@ What a read shows is worked out only for the entries it shows or a filter asks a
 flags, and with them the graph's statuses, the first time a line, a JSON entry or `retire?` asks for
 them; who links in, which needs no file, for every entry. A section cut by `n` keeps its best `skip`
 plus `n` entries in a bounded heap rather than sorting all it kept.
+
+## The vector store
+
+`internal/vectorseg` keeps every entry's chunk vectors in immutable segment files under
+`~/.cache/agentic-memory/<project>/<sha256(fingerprint)[:12]>/segments/`, one store per embedder, so
+a changed embedder starts a fresh store instead of mixing two vector spaces. The layout follows sdd's
+search segments:
+
+```
+header   magic agvecseg, format, dims, row count, chunk count, table length
+table    per entry: id, content hash, chunk count (uvarint lengths and count)
+padding  zeros up to a 64-byte boundary
+vectors  chunk count * dims little-endian float32, an entry's chunks contiguous, in table order
+```
+
+- **No manifest.** The fold says which rows count: an entry's row whose hash is the entry's current
+  content hash (sha256 of title and body, 16 hex digits), or any row of an entry whose body was
+  dropped, since nothing embeds it again. A row of older content is dead without anything recording
+  it.
+- **A search** maps every segment read-only and shared, and scans the mapped vector block in place,
+  decoding and copying no vector: each counted entry scores by its best chunk, its first counted row
+  deciding. A long-running process, the MCP server, maps a segment once and keeps it across calls.
+  A merge that drops a segment between a search's listing and its open sends the search to list
+  again.
+- **A write** embeds only the live entries no segment holds for their current content and writes
+  them as one segment, through a temporary `.segment-*` file renamed to the first 16 hex digits of
+  the content's sha256: its cost follows the rows written, never the store.
+- **A merge** runs after every write, under `segments.lock`, where every temporary file is one a
+  killed writer left, and is deleted. A segment with no counted row is deleted; one whose dead rows
+  outnumber its live ones is rewritten alone; and size classes, each 4 times the one below, merge
+  once one holds 4 segments, the result taking its own class. Each class then holds at most 3
+  segments, and a row is rewritten a logarithmic number of times over its life. The merged segment
+  is written before its sources go, so a crash between the two leaves copies a search counts once.
+- **A mapping outlives the deletion of its file**, and a segment is unmapped only once the last
+  search holding it closes, so no search reads a file that shrinks. A fault in a mapping (its file
+  truncated by another program) is `vectorseg.ErrFault`, not a crash.
+- **Segments are not synced**, as the cache's other files are not. A segment a crash left torn fails
+  its size check, is skipped by a search and deleted by the next merge, and its entries are embedded
+  again.
+- **The whole-file `vectors.gob`** an older release kept beside `segments/` is read once, written as
+  one segment and deleted, so no entry it held is embedded again.
+
+Any process that writes the cache can plant vectors that skew ranking. A planted row never puts an
+entry in a result that the fold does not hold.
 
 ## Times
 
