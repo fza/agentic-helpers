@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
-	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 )
 
 var ErrLocked = errors.New("the store is locked")
@@ -83,57 +81,6 @@ func (lib *library) indexOf(ctx context.Context, held *store) *index {
 	return rebuilt
 }
 
-// rebuild reads a store's folders, reusing every vector the cache holds for
-// an unchanged description and embedding only what lacks one.
-func (lib *library) rebuild(ctx context.Context, at string) (*index, error) {
-	cache := lib.loadVectors()
-
-	built, err := buildIndex(at, cache.rows)
-	if err != nil {
-		return nil, err
-	}
-
-	built.Fingerprint = cache.fingerprint
-
-	var (
-		missing []*indexed
-		texts   []string
-	)
-
-	// A description holding a credential, left on disk by an earlier release or
-	// another process, is never embedded: its tool stays unvectored.
-	for _, name := range sortedKeys(built.Tools) {
-		row := built.Tools[name]
-		text := describe(row.spec())
-
-		if len(row.Vector) == 0 && len(secrets.Scan(ctx, text, "")) == 0 {
-			missing = append(missing, row)
-			texts = append(texts, text)
-		}
-	}
-
-	if len(missing) == 0 || cache.embedder == nil {
-		return built, nil
-	}
-
-	bounded, cancel := context.WithTimeout(ctx, embedLimit)
-	defer cancel()
-
-	vectors, err := cache.embedder.Embed(bounded, texts)
-	if err != nil || len(vectors) != len(missing) {
-		return built, nil
-	}
-
-	for position, row := range missing {
-		row.Vector = vectors[position]
-		cache.rows[row.Described] = row.Vector
-	}
-
-	lib.saveVectors(cache)
-
-	return built, nil
-}
-
 const embedLimit = 20 * time.Second
 
 func sortedKeys[V any](held map[string]V) []string {
@@ -145,62 +92,6 @@ func sortedKeys[V any](held map[string]V) []string {
 	slices.Sort(keys)
 
 	return keys
-}
-
-// vectorCache keeps every description's vector by the description's hash,
-// outside every store, so a rebuild never embeds an unchanged description.
-type vectorCache struct {
-	fingerprint string
-	embedder    interface {
-		Embed(ctx context.Context, texts []string) ([][]float32, error)
-	}
-	rows map[string][]float32
-}
-
-func (lib *library) vectorsPath(fingerprint string) string {
-	return filepath.Join(lib.env.CacheRoot, self, "vectors", describedSum(fingerprint)+".json")
-}
-
-func (lib *library) loadVectors() *vectorCache {
-	cache := &vectorCache{rows: map[string][]float32{}}
-
-	embedder, err := lib.embedder()
-	if err != nil {
-		return cache
-	}
-
-	cache.embedder, cache.fingerprint = embedder, embedder.Fingerprint()
-
-	data, err := os.ReadFile(lib.vectorsPath(cache.fingerprint))
-	if err == nil {
-		_ = json.Unmarshal(data, &cache.rows)
-	}
-
-	if cache.rows == nil {
-		cache.rows = map[string][]float32{}
-	}
-
-	return cache
-}
-
-func (lib *library) saveVectors(cache *vectorCache) {
-	if cache.fingerprint == "" {
-		return
-	}
-
-	data, err := json.Marshal(cache.rows)
-	if err != nil {
-		return
-	}
-
-	folder, err := ensureDir(filepath.Join(lib.env.CacheRoot, self), "vectors")
-	if err != nil {
-		return
-	}
-
-	defer folder.close()
-
-	_ = folder.replace(filepath.Base(lib.vectorsPath(cache.fingerprint)), data)
 }
 
 // writeIndex replaces the own store's index; only the own store is written.

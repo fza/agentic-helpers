@@ -117,7 +117,7 @@ func (lib *library) ownStore() (*dir, error) {
 func (lib *library) reindexTool(name string, vector []float32) error {
 	held, found := loadIndex(lib.ownDir())
 	if !found {
-		rebuilt, err := buildIndex(lib.ownDir(), lib.loadVectors().rows)
+		rebuilt, err := buildIndex(lib.ownDir())
 		if err != nil {
 			return err
 		}
@@ -144,25 +144,17 @@ func (lib *library) reindexTool(name string, vector []float32) error {
 		return err
 	}
 
-	row.Vector = vector
-	if len(vector) == 0 {
-		previous, present := held.Tools[name]
-		if present && previous.Described == row.Described {
-			row.Vector = previous.Vector
-		}
-	}
-
-	if len(row.Vector) > 0 {
-		cache := lib.loadVectors()
-		cache.rows[row.Described] = row.Vector
-		lib.saveVectors(cache)
-		held.Fingerprint = cache.fingerprint
-	}
-
 	held.Tools[name] = row
 	delete(held.Merged, name)
 
-	return lib.writeIndex(held)
+	err = lib.writeIndex(held)
+	if err != nil {
+		return err
+	}
+
+	lib.keepVector(row.Described, vector)
+
+	return nil
 }
 
 func appendLine(folder *dir, name string, value any) error {

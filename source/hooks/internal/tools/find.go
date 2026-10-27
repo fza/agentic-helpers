@@ -10,8 +10,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 )
 
 // Ranking. The floor, `tools_query_floor`, applies to the cosine alone, before
@@ -54,6 +52,20 @@ func (lib *library) find(ctx context.Context, req request) result {
 
 	stores := lib.stores(ctx)
 
+	var scores map[string]float32
+
+	if query != nil {
+		wanted := map[string]bool{}
+
+		for _, held := range stores {
+			for _, tool := range held.index.Tools {
+				wanted[tool.Described] = true
+			}
+		}
+
+		scores = lib.scores(query, queried, wanted)
+	}
+
 	var hits []ranked
 
 	total := 0
@@ -68,17 +80,14 @@ func (lib *library) find(ctx context.Context, req request) result {
 
 			var score *float64
 
-			comparable := held.index.Fingerprint == "" || held.index.Fingerprint == queried
-			if query != nil && comparable && len(tool.Vector) > 0 {
-				cosine := float64(embed.Cosine(query, tool.Vector))
-				if cosine >= lib.options.ToolsQueryFloor {
-					lifted := cosine + takeLift(len(tool.Takers))
-					if held.own {
-						lifted += ownLift
-					}
-
-					score = &lifted
+			cosine := float64(scores[tool.Described])
+			if cosine >= lib.options.ToolsQueryFloor {
+				lifted := cosine + takeLift(len(tool.Takers))
+				if held.own {
+					lifted += ownLift
 				}
+
+				score = &lifted
 			}
 
 			if matched || score != nil {

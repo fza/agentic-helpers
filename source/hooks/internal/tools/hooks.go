@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 )
@@ -88,13 +87,31 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 		return ""
 	}
 
+	embedder, err := lib.embedder()
+	if err != nil {
+		return ""
+	}
+
+	// The prompt is embedded only where some own tool not yet shown has a
+	// vector to compare it with.
+	snapshot, err := lib.vectorStore(embedder.Fingerprint()).Snapshot()
+	if err != nil {
+		return ""
+	}
+
+	defer func() { _ = snapshot.Close() }()
+
 	state := lib.loadSession()
 
 	var candidates []string
 
+	wanted := map[string]bool{}
+
 	for _, name := range own.names() {
-		if !slices.Contains(state.Shown, name) && len(own.index.Tools[name].Vector) > 0 {
+		described := own.index.Tools[name].Described
+		if !slices.Contains(state.Shown, name) && snapshot.Holds(described, described) {
 			candidates = append(candidates, name)
+			wanted[described] = true
 		}
 	}
 
@@ -105,8 +122,13 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 	bounded, cancel := context.WithTimeout(ctx, recallLimit)
 	defer cancel()
 
-	vector, fingerprint, err := lib.embedPrompt(bounded, prompt)
-	if err != nil || (own.index.Fingerprint != "" && own.index.Fingerprint != fingerprint) {
+	vector, _, err := lib.embedPrompt(bounded, prompt)
+	if err != nil {
+		return ""
+	}
+
+	scores, err := snapshot.Scores(vector, func(id string, _ string) bool { return wanted[id] })
+	if err != nil {
 		return ""
 	}
 
@@ -123,7 +145,7 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 	for _, name := range candidates {
 		tool := own.index.Tools[name]
 
-		score := embed.Cosine(vector, tool.Vector)
+		score := scores[tool.Described]
 		if float64(score) >= lib.options.ToolsQueryFloor {
 			near = append(near, scored{name: name, score: score, sameRole: role != "" && slices.Contains(tool.Roles, role)})
 		}

@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const indexSchema = 1
+const indexSchema = 2
 
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
@@ -71,7 +71,6 @@ type indexed struct {
 	Inputs       string                `json:"inputs,omitempty"`
 	Outputs      string                `json:"outputs,omitempty"`
 	Files        []string              `json:"files"`
-	Vector       []float32             `json:"vector,omitempty"`
 	Described    string                `json:"described"`
 	Takers       []string              `json:"takers"`
 	Takes        int                   `json:"takes"`
@@ -83,10 +82,9 @@ type indexed struct {
 }
 
 type index struct {
-	Schema      int                 `json:"schema"`
-	Fingerprint string              `json:"fingerprint,omitempty"`
-	Tools       map[string]*indexed `json:"tools"`
-	Merged      map[string]string   `json:"merged"`
+	Schema int                 `json:"schema"`
+	Tools  map[string]*indexed `json:"tools"`
+	Merged map[string]string   `json:"merged"`
 	// Skipped counts malformed lines and unreadable tools the build passed over.
 	Skipped int `json:"skipped,omitempty"`
 }
@@ -331,7 +329,7 @@ func readVersion(folder *dir, v int) ([]fileHash, spec, error) {
 
 // buildIndex reads every tool folder of a store. A tool that cannot be read is
 // skipped and counted; the rest still serve.
-func buildIndex(at string, vectors map[string][]float32) (*index, error) {
+func buildIndex(at string) (*index, error) {
 	built := emptyIndex()
 
 	root, err := openDir(at)
@@ -380,7 +378,6 @@ func buildIndex(at string, vectors map[string][]float32) (*index, error) {
 			continue
 		}
 
-		row.Vector = vectors[row.Described]
 		built.Tools[name] = row
 	}
 

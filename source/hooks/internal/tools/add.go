@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 )
 
 // source is what --from named, read: its files, and whether it is a taken copy.
@@ -288,15 +286,22 @@ func (lib *library) nearest(ctx context.Context, vector []float32, fingerprint s
 
 	floor := float32(lib.options.ToolsDuplicateFloor)
 
-	for _, held := range lib.stores(ctx) {
-		if held.index.Fingerprint != "" && held.index.Fingerprint != fingerprint {
-			continue
-		}
+	stores := lib.stores(ctx)
+	wanted := map[string]bool{}
 
+	for _, held := range stores {
+		for _, tool := range held.index.Tools {
+			wanted[tool.Described] = true
+		}
+	}
+
+	scores := lib.scores(vector, fingerprint, wanted)
+
+	for _, held := range stores {
 		for _, name := range held.names() {
 			tool := held.index.Tools[name]
 
-			score := embed.Cosine(vector, tool.Vector)
+			score := scores[tool.Described]
 			if score >= floor {
 				near = append(near, scored{name: found{store: held, tool: tool}.shown(), score: score})
 			}

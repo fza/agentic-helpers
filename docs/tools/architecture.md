@@ -17,7 +17,7 @@ a hash of the main checkout), so worktrees share it.
 | `<tool>/v<n>/tool.json` | `name`, `summary`, `usage`, `inputs`, `outputs`, `files`, and on a fork `forked_from: {project, tool, v}` |
 | `<tool>/v<n>/...` | the version's files |
 | `<tool>/merged` | a tombstone naming the survivor |
-| `index.json` | per tool its current version and fields, vector, takers, roles and the file hashes of every version; the merged names |
+| `index.json` | per tool its current version and fields, the hash of its description, takers, roles and the file hashes of every version; the merged names |
 | `.lock` | the write lock |
 | `sessions/<session>.json` | what a session holds and has been told |
 | `copies/` | copies taken where the checkout has no `.tmp/` |
@@ -26,11 +26,24 @@ Every read (find, list, take, the duplicate checks, the offer, the notices) uses
 never lists tool folders; a term search reads the current version's files by the names the index
 gives. A missing, corrupt or other-schema index is rebuilt from the folders on read, and written
 back for the own store under the lock; `reindex` forces the rebuild. A tool folder that cannot be
-read is skipped and counted. Vectors are kept by the hash of the description they embed in
-`~/.cache/agentic-tools/vectors/<embedder>.json` as well, so a rebuild embeds only a description no
-vector exists for. A store is any folder under `~/.claude/agentic-tools/` holding an index, a lock
+read is skipped and counted. A store is any folder under `~/.claude/agentic-tools/` holding an index, a lock
 or a tool folder with a `current`, found at most six folders deep, so a library renamed into place
 reads as is.
+
+## Vectors
+
+Vectors live outside every store, in `~/.cache/agentic-tools/vectors/<embedder>/`, one directory
+per embedder fingerprint, as segments of `internal/vectorseg`, the store agentic-memory keeps its
+entry vectors in (`docs/memory/architecture.md`, "The vector store"). A row is one description's
+vector, keyed by the description's hash, so one vector serves every store naming that description
+and a rebuild embeds only a description no row is held for. `add`, `update`, `merge` and a rebuild
+each file one segment holding only the rows they embedded, after the own index names them, then
+merge. A row counts while some store on the machine names its description, read from every store's
+index whatever `AGENTIC_TOOLS_SCOPE` says, so a merge drops the vector of a description every store
+replaced. `find --query`, `add`'s near-duplicate check and the offer score through one mapped
+snapshot; the offer embeds the prompt only where an own tool not yet shown has a row. A cache
+`<embedder>.json` left from the whole-file store becomes one segment on first open, embedding
+nothing, and is removed.
 
 Every write takes `.lock` with `flock`, waiting at most two seconds; the holder writes its pid into
 the file, and a refusal names it. Under the lock the writer is checked against the project's list,
@@ -98,5 +111,7 @@ the slot mostly saves an embed where recall finished first.
 `internal/tools` drives `tools.Main` against stores under `t.TempDir()` with a fake embedder: every
 verb and refusal, names across projects, the scope, the lock held by another descriptor, links and
 pipes planted in a store and in a write's path, the credential refusals of `add`, `update` and `merge` (CLI and
-MCP) and of every version `writeVersion` lays down, the hooks, and the MCP server. fdbox's backfilled
+MCP) and of every version `writeVersion` lays down, the vector segments (a write leaving every
+segment written before untouched, the whole-file cache migrated without an embed, a replaced
+description merged away, another store's kept), the hooks, and the MCP server. fdbox's backfilled
 library is the fixture `test/fixtures/tools/fdbox-library`, renamed into place and read as is.
