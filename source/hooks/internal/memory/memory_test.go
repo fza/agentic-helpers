@@ -696,8 +696,8 @@ func TestMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 			refusal: `--skip takes a number of 0 or more, not -1`},
 		{name: "link's keys", tool: "link", arguments: `{"id":"` + id + `","target":"m-zzzz99","seat":"main"}`,
 			refusal: `link takes no key \"seat\"; it takes id, target, no_heat`},
-		{name: "unlink's keys", tool: "unlink", arguments: `{"id":"` + id + `","to":"m-zzzz99"}`,
-			refusal: `unlink takes no key \"to\"; it takes id, target`},
+		{name: "untag's keys", tool: "untag", arguments: `{"id":"` + id + `","topic":["gate"]}`,
+			refusal: `untag takes no key \"topic\"; it takes id, topics`},
 		{name: "claim's removed force", tool: "claim", arguments: `{"name":"main","force":true}`,
 			refusal: `claim takes no key \"force\"; it takes name`},
 		{name: "a key for a tool taking json alone", tool: "topics", arguments: `{"all":true}`,
@@ -1138,8 +1138,8 @@ func TestMCPServesEveryCommand(t *testing.T) {
 		answers[answer.ID] = scanner.Text()
 	}
 
-	for _, name := range []string{"new", "search", "show", "brief", "topics", "confirm", "retain", "retire",
-		"supersede", "revive", "retitle", "tag", "untag", "merge", "holder", "claim", "release", "who", "lifetime", "drop"} {
+	for _, name := range []string{"new", "search", "show", "brief", "view", "topics", "confirm", "ack", "state",
+		"retire", "supersede", "retitle", "tag", "untag", "link", "who", "claim", "release"} {
 		if !strings.Contains(answers[2], `"name":"`+name+`"`) {
 			t.Errorf("the MCP server should offer %s as a tool", name)
 		}

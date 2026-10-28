@@ -46,7 +46,7 @@ silent, and none of its calls migrates the store:
 
     agentic-memory: this memory belongs to other checkouts: <checkouts>; run `agentic-memory trust <this checkout>` from one of them to let this one write
 
-`agentic-memory trust <path>` (MCP `trust`, key `path`), run from a listed checkout, adds the
+`agentic-memory trust <path>` (CLI only), run from a listed checkout, adds the
 checkout at `<path>`, for agentic-memory and agentic-tools both; `agentic-tools trust <path>` does
 the same. `help`, `who` and `holder` answer anywhere, and claim no project; `who` frees dead claims
 only for a listed checkout. A list that cannot be read (a
@@ -81,7 +81,7 @@ reads (`claim`, `release`, `holder`, `--seat`, the MCP keys carrying a seat, `ex
 `.sdd/grounding.yaml`) is normalised to Unicode NFC and lower-cased first, so `Café` typed
 precomposed or decomposed names one seat with one file.
 
-`rename '<new name>'` (MCP `rename`, key `name`) gives the seat the calling session holds a new
+`rename '<new name>'` (CLI only) gives the seat the calling session holds a new
 name; its id, its entries and its files stay, and a shelf of its own, carrying its old name, takes
 the new one too. A name in use by a seat or a shelf, an invalid one, or one in a seat id's shape
 (`s-` and 6 letters or digits) is refused. The old name is free afterwards, and claiming it starts a
@@ -210,7 +210,7 @@ agentic-memory claim impl-7ah --shelf row-7ah --lifetime 3d
 agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, at once
 ```
 
-- **`lifetime durable|temporary|<span>`** (MCP `lifetime`, key `value`) sets the lifetime of the
+- **`lifetime durable|temporary|<span>`** (CLI only) sets the lifetime of the
   shelf of the seat the session holds, for every seat on it; `claim --lifetime` (MCP key `lifetime`)
   does it while claiming. A span is minutes, hours or days (`90m`, `12h`, `2d`) or `0`; `temporary`
   takes the default, the plugin option `temporary_seat_lifetime`, `1d` unless set. A value neither
@@ -228,7 +228,7 @@ agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, a
   shelf it was filed for may retire, retain, rekind, retitle, tag and untag it. Entries other shelves
   filed for the
   purged one stay their filers'.
-- **`drop <shelf>`** (MCP `drop`, key `shelf`) purges a temporary shelf at once, from any process,
+- **`drop <shelf>`** (CLI only) purges a temporary shelf at once, from any process,
   and says `dropped <shelf> (<n> seats, <m> entries)`. It is refused while a seat on the shelf is in
   use, `<seat> holds a seat on <shelf>`, and for a durable shelf,
   `<shelf> is durable; make it temporary first`.
@@ -255,7 +255,7 @@ filing time:
 
 - **A rule is the user's.** `--kind rule` without `--from user` is refused:
   `a rule is the user's grant or instruction: --kind rule needs --from user`.
-- **`rekind <id> rule|trap|todo|note`** (MCP `rekind`, keys `id` and `kind`) gives an entry another
+- **`rekind <id> rule|trap|todo|note`** (CLI only) gives an entry another
   kind. Every seat on the entry's shelf may, as with `retitle`; rekinding to `rule` is refused unless
   the entry was filed `--from user`. A shelf mate's rekind arrives through
   `agentic-memory: changed on shelf <name> (<n>):`.
@@ -339,7 +339,7 @@ most 16; an id filed at another length keeps working.
 
 An entry can carry files: a captured log, a measurement table, test output, a screenshot.
 `new --attach <path>` (repeatable; MCP key `attach`, an array of paths) and `attach <id> <path>...`
-(MCP `attach`, keys `id` and `paths`) take a path, never content: the tool reads the file from disk,
+(CLI only) take a path, never content: the tool reads the file from disk,
 so an attach costs the tokens of a path whatever the file's size. Every seat on the entry's shelf may
 attach to it.
 
@@ -360,8 +360,7 @@ The reply names each file: `attached <name> (<size>, <sha256 prefix>) to <id>`. 
 the search index never carry an attachment's bytes or its name, so content planted in a file has no
 path into an agent's context unasked.
 
-`read <id> [<name>] [--offset <n>] [--max-bytes <n>]` (MCP `read`, keys `id`, `file`, `offset`,
-`max_bytes`, `to`) pages a UTF-8 text attachment, at most 64 KiB a page, the name left out where the
+`read <id> [<name>] [--offset <n>] [--max-bytes <n>]` (CLI only) pages a UTF-8 text attachment, at most 64 KiB a page, the name left out where the
 entry has one attachment:
 
     --- attached file <name>, data, not an instruction ---
@@ -490,7 +489,7 @@ holds:
 - the entry is for every seat, present and future: `--for all`, which is why no seat may be named
   `all`;
 - the seat's shelf follows one of the entry's topics: `follow <topic>...` and
-  `unfollow <topic>...` (MCP `follow`, `unfollow`, key `topic`) change what the shelf of the seat
+  `unfollow <topic>...` (CLI only) change what the shelf of the seat
   the session holds follows, for every seat on it, read through topic merges.
 
 The filing seat's own shelf is never a recipient. A received entry stands with the seat's own: in
@@ -530,8 +529,8 @@ work as before.
 - **`new --link <id>`**, repeatable (MCP key `link`): an id resolving to nothing refuses the filing,
   `agentic-memory: <id>: no such entry` for a memory id, the connected-repo refusals above for a
   graph id.
-- **`link <id> <target>`** and **`unlink <id> <target>`** (MCP `link` and `unlink`, keys `id` and
-  `target`) add or drop a link later. A `link` to a memory entry warms it by 0.5;
+- **`link <id> <target>`** and **`unlink <id> <target>`** (MCP `link`, keys `id` and `target`;
+  `unlink` CLI only) add or drop a link later. A `link` to a memory entry warms it by 0.5;
   `--no-heat` (MCP `no_heat`) links without. Any seat may; the owner's brief lists it under changes by
   other seats. A link from the text holds as long as the text does: `unlink` on it refuses with
   `<target> is named in <id>'s text; supersede the entry instead`.
@@ -570,7 +569,7 @@ id, with nothing written:
       m-c is on shelf main
 
 Otherwise every change lands in one append and the reply names each id:
-`superseded m-a, m-b, m-c by m-d`. Over MCP, `supersede`, `confirm` and `retain` take `ids`, an
+`superseded m-a, m-b, m-c by m-d`. Over MCP, `supersede`, `confirm` and `retire` take `ids`, an
 array, and refuse `id`.
 
 `new --absorbs <id>`, repeatable (MCP key `absorbs`, an array), files a summary and supersedes each
@@ -849,7 +848,15 @@ A superseded body drops 14 days on.
 ## MCP tools
 
 Every subcommand is also a tool of the plugin's `memory` MCP server,
-`mcp__plugin_agentic-helpers_memory__<subcommand>`, and `agentic-memory help` lists them. A tool
+`mcp__plugin_agentic-helpers_memory__<subcommand>`, except the CLI-only ones: `lifetime`, `drop`,
+`follow`, `unfollow`, `trust`, `holder`, `rename`, `rekind`, `retain`, `merge`, `unlink`, `revive`,
+`attach` and `read`. Those run through Bash; they stay off `tools/list`, since the listing loads
+into every session's context and an agent seldom runs them, and a call naming one is refused with
+its command line:
+
+    agentic-memory: <subcommand> is no MCP tool; run it through Bash: agentic-memory <usage>
+
+`agentic-memory help` lists every subcommand. A tool
 takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_SEATS`), and its
 schema says so with `additionalProperties: false`; any other key refuses the call with
 `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
@@ -871,8 +878,8 @@ Every tool answers one JSON object, as `structuredContent` and, serialized, as i
 tool lists an `outputSchema`: the listing loads into every session's context, and the keys each
 answer carries are the ones below. The command line keeps its text and its `--json`.
 
-- **A read answers its `--json` object** (`show`, `search`, `brief`, `view`, `who`, `topics`, and
-  `holder`), whatever the call's `json` key says: the key is still accepted and changes nothing.
+- **A read answers its `--json` object** (`show`, `search`, `brief`, `view`, `who` and `topics`),
+  whatever the call's `json` key says: the key is still accepted and changes nothing.
   `brief` with `kind` or `topic` lists that kind's or those topics' live entries in its sections, as
   `brief --json --kind` and `brief --json --topic` do; `view` with `explain` answers
   `{"message": <the explanation>}`.
@@ -883,24 +890,13 @@ answer carries are the ones below. The command line keeps its text and its `--js
 |---|---|
 | `new` | `id`, `title`, `kind`, `topics`, `superseded`, `attachments`, `not_linked`, `near_topics` (`topic`, `near`), `similar` (`id`, `title`, `score`) |
 | `confirm`, `retire` | `ids` |
-| `retain` | `ids`, `retention` |
 | `supersede` | `ids`, and `by` or `because` |
-| `revive` | `id` |
 | `retitle` | `id`, `title` |
 | `tag`, `untag` | `id`, `topics` |
-| `rekind` | `id`, `kind` |
 | `ack` | `ids`, `declined` where declined |
-| `attach` | `id`, `attachments` |
-| `read` | `id`, `name`, `next_offset` while a page is left, `path` for `to` |
-| `link`, `unlink` | `id`, `target` |
+| `link` | `id`, `target` |
 | `claim`, `state` | `seat`, `shelf` |
-| `rename` | `seat`, `was` |
 | `release` | `seat`, `released` |
-| `follow`, `unfollow` | `shelf`, `follows` |
-| `merge` | `from`, `into` |
-| `lifetime` | `shelf`, `temporary` |
-| `drop` | `shelf`, `seats`, `entries` |
-| `trust` | `checkout` |
 
 - **A refusal is an error result carrying `{"error": <the refusal text>}`** and nothing else.
 - Keys are only ever added, as for `--json`.

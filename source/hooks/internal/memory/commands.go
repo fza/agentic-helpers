@@ -148,6 +148,9 @@ type command struct {
 	// replaced names, per flag a command no longer takes, what took its place,
 	// so a call passing it hears where to go, as a flag and as an MCP key.
 	replaced map[string]string
+	// cliOnly keeps a command off the MCP server's listing: a command an
+	// agent seldom runs costs every session its share of the listing.
+	cliOnly bool
 }
 
 func commandByName(name string) (command, bool) {
@@ -464,7 +467,7 @@ func allCommands() []command {
 			schema: `{"type":"object","properties":{` + idsKey + `},"required":["ids"]}`,
 		},
 		{
-			name: "retain", usage: "retain <id>... <level>", description: "change entries' retention, all or none",
+			name: "retain", cliOnly: true, usage: "retain <id>... <level>", description: "change entries' retention, all or none",
 			positional: func(req *request) error {
 				if len(req.Positional) < 2 {
 					return errors.New("at least one entry id and a level expected")
@@ -479,7 +482,7 @@ func allCommands() []command {
 				`"enum":["standing","long","normal","short","scratch"],"description":"the decay overriding the kind's"}},"required":["ids","level"]}`,
 		},
 		{
-			name: "attach", usage: "attach <id> <path>...",
+			name: "attach", cliOnly: true, usage: "attach <id> <path>...",
 			description: "keep files with an entry, read from disk by path, ending when its body ends",
 			positional: func(req *request) error {
 				if len(req.Positional) < 2 {
@@ -496,7 +499,7 @@ func allCommands() []command {
 				`"required":["id","paths"]}`,
 		},
 		{
-			name: "read", usage: "read <id> [<name>] [--offset <n>] [--max-bytes <n>] [--to <path>]",
+			name: "read", cliOnly: true, usage: "read <id> [<name>] [--offset <n>] [--max-bytes <n>] [--to <path>]",
 			description: "page a text attachment, framed as data, or write any attachment's bytes to a new path with to",
 			flags:       []flagSpec{{"offset", flagCount}, {"max-bytes", flagNumber}, {"to", flagText}},
 			positional: func(req *request) error {
@@ -527,7 +530,7 @@ func allCommands() []command {
 				noHeat + `},"required":["ids"]}`,
 		},
 		{
-			name: "rekind", usage: "rekind <id> rule|trap|todo|note", description: "give an entry another kind; rule only for an entry filed from user",
+			name: "rekind", cliOnly: true, usage: "rekind <id> rule|trap|todo|note", description: "give an entry another kind; rule only for an entry filed from user",
 			positional: func(req *request) error { return exactly(2, &req.ID, &req.Kind)(req) },
 			run:        (*memory).rekind,
 			schema: `{"type":"object","properties":{` + idKey +
@@ -553,7 +556,7 @@ func allCommands() []command {
 				`,"because":{"type":"string","description":"why they are wrong or replaced"}},"required":["ids"]}`,
 		},
 		{
-			name: "revive", usage: "revive <id>", description: "reverse the latest retire or supersede",
+			name: "revive", cliOnly: true, usage: "revive <id>", description: "reverse the latest retire or supersede",
 			positional: oneID, run: (*memory).revive,
 			schema: `{"type":"object","properties":{` + idKey + `},"required":["id"]}`,
 		},
@@ -601,12 +604,12 @@ func allCommands() []command {
 				`"no_heat":{"type":"boolean","description":"link without adding heat to a memory target"}},"required":["id","target"]}`,
 		},
 		{
-			name: "unlink", usage: "unlink <id> <target>", description: "drop a link made by new's link key or by link",
+			name: "unlink", cliOnly: true, usage: "unlink <id> <target>", description: "drop a link made by new's link key or by link",
 			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).unlink,
 			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"the linked graph id or memory id"}},"required":["id","target"]}`,
 		},
 		{
-			name: "trust", usage: "trust <path>", description: "let the checkout at path write this project's memory and tool library",
+			name: "trust", cliOnly: true, usage: "trust <path>", description: "let the checkout at path write this project's memory and tool library",
 			positional: func(req *request) error { return exactly(1, &req.Path)(req) }, run: (*memory).trust,
 			schema: `{"type":"object","properties":{"path":{"type":"string","description":"a checkout of this project"}},"required":["path"]}`,
 		},
@@ -618,24 +621,24 @@ func allCommands() []command {
 			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add every other project's seats"},` + jsonKey + `}}`,
 		},
 		{
-			name: "follow", usage: "follow <topic>...", description: "receive every entry filed under these topics",
+			name: "follow", cliOnly: true, usage: "follow <topic>...", description: "receive every entry filed under these topics",
 			positional: topicsOnly, run: (*memory).follow,
 			schema: `{"type":"object","properties":{` + topicKey + `},"required":["topic"]}`,
 		},
 		{
-			name: "unfollow", usage: "unfollow <topic>...", description: "stop receiving entries filed under these topics",
+			name: "unfollow", cliOnly: true, usage: "unfollow <topic>...", description: "stop receiving entries filed under these topics",
 			positional: topicsOnly, run: (*memory).unfollow,
 			schema: `{"type":"object","properties":{` + topicKey + `},"required":["topic"]}`,
 		},
 		{
-			name: "merge", usage: "merge <from> <into>", description: "merge one topic into another, every seat",
+			name: "merge", cliOnly: true, usage: "merge <from> <into>", description: "merge one topic into another, every seat",
 			positional: func(req *request) error { return exactly(2, &req.FromTopic, &req.Into)(req) },
 			run:        (*memory).merge,
 			schema: `{"type":"object","properties":{"from_topic":{"type":"string","description":"the topic merged away"},` +
 				`"into":{"type":"string","description":"the topic it merges into"}},"required":["from_topic","into"]}`,
 		},
 		{
-			name: "holder", usage: "holder <seat> [--json] | holder --session <id> --json",
+			name: "holder", cliOnly: true, usage: "holder <seat> [--json] | holder --session <id> --json",
 			description: "who holds a seat, named or by session; exit 0 held, 1 free",
 			flags:       []flagSpec{{"json", flagSwitch}, {"session", flagText}}, positional: optionalName,
 			run: (*memory).holder,
@@ -656,7 +659,7 @@ func allCommands() []command {
 				`"session":{"type":"string","description":"the session to claim the seat for, other than the caller's"}}}`,
 		},
 		{
-			name: "rename", usage: "rename '<new name>'", description: "give the seat this session holds a new name; its id and entries stay",
+			name: "rename", cliOnly: true, usage: "rename '<new name>'", description: "give the seat this session holds a new name; its id and entries stay",
 			positional: func(req *request) error { return exactly(1, &req.Name)(req) },
 			run:        (*memory).rename,
 			schema:     `{"type":"object","properties":{"name":{"type":"string","description":"the seat's new name"}},"required":["name"]}`,
@@ -667,7 +670,7 @@ func allCommands() []command {
 			schema: `{"type":"object","properties":{"name":{"type":"string","description":"the seat to give up; the own unless given"}}}`,
 		},
 		{
-			name: "lifetime", usage: "lifetime durable|temporary|<span>",
+			name: "lifetime", cliOnly: true, usage: "lifetime durable|temporary|<span>",
 			description: "make the shelf of the seat this session holds durable, or temporary: purged the span (default temporary_seat_lifetime) after its last seat closes",
 			positional:  func(req *request) error { return exactly(1, &req.Value)(req) },
 			run:         (*memory).lifetime,
@@ -675,7 +678,7 @@ func allCommands() []command {
 				`"description":"durable, temporary, or a span such as 90m, 12h, 2d or 0"}},"required":["value"]}`,
 		},
 		{
-			name: "drop", usage: "drop <shelf>", description: "purge a temporary shelf no seat uses, with its seats and entries, at once",
+			name: "drop", cliOnly: true, usage: "drop <shelf>", description: "purge a temporary shelf no seat uses, with its seats and entries, at once",
 			positional: func(req *request) error { return exactly(1, &req.Shelf)(req) },
 			run:        (*memory).drop,
 			schema:     `{"type":"object","properties":{"shelf":{"type":"string","description":"the temporary shelf to purge"}},"required":["shelf"]}`,

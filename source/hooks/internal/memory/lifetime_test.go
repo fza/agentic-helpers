@@ -74,17 +74,12 @@ func TestLifetimeSetsTheShelfsLifetime(t *testing.T) {
 
 	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"temporary_seat_lifetime":"soon"}}}}`)
 
-	if answer := h.mcp(`{"name":"lifetime","arguments":{"value":"temporary"}}`); !strings.Contains(answer, `"temporary":true`) {
-		t.Errorf("the MCP tool should say the shelf is temporary now, got %s", answer)
-	}
-
 	if out := h.must("", "lifetime", "temporary"); !strings.Contains(out, `purged 1d after its last seat closes (temporary_seat_lifetime "soon" is no span; 1d holds)`) {
 		t.Errorf("an option holding no span should fall back to 1d with a note, got %q", out)
 	}
 
-	answer := h.mcp(`{"name":"lifetime","arguments":{"value":"durable"}}`)
-	if !strings.Contains(answer, "shelf main is durable") || !strings.Contains(answer, `"temporary":false`) {
-		t.Errorf("the MCP tool should set the lifetime from its value key, got %s", answer)
+	if out := h.must("", "lifetime", "durable"); !strings.Contains(out, "shelf main is durable") {
+		t.Errorf("lifetime should make the shelf durable again, got %q", out)
 	}
 }
 

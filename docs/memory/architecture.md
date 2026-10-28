@@ -352,6 +352,12 @@ without `omitempty` or `omitzero` is required, a nil slice, map or pointer may b
 stay open) and holds every MCP answer any test draws to it. The `tools` server still lists its
 output schemas.
 
+A command marked `cliOnly` in `commands.go` is no tool: its `mcpserver.Tool` carries `Unlisted`,
+which keeps it off `tools/list` while a call naming it is still answered, with a refusal naming its
+command line. Those are the commands an agent seldom runs, each costing every session its share of
+the listing. Dropping the name outright was rejected: the server would answer an unknown tool with
+a bare protocol error, where the refusal says where the command went.
+
 ## Links
 
 A `new` row carries the ids its text named that resolved when it was filed (`text_links`) and the

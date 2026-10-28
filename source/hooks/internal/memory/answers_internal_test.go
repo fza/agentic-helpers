@@ -39,20 +39,16 @@ type jsonViewSection struct {
 // of a message answer. A tool missing here answers its message alone.
 var answerFields = map[string]any{
 	"show": jsonShow{}, "search": jsonSearch{}, "brief": jsonBrief{}, "who": jsonWho{}, "topics": jsonTopics{},
-	"view": jsonView{}, "holder": holderView{},
-	"new": filedFields{}, "confirm": idsFields{}, "retain": retainedFields{}, "attach": attachedFields{},
-	"read": readFields{}, "ack": ackFields{}, "rekind": kindFields{}, "state": seatFields{}, "retire": idsFields{},
-	"supersede": supersededFields{}, "revive": idFields{}, "retitle": retitledFields{}, "tag": topicsFields{},
-	"untag": topicsFields{}, "link": linkFields{}, "unlink": linkFields{}, "trust": trustedFields{},
-	"follow": followFields{}, "unfollow": followFields{}, "merge": mergedFields{}, "claim": seatFields{},
-	"rename": renamedFields{}, "release": releasedFields{}, "lifetime": lifetimeFields{}, "drop": droppedFields{},
+	"view": jsonView{}, "new": filedFields{}, "confirm": idsFields{}, "ack": ackFields{}, "state": seatFields{},
+	"retire": idsFields{}, "supersede": supersededFields{}, "retitle": retitledFields{}, "tag": topicsFields{},
+	"untag": topicsFields{}, "link": linkFields{}, "claim": seatFields{}, "release": releasedFields{},
 }
 
 // AnswerSchema is the shape a tool's answer keeps, derived from the types the
 // answer is built from, so a test holds every MCP answer to it although the
 // server lists no outputSchema.
 func AnswerSchema(name string) json.RawMessage {
-	if slices.Contains(mcpReads, name) {
+	if slices.Contains(jsonReads, name) {
 		return mcpserver.SchemaOf(answerFields[name])
 	}
 

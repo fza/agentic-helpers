@@ -60,19 +60,9 @@ func TestAttachStoresAFileByPath(t *testing.T) {
 	other := filepath.Join(t.TempDir(), "other.txt")
 	test.WriteFile(t, other, "other")
 
-	answer := h.mcp(`{"name":"attach","arguments":{"id":"` + id + `","paths":["` + other + `"]}}`)
-	if !strings.Contains(answer, "attached other.txt") {
-		t.Errorf("MCP attach should take paths: %s", answer)
-	}
-
-	answer = h.mcp(`{"name":"new","arguments":{"title":"Filed with a file over MCP","body":"b","attach":["` + other + `"]}}`)
+	answer := h.mcp(`{"name":"new","arguments":{"title":"Filed with a file over MCP","body":"b","attach":["` + other + `"]}}`)
 	if !strings.Contains(answer, "attached other.txt") {
 		t.Errorf("MCP new should take attach paths: %s", answer)
-	}
-
-	answer = h.mcp(`{"name":"attach","arguments":{"id":"` + id + `","content":"inline bytes"}}`)
-	if !strings.Contains(answer, `attach takes no key \"content\"`) {
-		t.Errorf("no MCP key should take content: %s", answer)
 	}
 
 	if got := h.run("", "attach", id, notes); got.code != 1 || !strings.Contains(got.err, id+" already has an attachment named notes.txt") {
@@ -220,16 +210,6 @@ func TestReadPagesATextAttachment(t *testing.T) {
 	original, _ := os.ReadFile(image)
 	if copied, _ := os.ReadFile(out); !bytes.Equal(copied, original) {
 		t.Error("--to should write the original bytes")
-	}
-
-	answer := h.mcp(`{"name":"read","arguments":{"id":"` + id + `","file":"steps.txt","max_bytes":11}}`)
-	if !strings.Contains(answer, "first line") || !strings.Contains(answer, `"next_offset":11`) {
-		t.Errorf("MCP read should page the attachment and name where the next page starts: %s", answer)
-	}
-
-	last := h.mcp(`{"name":"read","arguments":{"id":"` + id + `","file":"steps.txt","offset":11}}`)
-	if strings.Contains(last, "next_offset") {
-		t.Errorf("the last page should name no next one: %s", last)
 	}
 }
 
@@ -451,14 +431,6 @@ func TestAttachingACredentialLaterIsRefused(t *testing.T) {
 			got := h.run("", "attach", id, file)
 
 			return got.code, got.err
-		}},
-		{name: "the MCP tool", attach: func(h *harness, id string, file string) (int, string) {
-			answer := h.mcp(`{"name":"attach","arguments":{"id":"` + id + `","paths":["` + file + `"]}}`)
-			if !strings.Contains(answer, `"isError":true`) {
-				return 0, answer
-			}
-
-			return 1, answer
 		}},
 	}
 

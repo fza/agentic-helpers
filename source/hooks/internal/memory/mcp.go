@@ -12,8 +12,8 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 )
 
-// serveMCP answers the plugin's `memory` server: every agent command as a tool
-// of the same name, taking the command's arguments as JSON and answering JSON:
+// serveMCP answers the plugin's `memory` server: every agent command not
+// marked cliOnly as a tool of the same name, taking the command's arguments as JSON and answering JSON:
 // a read its --json object, any other command its text as the message beside
 // what it did. A refusal comes back as an error result carrying its text.
 //
@@ -24,6 +24,19 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 	var tools []mcpserver.Tool
 
 	for _, held := range commands() {
+		if held.cliOnly {
+			tools = append(tools, mcpserver.Tool{
+				Name:     held.name,
+				Unlisted: true,
+				Handle: func(context.Context, json.RawMessage) mcpserver.Result {
+					return mcpserver.Refusal(fmt.Sprintf("%s: %s is no MCP tool; run it through Bash: %s %s",
+						self, held.name, self, held.usage))
+				},
+			})
+
+			continue
+		}
+
 		tools = append(tools, mcpserver.Tool{
 			Name:        held.name,
 			Description: held.description,
@@ -73,7 +86,7 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 		return mcpserver.Refusal(fmt.Sprintf("%s: the arguments do not fit %s: %v", self, held.name, err))
 	}
 
-	read := slices.Contains(mcpReads, held.name)
+	read := slices.Contains(jsonReads, held.name)
 	req.JSON = read
 
 	if req.ID != "" && len(req.IDs) == 0 {

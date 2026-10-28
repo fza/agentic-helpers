@@ -201,16 +201,16 @@ func TestTheBatchToolsTakeIDs(t *testing.T) {
 	first := h.file("First gate note over MCP", "first")
 	second := h.file("Second gate note over MCP", "second")
 
-	for _, tool := range []string{"supersede", "confirm", "retain"} {
+	for _, tool := range []string{"supersede", "confirm", "retire"} {
 		answer := h.mcp(`{"name":"` + tool + `","arguments":{"id":"` + first + `"}}`)
 		if !strings.Contains(answer, tool+` takes no key \"id\"`) {
 			t.Errorf("%s should refuse the single id key, got %s", tool, answer)
 		}
 	}
 
-	answer := h.mcp(`{"name":"retain","arguments":{"ids":["` + first + `","` + second + `"],"level":"long"}}`)
-	if !strings.Contains(answer, first+", "+second+" retained long") {
-		t.Errorf("retain should take ids, got %s", answer)
+	answer := h.mcp(`{"name":"confirm","arguments":{"ids":["` + first + `","` + second + `"]}}`)
+	if !strings.Contains(answer, "confirmed "+first) || !strings.Contains(answer, "confirmed "+second) {
+		t.Errorf("confirm should take ids, got %s", answer)
 	}
 
 	answer = h.mcp(`{"name":"new","arguments":{"title":"Summary of the MCP notes","topic":["gate"],"body":"both",` +

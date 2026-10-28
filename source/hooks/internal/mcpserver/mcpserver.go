@@ -23,7 +23,10 @@ type Tool struct {
 	// OutputSchema describes the object every answer not marked as an error
 	// carries as its Structured value.
 	OutputSchema json.RawMessage
-	Handle       func(ctx context.Context, arguments json.RawMessage) Result
+	// Unlisted keeps the tool out of tools/list while a call naming it is
+	// still answered, so a name taken off the listing can say where it went.
+	Unlisted bool
+	Handle   func(ctx context.Context, arguments json.RawMessage) Result
 }
 
 // Result is a tool's answer. A Structured value goes out as the result's
@@ -226,6 +229,10 @@ func newServer(out io.Writer, name string, version string, tools []Tool) (*serve
 		}
 
 		served.tools[tool.Name] = tool
+		if tool.Unlisted {
+			continue
+		}
+
 		served.listing.Tools = append(served.listing.Tools, listedTool{
 			Name:         tool.Name,
 			Description:  tool.Description,

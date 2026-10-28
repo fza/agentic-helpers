@@ -123,6 +123,3 @@ type droppedFields struct {
 type trustedFields struct {
 	Checkout string `json:"checkout"`
 }
-
-// mcpReads answer their JSON object over MCP whatever the call's json key says.
-var mcpReads = append([]string{"holder"}, jsonReads...)

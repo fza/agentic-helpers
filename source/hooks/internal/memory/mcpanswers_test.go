@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -120,9 +119,8 @@ func TestNoToolListsAnOutputSchema(t *testing.T) {
 }
 
 func TestEveryToolAnswersItsShape(t *testing.T) {
-	h, other := rowShelf(t)
-	other.must("", "lifetime", "temporary")
-	other.must("", "release")
+	h := newHarness(t)
+	h.must("", "claim", "impl")
 
 	called := map[string]bool{}
 	call := func(tool string, arguments string) map[string]any {
@@ -140,8 +138,6 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 
 	first, _ := call("new", `{"title":"Gate finding filed first","topic":["gate"],"body":"one"}`)["id"].(string)
 	second, _ := call("new", `{"title":"Gate finding filed second","topic":["gate"],"body":"two"}`)["id"].(string)
-	notes := filepath.Join(h.repo, "notes.txt")
-	test.WriteFile(t, notes, "attached bytes")
 
 	calls := []struct{ tool, arguments string }{
 		{"show", `{"ids":["` + first + `"]}`},
@@ -151,25 +147,14 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 		{"view", `{"explain":"brief"}`},
 		{"topics", `{}`},
 		{"who", `{}`},
-		{"holder", `{"name":"impl"}`},
 		{"confirm", `{"ids":["` + first + `"]}`},
-		{"retain", `{"ids":["` + first + `"],"level":"long"}`},
-		{"attach", `{"id":"` + first + `","paths":["` + notes + `"]}`},
-		{"read", `{"id":"` + first + `"}`},
-		{"rekind", `{"id":"` + first + `","kind":"trap"}`},
 		{"state", `{"body":"where the work stands"}`},
 		{"retitle", `{"id":"` + first + `","title":"Gate finding filed renamed"}`},
 		{"tag", `{"id":"` + first + `","topic":["hooks"]}`},
 		{"untag", `{"id":"` + first + `","topics":["hooks"]}`},
 		{"link", `{"id":"` + first + `","target":"` + second + `"}`},
-		{"unlink", `{"id":"` + first + `","target":"` + second + `"}`},
 		{"retire", `{"ids":["` + second + `"],"because":"done"}`},
-		{"revive", `{"id":"` + second + `"}`},
 		{"supersede", `{"ids":["` + second + `"],"because":"wrong"}`},
-		{"follow", `{"topic":["infra"]}`},
-		{"unfollow", `{"topic":["infra"]}`},
-		{"merge", `{"from_topic":"gate","into":"gates"}`},
-		{"trust", `{"path":"` + impostor(h).repo + `"}`},
 	}
 
 	answers := map[string]map[string]any{}
@@ -186,16 +171,33 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 	rule := h.file("Read the board on claim", "body", "--kind", "rule", "--from", "user", "--on", "claim")
 	h.must("", "release")
 	call("claim", `{"name":"main"}`)
-	call("drop", `{"shelf":"row-7ah"}`)
 	call("ack", `{"ids":["`+rule+`"],"done":true}`)
-	call("rename", `{"name":"chief"}`)
-	call("lifetime", `{"value":"durable"}`)
 	call("release", `{}`)
 
 	for tool := range h.listedTools() {
 		if !called[tool] {
 			t.Errorf("the %s tool should be among the calls checked", tool)
 		}
+	}
+}
+
+func TestACommandOffTheListingNamesItsCommandLine(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	for _, name := range []string{"lifetime", "drop", "follow", "unfollow", "trust", "holder", "rename", "rekind",
+		"retain", "merge", "unlink", "revive", "attach", "read"} {
+		t.Run(name, func(t *testing.T) {
+			if _, listed := h.listedTools()[name]; listed {
+				t.Errorf("the %s command should not be listed as a tool", name)
+			}
+
+			answer := h.mcp(`{"name":"` + name + `","arguments":{}}`)
+			if !strings.Contains(answer, `"isError":true`) ||
+				!strings.Contains(answer, "agentic-memory: "+name+" is no MCP tool; run it through Bash: agentic-memory "+name+" ") {
+				t.Errorf("a call naming the %s command should be refused naming its command line, got %s", name, answer)
+			}
+		})
 	}
 }
 

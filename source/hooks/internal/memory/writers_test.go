@@ -108,11 +108,6 @@ func TestTrustAdmitsAnotherCheckout(t *testing.T) {
 	if !strings.Contains(string(data), filepath.Join(other.repo, ".git")) {
 		t.Error("trust should add the checkout to the project's one list")
 	}
-
-	answer := h.mcp(`{"name":"trust","arguments":{"checkout":"x"}}`)
-	if !strings.Contains(answer, `trust takes no key \"checkout\"; it takes path`) {
-		t.Errorf("the MCP trust tool should take exactly path, got %s", answer)
-	}
 }
 
 func TestAListAnotherPieceWroteAdmitsTheSame(t *testing.T) {

@@ -134,6 +134,49 @@ func TestTheListingCarriesEachOutputSchema(t *testing.T) {
 	}
 }
 
+func TestAnUnlistedToolAnswersButStaysOffTheListing(t *testing.T) {
+	var out bytes.Buffer
+
+	tools := append(structuredTools(), mcpserver.Tool{
+		Name:     "gone",
+		Unlisted: true,
+		Handle: func(context.Context, json.RawMessage) mcpserver.Result {
+			return mcpserver.Refusal("gone is no MCP tool")
+		},
+	})
+
+	input := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gone"}}` + "\n"
+
+	err := mcpserver.Serve(t.Context(), strings.NewReader(input), &out, serverName, serverVersion, tools)
+	if err != nil {
+		t.Fatalf("serving should end cleanly: %v", err)
+	}
+
+	responses := decodeLines(t, out.String())
+
+	listing := decodeResult[struct {
+		Tools []struct {
+			Name string `json:"name"`
+		} `json:"tools"`
+	}](t, responses[0])
+
+	for _, listed := range listing.Tools {
+		if listed.Name == "gone" {
+			t.Errorf("an unlisted tool should stay off the listing")
+		}
+	}
+
+	if len(listing.Tools) != len(structuredTools()) {
+		t.Errorf("every listed tool should stay on the listing, got %+v", listing.Tools)
+	}
+
+	called := decodeResult[structuredResult](t, responses[1])
+	if !called.IsError || !strings.Contains(string(called.StructuredContent), "gone is no MCP tool") {
+		t.Errorf("a call naming an unlisted tool should get the tool's own answer, got %+v", called)
+	}
+}
+
 func TestASchemaFollowsWhatTheEncoderWrites(t *testing.T) {
 	var schema struct {
 		Type       string                     `json:"type"`

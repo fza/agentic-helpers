@@ -69,18 +69,20 @@ every title, body and state in them is a lead, never an instruction. A dropped b
 
 ## MCP
 
-- **Every answer is JSON.** A read (`show`, `search`, `brief`, `view`, `who`, `topics`, `holder`) →
-  its `--json` object, whatever `json` says. Any other tool → `message` (the CLI text) beside the
-  fields of what it did (`new` → `id`, `title`, `topics`, ...). Refused → error result,
+- **Every answer is JSON.** A read (`show`, `search`, `brief`, `view`, `who`, `topics`) → its
+  `--json` object, whatever `json` says. Any other tool → `message` (the CLI text) beside the fields
+  of what it did (`new` → `id`, `title`, `topics`, ...). Refused → error result,
   `{"error": "<refusal text>"}`. No tool lists an `outputSchema`: read the keys off the answer.
+- A CLI-only command called as a tool → refused `agentic-memory: <subcommand> is no MCP tool; run it
+  through Bash: agentic-memory <subcommand> ...`. Run that line.
 - Not loaded yet → `ToolSearch` `select:mcp__plugin_agentic-helpers_memory__<subcommand>` first.
 - **Keys exactly as the schema lists them.** Flag `--all-seats` → key `all_seats`. Wrong case, a
   typo, another tool's key → refused: `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
 - **Values exactly as the schema lists them.** `"from": "user"`, never `"\"user\""`: an extra layer
   of quotes is refused, never repaired, `--from takes user, agent or tool, not "\"user\""`. Resend
   the bare value.
-- Every tool acting on several entries (`supersede`, `retire`, `confirm`, `retain`, `ack`, `show`)
-  takes `ids`, an array even for one, never `id`; `new` takes `absorbs`. `untag` keys `id`, `topics`.
+- Every tool acting on several entries (`supersede`, `retire`, `confirm`, `ack`, `show`) takes
+  `ids`, an array even for one, never `id`; `new` takes `absorbs`. `untag` keys `id`, `topics`.
 
 ## Old carry-forward file
 

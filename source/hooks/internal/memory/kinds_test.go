@@ -104,11 +104,6 @@ func TestRekind(t *testing.T) {
 	if got := other.run("", "rekind", agents, "note"); got.code != 1 || !strings.Contains(got.err, "is on shelf main") {
 		t.Errorf("a seat on another shelf should be refused a rekind, got %d %q", got.code, got.err)
 	}
-
-	answer := h.mcp(`{"name":"rekind","arguments":{"id":"` + agents + `","kind":"rule"}}`)
-	if !strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "only an entry filed --from user") {
-		t.Errorf("rekind to rule over MCP should be refused the same way: %s", answer)
-	}
 }
 
 func TestTheStateSlot(t *testing.T) {

@@ -10,8 +10,10 @@ Context runs out → summarised → next session knows nothing. agentic-memory =
 **On by claiming a seat**: `agentic-memory claim <seat>`. No claim → nothing filed, nothing replayed.
 
 **MCP server connected → its tools** (`mcp__plugin_agentic-helpers_memory__<subcommand>`, flags as
-JSON keys, `body` for the body). CLI only where it is not connected or no tool call can run. Two
-commands → two tool calls, never a Bash chain. Load the schema first; keys and values exactly as it
+JSON keys, `body` for the body). CLI only where it is not connected, no tool call can run, or for
+the CLI-only commands: `lifetime`, `drop`, `follow`, `unfollow`, `trust`, `holder`, `rename`,
+`rekind`, `retain`, `merge`, `unlink`, `revive`, `attach`, `read`. Two commands → two tool calls,
+never a Bash chain. Load the schema first; keys and values exactly as it
 lists them (`all_seats`, `"from": "user"`); `ids` is an array even for one.
 
 ## Quiet
