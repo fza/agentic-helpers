@@ -545,9 +545,11 @@ longer carries it. A line names a connected repo's entry by the last path segmen
 chain being one; `show --with-superseded` (MCP `with_superseded`) lists them. A retired entry linking
 in stays listed: it ended, and nothing replaced it. Recall and the brief name, under a hit, up to two
 entries linking to it that were filed after it and not superseded, newest first, title only:
-`← <id> <title> [<seat>, <date>]`. The
-similar-entry hint offers both fixes: `replaces it → agentic-memory supersede <old> --by <new>` and
-`relates → agentic-memory link <new> <old>`.
+`← <id> <title> [<seat>, <date>]`. A
+filing names up to three similar entries of the same seat, one line each,
+`similar: <id> <title> (<score>)`: entries that stand two deviations above the rest by meaning and
+score at least 0.6, or share enough words where no embedder answers. The same finding →
+`supersede <old> --by <new>`; a related one → `link <new> <old>`; else nothing.
 
 ## Ending an entry
 

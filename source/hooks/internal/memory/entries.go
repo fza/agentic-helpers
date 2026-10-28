@@ -262,9 +262,7 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 			continue
 		}
 
-		notes = append(notes, fmt.Sprintf("similar: %s %s (%.2f)", similar.id, similar.title, similar.score),
-			fmt.Sprintf("  replaces it → %s supersede %s --by %s", self, similar.id, held.id),
-			fmt.Sprintf("  relates → %s link %s %s", self, held.id, similar.id))
+		notes = append(notes, fmt.Sprintf("similar: %s %s (%.2f)", similar.id, similar.title, similar.score))
 		similars = append(similars, jsonSimilar{ID: similar.id, Title: similar.title, Score: similar.score})
 	}
 
@@ -300,19 +298,7 @@ func (mem *memory) similar(ctx context.Context, folded *state, held *entry) []sc
 
 	scores, err := mem.semantic(bounded, folded, held.title+"\n"+held.body)
 	if err == nil && len(peers) >= 5 {
-		values := make([]float64, 0, len(peers))
-		for _, other := range peers {
-			values = append(values, float64(scores[other.id]))
-		}
-
-		floor := mean(values) + 2*deviation(values)
-
-		for _, other := range peers {
-			score := float64(scores[other.id])
-			if score >= floor {
-				found = append(found, scored{id: other.id, title: other.title, score: score})
-			}
-		}
+		found = standouts(peers, scores)
 	} else {
 		mine := wordSet(held.title + " " + held.body)
 		for _, other := range peers {
@@ -326,6 +312,33 @@ func (mem *memory) similar(ctx context.Context, folded *state, held *entry) []sc
 	slices.SortFunc(found, func(a, b scored) int { return cmp.Compare(b.score, a.score) })
 
 	return found[:min(3, len(found))]
+}
+
+// similarFloor is the least score by meaning a similar entry needs, however
+// far it stands out: below it, filing replies named entries agents almost never
+// superseded or linked (4 of 101 hints over three days of transcripts).
+const similarFloor = 0.6
+
+// standouts is the peers whose score by meaning stands two deviations above the
+// rest and reaches similarFloor.
+func standouts(peers []*entry, scores map[string]float32) []scored {
+	values := make([]float64, 0, len(peers))
+	for _, other := range peers {
+		values = append(values, float64(scores[other.id]))
+	}
+
+	floor := max(similarFloor, mean(values)+2*deviation(values))
+
+	var found []scored
+
+	for _, other := range peers {
+		score := float64(scores[other.id])
+		if score >= floor {
+			found = append(found, scored{id: other.id, title: other.title, score: score})
+		}
+	}
+
+	return found
 }
 
 func mean(values []float64) float64 {

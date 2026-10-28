@@ -89,8 +89,9 @@ EOF
 - **Language → the brief's** (`entries in de`). Domain terms keep the project's spelling.
 - Title 3-10 words (unspaced scripts: a character a word), at least one topic, body within
   `entry_max_words` (500). Wrong → lands; the reply names the fix. One finding per entry.
-- **Reply names near topics or similar entries with a command** (`merge`, `supersede`, `link`) →
-  run it if it fits. `agentic-memory topics` lists topics; reuse before coining.
+- **`similar: <id> <title> (<score>)`** in the reply → the same finding: `supersede <id> --by
+  <new>`; related: `link <new> <id>`; else nothing. A near topic comes with its `merge`: run it if
+  it fits. `agentic-memory topics` lists topics; reuse before coining.
 - Paths in title or body anchor the entry; `--about <path>` also tells the next call naming it.
 - **No credential, ever.** `agentic-memory: <where> looks like a credential (<rule ids>, line <n>);
   memory never holds one` → nothing written: trim it, name where it lives, send again.

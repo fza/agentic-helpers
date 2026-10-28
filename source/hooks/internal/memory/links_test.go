@@ -230,17 +230,19 @@ func TestWithoutAnExportLinksFallBackToExistence(t *testing.T) {
 	}
 }
 
-func TestTheSimilarHintOffersALink(t *testing.T) {
+func TestTheSimilarHintIsOneLine(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	old := h.file("Gate reads Bash only today", "the gate reads bash only")
 
 	out := h.must("the gate reads bash only today", "new", "--title", "Gate reads Bash only still", "--topic", "gate")
-	id := idPattern.FindString(out)
 
-	if !strings.Contains(out, "replaces it → agentic-memory supersede "+old+" --by "+id) ||
-		!strings.Contains(out, "relates → agentic-memory link "+id+" "+old) {
-		t.Errorf("the similar-entry hint should offer supersede and link, got:\n%s", out)
+	if !strings.Contains(out, "similar: "+old+" Gate reads Bash only today (") {
+		t.Errorf("the filing should name the similar entry, got:\n%s", out)
+	}
+
+	if strings.Contains(out, "supersede") || strings.Contains(out, " link ") {
+		t.Errorf("the similar-entry hint should spell out no command, got:\n%s", out)
 	}
 }
 
