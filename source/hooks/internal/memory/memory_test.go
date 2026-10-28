@@ -1104,8 +1104,8 @@ func TestNudgeLadder(t *testing.T) {
 	h.must(payload, "prompt")
 
 	got := h.run(payload, "stop")
-	if got.code != 2 || !strings.Contains(got.err, "two nudges unanswered") {
-		t.Errorf("two unanswered nudges should make stop exit 2 with the backstop, got %d %q", got.code, got.err)
+	if got.code != 0 || !strings.Contains(test.AddedContext(got.out, "Stop"), "two nudges unanswered") {
+		t.Errorf("two unanswered nudges should hold Stop with the backstop, got %d %q %q", got.code, got.out, got.err)
 	}
 }
 
@@ -1717,7 +1717,7 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 	}
 
 	got := h.run(prompt, "stop")
-	if got.code != 0 {
+	if got.code != 0 || got.out != "" {
 		t.Errorf("the replay nudge should never arm the Stop backstop, got %d %q", got.code, got.err)
 	}
 

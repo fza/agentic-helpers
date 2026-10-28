@@ -2,7 +2,6 @@ package memory_test
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -15,7 +14,7 @@ func (h *harness) stopHeld() bool {
 	h.t.Helper()
 
 	got := h.run(h.stop(), "stop")
-	if got.code == 2 && strings.TrimSpace(got.err) == shippedHold {
+	if got.code == 0 && got.err == "" && test.AddedContext(got.out, "Stop") == shippedHold {
 		return true
 	}
 

@@ -832,9 +832,7 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 
 	pending := mem.holdForDoNow(name, session)
 	if pending != "" {
-		_, _ = fmt.Fprintln(mem.streams.Err, pending)
-
-		return 2
+		return mem.hold(pending)
 	}
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
@@ -842,16 +840,21 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 	_ = writeJSON(mem.ladderPath(session), steps)
 
 	if shipped {
-		_, _ = fmt.Fprintln(mem.streams.Err, shippedText)
-
-		return 2
+		return mem.hold(shippedText)
 	}
 
 	if steps.Nudges >= nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps) {
-		_, _ = fmt.Fprintln(mem.streams.Err, backstopText)
-
-		return 2
+		return mem.hold(backstopText)
 	}
+
+	return 0
+}
+
+// hold keeps the turn going for the agent to act on text. Stop context does
+// that through the same loop guards as exit 2, without the hook error exit 2
+// shows the user.
+func (mem *memory) hold(text string) int {
+	_ = hookio.AddContext(mem.streams.Out, "Stop", text)
 
 	return 0
 }

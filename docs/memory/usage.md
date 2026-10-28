@@ -298,8 +298,7 @@ replaces a state the agent wrote in the same session, not even one written while
 draft counts as no state write: it answers no compaction nudge, re-arms no replay nudge, and clears
 no hold for shipped work. A prompt that looks like it holds a credential never reaches a draft.
 
-A seated session that shipped work since its seat's last state write is held at Stop once, with
-exit 2:
+A seated session that shipped work since its seat's last state write is held at Stop once:
 
     Work shipped since your last state write. Write where work stands: agentic-memory state < body. Then end the turn without commentary.
 
@@ -464,6 +463,11 @@ this session refuses the whole call, `agentic-memory: nothing acked:` then
 `<id> is not pending in this session`, one line per id. Every settlement is an event on the rule:
 `show` lists `done by proof <trigger>`, `done by ack` or `declined: <why>`, with the seat.
 `ack --done` warms each rule it settles by 0.5; a decline warms nothing.
+
+Every `Stop` hold (do-now items, shipped work, the filing backstop) reaches the agent as Stop
+context, `hookSpecificOutput.additionalContext` with exit 0: the turn goes on as it would after exit 2,
+under the same loop guards, and the user sees no hook error. The text shows only in Claude Code's
+transcript view.
 
 While items are pending, `Stop` holds the turn ahead of the filing backstop:
 
@@ -788,7 +792,7 @@ Near compaction a nudge asks for a state write first:
 
     Context near compaction. Write where work stands first: agentic-memory state < body. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
-A state write or any entry answers it. Unanswered twice, `Stop` blocks with the backstop:
+A state write or any entry answers it. Unanswered twice, `Stop` holds the turn with the backstop:
 `Memory overdue, two nudges unanswered: write where work stands with agentic-memory state now, and
 file findings with agentic-memory new, before ending the turn.`
 

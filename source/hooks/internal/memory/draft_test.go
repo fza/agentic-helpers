@@ -48,7 +48,7 @@ func TestASessionThatNeverWritesStateLeavesADraft(t *testing.T) {
 			h := shipWithoutState(t)
 
 			got := tc.hook(h)
-			if got.out != "" || strings.Contains(got.err, "draft") {
+			if strings.Contains(got.out+got.err, "draft") {
 				t.Errorf("writing a draft should print nothing, got %q %q", got.out, got.err)
 			}
 

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func (h *harness) callTool(tool string, input map[string]string) string {
@@ -168,9 +170,10 @@ func TestDoNowAtClaim(t *testing.T) {
 	}
 
 	got := h.run(hookPayload("", "", ""), "stop")
-	if got.code != 2 || !strings.Contains(got.err, "agentic-memory: do-now items pending:\n1. "+board+" Read the board on claim  ack when done") ||
-		strings.Contains(got.err, monitor) {
-		t.Errorf("Stop should hold the turn for the items still pending, got %d %q", got.code, got.err)
+	held := test.AddedContext(got.out, "Stop")
+	if got.code != 0 || !strings.Contains(held, "agentic-memory: do-now items pending:\n1. "+board+" Read the board on claim  ack when done") ||
+		strings.Contains(held, monitor) {
+		t.Errorf("Stop should hold the turn for the items still pending, got %d %q", got.code, held)
 	}
 }
 
@@ -187,20 +190,20 @@ func TestAProofBeforeTheMomentProvesNothing(t *testing.T) {
 		t.Fatalf("the brief after a compaction should open with its do-now list:\n%s", compacted)
 	}
 
-	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 2 {
-		t.Errorf("a proving call before the moment should leave the item pending, got %d %q", got.code, got.err)
+	if got := h.run(hookPayload("", "", ""), "stop"); test.AddedContext(got.out, "Stop") == "" {
+		t.Errorf("a proving call before the moment should leave the item pending, got %d %q", got.code, got.out)
 	}
 
 	h.callTool("Bash", map[string]string{"command": "ls"})
 
-	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 2 {
-		t.Errorf("a call proving nothing should leave the item pending, got %d %q", got.code, got.err)
+	if got := h.run(hookPayload("", "", ""), "stop"); test.AddedContext(got.out, "Stop") == "" {
+		t.Errorf("a call proving nothing should leave the item pending, got %d %q", got.code, got.out)
 	}
 
 	h.callTool("Bash", map[string]string{"command": "make test"})
 
-	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 0 {
-		t.Errorf("a proving call after the moment should settle the item, got %d %q", got.code, got.err)
+	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 0 || got.out != "" {
+		t.Errorf("a proving call after the moment should settle the item, got %d %q", got.code, got.out)
 	}
 }
 
@@ -238,8 +241,8 @@ func TestAckSettlesPendingItems(t *testing.T) {
 		t.Errorf("a decline should be an event on the rule with its reason:\n%s", shown)
 	}
 
-	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 0 {
-		t.Errorf("settled items should no longer hold Stop, got %d %q", got.code, got.err)
+	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 0 || got.out != "" {
+		t.Errorf("settled items should no longer hold Stop, got %d %q", got.code, got.out)
 	}
 }
 
@@ -268,15 +271,16 @@ func TestStopHoldsTwiceThenSkips(t *testing.T) {
 	}
 
 	for round := range 2 {
-		if got := h.run(hookPayload("", "", ""), "stop"); got.code != 2 || !strings.Contains(got.err, "do-now items pending") ||
-			strings.Contains(got.err, "Memory overdue") {
-			t.Errorf("Stop %d should hold for the do-now items ahead of the backstop, got %d %q", round+1, got.code, got.err)
+		got := h.run(hookPayload("", "", ""), "stop")
+		if held := test.AddedContext(got.out, "Stop"); got.code != 0 || !strings.Contains(held, "do-now items pending") ||
+			strings.Contains(held, "Memory overdue") {
+			t.Errorf("Stop %d should hold for the do-now items ahead of the backstop, got %d %q", round+1, got.code, held)
 		}
 	}
 
-	if got := h.run(hookPayload("", "", ""), "stop"); strings.Contains(got.err, "do-now items pending") ||
-		!strings.Contains(got.err, "Memory overdue") {
-		t.Errorf("a third Stop should no longer hold for the items, and the backstop should follow, got %d %q", got.code, got.err)
+	if got := h.run(hookPayload("", "", ""), "stop"); strings.Contains(test.AddedContext(got.out, "Stop"), "do-now items pending") ||
+		!strings.Contains(test.AddedContext(got.out, "Stop"), "Memory overdue") {
+		t.Errorf("a third Stop should no longer hold for the items, and the backstop should follow, got %d %q", got.code, got.out)
 	}
 
 	h.must(h.sessionEnd("other"), "session-end")

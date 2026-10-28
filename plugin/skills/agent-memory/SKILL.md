@@ -419,7 +419,7 @@ agentic-memory merge <from> <into>                    # every seat's topic
   Never copy that token into an entry, a file or a command; reference where it lives.
 - **Near compaction → nudge:** `Context near compaction. Write where work stands first:
   agentic-memory state < body. File an entry only for a finding, an open question or a judgment
-  call: ...`. A state write or any entry answers it. Ignore twice → `Stop` blocks with the backstop,
+  call: ...`. A state write or any entry answers it. Ignore twice → `Stop` holds with the backstop,
   `Memory overdue, two nudges unanswered: write where work stands with agentic-memory state now...`.
   Write the state, file what outlives the moment, then go on. How full the context is → the plugin
   writes it after every turn. No status line needed.
