@@ -463,7 +463,9 @@ event, so the hook ranks the matching notes by the heat read at the call.
 
 A `state` row the Stop or SessionEnd hook writes carries `draft: true`, the files the session
 wrote (`wrote` on its ladder, each once, the first 20) and its last prompt (`last_prompt`, kept only
-from a prompt holding no credential). The fold never lets a draft replace a non-draft state row of
+from a prompt holding no credential, and never from a turn Claude Code sends itself through
+UserPromptSubmit: one opening with `<task-notification>`, `<local-command-caveat>`,
+`<local-command-stdout>` or `<bash-stdout>`). The fold never lets a draft replace a non-draft state row of
 the same session, since the hook reads the slot and appends apart and the agent's write can land
 between; a merge keeps the state row the fold reads, not merely the newest. The point a seat's
 replay and nudges count from skips a draft.

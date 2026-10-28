@@ -547,6 +547,23 @@ func (mem *memory) answer(ctx context.Context, seatName string, session string, 
 	return held
 }
 
+// systemTurnTags open the turns Claude Code itself sends through
+// UserPromptSubmit: a background task's notification, a local command's
+// output. None of them is the user asking for anything.
+var systemTurnTags = []string{"<task-notification>", "<local-command-caveat>", "<local-command-stdout>", "<bash-stdout>"}
+
+func systemTurn(prompt string) bool {
+	trimmed := strings.TrimSpace(prompt)
+
+	for _, tag := range systemTurnTags {
+		if strings.HasPrefix(trimmed, tag) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	if !mem.storeExists() {
 		return 0
@@ -594,7 +611,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	withheld := promptvector.Withheld(ctx, payload.Prompt)
 	if withheld != "" {
 		out = append(out, withheld)
-	} else if strings.TrimSpace(payload.Prompt) != "" {
+	} else if strings.TrimSpace(payload.Prompt) != "" && !systemTurn(payload.Prompt) {
 		steps.LastPrompt = strings.TrimSpace(payload.Prompt)
 	}
 

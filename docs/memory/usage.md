@@ -284,6 +284,8 @@ Where no state the agent wrote is newer than the seat's claim, the Stop and Sess
 a draft themselves, so a seat's state is never empty. It says what changed, mechanically: the
 commits since the claim (`git log --oneline <claim commit>..HEAD`, the newest 20), the files the
 session's Edit, Write and NotebookEdit calls named, and its last prompt, cut to `entry_max_words`.
+The last prompt is the user's: a background task's notification or a local command's output, which
+Claude Code also delivers as a prompt, never takes its place.
 The brief marks it:
 
     state (12m old, branch main, hook draft): commits since the claim: 9c0ffee1 fix: the gate reads MCP calls

@@ -147,6 +147,41 @@ func TestAnUnchangedDraftIsNotWrittenAgain(t *testing.T) {
 	}
 }
 
+func TestADraftKeepsTheUsersLastPromptOverClaudeCodesOwnTurns(t *testing.T) {
+	cases := []struct {
+		name string
+		turn string
+	}{
+		{name: "a background task's notification", turn: "<task-notification>\n<summary>Stop hook feedback</summary>\n</task-notification>"},
+		{name: "a local command's caveat", turn: "<local-command-caveat>The command below was run directly</local-command-caveat>"},
+		{name: "a local command's output", turn: "  <local-command-stdout>Updated agentic-helpers.</local-command-stdout>"},
+		{name: "a shell command's output", turn: "<bash-stdout>clean</bash-stdout>"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := shipWithoutState(t)
+			h.must(h.promptSaying(tc.turn), "prompt")
+			h.run(h.stop(), "stop")
+
+			out := h.must("", "brief")
+			if !strings.Contains(out, "last prompt: fix the gate for MCP reads") {
+				t.Errorf("a turn Claude Code sent should not stand as the last prompt, got:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestADraftTakesAPromptMentioningATagInside(t *testing.T) {
+	h := shipWithoutState(t)
+	h.must(h.promptSaying("why does <task-notification> reach the prompt hook"), "prompt")
+	h.run(h.stop(), "stop")
+
+	if out := h.must("", "brief"); !strings.Contains(out, "last prompt: why does <task-notification> reach the prompt hook") {
+		t.Errorf("a prompt only mentioning a tag is the user's, got:\n%s", out)
+	}
+}
+
 func TestADraftNeverCarriesAPromptHoldingACredential(t *testing.T) {
 	credential := test.SecretFixture(t, "positive/github-pat.txt")
 	h := shipWithoutState(t)
