@@ -118,6 +118,25 @@ func TestNoToolListsAnOutputSchema(t *testing.T) {
 	}
 }
 
+func TestNoToolListsTheJSONKey(t *testing.T) {
+	h := newHarness(t)
+
+	for name, tool := range h.listedTools() {
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+
+		err := json.Unmarshal(tool["inputSchema"], &schema)
+		if err != nil {
+			t.Fatalf("the %s input schema should decode: %v", name, err)
+		}
+
+		if _, listed := schema.Properties["json"]; listed {
+			t.Errorf("the %s tool should not list the json key: every answer is JSON", name)
+		}
+	}
+}
+
 func TestEveryToolAnswersItsShape(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "impl")

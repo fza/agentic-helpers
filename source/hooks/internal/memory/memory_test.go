@@ -700,8 +700,11 @@ func TestMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 			refusal: `untag takes no key \"topic\"; it takes id, topics`},
 		{name: "claim's removed force", tool: "claim", arguments: `{"name":"main","force":true}`,
 			refusal: `claim takes no key \"force\"; it takes name`},
-		{name: "a key for a tool taking json alone", tool: "topics", arguments: `{"all":true}`,
-			refusal: `topics takes no key \"all\"; it takes json`},
+		{name: "a key for a tool taking none", tool: "topics", arguments: `{"all":true}`,
+			refusal: `topics takes no key \"all\"; it takes none`},
+		{name: "json on a tool without a JSON form", tool: "confirm", arguments: `{"ids":["` + id + `"],"json":true}`,
+			refusal: `confirm takes no key \"json\"; it takes ids`},
+		{name: "json on a read, unlisted but let through", tool: "show", arguments: `{"ids":["` + id + `"],"json":true}`},
 		{name: "the exact keys", tool: "show", arguments: `{"ids":["` + id + `"],"no_heat":true}`},
 		{name: "no arguments at all", tool: "topics", arguments: `{}`},
 	}

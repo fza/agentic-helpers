@@ -349,22 +349,20 @@ const idSchema = `{"type":"string","pattern":"^m-[a-z0-9]{4,16}$"}`
 // idKey and idsKey are the keys naming the entries a tool acts on: one
 // entry where the tool takes one, an array where it takes several, even for one.
 const (
-	idKey    = `"id":{"type":"string","pattern":"^m-[a-z0-9]{4,16}$","description":"the entry's id, one string"}`
-	idsKey   = `"ids":{"type":"array","items":` + idSchema + `,"description":"entry ids, an array even for one"}`
-	noHeat   = `"no_heat":{"type":"boolean","description":"answer without adding heat"}`
-	topicKey = `"topic":{"type":"array","items":{"type":"string"},"description":"topic names, an array even for one"}`
-	seatName = `"name":{"type":"string","description":"the seat's name"}`
+	idKey    = `"id":{"type":"string","pattern":"^m-[a-z0-9]{4,16}$","description":"entry id, one string"}`
+	idsKey   = `"ids":{"type":"array","items":` + idSchema + `,"description":"entry ids, array even for one"}`
+	noHeat   = `"no_heat":{"type":"boolean","description":"add no heat"}`
+	topicKey = `"topic":{"type":"array","items":{"type":"string"},"description":"topics, array even for one"}`
+	seatName = `"name":{"type":"string","description":"seat name"}`
 )
 
 func commands() []command {
 	return readsAsJSON(allCommands())
 }
 
-// jsonReads are the read commands that answer one JSON object under --json;
-// each schema lists the MCP key json, as jsonKey spells it.
+// jsonReads are the read commands that answer one JSON object under --json,
+// and over MCP always.
 var jsonReads = []string{"show", "search", "brief", "who", "topics", "view"}
-
-const jsonKey = `"json":{"type":"boolean","description":"no effect: every answer is JSON"}`
 
 func readsAsJSON(held []command) []command {
 	for index, one := range held {
@@ -385,7 +383,7 @@ func allCommands() []command {
 		{
 			name:        "new",
 			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
-			description: "file an entry; kind sets its decay and brief section, note unless given; for shares it with other seats",
+			description: "file an entry; kind sets its decay, note unless given",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
 				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList}, {"attach", flagList},
@@ -395,74 +393,73 @@ func allCommands() []command {
 			replaced:  map[string]string{"retention": retentionReplaced},
 			schema: `{"type":"object","properties":{` +
 				`"title":{"type":"string","description":"3-10 words"},` +
-				`"body":{"type":"string","description":"the entry's text, Markdown or not"},` +
+				`"body":{"type":"string","description":"entry text"},` +
 				topicKey + `,` +
 				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"rule needs from user; note unless given"},` +
-				`"from":{"type":"string","enum":["user","agent","tool"],"description":"who the finding came from; agent unless given"},` +
-				`"about":{"type":"array","items":{"type":"string"},"description":"paths the entry is about, anchored by content hash"},` +
-				`"for":{"type":"array","items":{"type":"string"},"description":"seats the entry is for besides the filer, or all"},` +
-				`"link":{"type":"array","items":{"type":"string"},"description":"full graph ids or memory ids the entry links to"},` +
-				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"entries the new one supersedes"},` +
-				`"until":{"type":"array","items":{"type":"string"},"description":"conditions ending the entry: ` + untilForms + `"},` +
-				`"when":{"type":"array","items":{"type":"string"},"description":"a trap's tool-call triggers: ` + triggerForms + `"},` +
-				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"moments a rule is owed at"},` +
-				`"proof":{"type":"array","items":{"type":"string"},"description":"tool calls settling an owed rule: ` + triggerForms + `"},` +
-				`"forbids":{"type":"array","items":{"type":"string"},"description":"a rule's RE2 patterns no later entry should match"},` +
-				`"attach":{"type":"array","items":{"type":"string"},"description":"paths of files to keep with the entry; read from disk, never content"}},` +
+				`"from":{"type":"string","enum":["user","agent","tool"],"description":"finding's source; agent unless given"},` +
+				`"about":{"type":"array","items":{"type":"string"},"description":"paths it is about, hash-anchored"},` +
+				`"for":{"type":"array","items":{"type":"string"},"description":"other seats it is for, or all"},` +
+				`"link":{"type":"array","items":{"type":"string"},"description":"graph or memory ids to link"},` +
+				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"ids it supersedes"},` +
+				`"until":{"type":"array","items":{"type":"string"},"description":"ending conditions: ` + untilForms + `"},` +
+				`"when":{"type":"array","items":{"type":"string"},"description":"trap triggers: ` + triggerForms + `"},` +
+				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"when a rule is owed"},` +
+				`"proof":{"type":"array","items":{"type":"string"},"description":"calls settling an owed rule: ` + triggerForms + `"},` +
+				`"forbids":{"type":"array","items":{"type":"string"},"description":"RE2 patterns later entries must not match"},` +
+				`"attach":{"type":"array","items":{"type":"string"},"description":"file paths to keep with it, never content"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
 		{
 			name:        "search",
 			usage:       "search [--term <regex>]... [--query <phrase>] [--status live|retired|superseded]... [--skip <n>] [options]",
-			description: "keyword, semantic or hybrid search; needs term, query or status; status alone lists by time",
+			description: "search entries; needs term, query or status; status alone lists by time",
 			flags: []flagSpec{
 				{"term", flagList}, {"query", flagText}, {"topic", flagList}, {"seat", flagList},
 				{"all-seats", flagSwitch}, {"with-superseded", flagSwitch}, {"limit", flagNumber},
 				{"no-heat", flagSwitch}, {"status", flagList}, {"skip", flagCount},
 			},
 			schema: `{"type":"object","properties":{` +
-				`"term":{"type":"array","items":{"type":"string"},"description":"case-insensitive RE2 patterns, every one required"},` +
-				`"query":{"type":"string","description":"a phrase matched by meaning"},` +
-				`"topic":{"type":"array","items":{"type":"string"},"description":"only entries under these topics"},` +
-				`"seat":{"type":"array","items":{"type":"string"},"description":"only entries these seats filed"},` +
-				`"all_seats":{"type":"boolean","description":"every shelf, not only the own"},` +
-				`"with_superseded":{"type":"boolean","description":"include superseded entries"},` +
+				`"term":{"type":"array","items":{"type":"string"},"description":"RE2 patterns, case-insensitive, all must match"},` +
+				`"query":{"type":"string","description":"phrase matched by meaning"},` +
+				`"topic":{"type":"array","items":{"type":"string"},"description":"only these topics"},` +
+				`"seat":{"type":"array","items":{"type":"string"},"description":"only these seats' entries"},` +
+				`"all_seats":{"type":"boolean","description":"every shelf, not just own"},` +
+				`"with_superseded":{"type":"boolean","description":"include superseded"},` +
 				`"limit":{"type":"integer","minimum":1,"description":"hits per page"},` +
-				`"status":{"type":"array","items":{"type":"string","enum":["live","retired","superseded"]},"description":"only entries in these statuses"},` +
-				`"skip":{"type":"integer","minimum":0,"description":"hits to skip, for the next page"},` +
-				noHeat + `,` + jsonKey + `}}`,
+				`"status":{"type":"array","items":{"type":"string","enum":["live","retired","superseded"]},"description":"only these statuses"},` +
+				`"skip":{"type":"integer","minimum":0,"description":"hits to skip, for paging"},` +
+				noHeat + `}}`,
 			run: (*memory).search,
 		},
 		{
 			name: "show", usage: "show <id>... [--no-heat] [--with-superseded]",
-			description: "entries in full: stamps, anchors, flags, events; with_superseded adds superseded entries linking to them",
+			description: "entries in full: stamps, anchors, flags, events",
 			flags:       []flagSpec{{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}}, positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{` + idsKey + `,` + noHeat + `,` +
-				`"with_superseded":{"type":"boolean","description":"list superseded entries under linked from"},` + jsonKey + `},"required":["ids"]}`,
+				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"}},"required":["ids"]}`,
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note]",
-			description: "the brief, one topic's entries, or one kind's live entries whole",
+			description: "the brief, or one topic's or kind's entries",
 			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}}, run: (*memory).briefCommand,
 			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"},"description":"one topic's entries"},` +
-				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"one kind's live entries whole"},` + jsonKey + `}}`,
+				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"one kind's live entries whole"}}}`,
 		},
 		{
 			name: "view", usage: "view --layout '<layout>' | view --explain '<layout>'|brief",
-			description: "read the store through a layout of sdd's view language: filters, rank, paging, a render word; takes layout or explain; warms nothing",
+			description: "read through an sdd view layout; takes layout or explain; warms nothing",
 			flags:       []flagSpec{{"layout", flagText}, {"explain", flagText}}, run: (*memory).view,
 			schema: `{"type":"object","properties":{` +
-				`"layout":{"type":"string","description":"colon-chained filters, rank and paging, ending in ` + orList(renderWords) + `; sections split by commas"},` +
-				`"explain":{"type":"string","description":"a layout, or brief for the brief's fixed one, to print spelled out whole in place of reading"},` +
-				jsonKey + `}}`,
+				`"layout":{"type":"string","description":"colon-chained filters, rank, paging, ending in ` + orList(renderWords) + `; commas split sections"},` +
+				`"explain":{"type":"string","description":"layout, or brief, to spell out instead of reading"}}}`,
 		},
 		{
-			name: "topics", usage: "topics", description: "every topic with live counts per seat",
-			run: (*memory).topics, schema: `{"type":"object","properties":{` + jsonKey + `}}`,
+			name: "topics", usage: "topics", description: "topics with live counts per seat",
+			run: (*memory).topics, schema: `{"type":"object","properties":{}}`,
 		},
 		{
-			name: "confirm", usage: "confirm <id>...", description: "re-anchor verified entries to the tree, all or none",
+			name: "confirm", usage: "confirm <id>...", description: "re-anchor verified entries, all or none",
 			positional: someIDs, run: (*memory).confirm,
 			schema: `{"type":"object","properties":{` + idsKey + `},"required":["ids"]}`,
 		},
@@ -522,11 +519,11 @@ func allCommands() []command {
 		},
 		{
 			name: "ack", usage: "ack <id>... --done | --decline '<why>'",
-			description: "settle do-now items pending in this session that no tool call can prove, all or none; takes done or decline, not both",
+			description: "settle pending do-now items no tool call proves, all or none; takes done or decline, not both",
 			flags:       []flagSpec{{"done", flagSwitch}, {"decline", flagText}, {"no-heat", flagSwitch}},
 			positional:  someIDs, run: (*memory).ack,
 			schema: `{"type":"object","properties":{` + idsKey + `,` +
-				`"done":{"type":"boolean","description":"the items are done"},"decline":{"type":"string","description":"why the items are not done"},` +
+				`"done":{"type":"boolean","description":"items done"},"decline":{"type":"string","description":"why not done"},` +
 				noHeat + `},"required":["ids"]}`,
 		},
 		{
@@ -537,23 +534,23 @@ func allCommands() []command {
 				`,"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"the entry's new kind"}},"required":["id","kind"]}`,
 		},
 		{
-			name: "state", usage: "state", description: "overwrite this seat's state slot, where its work stands; the brief opens with it",
+			name: "state", usage: "state", description: "overwrite this seat's state slot; the brief opens with it",
 			readsBody: true, run: (*memory).writeState,
-			schema: `{"type":"object","properties":{"body":{"type":"string","description":"where the seat's work stands"}},"required":["body"]}`,
+			schema: `{"type":"object","properties":{"body":{"type":"string","description":"where the work stands"}},"required":["body"]}`,
 		},
 		{
-			name: "retire", usage: "retire <id>... [--because '<why>']", description: "keep entries in results, flagged, out of the brief, all or none; because says why they ended",
+			name: "retire", usage: "retire <id>... [--because '<why>']", description: "end entries: flagged in results, out of the brief; all or none",
 			flags: []flagSpec{{"because", flagText}}, positional: someIDs, run: (*memory).retire,
 			schema: `{"type":"object","properties":{` + idsKey + `,` +
-				`"because":{"type":"string","description":"what finished the entries, or why they stopped mattering"}},"required":["ids"]}`,
+				`"because":{"type":"string","description":"why they ended"}},"required":["ids"]}`,
 		},
 		{
 			name: "supersede", usage: "supersede <id>... [--by <id>] [--because '<why>']",
 			description: "take entries out of results, all or none; takes by, because or both, at least one",
 			flags:       []flagSpec{{"by", flagText}, {"because", flagText}}, positional: someIDs, run: (*memory).supersede,
 			schema: `{"type":"object","properties":{` + idsKey +
-				`,"by":{"type":"string","pattern":"^m-[a-z0-9]{4,16}$","description":"the entry replacing them"}` +
-				`,"because":{"type":"string","description":"why they are wrong or replaced"}},"required":["ids"]}`,
+				`,"by":{"type":"string","pattern":"^m-[a-z0-9]{4,16}$","description":"replacing entry id"}` +
+				`,"because":{"type":"string","description":"why wrong or replaced"}},"required":["ids"]}`,
 		},
 		{
 			name: "revive", cliOnly: true, usage: "revive <id>", description: "reverse the latest retire or supersede",
@@ -561,11 +558,11 @@ func allCommands() []command {
 			schema: `{"type":"object","properties":{` + idKey + `},"required":["id"]}`,
 		},
 		{
-			name: "retitle", usage: "retitle <id> '<title>'", description: "give an entry a new title",
+			name: "retitle", usage: "retitle <id> '<title>'", description: "retitle an entry",
 			positional: func(req *request) error { return exactly(2, &req.ID, &req.Title)(req) },
 			run:        (*memory).retitle,
 			schema: `{"type":"object","properties":{` + idKey +
-				`,"title":{"type":"string","description":"the new title, 3-10 words"}},"required":["id","title"]}`,
+				`,"title":{"type":"string","description":"new title, 3-10 words"}},"required":["id","title"]}`,
 		},
 		{
 			name: "tag", usage: "tag <id> <topic>...", description: "add topics to an entry",
@@ -594,14 +591,14 @@ func allCommands() []command {
 			},
 			run: (*memory).untag,
 			schema: `{"type":"object","properties":{` + idKey +
-				`,"topics":{"type":"array","items":{"type":"string"},"description":"topic names to take off, an array even for one"}},"required":["id","topics"]}`,
+				`,"topics":{"type":"array","items":{"type":"string"},"description":"topics to remove, array even for one"}},"required":["id","topics"]}`,
 		},
 		{
-			name: "link", usage: "link <id> <target> [--no-heat]", description: "link an entry to a graph entry or another memory entry",
+			name: "link", usage: "link <id> <target> [--no-heat]", description: "link an entry to a graph or memory entry",
 			flags:      []flagSpec{{"no-heat", flagSwitch}},
 			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).link,
-			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"a full graph id or a memory id"},` +
-				`"no_heat":{"type":"boolean","description":"link without adding heat to a memory target"}},"required":["id","target"]}`,
+			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"full graph id or memory id"},` +
+				`"no_heat":{"type":"boolean","description":"add no heat to a memory target"}},"required":["id","target"]}`,
 		},
 		{
 			name: "unlink", cliOnly: true, usage: "unlink <id> <target>", description: "drop a link made by new's link key or by link",
@@ -615,10 +612,9 @@ func allCommands() []command {
 		},
 		{
 			name: "who", usage: "who [--all]",
-			description: "every seat of this project, held, reserved or free, with its shelf, freeing those whose holder is gone; " +
-				"all adds every other project's seats",
+			description: "this project's seats and shelves; frees seats whose holder is gone",
 			flags: []flagSpec{{"all", flagSwitch}}, run: (*memory).who,
-			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add every other project's seats"},` + jsonKey + `}}`,
+			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add other projects' seats"}}}`,
 		},
 		{
 			name: "follow", cliOnly: true, usage: "follow <topic>...", description: "receive every entry filed under these topics",
@@ -643,20 +639,18 @@ func allCommands() []command {
 			flags:       []flagSpec{{"json", flagSwitch}, {"session", flagText}}, positional: optionalName,
 			run: (*memory).holder,
 			schema: `{"type":"object","properties":{` + seatName + `,` +
-				`"session":{"type":"string","description":"a session id, in place of name: the seat it holds"},` +
-				jsonKey + `}}`,
+				`"session":{"type":"string","description":"a session id, in place of name: the seat it holds"}}}`,
 		},
 		{
 			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] [--session <id>] | claim --shelf <shelf> [...]",
-			description: "take a seat, on a shelf with shelf, or a new seat on that shelf with no name; prints the brief and the slice; " +
-				"session claims it for that session: a reservation it takes over, or a handover where it holds a seat",
+			description: "take a seat; prints the brief and the slice",
 			flags:      []flagSpec{{"shelf", flagText}, {"lifetime", flagText}, {"session", flagText}},
 			positional: optionalName,
 			run:        (*memory).claim,
 			schema: `{"type":"object","properties":{` + seatName + `,` +
-				`"shelf":{"type":"string","description":"the shelf a new seat files onto; alone, claims a new seat on it"},` +
-				`"lifetime":{"type":"string","description":"durable, temporary, or a span such as 90m, 12h, 2d or 0"},` +
-				`"session":{"type":"string","description":"the session to claim the seat for, other than the caller's"}}}`,
+				`"shelf":{"type":"string","description":"shelf for a new seat; alone, claims a new seat on it"},` +
+				`"lifetime":{"type":"string","description":"durable, temporary or a span: 90m, 12h, 2d, 0"},` +
+				`"session":{"type":"string","description":"another session to claim for"}}}`,
 		},
 		{
 			name: "rename", cliOnly: true, usage: "rename '<new name>'", description: "give the seat this session holds a new name; its id and entries stay",
@@ -667,7 +661,7 @@ func allCommands() []command {
 		{
 			name: "release", usage: "release [<seat>]", description: "give a seat up",
 			positional: optionalName, run: (*memory).release,
-			schema: `{"type":"object","properties":{"name":{"type":"string","description":"the seat to give up; the own unless given"}}}`,
+			schema: `{"type":"object","properties":{"name":{"type":"string","description":"seat to give up; own unless given"}}}`,
 		},
 		{
 			name: "lifetime", cliOnly: true, usage: "lifetime durable|temporary|<span>",

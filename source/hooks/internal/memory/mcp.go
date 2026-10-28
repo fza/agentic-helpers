@@ -134,7 +134,15 @@ func exactKeys(held command, arguments json.RawMessage) error {
 
 	var unknown []string
 
+	_, takesJSON := held.flag("json")
+
 	for key := range given {
+		// A read answers JSON over MCP whatever json says, so the schema
+		// leaves the key out, and a call still sending it is let through.
+		if key == "json" && takesJSON {
+			continue
+		}
+
 		if instead, gone := held.replaced[key]; gone && !slices.Contains(listed, key) {
 			return fmt.Errorf("%s takes no key %q: %s", held.name, key, instead)
 		}

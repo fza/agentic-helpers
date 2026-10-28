@@ -658,7 +658,7 @@ first page warms its top hits.
 
 ## Views
 
-`agentic-memory view --layout '<layout>'` (MCP `view`, keys `layout`, `explain` and `json`) reads the
+`agentic-memory view --layout '<layout>'` (MCP `view`, keys `layout` and `explain`) reads the
 store through the layout language of `sdd view`: colon-chained functions form a section, commas
 separate sections, and every section ends in a render word. Filters intersect; `rank`, `n`, `skip`
 and `name` take the last call of their kind. No whitespace stands outside a quoted string; quote
@@ -859,11 +859,14 @@ its command line:
 `agentic-memory help` lists every subcommand. A tool
 takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_SEATS`), and its
 schema says so with `additionalProperties: false`; any other key refuses the call with
-`agentic-memory: <tool> takes no key "<key>"; it takes <keys>`.
+`agentic-memory: <tool> takes no key "<key>"; it takes <keys>`. The one exception is `json` on a
+read: no schema lists it, since a read answers JSON whatever it says, and a call still sending it
+is answered as without it.
 
 A tool's description says what it does in the words of its keys, never in command-line form: a
 flag or a `<placeholder>` there would name a shape the call does not take (`<id>...` where the key
-is `ids`). Every key carries its own description, and one naming entries says which shape it takes:
+is `ids`). Descriptions and key descriptions are terse phrases, since the listing loads into every
+session's context; a key with a set lists its values in the schema. Every key carries its own description, and one naming entries says which shape it takes:
 `id`, one string, or `ids`, an array even for one. A rule between keys is stated in the tool's
 description: `supersede` takes `by`, `because` or both, `ack` takes `done` or `decline`.
 
@@ -878,8 +881,7 @@ Every tool answers one JSON object, as `structuredContent` and, serialized, as i
 tool lists an `outputSchema`: the listing loads into every session's context, and the keys each
 answer carries are the ones below. The command line keeps its text and its `--json`.
 
-- **A read answers its `--json` object** (`show`, `search`, `brief`, `view`, `who` and `topics`),
-  whatever the call's `json` key says: the key is still accepted and changes nothing.
+- **A read answers its `--json` object** (`show`, `search`, `brief`, `view`, `who` and `topics`).
   `brief` with `kind` or `topic` lists that kind's or those topics' live entries in its sections, as
   `brief --json --kind` and `brief --json --topic` do; `view` with `explain` answers
   `{"message": <the explanation>}`.
