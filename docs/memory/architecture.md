@@ -316,19 +316,23 @@ a status line and to a mod, never to a command hook, so the plugin carries a hoo
 `~/.claude/agentic-memory` exists. A Claude Code too old to load mods writes no reading, and the
 nudge falls back to transcript growth.
 
+A session that ends takes its reading with it, at SessionEnd. Every SessionStart, in any project,
+removes the readings older than the nudge reads (`sensorMaxAge`, five minutes): a session that ended
+without SessionEnd leaves none behind, and a running one writes its own again after its next turn.
+
 ## Hooks
 
 Every hook exits at once in a project without a store.
 
 | Event | What memory does |
 |---|---|
-| SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats; a fork whose transcript is not written yet gets a marker and no notice |
+| SessionStart (`session-start`) | purges every store's due temporary shelves and the stale context readings; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats; a fork whose transcript is not written yet gets a marker and no notice |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
 | UserPromptSubmit (`prompt`) | for a fork carrying a marker, once its transcript is written, removes the marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
 | PostToolUse (`tool`) | for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
 | Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then holds it once for a state write when work shipped since the seat's last one; then holds it with the backstop once the nudge has gone unanswered twice and the context crossed the line; every hold is Stop `additionalContext` with exit 0, which continues the turn as exit 2 would without the hook error exit 2 shows the user |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
-| SessionEnd (`session-end`) | writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
+| SessionEnd (`session-end`) | removes the session's context reading; writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
 ## MCP answers
 

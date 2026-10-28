@@ -142,6 +142,7 @@ func (mem *memory) rewriteClaim(ctx context.Context, key string, still func(seat
 
 func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	mem.purgeEverywhere(ctx)
+	mem.sweepSensors()
 
 	if !mem.storeExists() {
 		return 0
@@ -288,7 +289,6 @@ func (mem *memory) housekeep() {
 	cutoff := mem.now().Add(-staleAfter)
 
 	for _, pattern := range []string{
-		filepath.Join(mem.sensorDir(), "*.ctx"),
 		filepath.Join(mem.cacheDir(), "shown", "*.json"),
 		filepath.Join(mem.cacheDir(), "ladder", "*.json"),
 		filepath.Join(mem.cacheDir(), "graph-seen", "*.json"),
@@ -306,6 +306,35 @@ func (mem *memory) housekeep() {
 			}
 		}
 	}
+}
+
+// sweepSensors removes every context reading older than contextPercent reads,
+// in every project: register.ts writes one per session after each turn, so a
+// running session writes its own again, and one that ended never does.
+func (mem *memory) sweepSensors() {
+	cutoff := mem.now().Add(-sensorMaxAge)
+
+	paths, err := filepath.Glob(filepath.Join(mem.sensorDir(), "*.ctx"))
+	if err != nil {
+		return
+	}
+
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err == nil && info.ModTime().Before(cutoff) {
+			removeIfThere(path)
+		}
+	}
+}
+
+// forgetSensor removes the context reading of a session that ends. The id
+// comes from the payload, so one naming a path reaches no file.
+func (mem *memory) forgetSensor(session string) {
+	if session == "" || filepath.Base(session) != session {
+		return
+	}
+
+	removeIfThere(filepath.Join(mem.sensorDir(), session+".ctx"))
 }
 
 func (mem *memory) recentTurns(ctx context.Context, seatName string, transcriptPath string) string {
@@ -865,6 +894,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
+	mem.forgetSensor(payload.SessionID)
 	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
