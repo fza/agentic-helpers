@@ -182,9 +182,9 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		return 0
 	}
 
-	// Claude Code writes a fork's transcript only after its SessionStart hooks
-	// return, so a fork is matched at its first prompt; told to claim now, the
-	// agent would take a seat that prompt is about to give it.
+	// Claude Code writes a fork's transcript only after its first prompt's
+	// hooks return, so a fork is matched at the first hook finding it written;
+	// told to claim now, the agent would take a seat that hook is about to give.
 	if payload.Source == "fork" && payload.SessionID != "" && !mem.transcriptStarted(ctx, payload) {
 		_ = os.MkdirAll(filepath.Dir(mem.forkPath(payload.SessionID)), 0o700)
 		_ = os.WriteFile(mem.forkPath(payload.SessionID), nil, 0o600)
@@ -211,9 +211,10 @@ func (mem *memory) forkPath(session string) string {
 	return filepath.Join(mem.cacheDir(), "forks", session)
 }
 
-// seatAtFirstPrompt matches a fork its SessionStart could not, now that its
-// transcript holds its parent's records, once: the marker goes either way.
-func (mem *memory) seatAtFirstPrompt(ctx context.Context, payload hookio.Payload, seated bool) string {
+// seatFork matches a fork its SessionStart could not, at the first prompt or
+// tool call finding its transcript written, once: the marker stays until then
+// and goes either way after.
+func (mem *memory) seatFork(ctx context.Context, payload hookio.Payload, seated bool) string {
 	if payload.SessionID == "" {
 		return ""
 	}
@@ -225,11 +226,17 @@ func (mem *memory) seatAtFirstPrompt(ctx context.Context, payload hookio.Payload
 		return ""
 	}
 
-	removeIfThere(marker)
-
 	if seated {
+		removeIfThere(marker)
+
 		return ""
 	}
+
+	if !mem.transcriptStarted(ctx, payload) {
+		return ""
+	}
+
+	removeIfThere(marker)
 
 	inherited := mem.inherit(ctx, payload)
 	if inherited != "" {
@@ -550,7 +557,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 
 	name, held := mem.ownSeat(ctx)
 
-	seated := mem.seatAtFirstPrompt(ctx, payload, name != "")
+	seated := mem.seatFork(ctx, payload, name != "")
 	if seated != "" {
 		mem.say(seated)
 
@@ -623,6 +630,14 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
+
+	seated := mem.seatFork(ctx, payload, name != "")
+	if seated != "" {
+		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", seated)
+
+		return 0
+	}
+
 	if name == "" {
 		return 0
 	}

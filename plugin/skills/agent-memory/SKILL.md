@@ -72,8 +72,10 @@ agentic-memory who [--all]              # every seat + shelf + state + filed / u
 - **Held by a running session → refused, always.** Nothing seizes it. It frees when its holder runs
   `release` or its session ends. Stuck holder → the user's to close, or ask its agent to release.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
-- **Resumed session → seated at SessionStart; forked session → seated at its first prompt.** No
-  claim either way. Parent gone → its seat; parent still running → a new seat on its shelf
+- **Resumed session → seated at SessionStart; forked session → seated at its first tool call** (or
+  its next prompt, where the first turn makes none). A memory write as a fork's first tool call →
+  refused for want of a seat; the seat lands with that call's result, send it again. No claim either
+  way. Parent gone → its seat; parent still running → a new seat on its shelf
   (`main-2`). The claim output and brief arrive as on a claim. Work on as that seat; say nothing
   about it.
 - **`claim <seat> --session <id>`** is a launcher's, never your own session's: a reservation the

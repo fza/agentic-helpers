@@ -40,6 +40,15 @@ func (h *harness) promptIn(transcriptPath string) string {
 	return string(data)
 }
 
+func (h *harness) toolIn(transcriptPath string) string {
+	data, _ := json.Marshal(map[string]any{
+		"session_id": h.session, "transcript_path": transcriptPath,
+		"tool_name": "Bash", "tool_input": map[string]string{"command": "ls"},
+	})
+
+	return string(data)
+}
+
 func (h *harness) forkUUID(name string) string {
 	h.t.Helper()
 
@@ -234,7 +243,26 @@ func unwrittenTranscript(t *testing.T) string {
 	return filepath.Join(t.TempDir(), "fork.jsonl")
 }
 
-func TestAForkIsSeatedAtItsFirstPrompt(t *testing.T) {
+// forkBeforeItsTranscript is a fork whose SessionStart and first prompt ran
+// as Claude Code runs them: before the fork's transcript is written. It
+// answers the transcript's path, still unwritten.
+func forkBeforeItsTranscript(t *testing.T, fork *harness) string {
+	t.Helper()
+
+	path := unwrittenTranscript(t)
+
+	if out := fork.must(fork.startHook("fork", path), "session-start"); out != "" {
+		t.Errorf("a fork whose transcript is not written yet should hear nothing at SessionStart, got:\n%s", out)
+	}
+
+	if out := fork.must(fork.promptIn(path), "prompt"); out != "" {
+		t.Errorf("a fork whose transcript is not written yet should hear nothing at its first prompt, got:\n%s", out)
+	}
+
+	return path
+}
+
+func TestAForkIsSeatedAtTheFirstToolCallAfterItsTranscriptIsWritten(t *testing.T) {
 	cases := []struct {
 		name       string
 		parentGone bool
@@ -252,22 +280,26 @@ func TestAForkIsSeatedAtItsFirstPrompt(t *testing.T) {
 			}
 
 			fork := resumedOrForked(parent, test.OtherSession)
-			path := unwrittenTranscript(t)
+			path := forkBeforeItsTranscript(t, fork)
 
-			if out := fork.must(fork.startHook("fork", path), "session-start"); out != "" {
-				t.Errorf("a fork whose transcript is not written yet should hear nothing at SessionStart, got:\n%s", out)
+			if _, code := fork.holderJSON(tc.seat, "--json"); code == 0 && !tc.parentGone {
+				t.Error("a fork should hold no seat before its transcript is written")
 			}
 
 			test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
 
-			out := fork.must(fork.promptIn(path), "prompt")
+			out := toolContext(fork.must(fork.toolIn(path), "tool"))
 			if !strings.HasPrefix(out, tc.seat+": ") || !strings.Contains(out, "Gate reads Bash only today") {
-				t.Errorf("a fork should be seated with its brief at its first prompt, got:\n%s", out)
+				t.Errorf("a fork should be seated with its brief at its first tool call, got:\n%s", out)
 			}
 
 			view, code := fork.holderJSON(tc.seat, "--json")
 			if code != 0 || view["session_id"] != test.OtherSession {
-				t.Errorf("the fork should hold its seat after its first prompt, got %d %v", code, view)
+				t.Errorf("the fork should hold its seat after its first tool call, got %d %v", code, view)
+			}
+
+			if again := fork.must(fork.toolIn(path), "tool"); strings.Contains(again, "Gate reads Bash only today") {
+				t.Errorf("a seated fork should get its brief once, got:\n%s", again)
 			}
 
 			if tc.parentGone {
@@ -282,19 +314,39 @@ func TestAForkIsSeatedAtItsFirstPrompt(t *testing.T) {
 	}
 }
 
-func TestAForkMatchingNoClaimIsToldAtItsFirstPromptOnce(t *testing.T) {
+func TestAForkWithoutAToolCallIsSeatedAtItsNextPrompt(t *testing.T) {
 	parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
 	fork := resumedOrForked(parent, test.OtherSession)
-	path := unwrittenTranscript(t)
+	path := forkBeforeItsTranscript(t, fork)
 
-	fork.must(fork.startHook("fork", path), "session-start")
+	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
+
+	out := fork.must(fork.promptIn(path), "prompt")
+	if !strings.HasPrefix(out, "main-2: ") || !strings.Contains(out, "Gate reads Bash only today") {
+		t.Errorf("a fork should be seated with its brief at the first prompt finding its transcript, got:\n%s", out)
+	}
+
+	if view, code := fork.holderJSON("main-2", "--json"); code != 0 || view["session_id"] != test.OtherSession {
+		t.Errorf("the fork should hold its seat after that prompt, got %d %v", code, view)
+	}
+}
+
+func TestAForkMatchingNoClaimIsToldOnceItsTranscriptIsWritten(t *testing.T) {
+	parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
+	fork := resumedOrForked(parent, test.OtherSession)
+	path := forkBeforeItsTranscript(t, fork)
+
 	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/stranger.jsonl"))
 
-	if out := fork.must(fork.promptIn(path), "prompt"); !strings.Contains(out, "agentic-memory: this session holds no seat. Seats: main (") {
-		t.Errorf("a fork matching no claim should get the seatless notice at its first prompt, got:\n%s", out)
+	if out := toolContext(fork.must(fork.toolIn(path), "tool")); !strings.Contains(out, "agentic-memory: this session holds no seat. Seats: main (") {
+		t.Errorf("a fork matching no claim should get the seatless notice at the first hook finding its transcript, got:\n%s", out)
 	}
 
 	if out := fork.must(fork.promptIn(path), "prompt"); out != "" {
+		t.Errorf("a fork should hear the seatless notice once, got:\n%s", out)
+	}
+
+	if out := fork.must(fork.toolIn(path), "tool"); out != "" {
 		t.Errorf("a fork should hear the seatless notice once, got:\n%s", out)
 	}
 }
@@ -306,7 +358,6 @@ func TestAForkClaimingBeforeItsFirstPromptKeepsItsSeat(t *testing.T) {
 
 	fork.must(fork.startHook("fork", path), "session-start")
 	fork.must("", "claim", "review")
-	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
 
 	if out := fork.must(fork.promptIn(path), "prompt"); strings.Contains(out, "holds no seat") || strings.Contains(out, "main-2") {
 		t.Errorf("a fork holding its own seat should be neither seated again nor told it holds none, got:\n%s", out)
@@ -321,6 +372,7 @@ func TestAForkClaimingBeforeItsFirstPromptKeepsItsSeat(t *testing.T) {
 	}
 
 	fork.must("", "release")
+	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
 
 	if out := fork.must(fork.promptIn(path), "prompt"); out != "" {
 		t.Errorf("the first prompt should have removed the fork's marker, got:\n%s", out)
