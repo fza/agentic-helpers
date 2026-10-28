@@ -1,139 +1,232 @@
 # agentic-helpers
 
-A coding agent forgets. Its context fills, the session is summarised, and the next one starts from
-nothing. Asked about a project's decisions, it answers from whatever it happened to read last. Its
-probes and half-finished drafts pile up where nobody reviews them.
+A coding agent forgets. When its context fills up, the session is summarised and the next one
+starts from scratch. It answers questions about a project from whatever it read last, and it leaves
+probes and half-finished drafts lying around.
 
-agentic-helpers gives Claude Code the habits that counter this, as hooks that run on every session
-and commands the agent calls itself:
+agentic-helpers is a Claude Code plugin that builds better habits into every session. It adds hooks
+that run on their own, commands the agent can call, and one skill per piece that explains the piece
+to the agent. Memory and the tool library are also available as MCP servers, `memory` and `tools`.
 
-| Piece | Binary | What it keeps the agent doing |
+| Piece | Command | What it does |
 |---|---|---|
-| memory | `agentic-memory` | filing what it learns as it works, and getting back what a fresh context needs after a compaction or a new session |
-| tool library | `agentic-tools` | taking a helper tool another agent already wrote instead of writing it again, and registering the ones it writes |
-| scratch sweep | `agentic-scratch` | keeping throwaway work in one place per session, and clearing it when the session ends |
-| grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing, and keeping credentials out of what it captures |
-| capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
-| shell-guard | `agentic-shell-guard` | on every Bash call: keeping every removal inside the project and `/tmp`, even one hidden in `eval`, a shell's `-c` or a command name built at run time; asking before `find -delete` or a command that holds a credential; keeping scratch files out of `mktemp`. After every tool call: withholding each output line from outside the project that looks like a credential |
+| memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session |
+| tool library | `agentic-tools` | Shares helper scripts between agents, so none is written twice |
+| scratch sweep | `agentic-scratch` | Gives each session one place for throwaway files, and empties it at the end |
+| grounding gate | `agentic-grounding-gate` | Makes the agent read the decision graph before it asks, drafts or captures |
+| capture | `agentic-capture` | Writes new graph entries through one checked path, free of credentials |
+| shell-guard | `agentic-shell-guard` | Keeps deletions inside the project, and credentials out of commands and output |
 
-**The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd)**, the
-Signal-Dialogue-Decision graph a project keeps under `.sdd/`.
+## Memory and the decision graph
 
-**sdd is a project's long-term memory; agentic-memory is its short-term memory.** The graph holds
-what should still hold in a month and for everyone working on the project: decisions, the signals
-behind them, and why. It lives in the repository, is reviewed like code, and never changes an entry
-once written. agentic-memory holds what one job needs to pick up where it left off: where work
-stands, a judgment call made without confirmation, a trap that already cost time. It lives on the
-machine outside the repository, fades by each entry's kind, and survives a compaction or a new
-session. A memory entry points at a graph entry by id; it never copies a decision.
+The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd), which keeps a
+project's decision graph under `.sdd/`.
 
-Every piece installs once for the whole machine and stays silent where it has nothing to work on.
-Shell-guard's work is every Bash call and every tool's output, so it judges every project; its
-options turn it off.
-Everything ships as one Claude Code plugin; the hooks and commands are Go binaries built from
-`source/hooks`, published with each release and fetched by the plugin.
+- **sdd is long-term memory.** It holds decisions, the signals behind them, and why, for everyone on
+  the project. It lives in the repository, is reviewed like code, and never changes an entry once
+  written.
+- **agentic-memory is short-term memory.** It holds what one job needs to pick up where it left off:
+  where work stands, a judgment call made without asking, a trap that already cost time. It lives on
+  the machine, outside the repository, and fades at a rate set by each entry's kind. A memory entry
+  points at a graph entry by id and never copies a decision.
 
-**Every piece is built and tested with Claude Code only.** The hooks read Claude Code's payloads,
-settings and transcripts, and answer in its hook protocol; no other agent harness is tested, and
-none is supported.
+## Good to know
+
+- **One install covers the whole machine.** Each piece stays quiet in a project where it has nothing
+  to do. Shell-guard is the exception: it checks every Bash call in every project, unless its
+  options turn it off.
+- **The hooks and commands are Go binaries** built from `source/hooks`. Each release publishes them,
+  and the plugin downloads them.
+- **Claude Code only.** The hooks read Claude Code's payloads, settings and transcripts. No other
+  agent is tested or supported.
+
+## Requirements
+
+- macOS or Linux, on amd64 or arm64.
+- Claude Code. The one-step `/plugin install` with `--marketplace` needs 2.1.275 or later.
+- git. Memory works only inside a git work tree, unless `memory_require_git` is off.
+- [sdd](https://github.com/networkteam/sdd), only for projects with a graph under `.sdd/`.
 
 ## Installing
-
-Install sdd first:
-
-```bash
-brew install networkteam/tap/sdd
-```
-
-Without Homebrew, sdd's install script does the same:
-
-```bash
-curl -sL https://github.com/networkteam/sdd/releases/latest/download/install.sh | sh
-```
-
-**Optional: the fork [github.com/fza/sdd](https://github.com/fza/sdd).** agentic-helpers works with
-stock sdd and uses what the fork adds wherever the installed `sdd` carries it, read from its own
-`--help`: entry titles and `actor_kind` in a draft's header, a pre-flight checked once and recorded
-as verified, fallback routes for the pre-flight, `sdd migrate`, and a code repository naming its
-graph repository through `project_dir`.
-
-```bash
-brew install fza/tap/sdd
-```
-
-A graph `sdd migrate` has moved to the fork's schema takes only the fork for writes: stock sdd
-refuses it, and so does `agentic-capture` through stock sdd. Every member writing to such a graph
-installs the fork.
-
-Then the plugin:
 
 ```bash
 claude plugin marketplace add fza/agentic-helpers
 claude plugin install agentic-helpers@agentic-helpers
 ```
 
-Inside a session, `/plugin install agentic-helpers --marketplace fza/agentic-helpers` does both in
-one step (Claude Code 2.1.275 or later), and `fza/agentic-helpers#v<version>` pins the marketplace to
-one release. Installed at user scope, the plugin is enabled in every project on the machine.
-`claude plugin update agentic-helpers@agentic-helpers` moves to the latest release; it takes effect
-in the next session or after `/reload-plugins`. Auto-update is off by default for a marketplace like
-this one, and can be turned on under `/plugin`, Marketplaces.
+- **From inside a session**, one step does both:
+  `/plugin install agentic-helpers --marketplace fza/agentic-helpers`.
+- **To pin a release**, add the marketplace as `fza/agentic-helpers#v<version>`.
+- **Installed at user scope**, the plugin runs in every project on the machine.
+- **To update**, run `claude plugin update agentic-helpers@agentic-helpers`. The update takes effect
+  in the next session, or after `/reload-plugins`. Auto-update is off by default; turn it on under
+  `/plugin`, Marketplaces.
+
+### sdd, for projects with a graph
+
+```bash
+brew install networkteam/tap/sdd
+```
+
+Without Homebrew:
+
+```bash
+curl -sL https://github.com/networkteam/sdd/releases/latest/download/install.sh | sh
+```
+
+**Optional: the fork [github.com/fza/sdd](https://github.com/fza/sdd)** (`brew install fza/tap/sdd`).
+agentic-helpers works with stock sdd, and uses the fork's extras wherever the installed `sdd`
+offers them. [`docs/capture/usage.md`](docs/capture/usage.md) lists them. One caution: once
+`sdd migrate` moves a graph to the fork's schema, stock sdd can no longer write to it, so everyone
+writing to that graph needs the fork.
 
 ## Options
 
-Set once per machine in the plugin's configuration dialog (`/plugin`), or as `pluginConfigs` in the
-user or managed settings; no project overrides them.
+Options are set once per machine and apply to every project.
 
-| Option | Default | Sets |
+**The easy way:** run `/plugin`, select agentic-helpers, then Configure options.
+
+**By hand:** add them under `pluginConfigs` in your user settings, `~/.claude/settings.json` (or the
+one under `CLAUDE_CONFIG_DIR`):
+
+```json
+{
+  "pluginConfigs": {
+    "agentic-helpers@agentic-helpers": {
+      "options": { "memory_language": "de", "shell_guard_find_delete": "deny" }
+    }
+  }
+}
+```
+
+Managed settings (`managed-settings.json` and its `managed-settings.d/` drop-ins) take the same
+block and win over the user's, so an administrator can lock an option. A project's
+`.claude/settings.json` and `.claude/settings.local.json` are never read for plugin options: Claude
+Code itself ignores them there, and one embedder and one set of guards serve every project on the
+machine.
+
+### Turning pieces off
+
+| Option | Default | What it controls |
 |---|---|---|
-| `memory_enabled` | `true` | agentic-memory on or off; off, its commands refuse, its hooks say nothing, its MCP server lists no tools |
-| `tools_enabled` | `true` | agentic-tools on or off, as for memory |
-| `scratch_enabled` | `true` | the scratch sweep on or off |
-| `grounding_gate_enabled` | `true` | the grounding gate on or off |
-| `capture_enabled` | `true` | `agentic-capture` on or off |
-| `shell_guard_enabled` | `true` | shell-guard on or off |
-| `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env` | none | the embedder memory's and the tool library's search by meaning runs on; the key itself stays in the environment variable named |
-| `entry_max_words` | `500` | the words a memory entry's body should stay within |
-| `state_stale_after_writes` | `5` | the file writes since a memory seat's last state write that hold the turn's end once for a new one |
-| `retired_body_days` | `90` | how long a retired memory entry keeps its body, never under 14 |
-| `entry_id_length` | `6` | the characters after `m-` in a new memory entry id, 6 to 16 |
-| `brief_note_limit` | `10` | the notes a memory brief prints, hottest first; `agentic-memory brief --kind note` lists the rest |
-| `attachment_max_mb` | `10` | the megabytes one file attached to a memory entry may hold |
-| `attachment_budget_mb` | `500` | the megabytes a project's memory attachments may hold together, each file counted once |
-| `memory_language` | `en` | the language memory entries are written in where `.sdd/config.yaml` names none |
-| `memory_require_git` | `true` | memory only inside a git work tree |
-| `memory_turns_off_auto` | `true` | a seat claim turns Claude Code's own auto memory off for the project, through its `.claude/settings.local.json`, from the next session |
-| `temporary_seat_lifetime` | `1d` | how long a closed temporary shelf keeps its entries before they are purged |
-| `tools_query_floor` | `0.45` | the cosine at or above which the tool library counts a tool as near a search or a prompt |
-| `tools_duplicate_floor` | `0.85` | the cosine at or above which the tool library refuses a new tool as another's duplicate |
-| `shell_guard_outside_project` | `ask` | `ask`, `deny` or `off` for a removal reaching outside the project and `/tmp` |
-| `shell_guard_find_delete` | `ask` | `ask`, `deny` or `off` for `find ... -delete` |
-| `shell_guard_lone_removal` | `true` | deny a removal that is not the whole Bash command |
-| `shell_guard_expansion` | `true` | deny a removal target built from a variable or command substitution |
-| `shell_guard_nested_code` | `true` | deny a removal or `mktemp` inside `eval`, a shell's `-c` or inline code for another interpreter |
-| `shell_guard_mktemp` | `true` | deny `mktemp` anywhere in a Bash command |
-| `shell_guard_secrets` | `ask` | `ask`, `deny` or `off` for a Bash command holding what looks like a credential |
-| `shell_guard_secret_output` | `all` | `all`, `files` or `off`: withhold each line of a tool's output from outside the project that looks like a credential; `files` limits it to Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash |
-| `shell_guard_secret_output_skip` | none | comma-separated tool names or patterns (`mcp__sdd__*`) whose output is never withheld |
-| `shell_guard_ask_timeout` | `120` | the seconds a shell-guard ask waits in `auto` and `bypassPermissions` mode before it denies, at most 3600; `0` waits without limit |
+| `memory_enabled` | `true` | agentic-memory. Off, its commands refuse, its hooks stay quiet, its MCP server offers no tools |
+| `tools_enabled` | `true` | agentic-tools, the same way |
+| `scratch_enabled` | `true` | The scratch sweep |
+| `grounding_gate_enabled` | `true` | The grounding gate |
+| `capture_enabled` | `true` | `agentic-capture` |
+| `shell_guard_enabled` | `true` | Shell-guard |
+
+### Search by meaning
+
+Memory and the tool library can find entries and tools by what they mean, not only by the words they
+contain. That needs an embedding model, which turns text into vectors that can be compared. With
+one set up:
+
+- `agentic-memory search --query` and `agentic-tools find --query` rank results by meaning.
+- Each prompt brings up the memory entries and tools related to it.
+- The tool library refuses a new tool that does the same as one it already holds.
+
+Without one, searching by meaning fails with a message naming the cause. Keyword search
+(`--term`) and everything else still work. The embedder can run locally (Ollama, LM Studio, any
+OpenAI-compatible server) or as a hosted service.
+
+| Option | Default | What it controls |
+|---|---|---|
+| `embedding_provider` | none | `openai` for any OpenAI-compatible API, or `ollama`. Empty turns search by meaning off |
+| `embedding_model` | none | The model the endpoint serves, such as `embeddinggemma-300m` |
+| `embedding_endpoint` | the provider's | The server's base URL. Empty means `https://api.openai.com` or `http://localhost:11434` |
+| `embedding_dimensions` | `0` | Vector size to ask an `openai` provider for. `0` keeps the model's own; `ollama` ignores it |
+| `embedding_api_key_env` | none | Name of the environment variable holding a hosted service's API key. The key itself is never stored |
+
+Changing the provider, the model or the dimensions starts a fresh vector index, since vectors from
+two models cannot be compared. Memory embeds its entries again on its next search by meaning;
+`agentic-tools reindex` does the same for the tool library.
+
+### Memory
+
+| Option | Default | What it controls |
+|---|---|---|
+| `entry_max_words` | `500` | Suggested word limit for an entry's body |
+| `state_stale_after_writes` | `5` | File writes after which the agent is asked once, at the end of a turn, to record where work stands |
+| `retired_body_days` | `90` | Days a retired entry keeps its body (at least 14) |
+| `entry_id_length` | `6` | Characters after `m-` in a new entry's id (6 to 16) |
+| `brief_note_limit` | `10` | Notes the brief shows, most used first. `agentic-memory brief --kind note` lists them all |
+| `attachment_max_mb` | `10` | Size limit for one attached file, in MB |
+| `attachment_budget_mb` | `500` | Size limit for all of a project's attachments together, in MB, each file counted once |
+| `memory_language` | `en` | Language entries are written in, unless `.sdd/config.yaml` names one |
+| `memory_require_git` | `true` | Memory works only inside a git work tree |
+| `memory_turns_off_auto` | `true` | Claiming a seat turns Claude Code's built-in auto memory off for the project, from the next session, through `.claude/settings.local.json` |
+| `temporary_seat_lifetime` | `1d` | How long a closed temporary shelf keeps its entries before they are deleted |
+
+### Tool library
+
+| Option | Default | What it controls |
+|---|---|---|
+| `tools_query_floor` | `0.45` | Similarity (cosine) from which a tool counts as a match for a search or a prompt |
+| `tools_duplicate_floor` | `0.85` | Similarity from which a new tool is refused as a duplicate of another |
+
+### Shell-guard
+
+An option whose default is `ask` also takes `deny` or `off`.
+
+| Option | Default | What it controls |
+|---|---|---|
+| `shell_guard_outside_project` | `ask` | A deletion outside the project and `/tmp`, or a command whose name is only known at run time (`$CMD -rf /`) |
+| `shell_guard_find_delete` | `ask` | `find ... -delete` |
+| `shell_guard_secrets` | `ask` | A Bash command that seems to hold a credential |
+| `shell_guard_lone_removal` | `true` | Refuses a deletion that shares its Bash call with other commands |
+| `shell_guard_expansion` | `true` | Refuses a deletion whose target comes from a variable or a command substitution |
+| `shell_guard_nested_code` | `true` | Refuses a deletion or `mktemp` inside `eval`, a shell's `-c`, or another language's inline code |
+| `shell_guard_mktemp` | `true` | Refuses `mktemp` in any Bash command |
+| `shell_guard_secret_output` | `all` | Hides output lines from outside the project that look like credentials. `files` checks only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; `off` checks nothing |
+| `shell_guard_secret_output_skip` | none | Tools whose output is never hidden, comma-separated. Patterns such as `mcp__sdd__*` work |
+| `shell_guard_ask_timeout` | `120` | Seconds an ask waits in `auto` and `bypassPermissions` mode before it denies (at most 3600; `0` waits forever) |
 
 ## Dependencies
 
-No piece breaks when another is off; a feature resting on the other goes off with it, and the rest
-of the piece runs. Each session start names every such feature off, as
-`agentic-helpers: scratch is off, so shell-guard's mktemp ban is off; turn scratch_enabled on to restore it`,
-and `agentic-helpers check` lists every piece on or off with its features off through a tie.
+Turning one piece off never breaks another. A feature that relies on the piece switches off with
+it, and each session start names it:
 
-| Off | Feature that goes off | Why |
+```text
+agentic-helpers: scratch is off, so shell-guard's mktemp ban is off; turn scratch_enabled on to restore it
+```
+
+`agentic-helpers check` lists every piece, on or off, with the features it lost.
+
+| Turned off | Also off | Because |
 |---|---|---|
-| `scratch_enabled` | shell-guard's `mktemp` ban, whatever `shell_guard_mktemp` says | its refusal sends scratch files to a `.tmp/` nothing sweeps |
-| `grounding_gate_enabled` | `agentic-capture` | its grounding check is the gate's hook; without it a draft lands ungrounded |
-| `memory_enabled` | the grounding gate's `exempt_seats` | a seat is an agentic-memory claim; a claim left from before the switch must not exempt anything |
-| `memory_enabled` | the seat name agentic-tools stamps on what it files | it reads the name from agentic-memory's seat registry |
+| `scratch_enabled` | Shell-guard's `mktemp` ban, whatever `shell_guard_mktemp` says | The ban sends scratch files to `.tmp/`, which nothing would sweep |
+| `grounding_gate_enabled` | `agentic-capture` | Its grounding check is the gate's hook; without it, a draft lands unchecked |
+| `memory_enabled` | The grounding gate's `exempt_seats` | A seat is a memory claim, and a claim left over from before must not exempt anything |
+| `memory_enabled` | The seat name agentic-tools stamps on what it files | The name comes from memory's seat registry |
+
+## Contributing
+
+The rules live in [`AGENTS.md`](AGENTS.md), plus [`source/AGENTS.md`](source/AGENTS.md) for Go
+code. They apply to people and agents alike. In short:
+
+- **Match the code around your change**: its naming, its comment density, its idiom. A comment says
+  only what the code cannot.
+- **Every change carries tests, and they pass before it lands.** Break each new guard once and watch
+  its test fail.
+- **Update the `docs/` pages and skills a change makes untrue, in the same commit.** A hook's output
+  wording is part of its contract, because its skill quotes it.
+- **One commit per change**, with a single Conventional Commits subject line of at most 100
+  characters and nothing after it.
+
+```bash
+go install -C source/hooks ./cmd/...                       # build every binary
+cd source/hooks && go vet ./... && go test -race ./...     # run every Go test
+claude plugin validate .                                   # check the plugin and marketplace manifests
+```
+
+To run your checkout's binaries in your own sessions, point `AGENTIC_HELPERS_BIN_DIR` at the
+`go install` directory; [`docs/plugin/usage.md`](docs/plugin/usage.md) explains how. Only the
+`release` workflow cuts releases.
 
 ## Documentation
 
-How to use each piece and how each works inside: [`docs/index.md`](docs/index.md).
+How to use each piece, and how each one works inside: [`docs/index.md`](docs/index.md).
 
 ## Licence
 
