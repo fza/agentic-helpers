@@ -1,6 +1,7 @@
 ---
 type: s
 layer: cpt
+confidence: high
 kind: fact
 topics: [hooks/toolchain]
 index:

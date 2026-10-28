@@ -77,7 +77,7 @@ refs:
 Body. Markdown, unfenced.
 ```
 
-- **Header = `sdd new` flags.** `type` + `layer` required. `kind`, `confidence`, `intent`,
+- **Header = `sdd new` flags.** `type` + `layer` + `confidence` required. `kind`, `intent`,
   `canonical`, `actor`, `actor_kind`, `class`, `summary`, `title` → one value. `topics`, `closes`,
   `supersedes`, `participants`, `aliases`, `actors` → list. `refs`, `involvement`, `topic` → one
   object per item. `when`, `index` → one object. `attach` → list of paths. Every value check →
@@ -92,7 +92,7 @@ Body. Markdown, unfenced.
 | Step | Blocks when |
 |---|---|
 | grounding gate | the project serves sdd's engine and sets no `cli_capture: true`; or the reads are owed and the draft is not grounded (`agentic-helpers:agent-grounding`) |
-| header | no `type`/`layer`; `listing_prefix` set and no topic carries it |
+| header | no `type`/`layer`/`confidence`; `listing_prefix` set and no topic carries it |
 | sdd | no `sdd` → `agentic-capture needs sdd on the PATH`, exit 1. Draft or call asks for a fork-only surface the installed sdd lacks → refused naming `brew install fza/tap/sdd`, exit 1, nothing runs. Drop the key or have the owner install the fork |
 | project lint | `draft_lint` set and it reports; or it fails and says nothing |
 | pre-flight | `sdd new --dry-run` refuses; any `[high]` finding. Provider fault → retried, see below. Skipped on a `--preflight-done` match |

@@ -1,6 +1,7 @@
 ---
 type: d
 layer: tac
+confidence: high
 kind: directive
 title: Plugin ships from plugin/
 ---

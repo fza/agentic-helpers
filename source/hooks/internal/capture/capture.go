@@ -1034,7 +1034,7 @@ func parseDraft(path string) (draft, error) {
 // validate refuses what `sdd new` cannot judge: the fields this call needs,
 // and the project's topic prefix. Every value check belongs to `sdd new`.
 func validate(front map[string]any, prefix string) error {
-	for _, key := range []string{"type", "layer"} {
+	for _, key := range []string{"type", "layer", "confidence"} {
 		if _, found := front[key]; !found {
 			return fmt.Errorf("%w: the leading block needs a %s", ErrDraft, key)
 		}

@@ -228,6 +228,7 @@ func TestADraftTheCallCannotTakeIsRefused(t *testing.T) {
 		{name: "no leading block", fixture: "capture/no-block.md", says: "opens with no --- line"},
 		{name: "no body", fixture: "capture/no-body.md", says: "carries no body"},
 		{name: "no type", fixture: "capture/no-type.md", says: "needs a type"},
+		{name: "no confidence", fixture: "capture/no-confidence.md", says: "needs a confidence"},
 		{name: "no topic carrying the prefix", config: "grounding/area-prefix.yaml", fixture: "capture/no-area.md", says: "opening with area-"},
 		{name: "a key reaching no flag", fixture: "capture/unknown-key.md", says: "carries actorkind, reviewer, which reaches no `sdd new` flag; it takes type, layer, attach, kind"},
 	}
@@ -296,7 +297,7 @@ func TestTheProjectsLint(t *testing.T) {
 		f.runner.Lint = process.Result{Code: 1, Stdout: body + ":2:1:House.Passive:passive voice\n"}
 
 		got := f.run(path)
-		if got.code != 1 || !strings.Contains(got.stderr, path+":8:1:House.Passive") {
+		if got.code != 1 || !strings.Contains(got.stderr, path+":9:1:House.Passive") {
 			t.Errorf("the finding should block and name the draft's line, got: %+v", got)
 		}
 

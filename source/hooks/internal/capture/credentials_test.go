@@ -19,7 +19,7 @@ const (
 
 // header is a draft's leading block clearing validation in a project setting
 // no listing prefix, before the extra lines given.
-const header = "---\ntype: s\nlayer: tac\nkind: fact\n"
+const header = "---\ntype: s\nlayer: tac\nconfidence: high\nkind: fact\n"
 
 // writeDraft writes a draft of the header lines and body given and returns its
 // path.
@@ -89,7 +89,7 @@ func TestTheCaptureRefusalNamesWhereAndTheLine(t *testing.T) {
 		{
 			name:  "a body line, counted in the draft",
 			draft: func(f *fixture) string { return f.writeDraft("", "A body.\n\n"+pat) },
-			says:  func(draft string) string { return "generic-api-key, github-pat, " + draft + ", line 9)" },
+			says:  func(draft string) string { return "generic-api-key, github-pat, " + draft + ", line 10)" },
 		},
 		{
 			name:  "a header value, decoded as its flag carries it",
@@ -164,7 +164,7 @@ func TestTheEntrysTypeAndLayerAreScannedToo(t *testing.T) {
 
 	f := newFixture(t, "")
 	draft := filepath.Join(f.root, ".tmp", "drafts", "entry.md")
-	test.WriteFile(t, draft, "---\ntype: s\nlayer: "+token+"\nkind: fact\n---\n\nA body.\n")
+	test.WriteFile(t, draft, "---\ntype: s\nlayer: "+token+"\nconfidence: high\nkind: fact\n---\n\nA body.\n")
 
 	got := f.run(draft)
 	if got.code != 1 || !strings.Contains(got.stderr, "github-pat, "+draft+"'s layer, line 1)") {
