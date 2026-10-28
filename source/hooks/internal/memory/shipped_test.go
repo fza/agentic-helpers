@@ -22,6 +22,10 @@ func (h *harness) stopHeld() bool {
 		h.t.Fatalf("stop should pass or hold for a state write, exit %d: %s%s", got.code, got.out, got.err)
 	}
 
+	if got.out != "" || got.err != "" {
+		h.t.Fatalf("a stop that holds nothing should print nothing: %s%s", got.out, got.err)
+	}
+
 	return false
 }
 
