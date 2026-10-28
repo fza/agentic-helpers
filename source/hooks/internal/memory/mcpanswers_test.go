@@ -9,18 +9,19 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-var listedSchemas struct {
+var listedTools struct {
 	sync.Mutex
-	byTool map[string]json.RawMessage
+	byName map[string]map[string]json.RawMessage
 }
 
 // mcp sends one tools/call and returns the server's answers, after checking
 // the call's answer against the shape every MCP answer keeps: its text is its
 // structuredContent serialized, a refusal carries the error key alone, and
-// any other answer fits the tool's outputSchema.
+// any other answer fits the shape its tool's answer keeps.
 func (h *harness) mcp(call string) string {
 	h.t.Helper()
 
@@ -58,23 +59,23 @@ func (h *harness) checkAnswer(call string, answers []string) {
 			continue
 		}
 
-		err := test.AnswerFits(h.listedTools(), sent.Name, line)
+		err := test.AnswerFits(h.answerSchemas(), sent.Name, line)
 		if err != nil {
 			h.t.Errorf("the %s answer should keep the MCP answer's shape: %v\n%s", sent.Name, err, line)
 		}
 	}
 }
 
-// listedTools is each tool's outputSchema, read once: the listing depends on
-// no store.
-func (h *harness) listedTools() map[string]json.RawMessage {
+// listedTools is each tool's listing, read once: the listing depends on no
+// store.
+func (h *harness) listedTools() map[string]map[string]json.RawMessage {
 	h.t.Helper()
 
-	listedSchemas.Lock()
-	defer listedSchemas.Unlock()
+	listedTools.Lock()
+	defer listedTools.Unlock()
 
-	if listedSchemas.byTool != nil {
-		return listedSchemas.byTool
+	if listedTools.byName != nil {
+		return listedTools.byName
 	}
 
 	lines := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
@@ -85,18 +86,40 @@ func (h *harness) listedTools() map[string]json.RawMessage {
 			continue
 		}
 
-		schemas, err := test.OutputSchemas(line)
-		if err != nil || len(schemas) == 0 {
+		tools, err := test.ListedTools(line)
+		if err != nil || len(tools) == 0 {
 			h.t.Fatalf("the server should list its tools: %v", err)
 		}
 
-		listedSchemas.byTool = schemas
+		listedTools.byName = tools
 	}
 
-	return listedSchemas.byTool
+	return listedTools.byName
 }
 
-func TestEveryToolAnswersItsOutputSchema(t *testing.T) {
+// answerSchemas is the shape each listed tool's answer keeps.
+func (h *harness) answerSchemas() map[string]json.RawMessage {
+	h.t.Helper()
+
+	schemas := map[string]json.RawMessage{}
+	for name := range h.listedTools() {
+		schemas[name] = memory.AnswerSchema(name)
+	}
+
+	return schemas
+}
+
+func TestNoToolListsAnOutputSchema(t *testing.T) {
+	h := newHarness(t)
+
+	for name, tool := range h.listedTools() {
+		if _, listed := tool["outputSchema"]; listed {
+			t.Errorf("the %s tool should list no output schema, keeping the listing small", name)
+		}
+	}
+}
+
+func TestEveryToolAnswersItsShape(t *testing.T) {
 	h, other := rowShelf(t)
 	other.must("", "lifetime", "temporary")
 	other.must("", "release")
@@ -193,11 +216,9 @@ func TestAMessageIsTheCommandLineText(t *testing.T) {
 	}
 }
 
-func TestTheViewSchemaTypesGroupedSections(t *testing.T) {
-	h := newHarness(t)
-
-	if schema := string(h.listedTools()["view"]); !strings.Contains(schema, `"groups"`) || !strings.Contains(schema, `"expanded"`) {
-		t.Errorf("view's output schema should type grouped sections and expanded entries: %s", schema)
+func TestTheViewShapeTypesGroupedSections(t *testing.T) {
+	if schema := string(memory.AnswerSchema("view")); !strings.Contains(schema, `"groups"`) || !strings.Contains(schema, `"expanded"`) {
+		t.Errorf("view's answer shape should type grouped sections and expanded entries: %s", schema)
 	}
 }
 

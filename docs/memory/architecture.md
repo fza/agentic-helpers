@@ -339,15 +339,18 @@ Every hook exits at once in a project without a store.
 Every tool of the `memory` server answers a JSON object (`internal/mcpserver`): the value goes out
 as `structuredContent` and, serialized, as the text block MCP asks of a structured result for
 clients reading only text. A read answers what its `--json` builds; any other command its text as
-`message` beside a fields struct, the `with` a command's result carries (`mcpanswers.go`). Each
-tool's `outputSchema` is derived by reflection from the very Go type the answer is built from
-(`mcpserver.SchemaOf`, following what `encoding/json` writes: a field without `omitempty` or
-`omitzero` is required, a nil slice, map or pointer may be `null`, objects stay open), so a schema
-written by hand and drifting from the answer is not possible. A hand-written schema per tool was
-rejected for that drift; a JSON Schema library was rejected since reflection over the answer's own
-type is the whole mechanism. A refusal answers `{"error": <text>}` as an error result, which MCP
-clients exempt from `outputSchema`. The test harness checks every MCP answer any test draws against
-its tool's listed schema.
+`message` beside a fields struct, the `with` a command's result carries (`mcpanswers.go`). A refusal
+answers `{"error": <text>}` as an error result.
+
+No tool lists an `outputSchema`. The listing loads into every session's context, and the schemas,
+derived by reflection from each answer's Go type, made up most of it, while an agent reads the keys
+off the answer it gets. Keeping the schemas was rejected for that cost; a shorter hand-written
+schema was rejected since it would drift from the answer. The shape stays checked: the test
+harness derives each tool's schema from the very type the answer is built from
+(`mcpserver.SchemaOf` and `mcpserver.MessageSchema`, following what `encoding/json` writes: a field
+without `omitempty` or `omitzero` is required, a nil slice, map or pointer may be `null`, objects
+stay open) and holds every MCP answer any test draws to it. The `tools` server still lists its
+output schemas.
 
 ## Links
 

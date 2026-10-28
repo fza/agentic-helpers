@@ -867,8 +867,9 @@ value, so none has two accepted spellings; the schema lists every value a key wi
 
 ### MCP answers
 
-Every tool answers one JSON object, as `structuredContent` and, serialized, as its text block, and
-`tools/list` gives each tool's `outputSchema`. The command line keeps its text and its `--json`.
+Every tool answers one JSON object, as `structuredContent` and, serialized, as its text block. No
+tool lists an `outputSchema`: the listing loads into every session's context, and the keys each
+answer carries are the ones below. The command line keeps its text and its `--json`.
 
 - **A read answers its `--json` object** (`show`, `search`, `brief`, `view`, `who`, `topics`, and
   `holder`), whatever the call's `json` key says: the key is still accepted and changes nothing.

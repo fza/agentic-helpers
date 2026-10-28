@@ -36,6 +36,35 @@ func OutputSchemas(line string) (map[string]json.RawMessage, error) {
 	return schemas, nil
 }
 
+// ListedTools is each tool's listing from a tools/list answer line, by name:
+// its whole object as the server sent it.
+func ListedTools(line string) (map[string]map[string]json.RawMessage, error) {
+	var listing struct {
+		Result struct {
+			Tools []map[string]json.RawMessage `json:"tools"`
+		} `json:"result"`
+	}
+
+	err := json.Unmarshal([]byte(line), &listing)
+	if err != nil {
+		return nil, fmt.Errorf("reading the tool listing: %w", err)
+	}
+
+	tools := map[string]map[string]json.RawMessage{}
+	for _, tool := range listing.Result.Tools {
+		var name string
+
+		err = json.Unmarshal(tool["name"], &name)
+		if err != nil {
+			return nil, fmt.Errorf("reading a listed tool's name: %w", err)
+		}
+
+		tools[name] = tool
+	}
+
+	return tools, nil
+}
+
 // AnswerFits says why a tools/call answer line breaks the shape every MCP
 // answer keeps, or nothing where it keeps it: its text is its
 // structuredContent serialized, a refusal carries the error key alone, and any

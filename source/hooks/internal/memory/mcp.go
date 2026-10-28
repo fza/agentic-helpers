@@ -16,15 +16,18 @@ import (
 // of the same name, taking the command's arguments as JSON and answering JSON:
 // a read its --json object, any other command its text as the message beside
 // what it did. A refusal comes back as an error result carrying its text.
+//
+// No tool lists an outputSchema: the listing loads into every session's
+// context, the schemas made up most of it, and the skill names the keys an
+// answer carries.
 func (mem *memory) serveMCP(ctx context.Context) int {
 	var tools []mcpserver.Tool
 
 	for _, held := range commands() {
 		tools = append(tools, mcpserver.Tool{
-			Name:         held.name,
-			Description:  held.description,
-			InputSchema:  json.RawMessage(closedSchema(held.schema)),
-			OutputSchema: outputSchema(held.name),
+			Name:        held.name,
+			Description: held.description,
+			InputSchema: json.RawMessage(closedSchema(held.schema)),
 			Handle: func(ctx context.Context, arguments json.RawMessage) mcpserver.Result {
 				return mem.callTool(ctx, held, arguments)
 			},
@@ -90,16 +93,6 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 	}
 
 	return mcpserver.Result{Structured: mcpserver.Messaged(answer.text, answer.fields)}
-}
-
-// outputSchema is what a tool answers: a read's JSON object, or its message
-// beside the fields of what the call produced.
-func outputSchema(name string) json.RawMessage {
-	if slices.Contains(mcpReads, name) {
-		return mcpserver.SchemaOf(mcpOutputs[name])
-	}
-
-	return mcpserver.MessageSchema(mcpOutputs[name])
 }
 
 // closedSchema marks a tool's schema as taking no key beyond its properties,

@@ -1,7 +1,7 @@
 package memory
 
-// What each MCP tool answers beside its message, or, for a read with a JSON
-// form, the object it answers. Keys are only ever added, as for the reads.
+// What each MCP tool answers beside its message. Keys are only ever added, as
+// for the reads.
 
 type idFields struct {
 	ID string `json:"id"`
@@ -122,47 +122,6 @@ type droppedFields struct {
 
 type trustedFields struct {
 	Checkout string `json:"checkout"`
-}
-
-type jsonShow struct {
-	Notice  string      `json:"notice"`
-	Entries []jsonEntry `json:"entries"`
-}
-
-type jsonWho struct {
-	Seats []jsonSeat `json:"seats"`
-}
-
-type jsonTopics struct {
-	Topics map[string]map[string]int `json:"topics"`
-}
-
-// jsonView is view's answer: the notice and its sections, each a list, a
-// count of topics or groups of entries, or, for `explain`, the message alone.
-type jsonView struct {
-	Notice   string                     `json:"notice,omitempty"`
-	Sections map[string]jsonViewSection `json:"sections,omitempty"`
-	Message  string                     `json:"message,omitempty"`
-}
-
-type jsonViewSection struct {
-	Entries []jsonEntry               `json:"entries,omitempty"`
-	More    *jsonMore                 `json:"more,omitempty"`
-	Topics  map[string]jsonTopicCount `json:"topics,omitempty"`
-	Groups  map[string]jsonGroup      `json:"groups,omitempty"`
-}
-
-// mcpOutputs are the answers per tool: a read's JSON object, or the fields of
-// a message answer. A tool missing here answers its message alone.
-var mcpOutputs = map[string]any{
-	"show": jsonShow{}, "search": jsonSearch{}, "brief": jsonBrief{}, "who": jsonWho{}, "topics": jsonTopics{},
-	"view": jsonView{}, "holder": holderView{},
-	"new": filedFields{}, "confirm": idsFields{}, "retain": retainedFields{}, "attach": attachedFields{},
-	"read": readFields{}, "ack": ackFields{}, "rekind": kindFields{}, "state": seatFields{}, "retire": idsFields{},
-	"supersede": supersededFields{}, "revive": idFields{}, "retitle": retitledFields{}, "tag": topicsFields{},
-	"untag": topicsFields{}, "link": linkFields{}, "unlink": linkFields{}, "trust": trustedFields{},
-	"follow": followFields{}, "unfollow": followFields{}, "merge": mergedFields{}, "claim": seatFields{},
-	"rename": renamedFields{}, "release": releasedFields{}, "lifetime": lifetimeFields{}, "drop": droppedFields{},
 }
 
 // mcpReads answer their JSON object over MCP whatever the call's json key says.
