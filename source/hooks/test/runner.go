@@ -33,6 +33,13 @@ type Runner struct {
 	Stock      bool
 	Missing    bool
 	Unreleased bool
+	// NoInfoFormat takes `--format` out of the `info` help, as fork releases
+	// before `sdd info --format json` print it.
+	NoInfoFormat bool
+
+	// Info answers `sdd info --format json`; left zero, it answers for a
+	// graph whose writes take titles.
+	Info process.Result
 
 	// Before runs ahead of every call it answers, the way a file changes on
 	// disk while the lint or a pre-flight runs.
@@ -69,6 +76,14 @@ func (fake *Runner) Run(ctx context.Context, dir string, argv []string) (process
 		fake.mutex.Unlock()
 
 		return fake.Lint, nil
+	case isInfo(argv):
+		fake.mutex.Unlock()
+
+		if fake.Info == (process.Result{}) {
+			return process.Result{Stdout: `{"graph_schema": 2, "binary_schema": 2, "capabilities": {"titles": true}}`}, nil
+		}
+
+		return fake.Info, nil
 	case slices.Contains(argv, "--dry-run"):
 		try := fake.tries
 		fake.tries++
@@ -109,9 +124,11 @@ func (fake *Runner) CallsOf(kind string) [][]string {
 		lint := call[0] == "sh"
 		dry := slices.Contains(call, "--dry-run")
 		help := isHelp(call)
-		capture := !lint && !dry && !help
+		info := isInfo(call)
+		capture := !lint && !dry && !help && !info
 
-		if kind == "lint" && lint || kind == "dry-run" && dry || kind == "help" && help || kind == "capture" && capture {
+		if kind == "lint" && lint || kind == "dry-run" && dry || kind == "help" && help || kind == "info" && info ||
+			kind == "capture" && capture {
 			found = append(found, call)
 		}
 	}
@@ -139,6 +156,10 @@ func isHelp(argv []string) bool {
 	return len(argv) >= 2 && len(argv) <= 3 && argv[0] == "sdd" && argv[len(argv)-1] == "--help"
 }
 
+func isInfo(argv []string) bool {
+	return len(argv) >= 2 && argv[0] == "sdd" && argv[1] == "info" && !isHelp(argv)
+}
+
 func (fake *Runner) help(argv []string) (process.Result, error) {
 	if fake.Missing {
 		return process.Result{}, errors.New("running sdd: executable file not found in $PATH")
@@ -161,11 +182,12 @@ func (fake *Runner) help(argv []string) (process.Result, error) {
 
 	help := string(text)
 
-	if fake.Unreleased {
+	if fake.Unreleased || fake.NoInfoFormat {
 		var kept []string
 
 		for line := range strings.SplitSeq(help, "\n") {
-			if !strings.HasPrefix(strings.TrimSpace(line), "export ") {
+			trimmed := strings.TrimSpace(line)
+			if !(fake.Unreleased && strings.HasPrefix(trimmed, "export ")) && !(fake.NoInfoFormat && strings.HasPrefix(trimmed, "--format ")) {
 				kept = append(kept, line)
 			}
 		}

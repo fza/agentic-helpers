@@ -357,7 +357,7 @@ type capture struct {
 // forkOnly names what the draft or the call asks of sdd that this sdd lacks,
 // or nothing where it has it all. A field sdd cannot write is refused rather
 // than dropped: an entry written without it never gains it.
-func (run *capture) forkOnly(held draft) string {
+func (run *capture) forkOnly(ctx context.Context, held draft) string {
 	needs := func(what string) string {
 		return fmt.Sprintf("%s, which only sdd built from %s carries; install it with `%s`", what, sddcaps.Fork, sddcaps.ForkInstall)
 	}
@@ -382,10 +382,37 @@ func (run *capture) forkOnly(held draft) string {
 			version, sddcaps.Fork, sddcaps.ForkInstall)
 	}
 
+	if title && run.caps.InfoJSON {
+		return run.titlesRefused(ctx)
+	}
+
 	// The fork refuses an explicit title on a schema-1 graph, `--dry-run`
-	// included; a graph naming no schema is on the binary's own.
+	// included; a graph naming no schema is on the binary's own. An sdd
+	// without `info --format` leaves this read of `meta.json` as the only way
+	// to tell.
 	if title && version == 1 {
 		return "the graph is on schema 1, which has no entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the graph"
+	}
+
+	return ""
+}
+
+// titlesRefused asks sdd whether writes to the graph take titles, which holds
+// for the graph's own schema or, where it names none, the binary's.
+func (run *capture) titlesRefused(ctx context.Context) string {
+	framing, err := sddcaps.Info(ctx, run.env.Runner, run.root)
+	if err != nil {
+		return fmt.Sprintf("whether the graph takes entry titles is unknown: %v", err)
+	}
+
+	if framing.Capabilities == nil {
+		return fmt.Sprintf("the graph is on a schema newer than this sdd writes, so whether it takes entry titles is unknown; install the newer sdd with `%s`",
+			sddcaps.ForkInstall)
+	}
+
+	if !framing.Capabilities.Titles {
+		return fmt.Sprintf("the graph is on schema %d, which has no entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the graph",
+			framing.GraphSchema)
 	}
 
 	return ""
@@ -453,7 +480,7 @@ func (run *capture) do(ctx context.Context) int {
 		return 1
 	}
 
-	missing := run.forkOnly(held)
+	missing := run.forkOnly(ctx, held)
 	if missing != "" {
 		run.say("%s", missing)
 

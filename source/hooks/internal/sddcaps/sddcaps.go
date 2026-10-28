@@ -1,9 +1,10 @@
 // Package sddcaps tells what the sdd on the PATH can do. Stock sdd
 // (github.com/networkteam/sdd) carries nearly every surface agentic-helpers
-// uses; the fork at github.com/fza/sdd adds a few. Neither has a capability
-// command, and fork versions do not order against stock ones, so each surface
-// is read from the binary's own help text: urfave/cli lists every command under
-// COMMANDS and every flag under OPTIONS.
+// uses; the fork at github.com/fza/sdd adds a few. Fork versions do not order
+// against stock ones, so each surface is read from the binary's own help text:
+// urfave/cli lists every command under COMMANDS and every flag under OPTIONS.
+// What writes to a graph support depends on the graph as well as the binary;
+// fork releases carrying `sdd info --format json` state it there.
 package sddcaps
 
 import (
@@ -28,6 +29,10 @@ const (
 const (
 	limit     = 5 * time.Second
 	cacheFile = "sdd-caps.json"
+	// surfaces counts the changes to what the probe reads. It opens the cache
+	// key, so an answer kept before a surface was added is probed again
+	// rather than read as the binary lacking it.
+	surfaces = 2
 )
 
 // Caps is what one sdd binary offers. Runs is false where no sdd answered;
@@ -42,6 +47,7 @@ type Caps struct {
 	Migrate           bool   `json:"migrate"`
 	Export            bool   `json:"export"`
 	ProjectDir        bool   `json:"project_dir"`
+	InfoJSON          bool   `json:"info_json"`
 }
 
 type Runner interface {
@@ -104,6 +110,10 @@ func (probe Probe) Of(ctx context.Context, dir string) Caps {
 		return Caps{Printed: err.Error()}
 	}
 
+	// A release without `sdd info` lacks `--format` too, so a help page that
+	// cannot be read only leaves InfoJSON false.
+	infoHelp, _ := probe.help(ctx, dir, "info", "--help")
+
 	commands := commandsIn(root)
 	rootFlags, newFlags, initFlags := flagsIn(root), flagsIn(newHelp), flagsIn(initHelp)
 
@@ -116,6 +126,7 @@ func (probe Probe) Of(ctx context.Context, dir string) Caps {
 		Migrate:           commands["migrate"],
 		Export:            commands["export"],
 		ProjectDir:        initFlags["project-dir"],
+		InfoJSON:          flagsIn(infoHelp)["format"],
 	}
 
 	if key != "" {
@@ -206,7 +217,7 @@ func (probe Probe) key() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s|%d|%d", resolved, info.ModTime().UnixNano(), info.Size())
+	return fmt.Sprintf("%d|%s|%d|%d", surfaces, resolved, info.ModTime().UnixNano(), info.Size())
 }
 
 func (probe Probe) load(key string) (Caps, bool) {

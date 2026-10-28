@@ -47,10 +47,22 @@ graph owner's to run. Stock sdd has no `sdd migrate`: there the capture says ``s
 this graph; the draft did not cause this`` and prints sdd's reason.
 
 A schema-1 graph holds no entry titles, and sdd refuses an explicit `--title` on one, its dry run
-included. A draft header carrying `title` on a graph whose `.sdd/meta.json` holds
-`graph_schema_version: 1` is refused before anything runs: ``the graph is on schema 1, which has no
-entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the graph``. A graph whose
-`meta.json` names no schema is on the installed sdd's own, so the check leaves it to sdd.
+included, so a draft header carrying `title` is checked before anything runs. Where `sdd info --help`
+lists `--format`, the capture asks `sdd info --format json`, whose `capabilities.titles` states what
+writes to this graph take:
+
+- `false` → refused: ``the graph is on schema 1, which has no entry titles; drop the draft's `title`
+  key, or run `sdd migrate` to upgrade the graph`` (the number is the graph's schema);
+- `null`, a graph on a schema newer than the installed sdd → refused: ``the graph is on a schema
+  newer than this sdd writes, so whether it takes entry titles is unknown; install the newer sdd with
+  `brew install fza/tap/sdd` ``;
+- a run that fails or prints no JSON → refused: `whether the graph takes entry titles is unknown: `
+  and what sdd printed.
+
+An sdd without `info --format` takes the older path: a graph whose `.sdd/meta.json` holds
+`graph_schema_version: 1` is refused with the schema-1 message above, and a graph whose `meta.json`
+names no schema is on the installed sdd's own, so the check leaves it to sdd. A draft without `title`
+runs no `sdd info`.
 
 ## On stock sdd
 

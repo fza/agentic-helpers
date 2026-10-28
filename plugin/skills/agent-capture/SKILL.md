@@ -104,9 +104,13 @@ Body. Markdown, unfenced.
   recorded unchecked.
 - **Fork-only:** draft keys `title`, `actor_kind`; `--preflight-route`; `--preflight-done`; a graph on
   schema 2. Probed from `sdd --help`, never from the version.
-- **`title` on a schema-1 graph** → refused before anything runs: ``the graph is on schema 1, which
-  has no entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the graph``.
-  Drop the key; `sdd migrate` is the owner's call.
+- **`title` on a graph without titles** → refused before anything runs: ``the graph is on schema 1,
+  which has no entry titles; drop the draft's `title` key, or run `sdd migrate` to upgrade the
+  graph``. Drop the key; `sdd migrate` is the owner's call. Asked of `sdd info --format json` where
+  sdd has it, read from `.sdd/meta.json` where it does not.
+- **`the graph is on a schema newer than this sdd writes`** → sdd is older than the graph: install the
+  newer sdd. **`whether the graph takes entry titles is unknown:`** → `sdd info` failed; its output
+  follows. Neither is the draft's fault.
 
 - **Split layout** (`project_dir` in the code repo's `.sdd/config.yaml`) → `grounding.yaml` and the
   lock are the graph repo's. sdd runs from the code repo.

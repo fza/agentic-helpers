@@ -22,7 +22,7 @@ allowlist entry and no marker file.
 The grounding gate and `agentic-capture` work with stock sdd
 ([github.com/networkteam/sdd](https://github.com/networkteam/sdd)) and use what the fork
 [github.com/fza/sdd](https://github.com/fza/sdd) adds wherever the installed `sdd` carries it. What a
-binary carries is read from its own `sdd --help`, `sdd new --help` and `sdd init --help`, never from
+binary carries is read from its own `sdd --help`, `sdd new --help`, `sdd init --help` and `sdd info --help`, never from
 its version, and kept in `<cache>/agentic-helpers/sdd-caps.json` (`$XDG_CACHE_HOME`, else
 `~/.cache`) per binary path, modification time and size.
 
@@ -33,6 +33,7 @@ its version, and kept in `<cache>/agentic-helpers/sdd-caps.json` (`$XDG_CACHE_HO
 | `sdd --local-config` | `--preflight-route` is refused |
 | `sdd migrate` | a graph on schema 2 is refused; a schema refusal names no `sdd migrate` |
 | `sdd init --project-dir` | the gate's engine refusal skips a project naming `project_dir` |
+| `sdd info --format json` | `agentic-capture` reads a titled draft's graph schema from `.sdd/meta.json` instead of asking sdd |
 | `sdd export` (no stock release) | memory flags a graph link by whether its entry file exists |
 
 ## Commands

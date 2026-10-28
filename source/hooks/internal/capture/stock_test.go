@@ -150,7 +150,7 @@ func TestTheForkWritesASchemaTwoGraph(t *testing.T) {
 	}
 }
 
-func TestASchemaOneGraphTakesNoTitle(t *testing.T) {
+func TestAnSddWithoutInfoJSONReadsTheSchemaFromMetaJSON(t *testing.T) {
 	cases := []struct {
 		name    string
 		draft   string
@@ -165,11 +165,16 @@ func TestASchemaOneGraphTakesNoTitle(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t, "")
+			f.runner.NoInfoFormat = true
 			if tc.meta != "" {
 				test.WriteFile(t, filepath.Join(f.root, ".sdd", "meta.json"), tc.meta)
 			}
 
 			got := f.run(f.draft(tc.draft))
+
+			if len(f.runner.CallsOf("info")) != 0 {
+				t.Errorf("an sdd without `info --format` should not be asked, got: %v", f.runner.Calls)
+			}
 
 			if !tc.refused {
 				if got.code != 0 || len(f.runner.CallsOf("capture")) != 1 {
@@ -187,6 +192,68 @@ func TestASchemaOneGraphTakesNoTitle(t *testing.T) {
 				t.Errorf("no sdd new should run, got: %v", f.runner.Calls)
 			}
 		})
+	}
+}
+
+func TestSddInfoSaysWhetherTheGraphTakesTitles(t *testing.T) {
+	cases := []struct {
+		name  string
+		info  process.Result
+		meta  string
+		says  []string
+		taken bool
+	}{
+		{name: "titles taken", info: process.Result{Stdout: `{"graph_schema": 2, "capabilities": {"titles": true}}`},
+			meta: `{"graph_schema_version": 1}`, taken: true},
+		{name: "no titles", info: process.Result{Stdout: `{"graph_schema": 1, "capabilities": {"titles": false}}`},
+			meta: `{"graph_schema_version": 2}`, says: []string{"the graph is on schema 1, which has no entry titles", "sdd migrate"}},
+		{name: "a graph newer than the binary", info: process.Result{Stdout: `{"graph_schema": 3, "capabilities": null}`},
+			says: []string{"newer than this sdd writes", "brew install fza/tap/sdd"}},
+		{name: "a failed run", info: process.Result{Code: 1, Stderr: "graph not found"},
+			says: []string{"whether the graph takes entry titles is unknown", "graph not found"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			f.runner.Info = tc.info
+			if tc.meta != "" {
+				test.WriteFile(t, filepath.Join(f.root, ".sdd", "meta.json"), tc.meta)
+			}
+
+			got := f.run(f.draft("capture/titled.md"))
+
+			if len(f.runner.CallsOf("info")) != 1 {
+				t.Errorf("sdd should be asked once whether the graph takes titles, got: %v", f.runner.Calls)
+			}
+
+			if tc.taken {
+				if got.code != 0 || len(f.runner.CallsOf("capture")) != 1 {
+					t.Errorf("sdd's answer should outrank meta.json and let the title through, got %+v: %v", got, f.runner.Calls)
+				}
+
+				return
+			}
+
+			for _, said := range tc.says {
+				if got.code != 1 || !strings.Contains(got.stderr, said) {
+					t.Errorf("the title should be refused, saying why, got: %+v", got)
+				}
+			}
+
+			if len(f.runner.CallsOf("dry-run")) != 0 || len(f.runner.CallsOf("capture")) != 0 {
+				t.Errorf("no sdd new should run, got: %v", f.runner.Calls)
+			}
+		})
+	}
+}
+
+func TestADraftWithoutATitleAsksSddNothing(t *testing.T) {
+	f := newFixture(t, "")
+
+	got := f.run(f.draft("capture/full.md"))
+	if got.code != 0 || len(f.runner.CallsOf("info")) != 0 {
+		t.Errorf("only a titled draft should cost an `sdd info` run, got %+v: %v", got, f.runner.Calls)
 	}
 }
 
