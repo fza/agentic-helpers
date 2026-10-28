@@ -12,9 +12,9 @@ and commands the agent calls itself:
 | memory | `agentic-memory` | filing what it learns as it works, and getting back what a fresh context needs after a compaction or a new session |
 | tool library | `agentic-tools` | taking a helper tool another agent already wrote instead of writing it again, and registering the ones it writes |
 | scratch sweep | `agentic-scratch` | keeping throwaway work in one place per session, and clearing it when the session ends |
-| grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing |
+| grounding gate | `agentic-grounding-gate` | reading the decision graph for real before asking a question, editing a draft or capturing, and keeping credentials out of what it captures |
 | capture | `agentic-capture` | writing a new graph entry through one checked path, never by hand |
-| shell-guard | `agentic-shell-guard` | keeping every removal inside the project and `/tmp`, and scratch files out of `mktemp`, on every Bash call |
+| shell-guard | `agentic-shell-guard` | on every Bash call: keeping every removal inside the project and `/tmp`, even one hidden in `eval`, a shell's `-c` or a command name built at run time; asking before `find -delete` or a command that holds a credential; keeping scratch files out of `mktemp`. After every tool call: withholding each output line from outside the project that looks like a credential |
 
 **The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd)**, the
 Signal-Dialogue-Decision graph a project keeps under `.sdd/`.
@@ -28,7 +28,8 @@ machine outside the repository, fades by each entry's kind, and survives a compa
 session. A memory entry points at a graph entry by id; it never copies a decision.
 
 Every piece installs once for the whole machine and stays silent where it has nothing to work on.
-Shell-guard's work is every Bash call, so it judges every project; its options turn it off.
+Shell-guard's work is every Bash call and every tool's output, so it judges every project; its
+options turn it off.
 Everything ships as one Claude Code plugin; the hooks and commands are Go binaries built from
 `source/hooks`, published with each release and fetched by the plugin.
 
