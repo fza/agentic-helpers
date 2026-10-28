@@ -13,13 +13,14 @@ import (
 )
 
 // serveMCP answers the plugin's `memory` server: every agent command not
-// marked cliOnly as a tool of the same name, taking the command's arguments as JSON and answering JSON:
-// a read its --json object, any other command its text as the message beside
-// what it did. A refusal comes back as an error result carrying its text.
+// marked cliOnly as a tool of the same name, taking the command's arguments as
+// JSON and answering JSON: a read its --json object, any other command its
+// text as the message beside what it did. A refusal comes back as an error
+// result carrying its text.
 //
 // No tool lists an outputSchema: the listing loads into every session's
-// context, the schemas made up most of it, and the skill names the keys an
-// answer carries.
+// context, output schemas would make up most of it, and the model never reads
+// them; an answer's keys are read off the answer.
 func (mem *memory) serveMCP(ctx context.Context) int {
 	var tools []mcpserver.Tool
 
