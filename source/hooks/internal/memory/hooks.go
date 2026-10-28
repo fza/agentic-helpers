@@ -182,9 +182,68 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		return 0
 	}
 
+	// Claude Code writes a fork's transcript only after its SessionStart hooks
+	// return, so a fork is matched at its first prompt; told to claim now, the
+	// agent would take a seat that prompt is about to give it.
+	if payload.Source == "fork" && payload.SessionID != "" && !mem.transcriptStarted(ctx, payload) {
+		_ = os.MkdirAll(filepath.Dir(mem.forkPath(payload.SessionID)), 0o700)
+		_ = os.WriteFile(mem.forkPath(payload.SessionID), nil, 0o600)
+
+		return 0
+	}
+
+	mem.say(mem.seatless(ctx))
+
+	return 0
+}
+
+func (mem *memory) transcriptStarted(ctx context.Context, payload hookio.Payload) bool {
+	if payload.TranscriptPath == "" {
+		return false
+	}
+
+	first, _ := transcript.FirstUUID(ctx, payload.TranscriptPath)
+
+	return first != ""
+}
+
+func (mem *memory) forkPath(session string) string {
+	return filepath.Join(mem.cacheDir(), "forks", session)
+}
+
+// seatAtFirstPrompt matches a fork its SessionStart could not, now that its
+// transcript holds its parent's records, once: the marker goes either way.
+func (mem *memory) seatAtFirstPrompt(ctx context.Context, payload hookio.Payload, seated bool) string {
+	if payload.SessionID == "" {
+		return ""
+	}
+
+	marker := mem.forkPath(payload.SessionID)
+
+	_, err := os.Stat(marker)
+	if err != nil {
+		return ""
+	}
+
+	removeIfThere(marker)
+
+	if seated {
+		return ""
+	}
+
+	inherited := mem.inherit(ctx, payload)
+	if inherited != "" {
+		return inherited
+	}
+
+	return mem.seatless(ctx)
+}
+
+// seatless is the notice a session holding no seat gets, naming every seat.
+func (mem *memory) seatless(ctx context.Context) string {
 	folded, err := mem.load(ctx)
 	if err != nil {
-		return 0
+		return ""
 	}
 
 	claims := seat.Held(mem.seatsDir())
@@ -214,9 +273,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		seats = strings.Join(named, ", ")
 	}
 
-	mem.say(fmt.Sprintf("%s: this session holds no seat. Seats: %s. Claim one: %s claim <seat>", self, seats, self))
-
-	return 0
+	return fmt.Sprintf("%s: this session holds no seat. Seats: %s. Claim one: %s claim <seat>", self, seats, self)
 }
 
 // housekeep removes per-session cache files nobody came back to.
@@ -228,6 +285,7 @@ func (mem *memory) housekeep() {
 		filepath.Join(mem.cacheDir(), "shown", "*.json"),
 		filepath.Join(mem.cacheDir(), "ladder", "*.json"),
 		filepath.Join(mem.cacheDir(), "graph-seen", "*.json"),
+		filepath.Join(mem.cacheDir(), "forks", "*"),
 	} {
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
@@ -491,6 +549,14 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
+
+	seated := mem.seatAtFirstPrompt(ctx, payload, name != "")
+	if seated != "" {
+		mem.say(seated)
+
+		return 0
+	}
+
 	if name == "" {
 		return 0
 	}

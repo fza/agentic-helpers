@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,11 +163,13 @@ func TestAForkOfACompactedSessionFindsItsParentByTheBoundary(t *testing.T) {
 func TestASessionMatchingNoClaimIsToldItHoldsNoSeat(t *testing.T) {
 	cases := []struct {
 		name       string
+		source     string
 		transcript string
 		filedFrom  string
 	}{
-		{name: "a transcript another session never held", transcript: "stranger.jsonl", filedFrom: "parent.jsonl"},
-		{name: "a claim from a release recording no fork uuid", transcript: "fork.jsonl", filedFrom: ""},
+		{name: "a transcript another session never held", source: "startup", transcript: "stranger.jsonl", filedFrom: "parent.jsonl"},
+		{name: "a claim from a release recording no fork uuid", source: "startup", transcript: "fork.jsonl", filedFrom: ""},
+		{name: "a fork whose transcript is already written", source: "fork", transcript: "stranger.jsonl", filedFrom: "parent.jsonl"},
 	}
 
 	for _, tc := range cases {
@@ -182,7 +185,7 @@ func TestASessionMatchingNoClaimIsToldItHoldsNoSeat(t *testing.T) {
 
 			stranger := resumedOrForked(parent, test.OtherSession)
 
-			out := stranger.must(stranger.startHook("startup", sessionTranscript(t, tc.transcript)), "session-start")
+			out := stranger.must(stranger.startHook(tc.source, sessionTranscript(t, tc.transcript)), "session-start")
 			if !strings.Contains(out, "agentic-memory: this session holds no seat. Seats: main (free, ") {
 				t.Errorf("a session matching no claim should get the seatless notice, got:\n%s", out)
 			}
@@ -220,5 +223,159 @@ func TestAResumedForkTakesItsOwnSeatOverItsParents(t *testing.T) {
 
 	if out := fork.must(fork.startHook("resume", sessionTranscript(t, "fork.jsonl")), "session-start"); !strings.HasPrefix(out, "main-2: ") {
 		t.Errorf("a resumed fork should take its own seat over, not the parent's it shares a fork uuid with, got:\n%s", out)
+	}
+}
+
+// unwrittenTranscript is a path Claude Code has not written yet, as a fork's
+// is while its SessionStart hooks run.
+func unwrittenTranscript(t *testing.T) string {
+	t.Helper()
+
+	return filepath.Join(t.TempDir(), "fork.jsonl")
+}
+
+func TestAForkIsSeatedAtItsFirstPrompt(t *testing.T) {
+	cases := []struct {
+		name       string
+		parentGone bool
+		seat       string
+	}{
+		{name: "beside a running parent", seat: "main-2"},
+		{name: "after its parent ended", parentGone: true, seat: "main"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
+			if tc.parentGone {
+				parent.processes.Kill(test.OwnerPID)
+			}
+
+			fork := resumedOrForked(parent, test.OtherSession)
+			path := unwrittenTranscript(t)
+
+			if out := fork.must(fork.startHook("fork", path), "session-start"); out != "" {
+				t.Errorf("a fork whose transcript is not written yet should hear nothing at SessionStart, got:\n%s", out)
+			}
+
+			test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
+
+			out := fork.must(fork.promptIn(path), "prompt")
+			if !strings.HasPrefix(out, tc.seat+": ") || !strings.Contains(out, "Gate reads Bash only today") {
+				t.Errorf("a fork should be seated with its brief at its first prompt, got:\n%s", out)
+			}
+
+			view, code := fork.holderJSON(tc.seat, "--json")
+			if code != 0 || view["session_id"] != test.OtherSession {
+				t.Errorf("the fork should hold its seat after its first prompt, got %d %v", code, view)
+			}
+
+			if tc.parentGone {
+				return
+			}
+
+			view, code = parent.holderJSON("main", "--json")
+			if code != 0 || view["session_id"] != test.Session || view["alive"] != true {
+				t.Errorf("the running parent should keep its seat, got %d %v", code, view)
+			}
+		})
+	}
+}
+
+func TestAForkMatchingNoClaimIsToldAtItsFirstPromptOnce(t *testing.T) {
+	parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
+	fork := resumedOrForked(parent, test.OtherSession)
+	path := unwrittenTranscript(t)
+
+	fork.must(fork.startHook("fork", path), "session-start")
+	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/stranger.jsonl"))
+
+	if out := fork.must(fork.promptIn(path), "prompt"); !strings.Contains(out, "agentic-memory: this session holds no seat. Seats: main (") {
+		t.Errorf("a fork matching no claim should get the seatless notice at its first prompt, got:\n%s", out)
+	}
+
+	if out := fork.must(fork.promptIn(path), "prompt"); out != "" {
+		t.Errorf("a fork should hear the seatless notice once, got:\n%s", out)
+	}
+}
+
+func TestAForkClaimingBeforeItsFirstPromptKeepsItsSeat(t *testing.T) {
+	parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
+	fork := resumedOrForked(parent, test.OtherSession)
+	path := unwrittenTranscript(t)
+
+	fork.must(fork.startHook("fork", path), "session-start")
+	fork.must("", "claim", "review")
+	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
+
+	if out := fork.must(fork.promptIn(path), "prompt"); strings.Contains(out, "holds no seat") || strings.Contains(out, "main-2") {
+		t.Errorf("a fork holding its own seat should be neither seated again nor told it holds none, got:\n%s", out)
+	}
+
+	if view, code := fork.holderJSON("review", "--json"); code != 0 || view["session_id"] != test.OtherSession {
+		t.Errorf("a fork's own claim should stand at its first prompt, got %d %v", code, view)
+	}
+
+	if _, code := fork.holderJSON("main-2", "--json"); code != 1 {
+		t.Error("a fork holding its own seat should get no seat on its parent's shelf")
+	}
+
+	fork.must("", "release")
+
+	if out := fork.must(fork.promptIn(path), "prompt"); out != "" {
+		t.Errorf("the first prompt should have removed the fork's marker, got:\n%s", out)
+	}
+}
+
+func TestAHookWithoutASessionIDLeavesForksAlone(t *testing.T) {
+	parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
+	fork := resumedOrForked(parent, test.OtherSession)
+	path := unwrittenTranscript(t)
+	fork.must(fork.startHook("fork", path), "session-start")
+	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
+
+	anonymous := resumedOrForked(parent, "")
+
+	if out := anonymous.must(anonymous.startHook("fork", unwrittenTranscript(t)), "session-start"); !strings.Contains(out, "holds no seat") {
+		t.Errorf("a fork start naming no session should get the seatless notice, got:\n%s", out)
+	}
+
+	if out := anonymous.must(anonymous.promptIn(path), "prompt"); out != "" {
+		t.Errorf("a prompt naming no session should match no fork, got:\n%s", out)
+	}
+
+	if out := fork.must(fork.promptIn(path), "prompt"); !strings.HasPrefix(out, "main-2: ") {
+		t.Errorf("a fork should still be seated at its first prompt, got:\n%s", out)
+	}
+}
+
+// ageForkMarkers dates every fork marker under the cache root back to at.
+func ageForkMarkers(t *testing.T, cacheRoot string, at time.Time) {
+	t.Helper()
+
+	err := filepath.WalkDir(cacheRoot, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || filepath.Base(filepath.Dir(path)) != "forks" {
+			return err
+		}
+
+		return os.Chtimes(path, at, at)
+	})
+	if err != nil {
+		t.Fatalf("dating the fork markers: %v", err)
+	}
+}
+
+func TestAForkMarkerNobodyPromptedIsSweptAWeekOn(t *testing.T) {
+	parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
+	fork := resumedOrForked(parent, test.OtherSession)
+	path := unwrittenTranscript(t)
+	fork.must(fork.startHook("fork", path), "session-start")
+	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
+
+	ageForkMarkers(t, parent.cache, parent.clock.Now().Add(-8*24*time.Hour))
+	parent.must(parent.startHook("resume", ""), "session-start")
+
+	if out := fork.must(fork.promptIn(path), "prompt"); out != "" {
+		t.Errorf("a fork marker older than a week should be swept, got:\n%s", out)
 	}
 }

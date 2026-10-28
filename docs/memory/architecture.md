@@ -251,6 +251,17 @@ looks through every claim and last claim for its parent: one naming its session 
 whose holder is gone is claimed as a seat is; one whose holder runs is left to it, and a new seat is
 claimed on its shelf. A claim from a release without `fork_uuid` matches by session id alone.
 
+Claude Code writes a fork's transcript only after its SessionStart hooks return, and the hook input
+names no parent session. A SessionStart with source `fork` that matches nothing while its transcript
+holds no record therefore prints nothing and leaves a marker, `forks/<session id>` under the
+project's cache directory. The session's first UserPromptSubmit removes the marker and, where the
+session still holds no seat, runs the same match against the transcript written by then: a match
+prints the claim's output as the prompt's context, no match the seatless notice. A marker no prompt
+came back to goes with the cache sweep after `staleAfter`. Rejected: retrying the match at every
+seatless hook (sessions meant to stay seatless would read their transcript head on every hook), a
+detached waiter reserving the seat with `claim --session` (a process, a timeout and a race per fork),
+and waiting inside SessionStart (the transcript is written only once the hook returns).
+
 Every change to a claim file reads, judges and writes it under the seats lock (`seats/.lock`): a
 claim, a reservation and its takeover, a handover, a hook re-pointing a claim at a new session id or
 transcript, a release, a SessionEnd close, and `who` freeing a gone holder. Two sessions judging one
@@ -305,9 +316,9 @@ Every hook exits at once in a project without a store.
 
 | Event | What memory does |
 |---|---|
-| SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats |
+| SessionStart (`session-start`) | purges every store's due temporary shelves; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats; a fork whose transcript is not written yet gets a marker and no notice |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
-| UserPromptSubmit (`prompt`) | adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
+| UserPromptSubmit (`prompt`) | at a fork's first prompt, removes its marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction, and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
 | PostToolUse (`tool`) | tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
 | Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then holds it once for a state write when work shipped since the seat's last one; then blocks with the backstop once the nudge has gone unanswered twice and the context crossed the line |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |

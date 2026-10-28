@@ -118,15 +118,19 @@ repository`. A claim for another session (below) does the same, before that sess
 ## Resumed and forked sessions
 
 A seat follows its session into the new process `claude --resume` or `claude --fork-session
---resume` starts, so the session works on without claiming again:
+--resume` starts, so the session works on without claiming again. A resume is seated at
+SessionStart. A fork is seated at its first prompt: Claude Code writes a fork's transcript only after
+its SessionStart hooks have run, and the transcript is what names its parent. Until that prompt the
+fork hears nothing about seats, and its brief arrives with the prompt.
 
-- **Its parent's process is gone** (a resume, or a fork after the parent ended): SessionStart takes
-  the parent's seat over, and prints what a claim prints, the `<seat>: <session> (pid <n>)` line and
-  the brief.
+- **Its parent's process is gone** (a resume, or a fork after the parent ended): the hook takes the
+  parent's seat over, and prints what a claim prints, the `<seat>: <session> (pid <n>)` line and the
+  brief.
 - **Its parent still runs** (a fork beside it): the parent keeps its seat, and the fork gets a new
   seat on the parent's shelf, named as `claim --shelf` names one (`main-2`), with its brief. It reads
   and writes the parent's memory and keeps a state of its own.
-- **Neither**: the session is told it holds no seat, as before.
+- **Neither**: the session is told it holds no seat, as before; a fork at its first prompt, once.
+- **A fork that claims a seat itself before then** keeps it.
 
 A resume keeps its session id, which its parent's claim names. A fork has a session id of its own,
 and finds its parent's claim by the claim's `fork_uuid`, the uuid its transcript starts with. Where
