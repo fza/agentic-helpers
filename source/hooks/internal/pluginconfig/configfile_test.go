@@ -75,6 +75,8 @@ func TestEveryLayerResolvesInOrderManagedSettingsLast(t *testing.T) {
 		{name: "a retired body kept at least the revive window", key: "retired_body_days", values: layers{config: "7"}, value: "14", layer: pluginconfig.LayerConfig},
 		{name: "a config-only key from config.yaml", key: "tools_total_mb", values: layers{config: "250", user: "300"}, value: "250", layer: pluginconfig.LayerConfig},
 		{name: "a config-only key from managed settings", key: "temporary_seat_lifetime", values: layers{config: `"2d"`, managed: `"12h"`}, value: "12h", layer: pluginconfig.LayerManaged},
+		{name: "a writing style", key: "writing_style", values: layers{config: "plain"}, value: "plain", layer: pluginconfig.LayerConfig},
+		{name: "terse writing unless set", key: "writing_style", value: "terse"},
 		{name: "a word YAML 1.1 would read as a boolean", key: "shell_guard_secrets", values: layers{config: "off"}, value: "off", layer: pluginconfig.LayerConfig},
 	}
 
@@ -106,6 +108,7 @@ func TestAnInvalidConfigValueFallsBackAndIsNamed(t *testing.T) {
 	}{
 		{name: "a word for a number", config: "entry_max_words: many\nbrief_note_limit: 4\n", value: "500", problem: "entry_max_words: not a number"},
 		{name: "a floor outside its range", config: "tools_query_floor: 2\n", value: "500", problem: "tools_query_floor: 2 lies outside"},
+		{name: "a writing style of another word", config: "writing_style: florid\n", value: "500", problem: `writing_style: "florid" is none of terse, plain`},
 		{name: "a key that is no option", config: "entry_max_word: 600\n", value: "500", problem: "entry_max_word is no option; the nearest is entry_max_words"},
 		{name: "a file that is no YAML map", config: "- entry_max_words\n", value: "500", problem: "is no YAML map of options"},
 		{name: "a file past the size every hook reads", config: "entry_max_words: 600\n#" + strings.Repeat("x", 64<<10), value: "500", problem: "is over 64 KiB"},

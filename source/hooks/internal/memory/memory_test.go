@@ -1542,7 +1542,7 @@ func TestTheBriefNamesTheEntryLanguage(t *testing.T) {
 				test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"memory_language":"`+tc.option+`"}}}}`)
 			}
 
-			header := regexp.MustCompile(`(?m)^agentic-memory: seat main, \d+ live, \d+ retired, entries in (\S+)$`)
+			header := regexp.MustCompile(`(?m)^agentic-memory: seat main, \d+ live, \d+ retired, entries in (\S+), terse$`)
 
 			claimed := header.FindStringSubmatch(h.must("", "claim", "main"))
 			if claimed == nil || claimed[1] != tc.want {
@@ -1552,6 +1552,32 @@ func TestTheBriefNamesTheEntryLanguage(t *testing.T) {
 			compacted := header.FindStringSubmatch(h.must(hookPayload("compact", h.transcript(), ""), "session-start"))
 			if compacted == nil || compacted[1] != tc.want {
 				t.Errorf("the brief after a compaction should name it too, got %v", compacted)
+			}
+		})
+	}
+}
+
+func TestTheBriefHeaderNamesTheWritingStyle(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		style  string
+	}{
+		{name: "unset", style: "terse"},
+		{name: "plain in config.yaml", config: "writing_style: plain\n", style: "plain"},
+		{name: "an unknown style falls back", config: "writing_style: florid\n", style: "terse"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+
+			if tc.config != "" {
+				test.WriteFile(t, h.config, tc.config)
+			}
+
+			if out := h.must("", "claim", "main"); !strings.Contains(out, ", entries in en, "+tc.style+"\n") {
+				t.Errorf("the brief header should name the writing style beside the language, got:\n%s", out)
 			}
 		})
 	}

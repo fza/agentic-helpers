@@ -351,7 +351,7 @@ An entry is written in the project's language, never in the language the convers
 run in: the graph's `language` from `.sdd/config.yaml` (the graph repository's, where
 `project_dir` names one), else the plugin option `memory_language`,
 else `en`. The brief's first line names it, as in
-`agentic-memory: seat main, 14 live, 6 retired, entries in de`. A domain term (a word naming a thing
+`agentic-memory: seat main, 14 live, 6 retired, entries in de, terse`, the style last. A domain term (a word naming a thing
 in the project's code, documents or business, such as `Lieferschein`) keeps the project's spelling
 and is never translated, so `--term` still finds the word the code uses; a gloss in the entry's
 language may follow it in parentheses.
@@ -1085,6 +1085,7 @@ Set once per machine in `config.yaml` or the plugin's configuration dialog, as
 | `attachment_max_mb` | the megabytes one attached file may hold, 10 unless set |
 | `attachments_total_mb` | the megabytes every attachment of every project on the machine may hold together, each file counted once, 2048 unless set, never below `attachment_max_mb` |
 | `tools_total_mb` | `config.yaml` only: the megabytes every agentic-tools library on the machine may hold, 500 unless set; read by the SessionStart pass that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |
+| `writing_style` | how agents write entries, their titles and the state, and the tool library's notes: `terse` (no articles, filler or hedging; code, paths, ids, quotes and domain terms exact) unless set, or `plain`; the brief's first line names it. Graph entries stay plain prose |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |

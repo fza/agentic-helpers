@@ -1,4 +1,4 @@
-agentic-memory: seat main, 17 live, 1 retired, entries in en
+agentic-memory: seat main, 17 live, 1 retired, entries in en, terse
 state (4h old, branch main): ten words of where the gate fix stands
 changed by other seats:
   m-me1alo linked to m-ub7z38 by idea (<stamp>)

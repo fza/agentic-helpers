@@ -42,6 +42,8 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
 
 - **Name** `[a-z][a-z0-9]*(-[a-z0-9]+)*`, at most 40. **Summary** one line, at most 200. **Usage**
   required.
+- **Summary, usage, inputs, outputs, `--why` terse** (no articles, filler or hedging; code, paths,
+  flags exact) unless `writing_style` is `plain`. Only agents read them.
 - **--from** inside the work tree (never a `.git` folder), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. No link, no
   hard link, no pipe, at most 1 MB (1 MiB) a tool, every file together: past it `add` and
   `update` refuse.

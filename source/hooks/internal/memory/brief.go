@@ -229,7 +229,8 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		seated += " on shelf " + shelf
 	}
 
-	out.add(fmt.Sprintf("%s: %s, %d live, %d retired, entries in %s", self, seated, len(live), retired, mem.language(ctx)))
+	out.add(fmt.Sprintf("%s: %s, %d live, %d retired, entries in %s, %s", self, seated, len(live), retired,
+		mem.language(ctx), mem.options().WritingStyle))
 
 	if low := mem.lowSpace(); low != "" {
 		out.add(low)
