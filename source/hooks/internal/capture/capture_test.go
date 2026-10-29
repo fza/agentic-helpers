@@ -430,6 +430,8 @@ func TestAProviderFaultRetriesThePreflight(t *testing.T) {
 		{name: "a request timeout", answer: fault("gollm openai: API error: status code 408"), says: "provider failed with status 408"},
 		{name: "sdd's own time limit", answer: fault("gollm openai: timed out"), says: "provider timed out"},
 		{name: "the claude provider's time limit", answer: fault("claude -p timed out (increase with --preflight-timeout)"), says: "provider timed out"},
+		{name: "the claude provider's time limit, named by its setting", answer: fault("claude -p: context deadline exceeded: no answer within llm.timeout (5m0s); raise it with `sdd config set llm.timeout <duration>`"), says: "provider timed out"},
+		{name: "the extraction's time limit, named by its setting", answer: fault("claude -p: context deadline exceeded: no answer within llm.extract_timeout (2m0s); raise it with `sdd config set llm.extract_timeout <duration>`"), says: "provider timed out"},
 	}
 
 	for _, tc := range cases {

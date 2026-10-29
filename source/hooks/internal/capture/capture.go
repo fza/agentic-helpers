@@ -93,6 +93,8 @@ var refusal = regexp.MustCompile(`validation failed`)
 
 // What a provider fault reads as in sdd's output, and how the retry line names
 // it. Statuses a retry cannot change (400, 401, 403, 404) are not faults.
+// The claude provider's time limit reads `claude -p timed out` up to sdd
+// fza.35 and `no answer within llm.timeout` after it.
 var faults = []struct {
 	pattern *regexp.Regexp
 	names   string
@@ -100,7 +102,7 @@ var faults = []struct {
 	{regexp.MustCompile(`no content or tool calls in response`), "answered nothing"},
 	{regexp.MustCompile(`RateLimitError|status code 429|status 429`), "rate-limited the call"},
 	{regexp.MustCompile(`API error(?:: status code| \[provider \S+ status) (408|409|5\d\d)`), "failed with status %s"},
-	{regexp.MustCompile(`timed out`), "timed out"},
+	{regexp.MustCompile(`timed out|no answer within llm\.(?:extract_)?timeout`), "timed out"},
 }
 
 // Draft keys and the `sdd new` flag each becomes, in the order they are passed.
