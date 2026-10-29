@@ -77,6 +77,7 @@ type request struct {
 	Value          string   `json:"value,omitempty"`
 	All            bool     `json:"all,omitempty"`
 	Unused         bool     `json:"unused,omitempty"`
+	Private        bool     `json:"private,omitempty"`
 	JSON           bool     `json:"json,omitempty"`
 	NoHeat         bool     `json:"no_heat,omitempty"`
 	Layout         string   `json:"layout,omitempty"`
@@ -265,6 +266,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
+		"private": &req.Private,
 	}
 
 	switch spec.kind {
@@ -614,7 +616,7 @@ func allCommands() []command {
 		{
 			name: "who", usage: "who [--all] [--unused]",
 			description: "this project's seats and shelves; frees seats whose holder is gone",
-			flags: []flagSpec{{"all", flagSwitch}, {"unused", flagSwitch}}, run: (*memory).who,
+			flags:       []flagSpec{{"all", flagSwitch}, {"unused", flagSwitch}}, run: (*memory).who,
 			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add other projects' seats"}}}`,
 		},
 		{
@@ -643,14 +645,15 @@ func allCommands() []command {
 				`"session":{"type":"string","description":"a session id, in place of name: the seat it holds"}}}`,
 		},
 		{
-			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] [--session <id>] | claim --shelf <shelf> [...]",
+			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] [--private] [--session <id>] | claim --shelf <shelf> [...]",
 			description: "take a seat; prints the brief and the slice",
-			flags:      []flagSpec{{"shelf", flagText}, {"lifetime", flagText}, {"session", flagText}},
-			positional: optionalName,
-			run:        (*memory).claim,
+			flags:       []flagSpec{{"shelf", flagText}, {"lifetime", flagText}, {"private", flagSwitch}, {"session", flagText}},
+			positional:  optionalName,
+			run:         (*memory).claim,
 			schema: `{"type":"object","properties":{` + seatName + `,` +
 				`"shelf":{"type":"string","description":"shelf for a new seat; alone, claims a new seat on it"},` +
 				`"lifetime":{"type":"string","description":"durable, temporary or a span: 90m, 12h, 2d, 0"},` +
+				`"private":{"type":"boolean","description":"hide the seat from other projects' who"},` +
 				`"session":{"type":"string","description":"another session to claim for"}}}`,
 		},
 		{
@@ -658,6 +661,14 @@ func allCommands() []command {
 			positional: func(req *request) error { return exactly(1, &req.Name)(req) },
 			run:        (*memory).rename,
 			schema:     `{"type":"object","properties":{"name":{"type":"string","description":"the seat's new name"}},"required":["name"]}`,
+		},
+		{
+			name: "private", cliOnly: true, usage: "private on|off",
+			description: "hide the seat this session holds from every other project's who, or show it again",
+			positional:  func(req *request) error { return exactly(1, &req.Value)(req) },
+			run:         (*memory).private,
+			schema: `{"type":"object","properties":{"value":{"type":"string","enum":["on","off"],` +
+				`"description":"on hides the seat from other projects, off shows it"}},"required":["value"]}`,
 		},
 		{
 			name: "release", usage: "release [<seat>]", description: "give a seat up",

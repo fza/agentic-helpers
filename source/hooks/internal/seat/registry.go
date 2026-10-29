@@ -31,12 +31,13 @@ var ErrNameTaken = errors.New("another seat already has that name")
 // onto. Follows is what a store of an earlier format kept per seat; its shelf
 // keeps them now. An expired seat was purged with its temporary shelf and is
 // kept only while an entry that survived the purge still names it: its name is
-// free for a new seat.
+// free for a new seat. A private seat is listed by its own project alone.
 type Entry struct {
 	Name    string   `json:"name"`
 	Shelf   string   `json:"shelf,omitempty"`
 	Follows []string `json:"follows,omitempty"`
 	Expired bool     `json:"expired,omitempty"`
+	Private bool     `json:"private,omitempty"`
 }
 
 // Registry maps every seat id of a store to its one entry. It is the whole of

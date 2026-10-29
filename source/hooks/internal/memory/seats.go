@@ -185,6 +185,13 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		return refused("%s", refusal)
 	}
 
+	if req.Private {
+		err = mem.markPrivate(ctx, req.Name, true)
+		if err != nil {
+			return refused("%v", err)
+		}
+	}
+
 	held, previous, hadPrevious := took.held, took.previous, took.hadPrevious
 
 	folded, err := mem.load(ctx)
@@ -195,6 +202,10 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	here := mem.checkout(ctx)
 
 	lines := []string{fmt.Sprintf("%s: %s (pid %d)", req.Name, short(held.SessionID), held.PID)}
+
+	if req.Private {
+		lines = append(lines, privateLine(req.Name))
+	}
 
 	lines = append(lines, mem.turnOffAutoMemory(ctx)...)
 

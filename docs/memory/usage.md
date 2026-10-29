@@ -95,6 +95,27 @@ holder from a busy one, and a busy one losing its seat would find every write re
 noticing. The seat frees when its holder runs `release` or its session ends, which closes it; a
 seat whose holder has gone is free to claim, and `who` frees every such seat of the project.
 
+### Private seats
+
+`who --all` reads every project's store on the machine and prints each seat with its holder
+session, process and claim time. A seat marked private leaves no trace there: another project's
+`who --all`, its `--json` and the MCP `who` with `all` list nothing of it, no row and no count. Its
+own project's `who` lists it as usual, the line ending `private`, and `who --json` gives it
+`"private": true`.
+
+- `claim <seat> --private` (MCP `claim` key `private: true`) marks the seat as it claims it, and
+  says `<seat> is private: no other project's who lists it`. A launcher claiming with `--session`
+  passes `--private` itself where its seats should stay private; nothing marks a seat by default.
+- `private on|off` (CLI only) marks or unmarks the seat the calling session holds:
+  `<seat> is private: no other project's who lists it`, `<seat> is no longer private: other
+  projects' who --all lists it`.
+- The mark is stored on the seat (`"private": true` in `seats.json`) and stays across a release and
+  every later claim until `private off`. Entries need nothing: `--for` and `follow` work inside one
+  project's store.
+
+A whole-project setting was rejected, a mark being per seat; so was a `+<n> private seats` count in
+other projects' listing, which would say a private seat exists and when it is busy.
+
 ### Claude Code's own auto memory
 
 A claim turns Claude Code's own auto memory off for the project, so agentic-memory is the one memory
@@ -849,10 +870,10 @@ A superseded body drops 14 days on.
 
 Every subcommand is also a tool of the plugin's `memory` MCP server,
 `mcp__plugin_agentic-helpers_memory__<subcommand>`, except the CLI-only ones: `lifetime`, `drop`,
-`follow`, `unfollow`, `trust`, `holder`, `rename`, `rekind`, `retain`, `merge`, `unlink`, `revive`,
-`attach` and `read`. Those run through Bash; they stay off `tools/list`, since the listing loads
-into every session's context and an agent seldom runs them, and a call naming one is refused with
-its command line:
+`follow`, `unfollow`, `trust`, `holder`, `rename`, `private`, `rekind`, `retain`, `merge`, `unlink`,
+`revive`, `attach` and `read`. Those run through Bash; they stay off `tools/list`, since the
+listing loads into every session's context and an agent seldom runs them, and a call naming one is
+refused with its command line:
 
     agentic-memory: <subcommand> is no MCP tool; run it through Bash: agentic-memory <usage>
 
@@ -926,10 +947,11 @@ A held or reserved seat is always listed, as is a seat this call freed. `who --j
 It frees the project's claims whose holder is gone and its reservations nobody took over in 10
 minutes, saying `freed` on their row; from a checkout not listed for the project it frees nothing.
 `who --all` (MCP key `all`) adds every other project's seats on the machine, a migration's backups
-aside, under a line naming the project key, each project's block closing with its own count line,
+aside, under a line naming the project key, a [private](#private-seats) seat left out, each
+project's block closing with its own count line,
 `+<n> unused seats: agentic-memory who --all --unused`; it never writes to another project's store.
-`who` migrates no store and runs anywhere: outside a project it says `no seat in this project` and, with
-`--all`, lists the others.
+`who` migrates no store and runs anywhere: outside a project it says `no seat in this project`
+and, with `--all`, lists the others.
 
 ## Other tools
 
@@ -948,7 +970,7 @@ answers one JSON object on stdout in place of its text (over MCP every answer is
 | `search --json` | `{"notice", "entries": [entry...], "more": {"skip": n}}`, no `body`, `more` absent on the last page |
 | `brief --json` | `{"notice", "seat", "shelf", "language", "live", "retired", "state": {"body", "at", "branch", "commit"}, "changed": [{"id", "change", "seat", "at"}], "rules", "traps", "todos", "notes", "news": [entry...], "topics": {name: count}, "do_now": [{"id", "title", "trigger", "proof"}]}` |
 | `view --json` | `{"notice", "sections": {name: section}}`, one section per layout section under its name, in the layout's order: `{"entries": [entry...], "more": {"skip": n}}` for `as-list` and `as-bodies` (`body` only for `as-bodies`, `more` absent where nothing is left), `{"topics": {name: {"count", "heat"}}}` for `as-counts`, `{"groups": {value: {"entries": [entry...]}}, "more": {"skip": n}}` for `as-grouped`; under `expand(refs)` each entry carries `expanded`, the memory entries it links to |
-| `who --json` | `{"seats": [{"name", "shelf", "state", "holder", "filed", "used"}]}`, `state` being `held`, `reserved` or `free`, `holder` the claim's `session_id`, `pid` and `claimed` or `null`, `filed` and `used` counting the last 14 days; `--all` adds `project` to every seat |
+| `who --json` | `{"seats": [{"name", "shelf", "state", "holder", "filed", "used"}]}`, `state` being `held`, `reserved` or `free`, `holder` the claim's `session_id`, `pid` and `claimed` or `null`, `filed` and `used` counting the last 14 days, `private` true on a private seat of this project; `--all` adds `project` to every seat and leaves other projects' private seats out |
 | `topics --json` | `{"topics": {name: {seat: count}}}` |
 
 The entry object: `id`, `title`, `seat`, `shelf`, `for` (shelf names, or `["all"]`), `topics`,

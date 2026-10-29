@@ -56,7 +56,7 @@ func (mem *memory) who(ctx context.Context, req request) result {
 
 		other := &memory{env: mem.env, streams: mem.streams, key: key}
 
-		rows := seatLines(other.seatRecords(ctx, false), req.Unused, self+" who --all --unused")
+		rows := seatLines(public(other.seatRecords(ctx, false)), req.Unused, self+" who --all --unused")
 		if len(rows) > 0 {
 			blocks = append(blocks, key+":\n"+indent(rows))
 		}
@@ -91,7 +91,7 @@ func (mem *memory) whoJSON(ctx context.Context, req request) result {
 			}
 
 			other := &memory{env: mem.env, streams: mem.streams, key: key}
-			for _, row := range other.seatRecords(ctx, false) {
+			for _, row := range public(other.seatRecords(ctx, false)) {
 				seats = append(seats, seatJSON(row, key))
 			}
 		}
@@ -160,9 +160,10 @@ type seatRow struct {
 	usage              seatUse
 	// status is held, reserved or free, and holder the claim of a held or
 	// reserved seat; freed is a free seat whose gone holder this call freed.
-	status string
-	holder *seat.Claim
-	freed  bool
+	status  string
+	holder  *seat.Claim
+	freed   bool
+	private bool
 }
 
 // unused is a free seat nothing was filed by or used from within usedWindow.
@@ -239,11 +240,12 @@ func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 	var rows []seatRow
 
 	usage := mem.seatUsage(ctx)
+	registry, _ := mem.registry()
 
 	for _, key := range keys {
 		claim, found := held[key]
 		row := seatRow{shelf: mem.shelfName(mem.shelfOfKey(key)), seat: mem.seatName(key), state: "free", usage: usage[key],
-			status: seatFree}
+			status: seatFree, private: registry.Seats[key].Private}
 
 		switch {
 		case !found:
@@ -291,6 +293,12 @@ func (mem *memory) sweep(ctx context.Context, key string, gone seat.Claim) {
 	}
 }
 
+// public is rows without the private seats, which only their own project
+// lists.
+func public(rows []seatRow) []seatRow {
+	return slices.DeleteFunc(slices.Clone(rows), func(row seatRow) bool { return row.private })
+}
+
 // seatLines is one line per seat of rows, grouped by shelf as rows come, the
 // unused ones left out and counted in a closing line naming the command that
 // lists them, unless every seat is asked for.
@@ -321,9 +329,14 @@ func seatLines(rows []seatRow, every bool, listsUnused string) []string {
 
 	lines := make([]string, 0, len(rows)+1)
 	for _, row := range rows {
-		lines = append(lines, fmt.Sprintf("%s%s  shelf %s%s  %s  filed %d / used %d (14d)", row.seat,
+		line := fmt.Sprintf("%s%s  shelf %s%s  %s  filed %d / used %d (14d)", row.seat,
 			strings.Repeat(" ", seats-len([]rune(row.seat))), row.shelf, strings.Repeat(" ", shelves-len([]rune(row.shelf))),
-			row.state, row.usage.filed, row.usage.used))
+			row.state, row.usage.filed, row.usage.used)
+		if row.private {
+			line += "  private"
+		}
+
+		lines = append(lines, line)
 	}
 
 	if unused > 0 {

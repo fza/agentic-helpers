@@ -5,7 +5,7 @@
 ```
 ~/.claude/agentic-memory/<project>/
 ├── format.json                                         the store's one format version
-├── seats.json                                          seat id → its current name and its shelf
+├── seats.json                                          seat id → its current name, its shelf, its private mark
 ├── shelves.json                                        shelf id → its name, follows and lifetime
 ├── log/tail.jsonl, log/<hash>.seg, log/manifest.json   the append-only log: the truth
 ├── seats/<id>.json                                     who holds the seat, which process, which transcript
@@ -44,7 +44,9 @@ claimed and never changed. Events, claim files, slices and the cache's brief mar
 reaches the store only through the registry: the log folds with every id turned into the name the
 seat has now, so a `rename` shows everywhere at once. No seat may be named in an id's shape.
 `seats.json` is written under the store's lock (`.lock` in the store root), through a temporary
-file renamed into place.
+file renamed into place. A seat's `"private": true` lives there too, beside its name, so the mark
+outlasts every claim file: `who --all` reads each other store's registry and drops its private seats
+before counting or listing any.
 
 ## Shelves
 

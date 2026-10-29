@@ -12,7 +12,7 @@ Context runs out → summarised → next session knows nothing. agentic-memory =
 **MCP server connected → its tools** (`mcp__plugin_agentic-helpers_memory__<subcommand>`, flags as
 JSON keys, `body` for the body). CLI only where it is not connected, no tool call can run, or for
 the CLI-only commands: `lifetime`, `drop`, `follow`, `unfollow`, `trust`, `holder`, `rename`,
-`rekind`, `retain`, `merge`, `unlink`, `revive`, `attach`, `read`. Two commands → two tool calls,
+`private`, `rekind`, `retain`, `merge`, `unlink`, `revive`, `attach`, `read`. Two commands → two tool calls,
 never a Bash chain. Load the schema first; keys and values exactly as it
 lists them (`all_seats`, `"from": "user"`); `ids` is an array even for one.
 
@@ -40,6 +40,7 @@ agentic-memory claim <seat>        # prints brief + last turns of the previous s
 agentic-memory release [<seat>]
 agentic-memory who [--all] [--unused] # seats, shelves, state, filed / used (14d); frees dead holders
 agentic-memory rename '<new name>' # this seat; id and entries stay
+agentic-memory private on|off      # hide this seat from other projects' who --all, or show it
 ```
 
 - Name: a letter, then up to 23 letters, marks, digits or dashes; NFC, lower-cased. One seat per
@@ -50,6 +51,8 @@ agentic-memory rename '<new name>' # this seat; id and entries stay
 - **"shared", "temporary", a span, another shelf** in the user's words → read
   [shelves.md](shelves.md) before claiming.
 - **Held by a running session → refused, always.** Frees on `release` or session end.
+- **User wants the seat kept from other projects** → `claim <seat> --private` (MCP `private: true`)
+  or `private on`. Its `who` line ends `private`; other projects' `who --all` never shows it.
 - Claim turns Claude Code's auto memory off for the project from the next session; relay nothing
   beyond what the claim printed.
 - **Resumed session → seated at SessionStart; fork → at its first tool call.** A memory write as a

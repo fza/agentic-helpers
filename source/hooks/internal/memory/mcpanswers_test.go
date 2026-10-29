@@ -205,7 +205,7 @@ func TestACommandOffTheListingNamesItsCommandLine(t *testing.T) {
 	h.must("", "claim", "main")
 
 	for _, name := range []string{"lifetime", "drop", "follow", "unfollow", "trust", "holder", "rename", "rekind",
-		"retain", "merge", "unlink", "revive", "attach", "read"} {
+		"retain", "merge", "unlink", "revive", "attach", "read", "private"} {
 		t.Run(name, func(t *testing.T) {
 			if _, listed := h.listedTools()[name]; listed {
 				t.Errorf("the %s command should not be listed as a tool", name)

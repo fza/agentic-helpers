@@ -317,6 +317,7 @@ type jsonSeat struct {
 	Filed   int         `json:"filed"`
 	Used    int         `json:"used"`
 	Project string      `json:"project,omitempty"`
+	Private bool        `json:"private,omitempty"`
 }
 
 type jsonHolder struct {
@@ -326,7 +327,8 @@ type jsonHolder struct {
 }
 
 func seatJSON(row seatRow, project string) jsonSeat {
-	held := jsonSeat{Name: row.seat, Shelf: row.shelf, State: row.status, Filed: row.usage.filed, Used: row.usage.used, Project: project}
+	held := jsonSeat{Name: row.seat, Shelf: row.shelf, State: row.status, Filed: row.usage.filed, Used: row.usage.used, Project: project,
+		Private: row.private}
 	if row.holder != nil {
 		held.Holder = &jsonHolder{SessionID: row.holder.SessionID, PID: row.holder.PID, Claimed: row.holder.Claimed}
 	}

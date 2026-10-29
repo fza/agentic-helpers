@@ -56,12 +56,23 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 		return refused("%s", refusal)
 	}
 
+	if req.Private {
+		err = mem.markPrivate(ctx, req.Name, true)
+		if err != nil {
+			return refused("%v", err)
+		}
+	}
+
 	if reply == "" {
 		return done(fmt.Sprintf("session %s already holds %s", short(req.Session), req.Name)).
 			with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
 	}
 
 	lines := []string{reply}
+
+	if req.Private {
+		lines = append(lines, privateLine(req.Name))
+	}
 
 	lines = append(lines, mem.turnOffAutoMemory(ctx)...)
 
