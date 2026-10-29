@@ -169,6 +169,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 | `attachment_max_mb` | `10` | Size limit for one attached file, in MB |
 | `attachments_total_mb` | `2048` | Size limit for every attached file on the machine together, across every project, in MB, each file counted once; never below `attachment_max_mb` |
 | `memory_language` | `en` | Language entries are written in, unless `.sdd/config.yaml` names one |
+| `writing_style` | `terse` | How agents write memory entries, the state and tool library notes: `terse` (no articles or filler) or `plain`. Graph entries stay plain prose |
 | `memory_require_git` | `true` | Memory works only inside a git work tree |
 | `memory_turns_off_auto` | `true` | Claiming a seat turns Claude Code's built-in auto memory off for the project, from the next session, through `.claude/settings.local.json` |
 | `temporary_seat_lifetime` | `1d` | `config.yaml` only. How long a closed temporary shelf keeps its entries before they are deleted |

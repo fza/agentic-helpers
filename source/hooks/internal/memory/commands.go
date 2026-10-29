@@ -391,7 +391,7 @@ func allCommands() []command {
 		{
 			name:        "new",
 			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
-			description: "file an entry; kind sets its decay, note unless given",
+			description: "file an entry, in the language and style the brief names; kind sets its decay, note unless given",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
 				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList}, {"attach", flagList},
@@ -542,7 +542,7 @@ func allCommands() []command {
 				`,"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"the entry's new kind"}},"required":["id","kind"]}`,
 		},
 		{
-			name: "state", usage: "state", description: "overwrite this seat's state slot; the brief opens with it",
+			name: "state", usage: "state", description: "overwrite this seat's state slot, in the style the brief names; the brief opens with it",
 			readsBody: true, run: (*memory).writeState,
 			schema: `{"type":"object","properties":{"body":{"type":"string","description":"where the work stands"}},"required":["body"]}`,
 		},

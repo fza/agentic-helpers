@@ -40,6 +40,13 @@ const (
 	SecretOutputFiles = "files"
 )
 
+// StyleTerse / StylePlain are the settings of `writing_style`: how agents
+// write what only agents read, memory entries and tool library notes.
+const (
+	StyleTerse = "terse"
+	StylePlain = "plain"
+)
+
 // DefaultShellGuardAskTimeout / MaxShellGuardAskTimeout bound the seconds
 // shell-guard's ask waits for an answer in auto and bypassPermissions mode. The
 // ceiling stays under the PermissionRequest hook's own timeout in hooks.json,
@@ -111,6 +118,7 @@ type Options struct {
 	AttachmentsTotalMB    int
 	ToolsTotalMB          int
 	MemoryLanguage        string
+	WritingStyle          string
 	MemoryRequireGit      bool
 	// MemoryTurnsOffAuto has a seat claim turn Claude Code's own auto memory
 	// off for the project through its `.claude/settings.local.json`.
@@ -153,7 +161,7 @@ type Options struct {
 // and the hook environment spell it.
 var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
-	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language",
+	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -377,7 +385,7 @@ func Defaults() Options {
 		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
-		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true,
+		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true, WritingStyle: StyleTerse,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
 		ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
@@ -393,6 +401,7 @@ type fields struct {
 	fractions map[string]*float64
 	modes     map[string]*string
 	outputs   map[string]*string
+	styles    map[string]*string
 	switches  map[string]*bool
 }
 
@@ -430,6 +439,9 @@ func (options *Options) fields() fields {
 		},
 		outputs: map[string]*string{
 			"shell_guard_secret_output": &options.ShellGuardSecretOutput,
+		},
+		styles: map[string]*string{
+			"writing_style": &options.WritingStyle,
 		},
 		switches: map[string]*bool{
 			"memory_require_git":       &options.MemoryRequireGit,
@@ -471,6 +483,10 @@ func (options Options) Value(key string) string {
 	}
 
 	if target, found := field.outputs[key]; found {
+		return *target
+	}
+
+	if target, found := field.styles[key]; found {
 		return *target
 	}
 
@@ -552,6 +568,20 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
+	for key, target := range field.styles {
+		raw, found := values[key]
+		if !found {
+			continue
+		}
+
+		value, err := style(raw, *target)
+		if err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+
+		*target = value
+	}
+
 	for key, target := range field.switches {
 		raw, found := values[key]
 		if !found {
@@ -605,6 +635,25 @@ func outputMode(raw json.RawMessage, fallback string) (string, error) {
 	}
 
 	return "", fmt.Errorf("%q is none of all, files, off", value)
+}
+
+// style accepts `terse` or `plain`; an empty string keeps fallback.
+func style(raw json.RawMessage, fallback string) (string, error) {
+	var value string
+
+	err := json.Unmarshal(raw, &value)
+	if err != nil {
+		return "", fmt.Errorf("%s is not a string", raw)
+	}
+
+	switch value {
+	case "":
+		return fallback, nil
+	case StyleTerse, StylePlain:
+		return value, nil
+	}
+
+	return "", fmt.Errorf("%q is none of terse, plain", value)
 }
 
 // boolean accepts a JSON boolean or the string the dialog may store for one.

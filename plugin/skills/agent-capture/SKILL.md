@@ -86,6 +86,8 @@ Body. Markdown, unfenced.
   Never a silent drop: an entry written without the field stays without it.
 - **Draft lives where the project keeps drafts.** `.tmp/drafts/` where `.tmp/` exists.
 - **Never fence the body.** A lint reads a fenced body as code and reports nothing.
+- **Plain prose, whatever `writing_style` says.** People read the graph; the terse style is memory's
+  and the tool library's alone.
 
 ## What runs, in order
 

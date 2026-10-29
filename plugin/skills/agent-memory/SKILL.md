@@ -94,6 +94,9 @@ EOF
   gained <id>...; ... link the one it settles: agentic-memory link <todo> <graph id>` → link the one
   it settles, nothing else.
 - **Language → the brief's** (`entries in de`). Domain terms keep the project's spelling.
+- **Style → the brief's** (`entries in de, terse`), titles, bodies and state alike. `terse`: no
+  articles, filler or hedging; fragments fine; code, paths, ids, quotes, domain terms exact. `plain`:
+  full sentences. Only agents read memory.
 - Title 3-10 words (unspaced scripts: a character a word), at least one topic, body within
   `entry_max_words` (500). Wrong → lands; the reply names the fix. One finding per entry.
 - **`similar: <id> <title> (<score>)`** in the reply → the same finding: `supersede <id> --by

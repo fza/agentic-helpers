@@ -115,7 +115,7 @@ func commands() []command {
 		{
 			name:        "add",
 			usage:       "add <name> --from <path> --summary '<one line>' --usage '<how to run it>' [--inputs '<...>'] [--outputs '<...>'] [--distinct '<how it differs>']",
-			description: "register a new tool in the own project's library from a file or a folder, at most 1 MB in all",
+			description: "register a new tool in the own project's library from a file or a folder, at most 1 MB in all; summary, usage and notes terse unless writing_style is plain",
 			flags:       append([]flagSpec{{"from", flagText}, {"distinct", flagText}}, describing...),
 			positional:  oneName,
 			run:         (*library).add,
@@ -127,7 +127,7 @@ func commands() []command {
 		{
 			name:        "update",
 			usage:       "update <name> [--from <path>] [--summary ...] [--usage ...] [--inputs ...] [--outputs ...] --why '<what changed>'",
-			description: "write a tool's next version, at most 1 MB in all; a tool of another project is forked into this one first",
+			description: "write a tool's next version, at most 1 MB in all; a tool of another project is forked into this one first; summary, usage and notes terse unless writing_style is plain",
 			flags:       append([]flagSpec{{"from", flagText}, {"why", flagText}}, describing...),
 			positional:  oneName,
 			run:         (*library).update,

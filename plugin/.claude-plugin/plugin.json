@@ -92,6 +92,12 @@
       "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; empty means en",
       "required": false
     },
+    "writing_style": {
+      "type": "string",
+      "title": "Writing style",
+      "description": "terse or plain: how agents write memory entries, the state and tool library notes; graph entries stay plain prose; empty means terse",
+      "required": false
+    },
     "tools_query_floor": {
       "type": "number",
       "title": "Tool query floor",
