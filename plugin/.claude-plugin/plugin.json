@@ -41,71 +41,49 @@
     "entry_max_words": {
       "type": "number",
       "title": "Entry word limit",
-      "description": "Words an entry should stay within; longer entries still land, with a note",
-      "default": 500,
+      "description": "Words an entry should stay within; longer entries still land, with a note; default 500",
       "required": false
     },
     "state_stale_after_writes": {
       "type": "number",
       "title": "File writes before a state hold",
-      "description": "File writes since a memory seat's last state write that hold the turn's end once for a new one",
-      "default": 5,
-      "required": false
-    },
-    "retired_body_days": {
-      "type": "number",
-      "title": "Retired body days",
-      "description": "Days a retired entry keeps its body before a log merge drops it; at least 14",
-      "default": 90,
+      "description": "File writes since a memory seat's last state write that hold the turn's end once for a new one; default 5",
       "required": false
     },
     "entry_id_length": {
       "type": "number",
       "title": "Entry id length",
-      "description": "Characters after m- in a new entry id, 6 to 16; ids already filed keep working",
-      "default": 6,
+      "description": "Characters after m- in a new entry id, 6 to 16; ids already filed keep working; default 6",
       "required": false
     },
     "brief_note_limit": {
       "type": "number",
       "title": "Brief note limit",
-      "description": "Notes the memory brief prints, hottest first; the rest stay one agentic-memory brief --kind note away",
-      "default": 10,
+      "description": "Notes the memory brief prints, hottest first; the rest stay one agentic-memory brief --kind note away; default 10",
       "required": false
     },
     "attachment_max_mb": {
       "type": "number",
       "title": "Attachment size limit",
-      "description": "Megabytes one file attached to a memory entry may hold",
-      "default": 10,
+      "description": "Megabytes one file attached to a memory entry may hold; default 10",
       "required": false
     },
     "attachments_total_mb": {
       "type": "number",
       "title": "Attachment limit for the machine",
-      "description": "Megabytes every file attached to memory entries may hold together, across every project on the machine, each file counted once; never below attachment_max_mb",
-      "default": 2048,
-      "required": false
-    },
-    "tools_total_mb": {
-      "type": "number",
-      "title": "Tool library limit for the machine",
-      "description": "Megabytes every stored version of every agentic-tools library on the machine may hold; past it, versions neither current nor a fork's origin are pruned oldest first; never below the 1 MB a tool may hold",
-      "default": 500,
+      "description": "Megabytes every file attached to memory entries may hold together, across every project on the machine, each file counted once; never below attachment_max_mb; default 2048",
       "required": false
     },
     "memory_require_git": {
       "type": "boolean",
       "title": "Memory only inside git",
-      "description": "Keep agentic-memory to git work trees; off lets a directory outside git keep a store keyed by its own path",
-      "default": true,
+      "description": "Keep agentic-memory to git work trees; off lets a directory outside git keep a store keyed by its own path; default on",
       "required": false
     },
     "memory_turns_off_auto": {
       "type": "boolean",
       "title": "Seat claim turns off Claude Code's auto memory",
-      "description": "A seat claim writes autoMemoryEnabled: false into the project's .claude/settings.local.json, from the next session; off leaves the file alone",
-      "default": true,
+      "description": "A seat claim writes autoMemoryEnabled: false into the project's .claude/settings.local.json, from the next session; off leaves the file alone; default on",
       "required": false
     },
     "memory_language": {
@@ -114,66 +92,52 @@
       "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; empty means en",
       "required": false
     },
-    "temporary_seat_lifetime": {
-      "type": "string",
-      "title": "Temporary seat lifetime",
-      "description": "How long a closed temporary seat keeps its entries before they are purged, e.g. 12h, 1d, 0; empty means 1d",
-      "required": false
-    },
     "tools_query_floor": {
       "type": "number",
       "title": "Tool query floor",
-      "description": "Cosine at or above which agentic-tools counts a tool as near a search or a prompt; depends on the embedder",
-      "default": 0.45,
+      "description": "Cosine at or above which agentic-tools counts a tool as near a search or a prompt; depends on the embedder; default 0.45",
       "required": false
     },
     "memory_enabled": {
       "type": "boolean",
       "title": "Switch on agentic-memory",
-      "description": "agentic-memory: seats, entries, recall and their hooks; off, its commands refuse and its hooks say nothing",
-      "default": true,
+      "description": "agentic-memory: seats, entries, recall and their hooks; off, its commands refuse and its hooks say nothing; default on",
       "required": false
     },
     "tools_enabled": {
       "type": "boolean",
       "title": "Switch on agentic-tools",
-      "description": "agentic-tools: the helper tool library and its hooks; off, its commands refuse and its hooks say nothing",
-      "default": true,
+      "description": "agentic-tools: the helper tool library and its hooks; off, its commands refuse and its hooks say nothing; default on",
       "required": false
     },
     "scratch_enabled": {
       "type": "boolean",
       "title": "Switch on the scratch sweep",
-      "description": "agentic-scratch: sweeping .tmp/claude/<session>/ at session end; off, shell-guard's mktemp ban goes off with it",
-      "default": true,
+      "description": "agentic-scratch: sweeping .tmp/claude/<session>/ at session end; off, shell-guard's mktemp ban goes off with it; default on",
       "required": false
     },
     "grounding_gate_enabled": {
       "type": "boolean",
       "title": "Switch on the grounding gate",
-      "description": "agentic-grounding-gate: the sdd reads owed before a question, draft or capture; off, agentic-capture goes off with it",
-      "default": true,
+      "description": "agentic-grounding-gate: the sdd reads owed before a question, draft or capture; off, agentic-capture goes off with it; default on",
       "required": false
     },
     "capture_enabled": {
       "type": "boolean",
       "title": "Switch on agentic-capture",
-      "description": "agentic-capture: capturing sdd entries from drafts; off, it refuses",
-      "default": true,
+      "description": "agentic-capture: capturing sdd entries from drafts; off, it refuses; default on",
       "required": false
     },
     "capture_remove_draft": {
       "type": "boolean",
       "title": "agentic-capture: remove the draft",
-      "description": "Delete a draft once its entry is captured, unless git tracks it or it lies outside the work tree and /tmp; off keeps every draft",
-      "default": true,
+      "description": "Delete a draft once its entry is captured, unless git tracks it or it lies outside the work tree and /tmp; off keeps every draft; default on",
       "required": false
     },
     "shell_guard_enabled": {
       "type": "boolean",
       "title": "Switch on shell-guard",
-      "description": "agentic-shell-guard: holding Bash removals to the project and banning mktemp; off, every Bash call runs unjudged",
-      "default": true,
+      "description": "agentic-shell-guard: holding Bash removals to the project and banning mktemp; off, every Bash call runs unjudged; default on",
       "required": false
     },
     "shell_guard_outside_project": {
@@ -191,29 +155,25 @@
     "shell_guard_lone_removal": {
       "type": "boolean",
       "title": "Shell-guard: removals run alone",
-      "description": "Deny a removal that is not the whole Bash command: no other statement, pipe, redirection, subshell or wrapper",
-      "default": true,
+      "description": "Deny a removal that is not the whole Bash command: no other statement, pipe, redirection, subshell or wrapper; default on",
       "required": false
     },
     "shell_guard_expansion": {
       "type": "boolean",
       "title": "Shell-guard: literal removal targets",
-      "description": "Deny a removal whose target is built from a variable or command substitution",
-      "default": true,
+      "description": "Deny a removal whose target is built from a variable or command substitution; default on",
       "required": false
     },
     "shell_guard_nested_code": {
       "type": "boolean",
       "title": "Shell-guard: nested code",
-      "description": "Deny a removal or mktemp inside eval, a shell's -c, or inline code for another interpreter",
-      "default": true,
+      "description": "Deny a removal or mktemp inside eval, a shell's -c, or inline code for another interpreter; default on",
       "required": false
     },
     "shell_guard_mktemp": {
       "type": "boolean",
       "title": "Shell-guard: mktemp",
-      "description": "Deny mktemp anywhere in a Bash command; scratch files go under the project's .tmp/",
-      "default": true,
+      "description": "Deny mktemp anywhere in a Bash command; scratch files go under the project's .tmp/; default on",
       "required": false
     },
     "shell_guard_secrets": {
@@ -237,15 +197,13 @@
     "shell_guard_ask_timeout": {
       "type": "number",
       "title": "Shell-guard: ask countdown",
-      "description": "Seconds a shell-guard ask waits for an answer in auto and bypassPermissions mode before it denies, at most 3600; 0 waits without limit",
-      "default": 120,
+      "description": "Seconds a shell-guard ask waits for an answer in auto and bypassPermissions mode before it denies, at most 3600; 0 waits without limit; default 120",
       "required": false
     },
     "tools_duplicate_floor": {
       "type": "number",
       "title": "Tool duplicate floor",
-      "description": "Cosine at or above which agentic-tools refuses a new tool's description as another tool's, unless --distinct says how it differs",
-      "default": 0.85,
+      "description": "Cosine at or above which agentic-tools refuses a new tool's description as another tool's, unless --distinct says how it differs; default 0.85",
       "required": false
     }
   }

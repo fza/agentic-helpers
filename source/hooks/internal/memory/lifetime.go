@@ -13,7 +13,7 @@ import (
 // A shelf is durable or temporary. A temporary shelf's retention runs once the
 // last seat on it closes, and when it runs out the shelf, its seats and its
 // entries are purged. A shelf keeps `temporary` for the default retention, the
-// plugin option temporary_seat_lifetime, or the span itself; durable keeps
+// config.yaml option temporary_seat_lifetime, or the span itself; durable keeps
 // nothing.
 const (
 	lifetimeDurable   = "durable"

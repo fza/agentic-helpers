@@ -84,26 +84,41 @@ writing to that graph needs the fork.
 
 Options are set once per machine and apply to every project.
 
-**The easy way:** run `/plugin`, select agentic-helpers, then Configure options.
+**Every agent:** `~/.config/agentic-helpers/config.yaml` (under `$XDG_CONFIG_HOME` where it is set)
+holds options every agent on the machine shares, one `key: value` per line:
 
-**By hand:** add them under `pluginConfigs` in your user settings, `~/.claude/settings.json` (or the
-one under `CLAUDE_CONFIG_DIR`):
+```yaml
+memory_language: "de"
+retired_body_days: 120
+```
+
+`agentic-helpers config` lists every option, its value and where the value comes from;
+`agentic-helpers config set <key> <value>` writes one into the file, checked first.
+
+**Claude Code alone:** run `/plugin`, select agentic-helpers, then Configure options, or add them
+under `pluginConfigs` in your user settings, `~/.claude/settings.json` (or the one under
+`CLAUDE_CONFIG_DIR`):
 
 ```json
 {
   "pluginConfigs": {
     "agentic-helpers@agentic-helpers": {
-      "options": { "memory_language": "de", "shell_guard_find_delete": "deny" }
+      "options": { "shell_guard_find_delete": "deny" }
     }
   }
 }
 ```
 
-Managed settings (`managed-settings.json` and its `managed-settings.d/` drop-ins) take the same
-block and win over the user's, so an administrator can lock an option. A project's
-`.claude/settings.json` and `.claude/settings.local.json` are never read for plugin options: Claude
-Code itself ignores them there, and one embedder and one set of guards serve every project on the
-machine.
+An answer given there wins over `config.yaml`. Managed settings (`managed-settings.json` and its
+`managed-settings.d/` drop-ins) take the same block and win over both, so an administrator can lock
+an option. An empty value counts as unset. A project's `.claude/settings.json` and
+`.claude/settings.local.json` are never read for plugin options: Claude Code itself ignores them
+there, and one embedder and one set of guards serve every project on the machine.
+
+**`config.yaml` only:** `retired_body_days`, `temporary_seat_lifetime` and `tools_total_mb` decide when
+stored data every agent shares is deleted, so Claude Code's dialog lacks them and an answer there is
+ignored; two agents set apart would otherwise leave the lowest value deciding for both. A key deleting
+only what one session made for itself, such as `capture_remove_draft`, stays in the dialog.
 
 ### Turning pieces off
 
@@ -148,7 +163,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 |---|---|---|
 | `entry_max_words` | `500` | Suggested word limit for an entry's body |
 | `state_stale_after_writes` | `5` | File writes after which the agent is asked once, at the end of a turn, to record where work stands |
-| `retired_body_days` | `90` | Days a retired entry keeps its body (at least 14) |
+| `retired_body_days` | `90` | `config.yaml` only. Days a retired entry keeps its body (at least 14) |
 | `entry_id_length` | `6` | Characters after `m-` in a new entry's id (6 to 16) |
 | `brief_note_limit` | `10` | Notes the brief shows, most used first. `agentic-memory brief --kind note` lists them all |
 | `attachment_max_mb` | `10` | Size limit for one attached file, in MB |
@@ -156,7 +171,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 | `memory_language` | `en` | Language entries are written in, unless `.sdd/config.yaml` names one |
 | `memory_require_git` | `true` | Memory works only inside a git work tree |
 | `memory_turns_off_auto` | `true` | Claiming a seat turns Claude Code's built-in auto memory off for the project, from the next session, through `.claude/settings.local.json` |
-| `temporary_seat_lifetime` | `1d` | How long a closed temporary shelf keeps its entries before they are deleted |
+| `temporary_seat_lifetime` | `1d` | `config.yaml` only. How long a closed temporary shelf keeps its entries before they are deleted |
 
 ### Tool library
 
@@ -164,7 +179,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 |---|---|---|
 | `tools_query_floor` | `0.45` | Similarity (cosine) from which a tool counts as a match for a search or a prompt |
 | `tools_duplicate_floor` | `0.85` | Similarity from which a new tool is refused as a duplicate of another |
-| `tools_total_mb` | `500` | Size limit for every stored version of every tool library on the machine, in MB. Past it, versions that are neither current nor a fork's origin are removed oldest first; never below the fixed 1 MB a tool may hold |
+| `tools_total_mb` | `500` | `config.yaml` only. Size limit for every stored version of every tool library on the machine, in MB. Past it, versions that are neither current nor a fork's origin are removed oldest first; never below the fixed 1 MB a tool may hold |
 
 ### Capture
 

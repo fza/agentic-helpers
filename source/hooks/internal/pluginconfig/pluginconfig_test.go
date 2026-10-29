@@ -102,25 +102,17 @@ func TestRead(t *testing.T) {
 			want: pluginconfig.Defaults(),
 		},
 		{
-			name: "a retired body keeps the days set",
-			user: own + `{"retired_body_days":120}}}}`,
-			want: defaultsWith(func(options *pluginconfig.Options) { options.RetiredBodyDays = 120 }),
-		},
-		{
-			name: "a retired body is kept at least the revive window",
-			user: own + `{"retired_body_days":"7"}}}}`,
-			want: defaultsWith(func(options *pluginconfig.Options) { options.RetiredBodyDays = pluginconfig.MinRetiredBodyDays }),
-		},
-		{
-			name: "the machine-wide size limits take the megabytes set",
-			user: own + `{"attachments_total_mb":4096,"tools_total_mb":"250"}}}}`,
+			name:    "the machine-wide size limits take the megabytes set",
+			user:    own + `{"attachments_total_mb":4096}}}}`,
+			managed: own + `{"tools_total_mb":"250"}}}}`,
 			want: defaultsWith(func(options *pluginconfig.Options) {
 				options.AttachmentsTotalMB, options.ToolsTotalMB = 4096, 250
 			}),
 		},
 		{
-			name: "an overall limit below its per-item limit resolves to the per-item limit",
-			user: own + `{"attachment_max_mb":20,"attachments_total_mb":5,"tools_total_mb":0}}}}`,
+			name:    "an overall limit below its per-item limit resolves to the per-item limit",
+			user:    own + `{"attachment_max_mb":20,"attachments_total_mb":5}}}}`,
+			managed: own + `{"tools_total_mb":0}}}}`,
 			want: defaultsWith(func(options *pluginconfig.Options) {
 				options.AttachmentMaxMB, options.AttachmentsTotalMB, options.ToolsTotalMB = 20, 20, pluginconfig.ToolMaxMB
 			}),
@@ -245,11 +237,6 @@ func TestRead(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "a temporary seat lifetime",
-			user: own + `{"temporary_seat_lifetime":"12h"}}}}`,
-			want: defaultsWith(func(options *pluginconfig.Options) { options.TemporarySeatLifetime = "12h" }),
-		},
-		{
 			name:    "a git limit that is no boolean is an error",
 			user:    own + `{"memory_require_git":"sometimes"}}}}`,
 			wantErr: true,
@@ -308,8 +295,8 @@ func TestPathsNeverIncludeProjectSettings(t *testing.T) {
 			}
 		}
 
-		if pluginconfig.Paths("/home/u", goos, nil)[0] != "/home/u/.claude/settings.json" {
-			t.Errorf("user settings should come first, with the lowest precedence")
+		if pluginconfig.Paths("/home/u", goos, nil)[1] != "/home/u/.claude/settings.json" {
+			t.Errorf("user settings should come right after config.yaml")
 		}
 	}
 }

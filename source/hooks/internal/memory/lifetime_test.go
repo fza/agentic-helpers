@@ -66,13 +66,13 @@ func TestLifetimeSetsTheShelfsLifetime(t *testing.T) {
 		t.Errorf("a value that is neither word nor span should be refused, got %d %q", got.code, got.err)
 	}
 
-	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"temporary_seat_lifetime":"12h"}}}}`)
+	test.WriteFile(t, h.config, "temporary_seat_lifetime: 12h\n")
 
 	if out := h.must("", "lifetime", "temporary"); !strings.Contains(out, "purged 12h after") {
 		t.Errorf("the option should set the default retention, got %q", out)
 	}
 
-	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"temporary_seat_lifetime":"soon"}}}}`)
+	test.WriteFile(t, h.config, "temporary_seat_lifetime: soon\n")
 
 	if out := h.must("", "lifetime", "temporary"); !strings.Contains(out, `purged 1d after its last seat closes (temporary_seat_lifetime "soon" is no span; 1d holds)`) {
 		t.Errorf("an option holding no span should fall back to 1d with a note, got %q", out)

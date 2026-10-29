@@ -24,8 +24,7 @@ func (h *harness) sized(name string, kilobytes int) string {
 func (h *harness) limitTools(megabytes string) {
 	h.t.Helper()
 
-	test.WriteFile(h.t, h.settings,
-		`{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"tools_total_mb":`+megabytes+`}}}}`)
+	test.WriteFile(h.t, h.config, "tools_total_mb: "+megabytes+"\n")
 }
 
 func (h *harness) stored(relative string) bool {

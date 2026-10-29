@@ -27,7 +27,7 @@ func TestPathsTakeTheConfigDirAndTheDropIns(t *testing.T) {
 	configured := Paths("/home/u", "linux", func(name string) string {
 		return map[string]string{"CLAUDE_CONFIG_DIR": "/elsewhere"}[name]
 	})
-	if configured[0] != "/elsewhere/settings.json" {
+	if configured[1] != "/elsewhere/settings.json" {
 		t.Errorf("CLAUDE_CONFIG_DIR should hold the user's settings, got %v", configured)
 	}
 }

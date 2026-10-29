@@ -46,12 +46,44 @@ PATH and builds the binaries itself: `go install -C source/hooks ./cmd/...` from
 
 ## Options
 
-The plugin's configuration dialog (`/plugin`, or `pluginConfigs` in the user or managed settings)
-carries agentic-memory's options, agentic-tools' `tools_query_floor`, `tools_duplicate_floor` and `tools_total_mb`,
-agentic-capture's `capture_remove_draft`, and every one of shell-guard's `shell_guard_*` options; no
-project overrides them. [`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md),
+Every option is set once per machine; no project overrides one. Each is read in layers, lowest
+first:
+
+1. the built-in default;
+2. `config.yaml` under `$XDG_CONFIG_HOME/agentic-helpers/` (`~/.config/agentic-helpers/` unless
+   set), one flat `key: value` map every agent on the machine shares;
+3. the plugin's configuration dialog (`/plugin`, or `pluginConfigs` in the user settings), which a
+   hook receives as `CLAUDE_PLUGIN_OPTION_<KEY>`;
+4. Claude Code's managed settings, last, so a machine lock always wins.
+
+An empty value counts as unset at every layer. The dialog declares no default: Claude Code would hand
+a declared default to every hook as an answer and hide `config.yaml`, so each description names its
+default instead.
+
+**Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:
+`retired_body_days`, `temporary_seat_lifetime` and `tools_total_mb`. The dialog lacks them and a value
+in the user settings or the hook environment is ignored, since two agents set apart would leave the
+lowest value deciding for both. Managed settings still set them. A key deleting only what one session
+made for itself, `capture_remove_draft`, stays in the dialog. At session start `agentic-helpers check`
+copies a value the user settings still hold for a `config.yaml`-only key into `config.yaml`, where the
+file names none; it writes no settings file.
+
+    agentic-helpers config                       # every key: value and the layer it comes from
+    agentic-helpers config get <key>             # one key's line
+    agentic-helpers config set <key> <value>     # write it into config.yaml
+
+`config set` checks the value as the reader does, replaces the key's line or appends one, keeps every
+other line and comment, and writes through a temporary file renamed into place. An unknown key is
+refused naming the nearest; a layer above `config.yaml` that sets the key too is named:
+`<layer> also sets <key> and wins over config.yaml: <value> applies`. An invalid value in
+`config.yaml` (a word for a number, an unknown key, a file that is no YAML map) is skipped, the layer
+below applies, and `agentic-helpers check` names it at session start as
+`agentic-helpers: <path>: <key>: <why>; the layer below applies`; `config` lists it as `problem:`.
+An invalid value in a settings file still sets every option to its default, as before.
+
+[`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md),
 [`../capture/usage.md`](../capture/usage.md) and [`../shell-guard/usage.md`](../shell-guard/usage.md)
-list each.
+list each option.
 
 ## Switching a piece off
 
@@ -65,10 +97,10 @@ feature resting on an off piece goes off with it, and the rest of its piece runs
 line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`;
 run as a command it lists every piece on or off, with its features off under it.
 
-Every binary reads `settings.json` under `CLAUDE_CONFIG_DIR` (else `~/.claude`), then, in a hook,
-the options Claude Code hands it as `CLAUDE_PLUGIN_OPTION_<KEY>`, then the managed settings and their
-`managed-settings.d/` drop-ins in name order, as Claude Code merges them. The managed settings come
-last, so no environment overrides what a machine locks.
+Every binary reads `config.yaml`, then `settings.json` under `CLAUDE_CONFIG_DIR` (else `~/.claude`),
+then, in a hook, the options Claude Code hands it as `CLAUDE_PLUGIN_OPTION_<KEY>`, then the managed
+settings and their `managed-settings.d/` drop-ins in name order, as Claude Code merges them. The
+managed settings come last, so no environment overrides what a machine locks.
 
 ## The skills
 
