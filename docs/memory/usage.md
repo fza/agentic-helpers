@@ -95,8 +95,10 @@ refused with nothing written:
 
     agentic-memory: <store> is not offered for this checkout; run the bind in a terminal
     agentic-memory: <store> is not offered for this checkout; run the merge in a terminal
+    agentic-memory: neither <a> nor <b> is this checkout's own store; run the merge in a terminal
 
-A merge refusal names the side that is neither the own store nor listed. A call whose standard
+A merge refusal names the side that is neither the own store nor listed; where both sides are
+listed and neither is the own store, the last line names both. A call whose standard
 input is a terminal and that no Claude Code process started (the user at a shell outside Claude
 Code) runs any bind or merge. Any ancestor named like the process a seat's holder runs in
 (`claude`) makes the call an agent's even with a terminal, so a pty an agent

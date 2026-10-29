@@ -52,6 +52,9 @@ hook ask, always about this checkout:
   `run the merge`) → that store is not among the ones the question lists, so no agent may reach it.
   Tell the user the command to run at a shell outside Claude Code; never retry it another way
   (`script`, a pty, a detached process, the pointer file).
+- **`agentic-memory: neither <a> nor <b> is this checkout's own store; run the merge in a terminal`**
+  → a merge from an agent joins only the checkout's own store with a listed one. Same: the user
+  runs it at a shell.
   `bind --new` always runs.
 - Never edit `agentic-store` in `.git/` or a store's `identity.json`: `bind` and `merge` do.
 - **`agentic-helpers: migrating to <data> failed: <cause>; nothing moved, and the next call tries
