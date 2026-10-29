@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/layout"
+	"github.com/fza/agentic-helpers/source/hooks/internal/levenshtein"
 )
 
 // A view reads the store through a layout: colon-chained filters that
@@ -195,7 +196,7 @@ func (scope *viewScope) compileSection(section layout.Section) (viewSection, err
 			err = held.shape(call)
 		default:
 			err = &layoutRefusal{problem: "unknown word", token: call.Name, position: call.Position,
-				nearest: nearestWord(call.Name, viewWords())}
+				nearest: levenshtein.Nearest(call.Name, viewWords())}
 		}
 
 		if err != nil {
@@ -323,7 +324,7 @@ func rankArgument(call layout.Call) (string, error) {
 		}
 
 		return "", &layoutRefusal{problem: "rank takes heat, in-degree, size or by(date)", token: token, position: arg.Position,
-			nearest: nearestWord(token, rankWords)}
+			nearest: levenshtein.Nearest(token, rankWords)}
 	}
 
 	return "", &layoutRefusal{problem: "rank takes heat, in-degree, size or by(date)", token: callText(call),
@@ -344,7 +345,7 @@ func groupArgument(call layout.Call) (string, error) {
 	word, isWord := field.Word()
 	if !isWord || field.Quoted || !slices.Contains(groupFields, word) {
 		refusal.token, refusal.position, refusal.nearest = cmp.Or(word, callText(call)), field.Position,
-			nearestWord(word, groupFields)
+			levenshtein.Nearest(word, groupFields)
 
 		return "", refusal
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/layout"
+	"github.com/fza/agentic-helpers/source/hooks/internal/levenshtein"
 )
 
 // One filter set serves every read: a view's layout, search's flags and the
@@ -445,7 +446,7 @@ func (scope *viewScope) compileFilter(call layout.Call) (filter, error) {
 			}
 
 			return filter{}, &layoutRefusal{problem: problem.problem, token: token, position: at,
-				nearest: cmp.Or(problem.nearest, nearestWord(token, suggestionsOf(scope, word)))}
+				nearest: cmp.Or(problem.nearest, levenshtein.Nearest(token, suggestionsOf(scope, word)))}
 		}
 
 		return filter{}, err
@@ -489,12 +490,12 @@ func (scope *viewScope) filterValues(word filterWord, call layout.Call) ([]strin
 		value, isWord := arg.Word()
 		if !isWord {
 			return nil, &layoutRefusal{problem: fmt.Sprintf("%s takes %s, not a function", word.name, takesOf(word)),
-				token: callText(*arg.Call), position: arg.Position, nearest: nearestWord(arg.Call.Name, suggestionsOf(scope, word))}
+				token: callText(*arg.Call), position: arg.Position, nearest: levenshtein.Nearest(arg.Call.Name, suggestionsOf(scope, word))}
 		}
 
 		if len(word.values) > 0 && !slices.Contains(word.values, value) {
 			return nil, &layoutRefusal{problem: fmt.Sprintf("%s takes %s", word.name, takesOf(word)), token: value,
-				position: arg.Position, nearest: nearestWord(value, word.values)}
+				position: arg.Position, nearest: levenshtein.Nearest(value, word.values)}
 		}
 
 		values = append(values, value)
@@ -544,7 +545,7 @@ func (scope *viewScope) compileNot(call layout.Call) (filter, error) {
 	inner := *call.Args[0].Call
 	if _, known := filterWordNamed(inner.Name); !known && inner.Name != "not" {
 		return filter{}, &layoutRefusal{problem: "not takes a filter", token: inner.Name, position: inner.Position,
-			nearest: nearestWord(inner.Name, filterNames())}
+			nearest: levenshtein.Nearest(inner.Name, filterNames())}
 	}
 
 	held, err := scope.compileFilter(inner)
@@ -604,21 +605,6 @@ func callText(call layout.Call) string {
 	}
 
 	return call.Name + "(" + strings.Join(parts, ",") + ")"
-}
-
-// nearestWord is the candidate closest to token by edit distance, the first
-// listed among equals.
-func nearestWord(token string, candidates []string) string {
-	best, distance := "", -1
-
-	for _, candidate := range candidates {
-		apart := levenshtein(strings.ToLower(token), strings.ToLower(candidate))
-		if distance < 0 || apart < distance {
-			best, distance = candidate, apart
-		}
-	}
-
-	return best
 }
 
 // keeps is whether every filter keeps the entry, the cheap ones asked first.

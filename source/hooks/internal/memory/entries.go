@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/levenshtein"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
@@ -424,7 +425,7 @@ func nearTopics(topic string, existing map[string]int) []string {
 	var near []string
 
 	for other := range existing {
-		distance := levenshtein(topic, other)
+		distance := levenshtein.Distance(topic, other)
 		if distance <= max(2, len(topic)/3) || strings.Contains(other, topic) || strings.Contains(topic, other) {
 			near = append(near, other)
 		}
@@ -435,33 +436,6 @@ func nearTopics(topic string, existing map[string]int) []string {
 	})
 
 	return near[:min(3, len(near))]
-}
-
-func levenshtein(a, b string) int {
-	left, right := []rune(a), []rune(b)
-	previous := make([]int, len(right)+1)
-
-	for index := range previous {
-		previous[index] = index
-	}
-
-	for i := 1; i <= len(left); i++ {
-		current := make([]int, len(right)+1)
-		current[0] = i
-
-		for j := 1; j <= len(right); j++ {
-			cost := 1
-			if left[i-1] == right[j-1] {
-				cost = 0
-			}
-
-			current[j] = min(previous[j]+1, current[j-1]+1, previous[j-1]+cost)
-		}
-
-		previous = current
-	}
-
-	return previous[len(right)]
 }
 
 // topicCounts is every topic with its count of live entries, across seats.
