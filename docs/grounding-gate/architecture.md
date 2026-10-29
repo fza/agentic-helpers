@@ -40,6 +40,11 @@ written holds the reads nowhere, so the gate refuses, the safe side. A grounded 
 entry count and newest entry at the time it was saved; a capture of it passes only while the draft
 file is byte-identical and the graph still holds the same entries.
 
+`noted` holds the missing reads the last let-through note named (`firstNote`). A gated call whose
+missing reads match it gets no note. A different graph state clears it with the reads, a compaction
+clears it with them, and a different set of missing reads no longer matches, so each of the three
+fires the note again. A ledger that cannot be written leaves the note firing.
+
 ## The reads refusal
 
 `refusals/reads.txt` holds the frame: its first line, the `gather_command` call where the project
@@ -47,7 +52,8 @@ names one, and the reads owed. `owedReads` fills the last from the ledger, one r
 for each read the ledger does not credit, and appends the search hint only when a search is among
 them. A read the ledger credits is never named, so an agent is not sent to repeat it. On a gated
 tool `letThrough` swaps the first line for the let-through one: the call already ran, so the reads
-are owed before the next question or draft rather than before the call again.
+are owed before the next question or draft rather than before the call again. The note carrying
+reads owed fires once per cause (see [the ledger](#the-ledger)); a refusal fires on every call.
 
 ## The engine refusal
 

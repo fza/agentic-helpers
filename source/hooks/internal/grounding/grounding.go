@@ -237,6 +237,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		}
 
 		if gatedTools[payload.ToolName] {
+			if strings.HasPrefix(refusal, readsRefusedLine) && !firstNote(ctx, env, payload) {
+				return 0
+			}
+
 			_ = hookio.AddContext(streams.Out, "PreToolUse", letThrough(payload, refusal))
 
 			return 0
@@ -514,6 +518,31 @@ func letThrough(payload hookio.Payload, refusal string) string {
 	}
 
 	return note
+}
+
+// firstNote says whether the reads owed are a cause no note has named yet, and
+// records them as named. A hidden message repeated without a new cause is a
+// defect: the cause is the set of missing reads under the graph as it stands,
+// so a graph change, a compaction or a changed set names them again. A ledger
+// that cannot be written leaves the note firing: the safe side.
+func firstNote(ctx context.Context, env Env, payload hookio.Payload) bool {
+	path, err := ledgerPath(env.ledgerDir(), payload)
+	if err != nil {
+		return true
+	}
+
+	held := loadEvidence(ctx, path)
+	held.against(env.graphState())
+
+	cause := held.missing()
+	if held.Noted == cause {
+		return false
+	}
+
+	held.Noted = cause
+	_ = saveEvidence(ctx, path, held)
+
+	return true
 }
 
 func gated(payload hookio.Payload) bool {

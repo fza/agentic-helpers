@@ -18,8 +18,9 @@ import (
 var errNoLedger = errors.New("no ledger for this session")
 
 // evidence is what one session read out of the graph while the graph stood as
-// Graph says, plus the drafts saved while it held every read. The file may
-// carry fields another tool wrote, and they survive a record.
+// Graph says, plus the drafts saved while it held every read, and the missing
+// reads its last let-through note named. The file may carry fields another
+// tool wrote, and they survive a record.
 type evidence struct {
 	Search   int             `json:"search"`
 	Query    int             `json:"query"`
@@ -27,6 +28,7 @@ type evidence struct {
 	Listings []string        `json:"listings"`
 	Grounded []groundedDraft `json:"grounded"`
 	Graph    string          `json:"graph"`
+	Noted    string          `json:"noted"`
 
 	rest map[string]json.RawMessage
 }
@@ -50,13 +52,32 @@ func (held *evidence) against(graph string) {
 		return
 	}
 
-	held.Search, held.Query, held.Term, held.Listings, held.Graph = 0, 0, 0, []string{}, graph
+	held.Search, held.Query, held.Term, held.Listings, held.Graph, held.Noted = 0, 0, 0, []string{}, graph, ""
 }
 
 // forget drops the reads and keeps the grounded drafts, as a compaction drops
-// the reads' output from the context.
+// the reads' output from the context. The note went with that context too.
 func (held *evidence) forget() {
-	held.Search, held.Query, held.Term, held.Listings = 0, 0, 0, []string{}
+	held.Search, held.Query, held.Term, held.Listings, held.Noted = 0, 0, 0, []string{}, ""
+}
+
+// missing names the reads still owed, the cause a let-through note answers.
+func (held evidence) missing() string {
+	var owed []string
+
+	if held.Query == 0 {
+		owed = append(owed, "query")
+	}
+
+	if held.Term == 0 {
+		owed = append(owed, "term")
+	}
+
+	if len(held.Listings) == 0 {
+		owed = append(owed, "listing")
+	}
+
+	return strings.Join(owed, ",")
 }
 
 func (held evidence) complete() bool {
@@ -90,7 +111,7 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("reading the ledger: %w", err)
 	}
 
-	for _, name := range []string{"search", "query", "term", "listings", "grounded", "graph"} {
+	for _, name := range []string{"search", "query", "term", "listings", "grounded", "graph", "noted"} {
 		delete(fields, name)
 	}
 
@@ -120,6 +141,7 @@ func (held evidence) MarshalJSON() ([]byte, error) {
 	fields["listings"] = held.Listings
 	fields["grounded"] = held.Grounded
 	fields["graph"] = held.Graph
+	fields["noted"] = held.Noted
 
 	data, err := json.Marshal(fields)
 	if err != nil {
