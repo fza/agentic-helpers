@@ -752,13 +752,15 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 }
 
 // arrivalsAtTool is what arrived for the seat since its last look, and
-// whether the seat holds a trap; where the log stands as it stood then, two
-// stats and nothing more. A changed log re-indexes the seat's traps.
+// whether the seat holds a trap; where the log stands as it stood then and no
+// entry of the seat came due since, two stats and nothing more. A changed log
+// re-indexes the seat's traps.
 func (mem *memory) arrivalsAtTool(ctx context.Context, name string) ([]string, bool) {
 	signature := mem.logSignature()
 
 	var mark seenMark
-	if mem.readSlot(mem.seenKey(name), &mark) && mark.Log == signature {
+	if mem.readSlot(mem.seenKey(name), &mark) && mark.Log == signature &&
+		(mark.NextDue.IsZero() || mem.now().Before(mark.NextDue)) {
 		return nil, mark.Traps > 0
 	}
 
@@ -769,7 +771,7 @@ func (mem *memory) arrivalsAtTool(ctx context.Context, name string) ([]string, b
 
 	arrived := mem.announce(ctx, folded, name)
 	traps := mem.indexTraps(folded, name)
-	mem.noteLog(name, signature, traps)
+	mem.noteLog(name, signature, traps, mem.nextDue(folded, name))
 
 	if arrived == "" {
 		return nil, traps > 0

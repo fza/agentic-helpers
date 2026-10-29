@@ -96,7 +96,8 @@ agentic-memory private on|off      # hide this seat from other projects' who --a
 
 ```bash
 agentic-memory new --title '<3-10 words>' --topic <name>... \
-  [--kind rule|trap|todo|note] [--from user|agent|tool] [--about <path>]... [--until <end>]... <<'EOF'
+  [--kind rule|trap|todo|note] [--from user|agent|tool] [--about <path>]... [--until <end>]... \
+  [--due <RFC 3339 or date>] <<'EOF'
 body
 EOF
 agentic-memory state <<'EOF'
@@ -120,6 +121,11 @@ EOF
 - **`--until <condition>`**, any one ends it (`end reached: <condition>`): `closed:<graph id>`,
   `merged:<branch>[@<into>]`, `changed:<path>`, `gone:<path>` (inside the work tree), `claim`,
   `session`, `at:<RFC 3339 or date>`, `captured`. Not on a rule. Nothing to watch → none; it decays.
+- **Work that matters only from a moment → `--due <time>`** (todo or note only; rule/trap →
+  `--due takes a todo or a note`). Out of the brief's kind sections: one `<n> due later (next
+  <time>)` line until a day before, then `due (<shown> of <total>):`; coming due mid-run →
+  `agentic-memory: due for <seat> (<n>):`, once. Act on it. Moved: `due <id> <time>`; dropped:
+  `due <id> --clear`. A week past due → `retire? due <age> ago`. Never a date in a title.
 - **Scratch finding for this session only → `--until session`.** Ends at release or session end;
   `/clear` and `/resume` keep it.
 - **Owner decision waiting for capture → `--kind todo --until captured`.** `agentic-memory: graph
@@ -210,6 +216,7 @@ agentic-memory new ... --absorbs <id>...           # a summary superseding its p
 agentic-memory revive <id>                         # undo the latest retire/supersede; 14 days
 agentic-memory rekind <id> rule|trap|todo|note
 agentic-memory retitle <id> '<title>'
+agentic-memory due <id> <time> / due <id> --clear  # move or drop a todo's or note's due time
 agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 ```
 
@@ -225,7 +232,9 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 
 ## What comes back
 
-- **Claim and every compaction → brief**: state, changes by other seats, `ended since last brief
+- **Claim and every compaction → brief**: state, the due section (`due (<shown> of <total>):`,
+  `+<n> more due: agentic-memory brief --due`, `<n> due later (next <time>)`), changes by other
+  seats, `ended since last brief
   (revive to undo):` (wrong one → `revive`; refused while its end still holds, see
   [reference.md](reference.md)), rules, traps, todos, notes by heat (`retire? <why>`
   ending a line = looks ended, nothing retired: check each), `retire?` (only candidates printed

@@ -133,6 +133,12 @@ var filterWords = []filterWord{
 		},
 	},
 	{
+		name: dueHeading, arity: takesNone, describe: "entries carrying a due time",
+		build: func(*viewScope, []string) (predicate, error) {
+			return func(_ *viewScope, held *entry) bool { return !held.due.IsZero() }, nil
+		},
+	},
+	{
 		name: "attached", arity: takesNone, describe: "entries holding attachments, their body not dropped",
 		build: func(*viewScope, []string) (predicate, error) {
 			return func(_ *viewScope, held *entry) bool { return len(held.attachments) > 0 && !held.dropped }, nil

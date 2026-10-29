@@ -87,7 +87,7 @@ func TestAnEarlierStoreMovesToTheBinaryFormats(t *testing.T) {
 	h.must(hookPayload("", "", "what does the gate read"), "prompt")
 
 	format, _ := os.ReadFile(filepath.Join(h.store(), "format.json"))
-	if !strings.Contains(string(format), `"format":6`) {
+	if !strings.Contains(string(format), `"format":7`) {
 		t.Errorf("the store should move to the current format, got %s", format)
 	}
 
