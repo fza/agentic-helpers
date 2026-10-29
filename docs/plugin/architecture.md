@@ -5,7 +5,7 @@
 | Path | Holds |
 |---|---|
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
-| `plugin/.claude-plugin/plugin.json` | the plugin's manifest: its `version`, which names the release the launcher runs, and its `userConfig` options |
+| `plugin/.claude-plugin/plugin.json` | the plugin's manifest: its `version`, which names the release the launcher runs, and its `userConfig` options, none declaring a `default` and none of the `config.yaml`-only keys |
 | `plugin/hooks/hooks.json` | every hook the plugin wires, each through `plugin/hooks/run` |
 | `plugin/hooks/run` | the launcher |
 | `plugin/hooks/register.ts` | the hooks module, writing agentic-memory's context reading |

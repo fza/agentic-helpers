@@ -20,11 +20,13 @@ const (
 )
 
 type harness struct {
-	t         *testing.T
-	repo      string
-	home      string
-	cache     string
-	settings  string
+	t        *testing.T
+	repo     string
+	home     string
+	cache    string
+	settings string
+	// config is the agent-neutral config.yaml, below settings.
+	config    string
 	repoID    string
 	session   string
 	clock     *test.Clock
@@ -45,6 +47,7 @@ func newHarness(t *testing.T) *harness {
 	h := &harness{
 		t: t, home: filepath.Join(root, "home"), cache: filepath.Join(root, "cache"),
 		settings: filepath.Join(root, "settings.json"),
+		config:   filepath.Join(root, "config.yaml"),
 		clock:    test.NewClock(time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC)),
 		embedder: &test.Embedder{}, embedding: true, processes: test.NewProcesses(), session: test.Session,
 		variables: map[string]string{}, lockWait: 200 * time.Millisecond, worktrees: map[string]string{},
@@ -82,7 +85,7 @@ func (h *harness) store() string {
 func (h *harness) env() tools.Env {
 	return tools.Env{
 		Base: h.repo, Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
-		Settings: []string{h.settings}, Getenv: func(name string) string { return h.variables[name] },
+		Settings: []string{h.config, h.settings}, Getenv: func(name string) string { return h.variables[name] },
 		Now: h.clock.Now, Processes: h.processes, Checkout: test.GitDirOf{Worktrees: h.worktrees},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test", LockWait: h.lockWait,
 	}

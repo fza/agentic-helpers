@@ -51,7 +51,7 @@ func TestTheReadmeListsEveryOption(t *testing.T) {
 		t.Fatal("the README should carry an Options section")
 	}
 
-	for _, key := range userConfigKeys(t) {
+	for _, key := range pluginconfig.Keys {
 		if !strings.Contains(section, "`"+key+"`") {
 			t.Errorf("the README's Options section should name the option %s", key)
 		}
@@ -62,11 +62,37 @@ func TestTheReadmeListsEveryOption(t *testing.T) {
 	}
 }
 
-func TestEveryDeclaredOptionIsRead(t *testing.T) {
-	read := slices.Clone(pluginconfig.Keys)
+func TestEveryDeclaredOptionIsReadAndNoConfigOnlyOneIsDeclared(t *testing.T) {
+	read := slices.DeleteFunc(slices.Clone(pluginconfig.Keys), func(key string) bool {
+		return slices.Contains(pluginconfig.ConfigOnly, key)
+	})
 	slices.Sort(read)
 
 	if !slices.Equal(read, userConfigKeys(t)) {
-		t.Errorf("the options the plugin reads should be the ones it declares, read %v", read)
+		t.Errorf("the plugin should declare every option it reads but those config.yaml alone sets, read %v", read)
+	}
+}
+
+// A declared default reaches every hook as an answer, hiding config.yaml.
+func TestNoDeclaredOptionCarriesADefault(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(pluginRoot, ".claude-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatalf("reading plugin.json: %v", err)
+	}
+
+	var manifest struct {
+		UserConfig map[string]map[string]json.RawMessage `json:"userConfig"`
+	}
+
+	err = json.Unmarshal(raw, &manifest)
+	if err != nil {
+		t.Fatalf("parsing plugin.json: %v", err)
+	}
+
+	for key, declaration := range manifest.UserConfig {
+		_, declared := declaration["default"]
+		if declared {
+			t.Errorf("an option should name its default in its description and declare none: %s", key)
+		}
 	}
 }

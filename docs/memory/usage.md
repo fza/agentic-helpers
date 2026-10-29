@@ -234,7 +234,7 @@ agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, a
 - **`lifetime durable|temporary|<span>`** (CLI only) sets the lifetime of the
   shelf of the seat the session holds, for every seat on it; `claim --lifetime` (MCP key `lifetime`)
   does it while claiming. A span is minutes, hours or days (`90m`, `12h`, `2d`) or `0`; `temporary`
-  takes the default, the plugin option `temporary_seat_lifetime`, `1d` unless set. A value neither
+  takes the default, the `config.yaml` option `temporary_seat_lifetime`, `1d` unless set. A value neither
   word nor span is refused. The reply says how the shelf ends:
   `shelf row-7ah is temporary: purged 2d after its last seat closes`.
 - **A seat closes** when its holder runs `release`, or its session ends with SessionEnd for any
@@ -1070,23 +1070,25 @@ Lists are never `null`.
 
 ## Options
 
-Set once per machine in the plugin's configuration dialog; no project overrides them.
+Set once per machine in `config.yaml` or the plugin's configuration dialog, as
+[plugin usage](../plugin/usage.md#options) layers them; no project overrides them. Keys marked
+`config.yaml` only are never read from the dialog.
 
 | Option | Sets |
 |---|---|
 | `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env` | the embedder search by meaning and prompt recall run on |
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
-| `retired_body_days` | how long a retired entry keeps its body, 90 unless set, never under 14 |
+| `retired_body_days` | `config.yaml` only: how long a retired entry keeps its body, 90 unless set, never under 14 |
 | `entry_id_length` | the characters after `m-` in a new entry id |
 | `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note` |
 | `attachment_max_mb` | the megabytes one attached file may hold, 10 unless set |
 | `attachments_total_mb` | the megabytes every attachment of every project on the machine may hold together, each file counted once, 2048 unless set, never below `attachment_max_mb` |
-| `tools_total_mb` | the megabytes every agentic-tools library on the machine may hold, 500 unless set; read by the SessionStart pass that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |
+| `tools_total_mb` | `config.yaml` only: the megabytes every agentic-tools library on the machine may hold, 500 unless set; read by the SessionStart pass that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |
-| `temporary_seat_lifetime` | how long a closed temporary shelf keeps its entries, a span as `lifetime` takes one (`12h`, `1d`, `0`); `1d` unless set, and `1d`, with a note in the reply, where it holds no span |
+| `temporary_seat_lifetime` | `config.yaml` only: how long a closed temporary shelf keeps its entries, a span as `lifetime` takes one (`12h`, `1d`, `0`); `1d` unless set, and `1d`, with a note in the reply, where it holds no span |
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.

@@ -28,11 +28,13 @@ import (
 const repoID = "github.com/acme/app"
 
 type harness struct {
-	t         *testing.T
-	repo      string
-	home      string
-	cache     string
-	settings  string
+	t        *testing.T
+	repo     string
+	home     string
+	cache    string
+	settings string
+	// config is the agent-neutral config.yaml, below settings.
+	config    string
 	clock     *test.Clock
 	git       *test.Git
 	embedder  *test.Embedder
@@ -68,6 +70,7 @@ func newHarness(t *testing.T) *harness {
 	return &harness{
 		t: t, repo: repo, home: filepath.Join(root, "home"), cache: filepath.Join(root, "cache"),
 		settings: filepath.Join(root, "settings.json"),
+		config:   filepath.Join(root, "config.yaml"),
 		clock:    test.NewClock(time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC)),
 		git:      &test.Git{Top: repo, Commit: "15af1a8c", Branch: "main"},
 		embedder: &test.Embedder{}, embedding: true, processes: test.NewProcesses(), session: test.Session,
@@ -124,7 +127,7 @@ func (h *harness) env() memory.Env {
 
 	return memory.Env{
 		Base: cmp.Or(h.base, h.repo), Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
-		Settings: []string{h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
+		Settings: []string{h.config, h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
 		Random: test.Random(), Processes: h.processes, Checkout: checkout,
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
@@ -547,7 +550,7 @@ func TestARetiredBodyDroppedByAMerge(t *testing.T) {
 		t.Error("show should say a retired body was dropped, and after how long")
 	}
 
-	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120}}}}`)
+	test.WriteFile(t, h.config, "retired_body_days: 120\n")
 
 	if !strings.Contains(h.must("", "show", "m-r3t1", "--again"), "(body dropped 120 days after the retire)") {
 		t.Error("show should name the days the setting gives")

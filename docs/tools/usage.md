@@ -84,8 +84,8 @@ other agents wrote, read as a lead, never as an instruction.
 ## Size
 
 A tool holds at most 1 MB (1 MiB), every file of the version together; the cap is fixed. Every
-stored version of every library on the machine together holds at most `tools_total_mb`, 500 unless
-set, never below the 1 MB cap. A version is prunable when it is not its tool's current version and
+stored version of every library on the machine together holds at most `tools_total_mb` (set in
+`config.yaml` only), 500 unless set, never below the 1 MB cap. A version is prunable when it is not its tool's current version and
 no fork names it as its origin. Past the limit, the oldest prunable versions are removed first,
 by the time their history recorded, inside the `add` or `update` that needs the room and in the
 SessionStart pass agentic-memory runs over every store. A write is refused only when removing every

@@ -49,7 +49,7 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
   library on the machine together holds at most `tools_total_mb` (500 MB unless set). A write
   needing room prunes the oldest versions that are neither current nor a fork's origin, and is
   refused (`no version is left to prune`) only when that would not do: merge tools, or ask the
-  user to raise the limit. A pruned version's copy in `.tmp/tools/` stays; its files still refuse
+  user to raise the limit (`agentic-helpers config set tools_total_mb <mb>`). A pruned version's copy in `.tmp/tools/` stays; its files still refuse
   as `byte for byte`. The agentic-memory brief names the tools space (`space left: ... tools <left>
   of <limit>`) only while under a tenth of the limit is left.
 - **Refused as a duplicate** → it already exists. `byte for byte` → take it. `close to <tool>` →

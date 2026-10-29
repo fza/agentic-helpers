@@ -251,7 +251,8 @@ func TestSessionStartPrunesTheToolLibrary(t *testing.T) {
 	for _, toolsOn := range []bool{true, false} {
 		t.Run(fmt.Sprintf("tools_enabled %t", toolsOn), func(t *testing.T) {
 			h := newHarness(t)
-			h.limitSpace(fmt.Sprintf(`"tools_total_mb":1,"tools_enabled":%t`, toolsOn))
+			h.limitSpace(fmt.Sprintf(`"tools_enabled":%t`, toolsOn))
+			test.WriteFile(t, h.config, "tools_total_mb: 1\n")
 
 			store := filepath.Join(h.toolsRoot(), "github.com", "acme", "tools")
 			test.FixtureTree(t, "tools/fdbox-library", store)

@@ -1,7 +1,9 @@
-// Package pluginconfig reads the answers a user gave the plugin's `userConfig`
-// dialog. Claude Code exports them only to hook processes, so a command the
-// Bash tool runs from the plugin's `bin/` reads them from the settings files
-// themselves: user settings, then managed settings, which win.
+// Package pluginconfig reads the plugin's options in layers, lowest first: the
+// built-in defaults, the agent-neutral `config.yaml`, the answers a user gave
+// Claude Code's `userConfig` dialog, then Claude Code's managed settings,
+// which win. Claude Code exports the answers only to hook processes, so a
+// command the Bash tool runs from the plugin's `bin/` reads them from the
+// settings files themselves.
 package pluginconfig
 
 import (
@@ -147,7 +149,7 @@ type Options struct {
 	ShellGuardEnabled    bool
 }
 
-// Keys is every option the plugin's userConfig declares, as a settings file
+// Keys is every option the plugin reads, as `config.yaml`, a settings file
 // and the hook environment spell it.
 var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
@@ -161,17 +163,34 @@ var Keys = []string{
 	"shell_guard_enabled",
 }
 
+// ConfigOnly is every key that decides when stored data every agent shares is
+// deleted. An agent's own option layer never sets one: two agents set apart
+// would leave the lowest value deciding for both, whichever process ran the
+// cleanup. Only `config.yaml` and managed settings set them, and the plugin's
+// `userConfig` declares none.
+var ConfigOnly = []string{"retired_body_days", "temporary_seat_lifetime", "tools_total_mb"}
+
+// LayerDefault ... LayerManaged name where an option's value comes from.
+const (
+	LayerDefault  = "default"
+	LayerConfig   = "config.yaml"
+	LayerUser     = "user settings"
+	LayerAgent    = "plugin option"
+	LayerManaged  = "managed settings"
+	configFileExt = ".yaml"
+)
+
 type settings struct {
 	PluginConfigs map[string]struct {
 		Options map[string]json.RawMessage `json:"options"`
 	} `json:"pluginConfigs"`
 }
 
-// Paths is every settings file that can carry `pluginConfigs`, lowest
-// precedence first: the user's, under CLAUDE_CONFIG_DIR where it is set, then
-// the managed settings and their `managed-settings.d/` drop-ins in name order,
-// as Claude Code merges them. Project settings are never among them: one
-// embedder serves every project on the machine.
+// Paths is every file that can set an option, lowest precedence first:
+// `config.yaml`, then the user's settings, under CLAUDE_CONFIG_DIR where it is
+// set, then the managed settings and their `managed-settings.d/` drop-ins in
+// name order, as Claude Code merges them. Project settings are never among
+// them: one embedder serves every project on the machine.
 func Paths(home string, goos string, getenv func(string) string) []string {
 	config := filepath.Join(home, ".claude")
 	if getenv != nil && getenv("CLAUDE_CONFIG_DIR") != "" {
@@ -182,7 +201,7 @@ func Paths(home string, goos string, getenv func(string) string) []string {
 		"darwin": "/Library/Application Support/ClaudeCode", "linux": "/etc/claude-code",
 	}[goos]
 
-	return pathsUnder(config, managed)
+	return append([]string{ConfigPath(home, getenv)}, pathsUnder(config, managed)...)
 }
 
 func pathsUnder(config string, managed string) []string {
@@ -203,70 +222,84 @@ func pathsUnder(config string, managed string) []string {
 	return paths
 }
 
-// ReadWith folds the user's settings, paths[0] as Paths orders them, then the
-// hook environment's CLAUDE_PLUGIN_OPTION_<KEY> variables, then the managed
-// settings, paths[1:], which no environment overrides: they are how a machine
-// locks a piece on.
-func ReadWith(paths []string, getenv func(string) string) (Options, error) {
-	if getenv == nil {
-		return Read(paths)
+// Resolution is the options in effect, the layer each key set apart from its
+// default comes from, and what in `config.yaml` was skipped and why.
+type Resolution struct {
+	Options  Options
+	From     map[string]string
+	Problems []string
+}
+
+// Resolve folds paths as Paths orders them: each leading `config.yaml`, then
+// the user's settings, then the hook environment's
+// CLAUDE_PLUGIN_OPTION_<KEY> variables, then the remaining, managed settings,
+// which no environment overrides: they are how a machine locks a piece on. An
+// invalid value in `config.yaml` is skipped, leaving the layer below it, and
+// named among the problems; one in a settings file or the environment is an
+// error. An empty value is unset.
+func Resolve(paths []string, getenv func(string) string) (Resolution, error) {
+	resolution := Resolution{Options: Defaults(), From: map[string]string{}}
+
+	for len(paths) > 0 && filepath.Ext(paths[0]) == configFileExt {
+		resolution.foldConfig(paths[0])
+		paths = paths[1:]
 	}
 
 	user, managed := paths[:min(1, len(paths))], paths[min(1, len(paths)):]
-	options := Defaults()
 
-	err := options.fold(user)
+	err := resolution.foldSettings(user, LayerUser, true)
 	if err != nil {
-		return Options{}, err
+		return Resolution{}, err
 	}
 
-	values := map[string]json.RawMessage{}
+	if getenv != nil {
+		values := map[string]json.RawMessage{}
 
-	for _, key := range Keys {
-		value := getenv("CLAUDE_PLUGIN_OPTION_" + strings.ToUpper(key))
-		if value == "" {
-			continue
+		for _, key := range Keys {
+			value := getenv("CLAUDE_PLUGIN_OPTION_" + strings.ToUpper(key))
+			if value == "" {
+				continue
+			}
+
+			raw, err := json.Marshal(value)
+			if err != nil {
+				return Resolution{}, fmt.Errorf("encoding %s: %w", key, err)
+			}
+
+			values[key] = raw
 		}
 
-		raw, err := json.Marshal(value)
+		err = resolution.take(values, LayerAgent, true)
 		if err != nil {
-			return Options{}, fmt.Errorf("encoding %s: %w", key, err)
+			return Resolution{}, fmt.Errorf("reading the hook environment's options: %w", err)
 		}
-
-		values[key] = raw
 	}
 
-	err = options.apply(values)
+	err = resolution.foldSettings(managed, LayerManaged, false)
 	if err != nil {
-		return Options{}, fmt.Errorf("reading the hook environment's options: %w", err)
+		return Resolution{}, err
 	}
 
-	err = options.fold(managed)
-	if err != nil {
-		return Options{}, err
-	}
+	resolution.Options.clamp()
 
-	options.clamp()
-
-	return options, nil
+	return resolution, nil
 }
 
-// Read folds the plugin's options from paths in order, a later file winning
-// per key. A missing file contributes nothing; an unreadable one is an error.
+// ReadWith is the options Resolve settles.
+func ReadWith(paths []string, getenv func(string) string) (Options, error) {
+	resolution, err := Resolve(paths, getenv)
+
+	return resolution.Options, err
+}
+
+// Read folds the options from paths in order, a later file winning per key,
+// without a hook environment. A missing file contributes nothing; an
+// unreadable settings file is an error.
 func Read(paths []string) (Options, error) {
-	options := Defaults()
-
-	err := options.fold(paths)
-	if err != nil {
-		return Options{}, err
-	}
-
-	options.clamp()
-
-	return options, nil
+	return ReadWith(paths, nil)
 }
 
-func (options *Options) fold(paths []string) error {
+func (resolution *Resolution) foldSettings(paths []string, layer string, agent bool) error {
 	for _, path := range paths {
 		raw, err := os.ReadFile(path)
 		if errors.Is(err, fs.ErrNotExist) {
@@ -284,13 +317,46 @@ func (options *Options) fold(paths []string) error {
 			return fmt.Errorf("parsing %s: %w", path, err)
 		}
 
-		err = options.apply(parsed.PluginConfigs[PluginID].Options)
+		err = resolution.take(parsed.PluginConfigs[PluginID].Options, layer, agent)
 		if err != nil {
 			return fmt.Errorf("reading the %s options in %s: %w", PluginID, path, err)
 		}
 	}
 
 	return nil
+}
+
+// take applies one layer's values, all or none; an agent's layer never sets
+// a ConfigOnly key.
+func (resolution *Resolution) take(values map[string]json.RawMessage, layer string, agent bool) error {
+	set := map[string]json.RawMessage{}
+
+	for key, raw := range values {
+		if unset(raw) || agent && slices.Contains(ConfigOnly, key) {
+			continue
+		}
+
+		set[key] = raw
+	}
+
+	err := resolution.Options.apply(set)
+	if err != nil {
+		return err
+	}
+
+	for key := range set {
+		if slices.Contains(Keys, key) {
+			resolution.From[key] = layer
+		}
+	}
+
+	return nil
+}
+
+func unset(raw json.RawMessage) bool {
+	text := strings.TrimSpace(string(raw))
+
+	return text == "" || text == "null" || text == `""`
 }
 
 func (options *Options) clamp() {
@@ -320,18 +386,105 @@ func Defaults() Options {
 	}
 }
 
-func (options *Options) apply(values map[string]json.RawMessage) error {
-	texts := map[string]*string{
-		"embedding_provider":             &options.EmbeddingProvider,
-		"embedding_model":                &options.EmbeddingModel,
-		"embedding_endpoint":             &options.EmbeddingEndpoint,
-		"embedding_api_key_env":          &options.EmbeddingAPIKeyEnv,
-		"memory_language":                &options.MemoryLanguage,
-		"temporary_seat_lifetime":        &options.TemporarySeatLifetime,
-		"shell_guard_secret_output_skip": &options.ShellGuardSecretOutputSkip,
+// fields is every option by its key, grouped by how its value reads.
+type fields struct {
+	texts     map[string]*string
+	numbers   map[string]*int
+	fractions map[string]*float64
+	modes     map[string]*string
+	outputs   map[string]*string
+	switches  map[string]*bool
+}
+
+func (options *Options) fields() fields {
+	return fields{
+		texts: map[string]*string{
+			"embedding_provider":             &options.EmbeddingProvider,
+			"embedding_model":                &options.EmbeddingModel,
+			"embedding_endpoint":             &options.EmbeddingEndpoint,
+			"embedding_api_key_env":          &options.EmbeddingAPIKeyEnv,
+			"memory_language":                &options.MemoryLanguage,
+			"temporary_seat_lifetime":        &options.TemporarySeatLifetime,
+			"shell_guard_secret_output_skip": &options.ShellGuardSecretOutputSkip,
+		},
+		numbers: map[string]*int{
+			"embedding_dimensions":     &options.EmbeddingDimensions,
+			"entry_max_words":          &options.EntryMaxWords,
+			"state_stale_after_writes": &options.StateStaleAfterWrites,
+			"retired_body_days":        &options.RetiredBodyDays,
+			"entry_id_length":          &options.EntryIDLength,
+			"brief_note_limit":         &options.BriefNoteLimit,
+			"attachment_max_mb":        &options.AttachmentMaxMB,
+			"attachments_total_mb":     &options.AttachmentsTotalMB,
+			"tools_total_mb":           &options.ToolsTotalMB,
+			"shell_guard_ask_timeout":  &options.ShellGuardAskTimeout,
+		},
+		fractions: map[string]*float64{
+			"tools_duplicate_floor": &options.ToolsDuplicateFloor,
+			"tools_query_floor":     &options.ToolsQueryFloor,
+		},
+		modes: map[string]*string{
+			"shell_guard_outside_project": &options.ShellGuardOutsideProject,
+			"shell_guard_find_delete":     &options.ShellGuardFindDelete,
+			"shell_guard_secrets":         &options.ShellGuardSecrets,
+		},
+		outputs: map[string]*string{
+			"shell_guard_secret_output": &options.ShellGuardSecretOutput,
+		},
+		switches: map[string]*bool{
+			"memory_require_git":       &options.MemoryRequireGit,
+			"memory_turns_off_auto":    &options.MemoryTurnsOffAuto,
+			"shell_guard_lone_removal": &options.ShellGuardLoneRemoval,
+			"shell_guard_expansion":    &options.ShellGuardExpansion,
+			"shell_guard_nested_code":  &options.ShellGuardNestedCode,
+			"shell_guard_mktemp":       &options.ShellGuardMktemp,
+			"capture_remove_draft":     &options.CaptureRemoveDraft,
+			"memory_enabled":           &options.MemoryEnabled,
+			"tools_enabled":            &options.ToolsEnabled,
+			"scratch_enabled":          &options.ScratchEnabled,
+			"grounding_gate_enabled":   &options.GroundingGateEnabled,
+			"capture_enabled":          &options.CaptureEnabled,
+			"shell_guard_enabled":      &options.ShellGuardEnabled,
+		},
+	}
+}
+
+// Value is the option's value as `config set` takes it; empty for a key the
+// plugin does not read.
+func (options Options) Value(key string) string {
+	field := options.fields()
+
+	if target, found := field.texts[key]; found {
+		return *target
 	}
 
-	for key, target := range texts {
+	if target, found := field.numbers[key]; found {
+		return strconv.Itoa(*target)
+	}
+
+	if target, found := field.fractions[key]; found {
+		return strconv.FormatFloat(*target, 'f', -1, 64)
+	}
+
+	if target, found := field.modes[key]; found {
+		return *target
+	}
+
+	if target, found := field.outputs[key]; found {
+		return *target
+	}
+
+	if target, found := field.switches[key]; found {
+		return strconv.FormatBool(*target)
+	}
+
+	return ""
+}
+
+func (options *Options) apply(values map[string]json.RawMessage) error {
+	field := options.fields()
+
+	for key, target := range field.texts {
 		raw, found := values[key]
 		if !found {
 			continue
@@ -343,20 +496,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		}
 	}
 
-	numbers := map[string]*int{
-		"embedding_dimensions":     &options.EmbeddingDimensions,
-		"entry_max_words":          &options.EntryMaxWords,
-		"state_stale_after_writes": &options.StateStaleAfterWrites,
-		"retired_body_days":        &options.RetiredBodyDays,
-		"entry_id_length":          &options.EntryIDLength,
-		"brief_note_limit":         &options.BriefNoteLimit,
-		"attachment_max_mb":        &options.AttachmentMaxMB,
-		"attachments_total_mb":     &options.AttachmentsTotalMB,
-		"tools_total_mb":           &options.ToolsTotalMB,
-		"shell_guard_ask_timeout":  &options.ShellGuardAskTimeout,
-	}
-
-	for key, target := range numbers {
+	for key, target := range field.numbers {
 		raw, found := values[key]
 		if !found {
 			continue
@@ -370,12 +510,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
-	fractions := map[string]*float64{
-		"tools_duplicate_floor": &options.ToolsDuplicateFloor,
-		"tools_query_floor":     &options.ToolsQueryFloor,
-	}
-
-	for key, target := range fractions {
+	for key, target := range field.fractions {
 		raw, found := values[key]
 		if !found {
 			continue
@@ -389,13 +524,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
-	modes := map[string]*string{
-		"shell_guard_outside_project": &options.ShellGuardOutsideProject,
-		"shell_guard_find_delete":     &options.ShellGuardFindDelete,
-		"shell_guard_secrets":         &options.ShellGuardSecrets,
-	}
-
-	for key, target := range modes {
+	for key, target := range field.modes {
 		raw, found := values[key]
 		if !found {
 			continue
@@ -409,33 +538,21 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
-	raw, found := values["shell_guard_secret_output"]
-	if found {
-		value, err := outputMode(raw, options.ShellGuardSecretOutput)
-		if err != nil {
-			return fmt.Errorf("shell_guard_secret_output: %w", err)
+	for key, target := range field.outputs {
+		raw, found := values[key]
+		if !found {
+			continue
 		}
 
-		options.ShellGuardSecretOutput = value
+		value, err := outputMode(raw, *target)
+		if err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+
+		*target = value
 	}
 
-	switches := map[string]*bool{
-		"memory_require_git":       &options.MemoryRequireGit,
-		"memory_turns_off_auto":    &options.MemoryTurnsOffAuto,
-		"shell_guard_lone_removal": &options.ShellGuardLoneRemoval,
-		"shell_guard_expansion":    &options.ShellGuardExpansion,
-		"shell_guard_nested_code":  &options.ShellGuardNestedCode,
-		"shell_guard_mktemp":       &options.ShellGuardMktemp,
-		"capture_remove_draft":     &options.CaptureRemoveDraft,
-		"memory_enabled":           &options.MemoryEnabled,
-		"tools_enabled":            &options.ToolsEnabled,
-		"scratch_enabled":          &options.ScratchEnabled,
-		"grounding_gate_enabled":   &options.GroundingGateEnabled,
-		"capture_enabled":          &options.CaptureEnabled,
-		"shell_guard_enabled":      &options.ShellGuardEnabled,
-	}
-
-	for key, target := range switches {
+	for key, target := range field.switches {
 		raw, found := values[key]
 		if !found {
 			continue

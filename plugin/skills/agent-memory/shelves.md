@@ -60,7 +60,7 @@ agentic-memory claim <seat> --lifetime <value>          # same, while claiming
 agentic-memory drop <shelf>                             # purge an unused temporary shelf now
 ```
 
-- `temporary` = default retention, `temporary_seat_lifetime`, 1d unless set. `0` = purged as the
+- `temporary` = default retention, `temporary_seat_lifetime` in `config.yaml`, 1d unless set. `0` = purged as the
   last seat closes.
 - **Closes**: `release`, or the session ending (not `/clear`, not `/resume`).
 - **User's words map onto `--lifetime` without asking**: "temporary" → `temporary`; a span
