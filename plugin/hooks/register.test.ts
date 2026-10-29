@@ -9,7 +9,9 @@ type Write = { path: string; text: string }
 
 // Nothing sits beneath the plugin: each hook here stands for the engine, and
 // records what the mod asked of it.
-function engine(on: On, options: { home?: string; hasMemoryStore: boolean }) {
+type Usage = 'unanswered' | 'throws' | { rawMaxTokens?: number }
+
+function engine(on: On, options: { home?: string; hasMemoryStore: boolean; usage?: Usage }) {
   const writes: Write[] = []
   const probed: string[] = []
   const measured: SessionMeasureInput[] = []
@@ -27,6 +29,25 @@ function engine(on: On, options: { home?: string; hasMemoryStore: boolean }) {
 
     return { value: undefined }
   })
+  const usage = options.usage ?? 'unanswered'
+  if (usage === 'throws') {
+    on('session.usage', () => {
+      throw new Error('no breakdown in this engine')
+    })
+  } else if (usage !== 'unanswered') {
+    on('session.usage', () => ({
+      value: {
+        startedAt: 0,
+        context: {
+          window: 1000000,
+          breakdown:
+            usage.rawMaxTokens === undefined ? undefined : ({ rawMaxTokens: usage.rawMaxTokens } as never),
+        },
+        rateLimits: [],
+        cost: { usd: 0 },
+      } as never,
+    }))
+  }
   on('session.measure', (_, e) => {
     measured.push(e)
 
@@ -59,6 +80,38 @@ describe('the context reading', () => {
     ])
     expect(measured).toHaveLength(1)
   })
+
+  test('carries the window Claude Code compacts at', async ($, on) => {
+    const { writes, measured } = engine(on, { home: HOME, hasMemoryStore: true, usage: { rawMaxTokens: 400000 } })
+
+    await $.session.measure(measurement(12))
+
+    expect(writes).toEqual([
+      {
+        path: `${MEMORY_ROOT}/sessions/${SESSION}.ctx`,
+        text: '{"used_percentage":12,"size":1000000,"compact_window":400000,"at":"2026-10-25T02:06:31.250Z"}\n',
+      },
+    ])
+    expect(measured).toHaveLength(1)
+  })
+
+  const windowless: { name: string; usage: Usage }[] = [
+    { name: 'the engine answers no usage call', usage: 'unanswered' },
+    { name: 'the usage call throws', usage: 'throws' },
+    { name: 'the usage answer carries no breakdown', usage: {} },
+  ]
+  for (const windowlessCase of windowless) {
+    test(`leaves the compaction window out where ${windowlessCase.name}`, async ($, on) => {
+      const { writes, measured } = engine(on, { home: HOME, hasMemoryStore: true, usage: windowlessCase.usage })
+
+      await $.session.measure(measurement(12))
+
+      expect(writes.map((write) => write.text)).toEqual([
+        '{"used_percentage":12,"size":1000000,"at":"2026-10-25T02:06:31.250Z"}\n',
+      ])
+      expect(measured).toHaveLength(1)
+    })
+  }
 
   const silent: { name: string; home?: string; hasMemoryStore: boolean; percent?: number }[] = [
     { name: 'before the window reports a fill', home: HOME, hasMemoryStore: true },

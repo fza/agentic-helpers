@@ -42,8 +42,10 @@ type harness struct {
 
 	waitPoll     time.Duration
 	waitDeadline time.Duration
-	graph        *test.Graph
-	sdd          *sddcaps.Probe
+	// compactWindow stands for CLAUDE_CODE_AUTO_COMPACT_WINDOW.
+	compactWindow int
+	graph         *test.Graph
+	sdd           *sddcaps.Probe
 	// base is where the session works when it is not the repository's root,
 	// and worktrees maps a worktree to its main checkout.
 	base      string
@@ -126,6 +128,7 @@ func (h *harness) env() memory.Env {
 		Random: test.Random(), Processes: h.processes, Checkout: checkout,
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
+		CompactWindow: h.compactWindow,
 	}
 }
 
@@ -1596,6 +1599,36 @@ func TestAContextReadingIsReadInEitherForm(t *testing.T) {
 
 			if !strings.Contains(h.must(hookPayload("", "", ""), "prompt"), "Context near compaction") {
 				t.Error("a reading written as RFC 3339 or as Unix seconds should count")
+			}
+		})
+	}
+}
+
+func TestTheReadingIsMeasuredAgainstTheWindowClaudeCodeCompactsAt(t *testing.T) {
+	cases := []struct {
+		name          string
+		reading       string
+		compactWindow int
+		nudged        bool
+	}{
+		{name: "the plugin's window", reading: `,"compact_window":400000`, nudged: true},
+		{name: "the plugin's window over the environment's", reading: `,"compact_window":400000`, compactWindow: 900000, nudged: true},
+		{name: "the plugin's window as large as the model's", reading: `,"compact_window":1000000`, compactWindow: 400000},
+		{name: "the environment's window without the plugin's", compactWindow: 400000, nudged: true},
+		{name: "the model's window without either"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.compactWindow = tc.compactWindow
+			h.must("", "claim", "main")
+			h.file("Gate reads Bash only today", "finding")
+			test.WriteFile(t, filepath.Join(h.home, ".claude", "agentic-memory", "sessions", h.session+".ctx"),
+				`{"used_percentage":30,"size":1000000`+tc.reading+`,"at":"2026-10-25T09:00:00Z"}`)
+
+			nudged := strings.Contains(h.must(hookPayload("", "", ""), "prompt"), "Context near compaction")
+			if nudged != tc.nudged {
+				t.Errorf("a nudge should fire only once the reading passes the threshold of the window compacted at")
 			}
 		})
 	}

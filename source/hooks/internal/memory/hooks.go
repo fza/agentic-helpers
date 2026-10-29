@@ -453,6 +453,7 @@ type sensor struct {
 	UsedPercentage *float64   `json:"used_percentage"`
 	At             sensorTime `json:"at"`
 	Size           float64    `json:"size"`
+	CompactWindow  float64    `json:"compact_window"`
 }
 
 // sensorTime is when the plugin wrote a reading: an RFC 3339 string, or the
@@ -511,7 +512,9 @@ func (mem *memory) resetWindow(session string) {
 }
 
 // contextPercent is how full the session's context is, as a share of the
-// window it compacts at, or false where no fresh reading exists.
+// window it compacts at, or false where no fresh reading exists. The window is
+// the one the plugin read from Claude Code beside the reading, else
+// CLAUDE_CODE_AUTO_COMPACT_WINDOW, a reading of an earlier plugin carrying none.
 func (mem *memory) contextPercent(session string) (float64, bool) {
 	var reading sensor
 	if !readJSON(filepath.Join(mem.sensorDir(), session+".ctx"), &reading) || reading.UsedPercentage == nil ||
@@ -525,7 +528,7 @@ func (mem *memory) contextPercent(session string) (float64, bool) {
 
 	percent := *reading.UsedPercentage
 
-	window := float64(mem.env.CompactWindow)
+	window := cmp.Or(reading.CompactWindow, float64(mem.env.CompactWindow))
 	if reading.Size > 0 && window > 0 && window < reading.Size {
 		return percent * reading.Size / window, true
 	}

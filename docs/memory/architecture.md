@@ -15,7 +15,7 @@
 ├── attachments.refs                                    the attachment hashes its entries still holding a body name
 ├── credentials-found.json                              what the migration scan found, until each seat's brief tells it
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
-~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
+~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes, with the compaction window
 ~/.claude/agentic-memory/attachments/<sha256>[.gz]      every project's attached files, once each
 ~/.claude/agentic-memory/attachments/.space.json        the ledger: each stored file's size by hash, as its attach recorded it
 ~/.cache/agentic-memory/<project>/                      vectors, heat, the folded log, anchor hashes, per-session state: rebuilt at will
@@ -312,12 +312,21 @@ SessionStart runs the purge over every store at the current format under
 ## The context reading
 
 The nudge reads how full the context is from `~/.claude/agentic-memory/sessions/<session>.ctx`,
-`{"used_percentage": <n>, "size": <window>, "at": "<RFC 3339 UTC>"}`; a numeric `at`, as a plugin of
-an earlier release writes it, still reads as Unix seconds. Claude Code hands that figure to
-a status line and to a mod, never to a command hook, so the plugin carries a hooks module,
-`plugin/hooks/register.ts`, which writes the file on `session.measure` after every turn wherever
-`~/.claude/agentic-memory` exists. A Claude Code too old to load mods writes no reading, and the
-nudge falls back to transcript growth.
+`{"used_percentage": <n>, "size": <window>, "compact_window": <tokens>, "at": "<RFC 3339 UTC>"}`; a
+numeric `at`, as a plugin of an earlier release writes it, still reads as Unix seconds. Claude Code
+hands that figure to a status line and to a mod, never to a command hook, so the plugin carries a
+hooks module, `plugin/hooks/register.ts`, which writes the file on `session.measure` after every turn
+wherever `~/.claude/agentic-memory` exists. A Claude Code too old to load mods writes no reading, and
+the nudge falls back to transcript growth.
+
+`used_percentage` is a share of the model's whole window (`size`), while Claude Code compacts at a
+window it may set smaller: from `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, the `--autocompact` flag,
+`modelSettings[<model>].autoCompactWindow` or a top-level `autoCompactWindow` in settings, the
+account or an experiment. The module asks Claude Code for the window it settled,
+`$.session.usage({ breakdown: 'summary' })`, a breakdown estimated locally with no request, and
+writes its `rawMaxTokens` as `compact_window`. The nudge rescales the reading to `compact_window`
+where it is smaller than `size`; a reading without it (a Claude Code lacking the call, or a plugin of
+an earlier release) is rescaled to `CLAUDE_CODE_AUTO_COMPACT_WINDOW` where set, else read as it is.
 
 A session that ends takes its reading with it, at SessionEnd. Every SessionStart, in any project,
 removes the readings older than the nudge reads (`sensorMaxAge`, five minutes): a session that ended

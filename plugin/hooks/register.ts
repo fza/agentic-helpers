@@ -1,4 +1,18 @@
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
+
+// `compact_window` is the window Claude Code compacts at, as it settled it from
+// the environment, the --autocompact flag, settings, account or experiment;
+// the `summary` breakdown that carries it is estimated locally, with no
+// request. A Claude Code without the call leaves the key out.
+async function compactionWindow($: EngineInterface): Promise<number | undefined> {
+  try {
+    const usage = await $.session.usage({ breakdown: 'summary' })
+
+    return usage.context.breakdown?.rawMaxTokens
+  } catch {
+    return undefined
+  }
+}
 
 // Claude Code hands the context fill to the status line and to mods, never to a
 // command hook, so the reading agentic-memory's nudge ladder reads is written
@@ -15,6 +29,7 @@ export const register: Register = (on) => {
         const reading = {
           used_percentage: percent,
           size: measurement.context.window,
+          compact_window: await compactionWindow($),
           at: new Date(await $.clock.now()).toISOString(),
         }
         await $.fs.write(`${memoryRoot}/sessions/${await $.session.id()}.ctx`, `${JSON.stringify(reading)}\n`)
