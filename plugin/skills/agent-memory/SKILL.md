@@ -46,6 +46,13 @@ hook ask, always about this checkout:
 - **`moved <identifier> from the store <id> ...; agentic-memory merge <id> <new> joins the two
   stores`** after a bind → ask the user whether to join them; never merge unasked.
 - Never edit `agentic-store` in `.git/` or a store's `identity.json`: `bind` and `merge` do.
+- **`agentic-helpers: migrating to <data> failed: <cause>; nothing moved, and the next call tries
+  again`** → the move of the old `~/.claude` layout into the home failed; memory works on the old
+  layout meanwhile. Tell the user the cause once; never move or edit those trees by hand.
+- **`agentic-memory: writers.json cannot be read: ~/.claude/agentic-helpers is a link or no folder;
+  no call lands until ... is mended`** → the session began before the update moved memory into the
+  home, so it runs the older release. Nothing filed is lost: tell the user a restart brings memory
+  back. Never mend the path.
 
 ## Seat
 

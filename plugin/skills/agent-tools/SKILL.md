@@ -70,6 +70,11 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
   question agentic-memory's SessionStart asked: ask the user, then `agentic-memory bind <store>` or
   `agentic-memory bind --new` (agent-memory skill). Finding and taking still work, into `.tmp/`
   only.
+- **`refused: creating the store: ... ~/.claude/agentic-tools: not a directory`** or **`refused:
+  writers.json cannot be read: ...`** → the session began before the update moved the library into
+  the home, so it runs the older release, which finds no library. Tell the user a restart brings it
+  back; never replace the file. `agentic-helpers: migrating to <data> failed: ...` means the move
+  failed and the old library still works.
 
 ## Lines you will see
 

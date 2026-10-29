@@ -83,6 +83,37 @@ func (procfs Procfs) stat(pid int) ([]string, string, bool) {
 	return fields, string(raw[opening+1 : closing]), true
 }
 
+// Executables is the executable path of every process whose name starts with
+// prefix and whose `exe` link reads: a process of another user keeps it
+// unreadable.
+func (procfs Procfs) Executables(prefix string) ([]string, error) {
+	listed, err := fs.ReadDir(procfs.Root, ".")
+	if err != nil {
+		return nil, err
+	}
+
+	var paths []string
+
+	for _, entry := range listed {
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		_, name := procfs.ParentAndName(pid)
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+
+		path, err := fs.ReadLink(procfs.Root, entry.Name()+"/exe")
+		if err == nil {
+			paths = append(paths, path)
+		}
+	}
+
+	return paths, nil
+}
+
 func (procfs Procfs) bootTime() (int64, bool) {
 	raw, err := fs.ReadFile(procfs.Root, "stat")
 	if err != nil {

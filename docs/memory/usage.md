@@ -42,6 +42,13 @@ matching no store gets one of its own, silently, at its first call that writes (
 filing, any change); a read (`search`, `show`, `brief`, `view`, `topics`) and every hook create
 none. A user with one checkout per repository is never asked anything.
 
+Memory kept under `~/.claude/agentic-memory/` by releases before the home moves into it at the
+first call of a release with the home, with every seat, shelf and backup, and its format migrates
+at the store's first call as ever ([plugin usage](../plugin/usage.md#moving-from-claude)). A session
+started before the update runs the older release, whose hooks say nothing and whose every call on a
+moved store is refused with `agentic-memory: writers.json cannot be read: ... is a link or no
+folder; no call lands until ... is mended`, until it restarts.
+
 Where two checkouts compete for a store (a second clone of a known repository, a path reused by
 another repository, a copied checkout, a split layout whose two sides keep two stores), the
 mapping is the user's call. SessionStart then says so, always about the checkout the session

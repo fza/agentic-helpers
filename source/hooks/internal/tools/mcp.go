@@ -28,7 +28,7 @@ func (lib *library) serveMCP(ctx context.Context) int {
 		})
 	}
 
-	err := mcpserver.Serve(ctx, lib.streams.In, lib.streams.Out, "tools", lib.env.Version, served)
+	err := mcpserver.ServeIdle(ctx, lib.streams.In, lib.streams.Out, "tools", lib.env.Version, served, lib.env.Idle)
 	if err != nil {
 		return lib.refuse(err.Error())
 	}

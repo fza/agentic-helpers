@@ -149,3 +149,55 @@ func TestADarwinProcessOnItsWayOutIsGone(t *testing.T) {
 		})
 	}
 }
+
+func TestTheTableNamesTheExecutableOfEachMatchingProcess(t *testing.T) {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatalf("finding this test's executable: %v", err)
+	}
+
+	_, name := process.Table{}.ParentAndName(context.Background(), os.Getpid())
+
+	paths, err := process.Table{}.Executables(context.Background(), name)
+	if err != nil {
+		t.Fatalf("listing executables: %v", err)
+	}
+
+	wanted, _ := filepath.EvalSymlinks(self)
+	found := false
+
+	for _, path := range paths {
+		resolved, _ := filepath.EvalSymlinks(path)
+		found = found || resolved == wanted
+	}
+
+	if !found {
+		t.Errorf("the executable of this very process should be listed, got %v", paths)
+	}
+
+	none, err := process.Table{}.Executables(context.Background(), "no-such-process-name-")
+	if err != nil || len(none) != 0 {
+		t.Errorf("a prefix no process carries should list nothing, got %v %v", none, err)
+	}
+}
+
+func TestProcfsNamesTheExecutableOfEachMatchingProcess(t *testing.T) {
+	root := t.TempDir()
+	test.FixtureTree(t, "process/agentic", root)
+
+	for pid, target := range map[string]string{"5100": "/opt/old/agentic-memory", "5300": "/bin/bash"} {
+		err := os.Symlink(target, filepath.Join(root, pid, "exe"))
+		if err != nil {
+			t.Fatalf("linking the executable of %s: %v", pid, err)
+		}
+	}
+
+	paths, err := process.Procfs{Root: os.DirFS(root)}.Executables("agentic-")
+	if err != nil {
+		t.Fatalf("listing executables: %v", err)
+	}
+
+	if len(paths) != 1 || paths[0] != "/opt/old/agentic-memory" {
+		t.Errorf("only a matching process whose executable reads should be listed, got %v", paths)
+	}
+}

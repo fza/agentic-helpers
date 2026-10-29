@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/shellguard"
 )
@@ -37,6 +38,8 @@ func main() {
 	streams := shellguard.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	migration.Prepare(ctx, migration.Machine(userHome, os.Getenv), os.Stderr)
+
 	code := shellguard.Run(ctx, os.Args[1:], env, streams)
 
 	stop()

@@ -29,7 +29,7 @@ files goes into `plugin/`.
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next`, `Write`, `Edit` | `agentic-grounding-gate record` |
 | PostToolUse on every tool | `agentic-shell-guard output`, `agentic-memory tool`, `agentic-tools notice` |
 | Stop | `agentic-memory stop`, `agentic-tools stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
-| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end` |
+| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end`, `agentic-helpers end` |
 
 ## The home
 
@@ -47,7 +47,7 @@ pointer and path alone. Rejected: `st_dev`, which a remount changes.
 
 `home.Resolver` answers `Find` (never creating a store), `Ensure` (creating one where nothing
 matches and no question stands), `Bind`, `BindNew`, `Merge`, `Adopt`, `Unclaim` and
-`SweepUnclaimed`. A pointer naming a store that admits the checkout exactly as it stands answers
+`SweepUnclaimed`. `Adopt` and `Unclaim` write no `format.json`: the migration writes it last. A pointer naming a store that admits the checkout exactly as it stands answers
 without a lock; everything else runs under `<data>/.lock`, reads the index, checks every hit
 against the identity it names and rebuilds the index from every `identity.json` where one
 disagrees, before a store is created, or where the file is missing. A pointer is confirmed by the
@@ -63,6 +63,72 @@ to that function.
 The home is bookkeeping, not a boundary: any process able to write it can edit a pointer or an
 identity, which decides which store a call works on, never whether it may. `<data>/format.json`
 versions the layout; each component keeps its own format beside its data.
+
+## The migration
+
+`internal/migration` moves the layout of the releases before the home into it
+([usage](usage.md#moving-from-claude)). Every binary's `main` calls `migration.Prepare` before its
+`Main`. Where none of `~/.claude/agentic-memory`, `~/.claude/agentic-tools` and
+`~/.claude/agentic-helpers` is a folder, it returns at once. Otherwise it takes
+`<data>/.migration.lock` shared, and returns where `<data>/format.json` stands; else it takes the
+lock exclusively, checks again, and migrates. The lock is its own file, not the resolver's
+`<data>/.lock`: the run calls `Resolver.Adopt` and `Resolver.Unclaim`, which take that one.
+
+- **Keys**: a folder two segments deep or more below an old root is a key where it holds a memory
+  store (`seats/`, `log/`, `format.json` or `seats.json`), a tool library (`index.json`, `.lock` or a
+  tool folder with `current`) or a writers list. A folder holding only a stub is none. The writers
+  list is `~/.claude/agentic-helpers/<key>/writers.json`, else a library's own
+  `~/.claude/agentic-tools/<key>/writers.json`; only clean absolute paths in a regular file count.
+- **Owner**: a git common dir listed under several keys belongs to the key its checkout has now
+  (`projectkey.Key`), else to the first listing it, so no two stores admit one checkout.
+- **Offline**: a missing git common dir below a mount root (`/Volumes` on darwin; `/media`,
+  `/run/media` and `/mnt` elsewhere) whose nearest existing folder is on the mount root's own device:
+  the volume is gone, not just the checkout.
+- **Moves**: by rename; across volumes (`EXDEV`) the source is renamed aside beside itself, copied,
+  and the copy read back and compared by path, kind, mode and content hash; the aside copy is
+  removed only after `format.json`.
+- **Order**: the metadata backup, then each key (its store created, memory moved and stubbed, tools
+  moved), the fences, the session tree with its readings nested, the attachments, and
+  `format.json` last.
+- **Journal**: every change is named in `<data>/.migration.journal` before it is made, one JSON
+  object per line, appended and synced: a rename, a path created, a stub, a fence, a pointer's
+  earlier content, the entries `<data>` held before, a tree to discard once done. Each undo checks
+  the change happened before reversing it (a rename only where its target stands and its source
+  does not, a stub or fence only while it still is one), so a record whose change a kill prevented
+  undoes nothing; a path the run is about to create is refused where it exists. A last line cut
+  short is a record a kill interrupted and is ignored.
+- **Rollback**: a failure before `format.json` runs the journal's undo newest first, restoring each
+  pointer and removing every entry of `<data>` the run created, then removes the journal. A run
+  killed half way, as Claude Code kills a hook at its timeout, leaves the journal: the next call
+  finding it takes the lock exclusively, runs the same undo (or, where `format.json` already
+  stands, removes the trees set aside), removes the journal and migrates afresh. The journal goes
+  only after `format.json`, so a call meeting both finishes the run rather than undoing it. The
+  failure line is said once per session, its marker under `<cache>/migration-failed/`.
+- **Fences**: a stub is the old store's folder holding `{"format":999}`; a fence is a file starting
+  `agentic-helpers moved this data to <data>`. Each old tree's remainder is renamed aside and
+  removed after `format.json`.
+
+What an older release does with a fence, verified against v2.15.0: its writers list opens
+`~/.claude/agentic-helpers` refusing a root that is a link or no folder, so memory admits no call
+on an existing store (its hooks exit 0 silently, its commands and MCP tools refuse with the writers
+line) and tools trust nothing; its tool library cannot create `~/.claude/agentic-tools/<key>`; a
+directory-keyed memory store outside git reaches the stub and refuses it as a newer store.
+
+The sweep (`migration.Sweep`) runs where `format.json` stands and a stub folder, a fence or an old
+cache remains. It lists every process of the user whose name starts with `agentic-` (darwin:
+`kern.proc.uid` and the path in `kern.procargs2`; linux: `/proc/<pid>/exe`) and stops where any
+runs from another folder than its own binary's, or where the table cannot be read. It takes the
+migration lock without waiting, then removes the old caches, each fence, each stub, the readings an
+older session's hooks module (`register.ts`) keeps writing to `~/.claude/agentic-memory/sessions/`
+while that root exists, and every folder left empty below `~/.claude/agentic-memory`. `mcpserver.ServeIdle` runs it after two minutes
+without a message, again after every further two; `agentic-helpers end` starts `agentic-helpers
+sweep` in a new session (`setsid`) and returns.
+
+Rejected: a migration per project at its first call (old trees and stores would coexist, and an
+older session could write a project already moved); an explicit `agentic-helpers migrate` (every
+component would refuse until someone ran it); a full copy as backup (it doubles every store's space
+for a failure the renames already undo); fencing the caches (an older session's shell-guard would
+lose its countdown state for nothing).
 
 ## Where the binaries come from
 

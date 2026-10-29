@@ -70,6 +70,9 @@ type Env struct {
 	Git           Git
 	Embedders     EmbedderFactory
 	Version       string
+	// Idle is the work the MCP server runs while its client is quiet: the
+	// sweep of the old layout.
+	Idle mcpserver.Idle
 	// Tmp is the machine's shared temporary directory, the one place outside
 	// the work tree `read --to` may write; empty takes /tmp.
 	Tmp string

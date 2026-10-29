@@ -14,6 +14,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/capture"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
@@ -39,6 +40,7 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	migration.Prepare(ctx, migration.Machine(home, os.Getenv), os.Stderr)
 
 	env := capture.Env{
 		WorkingDir: working,

@@ -52,6 +52,51 @@ An unclaimed store nobody promotes is deleted once `orphan_store_grace` (`config
 unless set) has passed since it became unclaimed, unless one of the checkouts it last knew exists
 again. A store with a living checkout is never deleted, however long unused.
 
+### Moving from `~/.claude`
+
+Releases before the home kept memory under `~/.claude/agentic-memory/<key>/`, tool libraries under
+`~/.claude/agentic-tools/<key>/` and writers lists under `~/.claude/agentic-helpers/<key>/`, `<key>`
+being the project's `repo_id` or `local/` and a hash of its git common dir. The first call of a
+release with the home, any hook, command or MCP server, finds that layout with no
+`<data>/format.json` and moves all of it in one run, asking and printing nothing:
+
+| Old key | Becomes |
+|---|---|
+| its writers list names a checkout that exists | a store admitting every checkout listed, the pointer written into each that exists |
+| its checkout lies on a volume that is not mounted | a store admitting that checkout by path; its first visit writes the pointer |
+| any other | an unclaimed store, stamped with the time of the move |
+
+A key's memory store (seats, shelves, seat files and `backup/` included) and its tool library join
+in one store; the session tree moves to `<data>/sessions/claude/`, each context reading
+`<session>.ctx` becoming `<session>/context.json`, and the attachments to `<data>/attachments/`. Every writers list, `seats.json`, `shelves.json` and `format.json` is copied
+to `<data>/backup/legacy-<UTC stamp>/` first. A moved memory store keeps its format and is migrated
+by its first call, as ever.
+
+Every other call waits for the run. Should it fail, every tree goes back, no pointer stays, and each
+session hears once:
+
+```
+agentic-helpers: migrating to <data> failed: <cause>; nothing moved, and the next call tries again
+```
+
+A run killed half way, as a hook reaching its timeout is, leaves its journal,
+`<data>/.migration.journal`: the next call undoes what it recorded and then migrates afresh.
+
+A session started before the update keeps running the older release and is fenced off from the
+old trees: each old memory store is left holding only a `format.json` of format 999, and
+`~/.claude/agentic-tools` and `~/.claude/agentic-helpers` become files naming the home. Its hooks
+then say nothing, and every memory and tools write is refused with the older release's own line;
+under git that is `writers.json cannot be read: <path> is a link or no folder; no call lands until
+<path> is mended` for memory and tools trust, and `creating the store: ... not a directory` for a
+new tool. Nothing it filed earlier is lost: a restart picks it up from the home.
+
+Once the process table shows no `agentic-*` binary of another release, the sweep removes those
+stubs and files, the context readings older sessions kept writing below
+`~/.claude/agentic-memory/sessions/`, and the old caches `~/.cache/agentic-memory` and
+`~/.cache/agentic-tools`, leaving anything else. A `memory` or `tools` MCP server runs it after two quiet minutes, and the
+SessionEnd hook `agentic-helpers end` starts `agentic-helpers sweep` in a process of its own; both
+are silent, and `agentic-helpers sweep` can be run by hand.
+
 ## sdd
 
 The grounding gate and `agentic-capture` work with stock sdd

@@ -134,6 +134,13 @@ Until then the checkout still finds and takes tools, into its own `.tmp/` only, 
 and its hooks stay silent. `agentic-memory merge <from> <into>` joins two stores' libraries too,
 refusing a tool name both hold.
 
+A library kept under `~/.claude/agentic-tools/<key>/` by releases before the home moves into its
+store's `tools` folder at the first call of a release with the home
+([plugin usage](../plugin/usage.md#moving-from-claude)); `~/.claude/agentic-tools` then becomes a
+file naming the home. A session started before the update runs the older release, which finds no
+library and refuses every write (`refused: creating the store: ... not a directory`), until it
+restarts.
+
 ## Each tool version once per context
 
 find and list print a tool version in full once per context. A later find or list hitting the same

@@ -9,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
@@ -32,6 +33,8 @@ func main() {
 	if err != nil {
 		home = ""
 	}
+
+	migration.Prepare(ctx, migration.Machine(home, os.Getenv), os.Stderr)
 
 	env := scratch.Env{
 		Root:     project.Root(ctx, base, project.GitCommonDir{}),

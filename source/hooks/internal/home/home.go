@@ -163,9 +163,20 @@ func (roots Roots) CheckFormat() error {
 	return nil
 }
 
+// FormatFile is the home's `format.json`, whose presence marks a home every
+// release of this layout has finished writing.
+func (roots Roots) FormatFile() string {
+	return filepath.Join(roots.Data, formatName)
+}
+
+// WriteFormat writes `format.json` where the home has none yet.
+func (roots Roots) WriteFormat() error {
+	return roots.ensureFormat()
+}
+
 // ensureFormat writes `format.json` where the home has none yet.
 func (roots Roots) ensureFormat() error {
-	path := filepath.Join(roots.Data, formatName)
+	path := roots.FormatFile()
 
 	_, err := os.Stat(path)
 	if err == nil {

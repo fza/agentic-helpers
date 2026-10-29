@@ -116,3 +116,55 @@ func Tree(t *testing.T, root string) string {
 
 	return strings.Join(lines, "\n")
 }
+
+// Snapshot describes every entry under root, folders and links too, by path,
+// kind, permissions and content hash, so a test can tell whether the tree
+// stayed byte-identical.
+func Snapshot(t *testing.T, root string) string {
+	t.Helper()
+
+	var lines []string
+
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+
+		relative, _ := filepath.Rel(root, path)
+		line := relative + " " + info.Mode().String()
+
+		switch {
+		case info.Mode()&fs.ModeSymlink != 0:
+			target, linkErr := os.Readlink(path)
+			if linkErr != nil {
+				return linkErr
+			}
+
+			line += " -> " + target
+		case info.Mode().IsRegular():
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+
+			sum := sha256.Sum256(content)
+			line += " " + hex.EncodeToString(sum[:])
+		}
+
+		lines = append(lines, line)
+
+		return nil
+	})
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("walking %s: %v", root, err)
+	}
+
+	slices.Sort(lines)
+
+	return strings.Join(lines, "\n")
+}
