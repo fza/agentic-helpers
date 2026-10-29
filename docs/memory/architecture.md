@@ -490,6 +490,11 @@ sweep rewrites the ledger from what every log at the current format records, dro
 removed, so a total that drifted through a crash between a store and its record is right again by the
 next session; a file only an unreadable store names keeps its recorded size.
 
+The ledger and every log are writable by anything sandboxed, so neither may shrink the total. Where
+the ledger and the project's own log both record a file, the larger size counts; the sweep never
+writes a negative size the log records; the ledger drops a negative record on read; and every total
+saturates rather than wraps. A forged figure can still refuse attaches, never let one past the limit.
+
 The brief's space line reads the same ledger, and the agentic-tools ledger beside the tool stores
 (`~/.claude/agentic-tools/.space.json`, [tools architecture](../tools/architecture.md)), and prints
 only a store with under a tenth of its limit left. The same SessionStart pass, the tools piece on,
