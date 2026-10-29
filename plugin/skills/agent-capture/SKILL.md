@@ -46,7 +46,7 @@ Outside the engine, always it, never `sdd new` by hand.
 agentic-capture <draft.md>                   # lint, pre-flight, capture
 agentic-capture <draft.md> --force           # capture despite a high finding. Owner's call only
 agentic-capture <draft.md> --skip-preflight  # entry marked unchecked. Only where the tool advises it
-agentic-capture <draft.md> --preflight-limit 8m   # cut off each pre-flight try after 8m. Default 5m
+agentic-capture <draft.md> --preflight-limit 8m   # model call gets 8m per try (sdd --preflight-timeout). Default: max(5m, llm.timeout)
 CAPTURE_PREFLIGHT_LIMIT=8m agentic-capture <draft.md>  # same, for a caller. The flag wins
 agentic-capture <draft.md> --preflight-route glm-5.3=<layer.yaml>  # fallback for the pre-flight. Repeatable
 agentic-capture <draft.md> --preflight-done <sha256>  # caller ran the pre-flight on these bytes already
@@ -134,13 +134,17 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
 | answered nothing | `no content or tool calls in response` |
 | rate-limited | `RateLimitError`, status 429 |
 | failed with status | `API error: status code` 408, 409, 5xx |
-| timed out | `timed out` (sdd's own `llm.timeout`) |
-| no answer within the limit | try ran past `--preflight-limit`; sdd and its children killed |
+| timed out | `timed out` (the limit, handed to sdd as `--preflight-timeout`) |
+| no answer within the limit | try ran past limit + sdd's extraction bound + 30s; sdd and its children killed |
 
 - **Waits 10s, then 30s, then gives up.** Three tries. One stderr line per retry:
   `the pre-flight's provider answered nothing; trying again in 10s`.
 - **Gave up → exit 1:** `... on all 3 tries; the draft did not cause it, so capture it again later`,
   then sdd's output of the last try, where it printed any. Do not edit the draft for it. Run again later.
+- **Gave up on timeouts** → also `a long draft may need more than <limit>; run again with a longer
+  --preflight-limit`. Do that; the same limit fails the same way.
+- **Engine (MCP) capture fails `claude -p timed out`** → no flag reaches it, only sdd's
+  `llm.timeout`. Raising it (`sdd config set --local llm.timeout 5m`) is the owner's call: tell them.
 - **Fallback routes** (`--preflight-route <model>=<layer>`, in order given): primary gave up → each
   route one try, no wait. sdd gets `--model <model> --local-config <layer>`. First answering decides,
   findings as the primary's. Capture step stays on the caller's own config.

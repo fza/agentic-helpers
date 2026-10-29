@@ -36,10 +36,17 @@ type Runner struct {
 	// NoInfoFormat takes `--format` out of the `info` help, as fork releases
 	// before `sdd info --format json` print it.
 	NoInfoFormat bool
+	// NoPreflightTimeout takes `--preflight-timeout` out of the `new` help, as an sdd
+	// without the flag prints it.
+	NoPreflightTimeout bool
 
 	// Info answers `sdd info --format json`; left zero, it answers for a
 	// graph whose writes take titles.
 	Info process.Result
+
+	// Config answers `sdd config get <key>` with the key's bare value; a key
+	// it lacks answers as an unset one does, with an error.
+	Config map[string]string
 
 	// Before runs ahead of every call it answers, the way a file changes on
 	// disk while the lint or a pre-flight runs.
@@ -84,6 +91,15 @@ func (fake *Runner) Run(ctx context.Context, dir string, argv []string) (process
 		}
 
 		return fake.Info, nil
+	case isConfig(argv):
+		fake.mutex.Unlock()
+
+		value, set := fake.Config[argv[len(argv)-1]]
+		if !set {
+			return process.Result{Code: 1, Stderr: "  ✕ no value for \"" + argv[len(argv)-1] + "\"\n"}, nil
+		}
+
+		return process.Result{Stdout: value + "\n"}, nil
 	case slices.Contains(argv, "--dry-run"):
 		try := fake.tries
 		fake.tries++
@@ -125,10 +141,11 @@ func (fake *Runner) CallsOf(kind string) [][]string {
 		dry := slices.Contains(call, "--dry-run")
 		help := isHelp(call)
 		info := isInfo(call)
-		capture := !lint && !dry && !help && !info
+		config := isConfig(call)
+		capture := !lint && !dry && !help && !info && !config
 
 		if kind == "lint" && lint || kind == "dry-run" && dry || kind == "help" && help || kind == "info" && info ||
-			kind == "capture" && capture {
+			kind == "config" && config || kind == "capture" && capture {
 			found = append(found, call)
 		}
 	}
@@ -160,6 +177,10 @@ func isInfo(argv []string) bool {
 	return len(argv) >= 2 && argv[0] == "sdd" && argv[1] == "info" && !isHelp(argv)
 }
 
+func isConfig(argv []string) bool {
+	return len(argv) == 4 && argv[0] == "sdd" && argv[1] == "config" && argv[2] == "get"
+}
+
 func (fake *Runner) help(argv []string) (process.Result, error) {
 	if fake.Missing {
 		return process.Result{}, errors.New("running sdd: executable file not found in $PATH")
@@ -182,12 +203,13 @@ func (fake *Runner) help(argv []string) (process.Result, error) {
 
 	help := string(text)
 
-	if fake.Unreleased || fake.NoInfoFormat {
+	if fake.Unreleased || fake.NoInfoFormat || fake.NoPreflightTimeout {
 		var kept []string
 
 		for line := range strings.SplitSeq(help, "\n") {
 			trimmed := strings.TrimSpace(line)
-			if !(fake.Unreleased && strings.HasPrefix(trimmed, "export ")) && !(fake.NoInfoFormat && strings.HasPrefix(trimmed, "--format ")) {
+			if !(fake.Unreleased && strings.HasPrefix(trimmed, "export ")) && !(fake.NoInfoFormat && strings.HasPrefix(trimmed, "--format ")) &&
+				!(fake.NoPreflightTimeout && strings.HasPrefix(trimmed, "--preflight-timeout ")) {
 				kept = append(kept, line)
 			}
 		}
