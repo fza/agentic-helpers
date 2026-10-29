@@ -142,16 +142,26 @@ project key, grown by a leading segment while two keys share one.
 
 | Event | Verb | Does |
 |---|---|---|
-| `UserPromptSubmit` | `prompt` | delivers the nudges `stop` recorded, then offers up to three own tools whose vector lies at or above `tools_query_floor` (0.45 unless set) to the prompt's, not yet shown this session, same-role first; a prompt holding a credential is never embedded and gets no offer |
+| `UserPromptSubmit` | `prompt` | delivers the nudges `stop` recorded, then offers up to three own tools whose vector lies at or above `tools_query_floor` (0.45 unless set) to the prompt's, not yet named or printed in this context, same-role first; a prompt holding a credential is never embedded and gets no offer |
 | `PostToolUse` | `notice` | for each holding older than its tool's current version, and each held fork whose origin moved on, adds a line once; it compares the stats of the indexes involved with what it saw last, and reads nothing more when none moved |
 | `Stop` | `stop` | records, without blocking or printing, scripts (`.py .sh .go .awk`) in the session's scratch whose content and name no version of any tool in reach holds, and taken copies whose files changed |
-| `SessionEnd` | `end` | removes the session's file and its prompt vector slot |
+| `SessionStart` | `start` | on a compaction, `/clear` or resume, removes the seen file |
+| `SessionEnd` | `end` | removes the session's file, its prompt vector slot and the seen file |
 
 The offer's embed is bounded at five seconds, as agentic-memory's recall is; a timeout adds
 nothing. A prompt's vector lives in a slot per session under
 `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-memory's recall fills too: whichever hook
 embeds the prompt first leaves its vector for the other. The hooks of one event run in parallel, so
 the slot mostly saves an embed where recall finished first.
+
+What the context already holds lives in a seen file,
+`~/.cache/agentic-tools/seen/<pid>-<start>.json`: `lines`, each tool version find
+or list printed as `<name> v<n>`, and `offered`, the own tools the offer named. It is keyed on the
+owning `claude` process (its pid and start time, found as agentic-memory finds a seat's owner)
+rather than the session id: the MCP server keeps the `CLAUDE_CODE_SESSION_ID` it started with across
+a `/clear`, so a key on it would outlive the context it describes. The start time keeps a reused pid
+from reading a dead process's file. The offer prints names only, so it marks nothing printed: a
+find after it still prints the tool in full.
 
 ## MCP answers
 

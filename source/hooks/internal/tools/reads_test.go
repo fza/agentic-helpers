@@ -72,7 +72,7 @@ func TestFindPagesAndPrintsJSON(t *testing.T) {
 		Shown, Matching, Total, Projects, Page int
 	}
 
-	err := json.Unmarshal([]byte(h.must("find", "--term", "helper", "--json")), &answer)
+	err := json.Unmarshal([]byte(h.must("find", "--term", "helper", "--json", "--again")), &answer)
 	if err != nil {
 		t.Fatalf("find --json should print one object: %v", err)
 	}

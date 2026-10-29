@@ -24,6 +24,11 @@ agentic-tools take <name>...                                     # copy into .tm
 - **take checks every name first.** One unknown → `nothing taken:`, nothing copied. A copy already
   there is reused, never overwritten: your edits stay.
 - No embedder → `--query` refused. Use `--term`.
+- **Each tool version prints once per context.** find or list printed it before → `<name> v<n>
+  (seen)` in its place (JSON `{"name", "label", "version", "seen": true}`); its usage is above in
+  your context. Newer version → full. Compaction, `/clear`, resume → full again. A fresh subagent
+  (not a fork) shares your `claude` process and never saw them: it passes `--again` (MCP `"again":
+  true`) on every find and list.
 - **Nothing found by meaning → try `--term` too.** `--query` keeps tools at or above
   `tools_query_floor` (0.45 unless set); a need worded far from a tool's summary can fall below it.
 
@@ -70,7 +75,7 @@ Names, paths and commands only. Act on them:
 
 | Line | Do |
 |---|---|
-| `tool library: near this prompt: a, b.` | `take` one before writing your own |
+| `tool library: near this prompt: a, b.` (each once per context, none find printed) | `take` one before writing your own |
 | `` tool library: newer versions of `x`. `` | `take x` again for the new copy |
 | `` tool library: `x` in <project> has v6; yours forked at v5 `` | look at the origin's change; update yours if it applies |
 | `tool library: your scratch holds scripts the library lacks: ...` | `add` the ones worth keeping |
