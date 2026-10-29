@@ -15,8 +15,8 @@ const (
 	ReasonKnown Reason = "known"
 	// ReasonConflict: the checkout's identifiers name more than one store.
 	ReasonConflict Reason = "conflict"
-	// ReasonReused: the checkout's path belonged to a store whose repo_id or
-	// origin contradicts its own.
+	// ReasonReused: the checkout's path or inode belonged to a store whose
+	// repo_id or origin contradicts its own.
 	ReasonReused Reason = "reused"
 	// ReasonCopied: the checkout carries a pointer to a store admitting other
 	// checkouts and not this one, as a copied checkout does.
@@ -114,7 +114,7 @@ func (asked Question) reason() string {
 	case ReasonKnown:
 		return "it is another checkout of a repository a store already holds"
 	case ReasonReused:
-		return "its path belonged to a checkout of another repository"
+		return "its path or inode belonged to a checkout of another repository"
 	case ReasonCopied:
 		return "it carries the pointer of a store that admits other checkouts"
 	case ReasonSplit:

@@ -43,7 +43,9 @@ once the pointer alone does not settle the store, since every hook would pay the
 The volume UUID comes from `getattrlist(2)` with `ATTR_VOL_UUID` on darwin (x/sys carries the
 constants but no wrapper, so the call goes through `syscall.Syscall6`) and from the
 `/dev/disk/by-uuid` link whose device is the volume's on linux; elsewhere a checkout is matched by
-pointer and path alone. Rejected: `st_dev`, which a remount changes.
+pointer and path alone. Rejected: `st_dev`, which a remount changes. An inode match is checked
+against the store's `repo_id` and origin as a path match is, since linux gives a removed directory's
+inode to the next one created.
 
 `home.Resolver` answers `Find` (never creating a store), `Ensure` (creating one where nothing
 matches and no question stands), `Bind`, `BindNew`, `Merge`, `Adopt`, `Unclaim` and

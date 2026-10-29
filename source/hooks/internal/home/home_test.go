@@ -411,6 +411,50 @@ func TestAReusedPathAsksOnlyWhereItsIdentityContradicts(t *testing.T) {
 	}
 }
 
+// A removed directory's inode goes to the next one created, as linux does, so
+// an inode match is checked against the store's identity as a path match is.
+func TestARecycledInodeAsksOnlyWhereItsIdentityContradicts(t *testing.T) {
+	cases := []struct {
+		name   string
+		repoID string
+		asks   bool
+	}{
+		{name: "another repo_id", repoID: "github.com/acme/other", asks: true},
+		{name: "the same repo_id", repoID: "github.com/acme/app", asks: false},
+		{name: "no repo_id", repoID: "", asks: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMachine(t)
+
+			app := m.inspect(m.checkout("app", "github.com/acme/app", ""))
+			app.Volume, app.Inode = "test-volume", 4242
+
+			bound, err := m.resolver().Ensure(context.Background(), app)
+			if err != nil || bound.Question != nil || bound.Store == "" {
+				t.Fatalf("the first checkout should get a store silently, got %+v, %v", bound, err)
+			}
+
+			recycled := m.inspect(m.checkout("next", tc.repoID, ""))
+			recycled.Volume, recycled.Inode = app.Volume, app.Inode
+
+			got, err := m.resolver().Find(context.Background(), recycled)
+			if err != nil {
+				t.Fatalf("finding the store: %v", err)
+			}
+
+			if (got.Question != nil && got.Question.Reason == home.ReasonReused) != tc.asks {
+				t.Fatalf("an inode match should ask exactly where its repo_id contradicts the store, got %+v", got)
+			}
+
+			if !tc.asks && got.Store != bound.Store {
+				t.Errorf("an inode match agreeing with its store should keep it, got %+v", got)
+			}
+		})
+	}
+}
+
 func TestAnUnclaimedStoreIsPromotedByItsLegacyKey(t *testing.T) {
 	m := newMachine(t)
 
