@@ -1,11 +1,10 @@
-GROUNDING GATE: let through, reads owed. No `--query` search since the graph last changed. No `--term` search since the graph last changed. No `area-` listing since the graph last changed.
+GROUNDING GATE: let through, reads owed before the next question or draft.
 
-Run both + the listing, then ask again:
-
-  sdd search --term '<literal>' --limit 5 --max-citations 0
+No `--query` search since the graph last changed.
   sdd search --query '<subject>' --limit 5 --max-citations 0
+No `--term` search since the graph last changed.
+  sdd search --term '<literal>' --limit 5 --max-citations 0
+No `area-` listing since the graph last changed.
   sdd view --layout "topic(area-<name>):as-list"
 
 Empty search ≠ absence; a listing settles membership.
-
-Standing reads: neither read

@@ -26,7 +26,7 @@ func TestTheGateHoldsOnStockSdd(t *testing.T) {
 		}
 	}
 
-	refuses(t, run(t, env, "gate", bash("agentic-capture .tmp/drafts/d.md")), "neither read")
+	owesEveryRead(t, run(t, env, "gate", bash("agentic-capture .tmp/drafts/d.md")))
 
 	ground(t, env)
 	passes(t, run(t, env, "gate", bash("agentic-capture .tmp/drafts/d.md")))

@@ -73,7 +73,7 @@ func TestOwnCaptureKeepsTheReads(t *testing.T) {
 				return
 			}
 
-			refuses(t, got, "neither read")
+			owesEveryRead(t, got)
 		})
 	}
 }

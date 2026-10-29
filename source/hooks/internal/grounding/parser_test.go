@@ -46,7 +46,7 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 				return
 			}
 
-			refuses(t, got, "neither read")
+			owesEveryRead(t, got)
 
 			ground(t, env)
 			passes(t, run(t, env, "gate", bash(tc.command)))

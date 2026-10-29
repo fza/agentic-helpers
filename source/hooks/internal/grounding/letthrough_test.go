@@ -37,8 +37,12 @@ func TestAGatedToolIsLetThroughWithANote(t *testing.T) {
 					got.code, got.stdout, got.stderr)
 			}
 
-			if !strings.HasPrefix(got.said, "GROUNDING GATE: let through, reads owed.") || !strings.Contains(got.said, "Standing reads:") {
-				t.Errorf("the note should say the call went ahead and what the turn still owes, got: %s", got.said)
+			if !strings.HasPrefix(got.said, "GROUNDING GATE: let through, reads owed before the next question or draft.") {
+				t.Errorf("the note should say the call went ahead and the reads are owed before what comes next, got: %s", got.said)
+			}
+
+			if strings.Contains(got.said, "again") {
+				t.Errorf("a call that went ahead should never be asked for again, got: %s", got.said)
 			}
 
 			if strings.Contains(got.said, "This draft is not grounded") != tc.draft {
@@ -60,6 +64,74 @@ func TestAConfigErrorLetsAGatedToolThroughWithoutOwingReads(t *testing.T) {
 	if got.code != 0 || !got.noted || !strings.HasPrefix(got.said, "GROUNDING GATE: let through. ") ||
 		strings.Contains(got.said, "reads owed") || !strings.Contains(got.said, "grounding.yaml") {
 		t.Errorf("a broken config should let a question through naming the file, owing no reads, got exit %d: %s", got.code, got.said)
+	}
+
+	if strings.Contains(got.said, "again") {
+		t.Errorf("a question that went ahead should never be asked for again, got: %s", got.said)
+	}
+}
+
+func TestANoteNamesOnlyTheReadsOwed(t *testing.T) {
+	cases := []struct {
+		name   string
+		reads  []string
+		owed   []string
+		credit []string
+		hint   bool
+	}{
+		{
+			name:   "only the listing missing",
+			reads:  []string{semanticRead, literalRead},
+			owed:   []string{"No listing of every topic since the graph last changed.\n  sdd view --layout \"active:as-counts\"\n"},
+			credit: []string{"--query", "--term", "search"},
+		},
+		{
+			name:   "only the literal search missing",
+			reads:  []string{semanticRead, "sdd view --layout \"active:as-counts\""},
+			owed:   []string{"No `--term` search since the graph last changed.\n  sdd search --term '<literal>' --limit 5 --max-citations 0\n"},
+			credit: []string{"--query", "listing of every topic", "view"},
+			hint:   true,
+		},
+		{
+			name: "every read missing",
+			owed: []string{
+				"No `--query` search since the graph last changed.\n  sdd search --query '<subject>' --limit 5 --max-citations 0\n",
+				"No `--term` search since the graph last changed.\n  sdd search --term '<literal>' --limit 5 --max-citations 0\n",
+				"No listing of every topic since the graph last changed.\n  sdd view --layout \"active:as-counts\"\n",
+			},
+			hint: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := bare(t)
+			for _, read := range tc.reads {
+				record(t, env, bash(read))
+			}
+
+			for _, got := range []result{run(t, env, "gate", ask("s1")), run(t, env, "gate", bash("sdd new d tac body"))} {
+				refuses(t, got, tc.owed...)
+
+				for _, credited := range tc.credit {
+					if strings.Contains(got.said, credited) {
+						t.Errorf("a read already credited should not be asked for, got: %s", got.said)
+					}
+				}
+
+				if strings.Contains(got.said, "Empty search ≠ absence") != tc.hint {
+					t.Errorf("the search hint should come only with a search owed, got: %s", got.said)
+				}
+			}
+		})
+	}
+}
+
+func TestARefusalAsksForTheCallAgain(t *testing.T) {
+	got := run(t, bare(t), "gate", bash("sdd new d tac body"))
+
+	if got.code != 2 || !strings.HasPrefix(got.stderr, "GROUNDING GATE: refused. Run the reads owed, then run this call again.\n") {
+		t.Errorf("a refused call should owe the reads and ask for the call once they ran, got exit %d: %s", got.code, got.stderr)
 	}
 }
 
@@ -99,5 +171,5 @@ func TestADraftWrittenWhileReadsAreOwedIsNotGrounded(t *testing.T) {
 	ground(t, env)
 	compact(t, env)
 
-	refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 }

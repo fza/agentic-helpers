@@ -100,7 +100,7 @@ func TestOutsideGitNoSeatIsExempt(t *testing.T) {
 	test.ClaimSeat(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "reviewer", test.Session)
 	env.Checkout = test.CommonDir{Err: errors.New("not a git repository")}
 
-	refuses(t, run(t, env, "gate", ask(test.Session)), "neither read")
+	owesEveryRead(t, run(t, env, "gate", ask(test.Session)))
 }
 
 func TestAnExemptSeatIsNamedInAnySpelling(t *testing.T) {

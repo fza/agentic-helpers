@@ -44,5 +44,5 @@ func TestASplitLayoutReadsTheGraphRepository(t *testing.T) {
 	passes(t, run(t, env, "gate", ask("s1")))
 
 	test.WriteFile(t, filepath.Join(graph, "graph", "2026", "10", "26-090000-d-tac-new.md"), test.Fixture(t, "drafts/fact.md"))
-	refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+	owesEveryRead(t, run(t, env, "gate", ask("s1")))
 }

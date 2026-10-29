@@ -22,7 +22,7 @@ through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code 
 | SessionStart | `start` | removes the ledgers of sessions that left a week ago without ending cleanly; with `source: compact`, forgets this session's reads and keeps its grounded drafts |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next` | `record` | credits the reads the call performed; after the session's own capture (`agentic-capture` printing `<id>.md`, or a `next` result carrying `produced.entryId`), moves the ledger to the new graph state when that entry is the only change, keeping the reads |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
-| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`; for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
+| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`, its first line saying the call went ahead and, for reads owed, that they are owed before the next question or draft (`letThrough`); for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
 | SessionEnd | `end` | removes the session's ledger |
 
 ## The ledger
@@ -39,6 +39,15 @@ leave it half written; a torn ledger would refuse reads the session made. A ledg
 written holds the reads nowhere, so the gate refuses, the safe side. A grounded draft is recorded with the graph's
 entry count and newest entry at the time it was saved; a capture of it passes only while the draft
 file is byte-identical and the graph still holds the same entries.
+
+## The reads refusal
+
+`refusals/reads.txt` holds the frame: its first line, the `gather_command` call where the project
+names one, and the reads owed. `owedReads` fills the last from the ledger, one reason and command
+for each read the ledger does not credit, and appends the search hint only when a search is among
+them. A read the ledger credits is never named, so an agent is not sent to repeat it. On a gated
+tool `letThrough` swaps the first line for the let-through one: the call already ran, so the reads
+are owed before the next question or draft rather than before the call again.
 
 ## The engine refusal
 

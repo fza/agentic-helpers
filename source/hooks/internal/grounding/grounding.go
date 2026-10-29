@@ -125,10 +125,12 @@ var gatedTools = map[string]bool{"AskUserQuestion": true, "Write": true, "Edit":
 
 const (
 	refusedLine      = "GROUNDING GATE: refused."
-	letThroughLine   = "GROUNDING GATE: let through, reads owed."
+	readsRefusedLine = "GROUNDING GATE: refused. Run the reads owed, then run this call again."
+	letThroughLine   = "GROUNDING GATE: let through, reads owed before the next question or draft."
 	letThroughAnyway = "GROUNDING GATE: let through."
-	readsOwed        = "Standing reads:"
 	ungroundedDraft  = "This draft is not grounded: its capture owes the reads."
+	searchHint       = "Empty search ≠ absence; a listing settles membership."
+	configRetry      = ", then run this call again."
 )
 
 var savingTools = map[string]bool{"Write": true, "Edit": true}
@@ -458,50 +460,54 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 		return ""
 	}
 
-	haveSemantic, haveLiteral, haveListing := held.Query > 0, held.Term > 0, len(held.Listings) > 0
-
-	var have, missing []string
-
-	if haveSemantic {
-		have = append(have, "a semantic query")
-	} else {
-		missing = append(missing, "No `--query` search since the graph last changed.")
-	}
-
-	if haveLiteral {
-		have = append(have, "a literal term search")
-	} else {
-		missing = append(missing, "No `--term` search since the graph last changed.")
-	}
-
-	switch {
-	case haveListing:
-		have = append(have, "a listing of "+strings.Join(held.Listings, ", "))
-	case prefix != "":
-		missing = append(missing, "No `"+prefix+"` listing since the graph last changed.")
-	default:
-		missing = append(missing, "No listing of every topic since the graph last changed.")
-	}
-
-	carries := strings.Join(have, " and ")
-	if carries == "" {
-		carries = "neither read"
-	}
-
 	reads := readsOf(config)
 
-	return refusal("reads.txt", "{run}", runLine(reads), "{read}", reads.command, "{suffix}", reads.suffix, "{flags}", reads.searchFlags,
-		"{listing}", listingCommand(prefix), "{have}", carries, "{missing}", strings.Join(missing, " "))
+	return refusal("reads.txt", "{gather}", gatherLine(reads), "{owed}", owedReads(held, reads, prefix))
+}
+
+// owedReads names each read still missing, the reason it is owed above the
+// command that answers it. A read already credited is left out: naming it
+// again sends an agent to repeat a read the gate holds.
+func owedReads(held evidence, reads reads, prefix string) string {
+	var owed []string
+
+	if held.Query == 0 {
+		owed = append(owed, "No `--query` search since the graph last changed.\n  "+
+			reads.command+" search --query '<subject>'"+reads.searchFlags+reads.suffix)
+	}
+
+	if held.Term == 0 {
+		owed = append(owed, "No `--term` search since the graph last changed.\n  "+
+			reads.command+" search --term '<literal>'"+reads.searchFlags+reads.suffix)
+	}
+
+	if len(held.Listings) == 0 {
+		reason := "No listing of every topic since the graph last changed."
+		if prefix != "" {
+			reason = "No `" + prefix + "` listing since the graph last changed."
+		}
+
+		owed = append(owed, reason+"\n  "+reads.command+" "+listingCommand(prefix)+reads.suffix)
+	}
+
+	if held.Query == 0 || held.Term == 0 {
+		owed = append(owed, "\n"+searchHint)
+	}
+
+	return strings.Join(owed, "\n")
 }
 
 // letThrough is the note a let-through call carries: the refusal's text under a
-// first line saying the call went ahead.
+// first line saying the call went ahead. The reads stay owed for what comes
+// next, since asking the call again would repeat one already made.
 func letThrough(payload hookio.Payload, refusal string) string {
-	if !strings.Contains(refusal, readsOwed) {
-		return strings.Replace(refusal, refusedLine, letThroughAnyway, 1)
+	if !strings.HasPrefix(refusal, readsRefusedLine) {
+		note := strings.Replace(refusal, refusedLine, letThroughAnyway, 1)
+
+		return strings.Replace(note, configRetry, ".", 1)
 	}
 
-	note := strings.Replace(refusal, refusedLine, letThroughLine, 1)
+	note := strings.Replace(refusal, readsRefusedLine, letThroughLine, 1)
 
 	if payload.ToolName != "AskUserQuestion" {
 		note = strings.Replace(note, letThroughLine, letThroughLine+" "+ungroundedDraft, 1)
@@ -525,7 +531,7 @@ func gated(payload hookio.Payload) bool {
 }
 
 func configRefusal(err error) string {
-	return fmt.Sprintf("GROUNDING GATE: refused. %v\n\nFix `.sdd/grounding.yaml`, then ask again.\n", err)
+	return fmt.Sprintf("GROUNDING GATE: refused. %v\n\nFix `.sdd/grounding.yaml`%s\n", err, configRetry)
 }
 
 func readsBadly(ctx context.Context, env Env, payload hookio.Payload) string {
@@ -960,15 +966,15 @@ func (gathered gathering) listings(prefix string) []string {
 	return found
 }
 
-// runLine opens the refusal's list of reads, offering the gather call first
-// where the project names one.
-func runLine(reads reads) string {
+// gatherLine offers the gather call ahead of the reads owed, where the project
+// names one.
+func gatherLine(reads reads) string {
 	if reads.gather == "" {
-		return "Run both + the listing, then ask again:"
+		return ""
 	}
 
-	return "One call runs all three, then ask again:\n\n  " + reads.gather +
-		" <entry> --query '<subject>' --term '<literal>'" + reads.suffix + "\n\nOr run both + the listing apart:"
+	return "\nOne call runs all three:\n\n  " + reads.gather +
+		" <entry> --query '<subject>' --term '<literal>'" + reads.suffix + "\n\nOr each read owed apart:\n"
 }
 
 func listingCommand(prefix string) string {

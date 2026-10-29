@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -157,15 +158,39 @@ func compact(t *testing.T, env grounding.Env) {
 	run(t, env, "start", map[string]any{"session_id": "s1", "source": "compact"})
 }
 
-func refuses(t *testing.T, got result, says string) {
+func refuses(t *testing.T, got result, says ...string) {
 	t.Helper()
 
 	if got.code != 2 && !got.noted {
 		t.Fatalf("the call should be refused, got exit %d, stderr: %s", got.code, got.stderr)
 	}
 
-	if !strings.Contains(got.said, says) {
-		t.Errorf("the refusal should explain itself, got: %s", got.said)
+	for _, said := range says {
+		if !strings.Contains(got.said, said) {
+			t.Errorf("the refusal should explain itself, got: %s", got.said)
+		}
+	}
+}
+
+var (
+	everyAreaRead = []string{
+		"No `--query` search since the graph last changed.",
+		"No `--term` search since the graph last changed.",
+		"No `area-` listing since the graph last changed.",
+	}
+
+	owedListing = regexp.MustCompile("No (?:`[^`]+` listing|listing of every topic) since the graph last changed\\.")
+)
+
+// owesEveryRead asserts the call owes all three reads, whatever listing the
+// project names.
+func owesEveryRead(t *testing.T, got result) {
+	t.Helper()
+
+	refuses(t, got, "No `--query` search since the graph last changed.", "No `--term` search since the graph last changed.")
+
+	if !owedListing.MatchString(got.said) {
+		t.Errorf("the refusal should owe the listing too, got: %s", got.said)
 	}
 }
 
@@ -181,15 +206,15 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 	cases := []struct {
 		name    string
 		reads   []string
-		missing string
+		missing []string
 	}{
-		{name: "no reads", missing: "neither read"},
-		{name: "misspelled search alone", reads: []string{misspelled}, missing: "No `area-` listing since the graph last changed."},
-		{name: "area listing alone", reads: []string{areaRead}, missing: "No `--query` search since the graph last changed."},
-		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: "No `--term` search since the graph last changed."},
-		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: "No `--query` search since the graph last changed."},
-		{name: "show alone", reads: []string{"sdd show 20260829-122703-d-tac-kuz"}, missing: "neither read"},
-		{name: "facet listing is no area", reads: []string{`sdd view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: "No `area-` listing"},
+		{name: "no reads", missing: everyAreaRead},
+		{name: "misspelled search alone", reads: []string{misspelled}, missing: []string{"No `area-` listing since the graph last changed."}},
+		{name: "area listing alone", reads: []string{areaRead}, missing: []string{"No `--query` search since the graph last changed."}},
+		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: []string{"No `--term` search since the graph last changed."}},
+		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: []string{"No `--query` search since the graph last changed."}},
+		{name: "show alone", reads: []string{"sdd show 20260829-122703-d-tac-kuz"}, missing: everyAreaRead},
+		{name: "facet listing is no area", reads: []string{`sdd view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: []string{"No `area-` listing"}},
 	}
 
 	for _, tc := range cases {
@@ -199,7 +224,7 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 				record(t, env, bash(read))
 			}
 
-			refuses(t, run(t, env, "gate", ask("s1")), tc.missing)
+			refuses(t, run(t, env, "gate", ask("s1")), tc.missing...)
 		})
 	}
 }
@@ -257,7 +282,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 
 		compact(t, env)
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	})
 
 	t.Run("one session never answers for another", func(t *testing.T) {
@@ -265,7 +290,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 		ground(t, env)
 
 		passes(t, run(t, env, "gate", ask("s1")))
-		refuses(t, run(t, env, "gate", ask("s2")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s2")))
 	})
 
 	t.Run("a subagent's reads never open the session's gate", func(t *testing.T) {
@@ -276,7 +301,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 
 		refuses(t, run(t, env, "gate", ask("s1")), "No `--query` search since the graph last changed.")
 		passes(t, run(t, env, "gate", with(ask("s1"), "agent_id", "a1")))
-		refuses(t, run(t, env, "gate", with(ask("s1"), "agent_id", "a2")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", with(ask("s1"), "agent_id", "a2")))
 	})
 }
 
@@ -543,7 +568,7 @@ func TestWhatCountsAsAReadPerformed(t *testing.T) {
 		env := areaProject(t)
 		record(t, env, bash("echo 'sdd search --query foo --term bar'"), bash(`echo 'sdd view --layout "topic(area-hooks):as-list"'`))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	})
 }
 
@@ -585,7 +610,7 @@ func TestALedgerThatCannotBeTrustedRefuses(t *testing.T) {
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "s1.json"),
 			test.Fixture(t, "ledgers/mistyped.json"))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	})
 
 	t.Run("an unparsable project config refuses rather than passing", func(t *testing.T) {
@@ -600,7 +625,7 @@ func TestALedgerThatCannotBeTrustedRefuses(t *testing.T) {
 		env := areaProject(t)
 		test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "s1.json"), "{ not json")
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	})
 }
 
@@ -727,12 +752,12 @@ func TestCaptureNeedsEveryRead(t *testing.T) {
 	cases := []struct {
 		name    string
 		reads   []string
-		missing string
+		missing []string
 	}{
-		{name: "no reads", missing: "neither read"},
-		{name: "no semantic search", reads: []string{literalRead, areaRead}, missing: "No `--query` search since the graph last changed."},
-		{name: "no literal search", reads: []string{semanticRead, areaRead}, missing: "No `--term` search since the graph last changed."},
-		{name: "no listing", reads: []string{literalRead, semanticRead}, missing: "No `area-` listing since the graph last changed."},
+		{name: "no reads", missing: everyAreaRead},
+		{name: "no semantic search", reads: []string{literalRead, areaRead}, missing: []string{"No `--query` search since the graph last changed."}},
+		{name: "no literal search", reads: []string{semanticRead, areaRead}, missing: []string{"No `--term` search since the graph last changed."}},
+		{name: "no listing", reads: []string{literalRead, semanticRead}, missing: []string{"No `area-` listing since the graph last changed."}},
 	}
 
 	for _, tc := range cases {
@@ -744,7 +769,7 @@ func TestCaptureNeedsEveryRead(t *testing.T) {
 				record(t, env, bash(read))
 			}
 
-			refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), tc.missing)
+			refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), tc.missing...)
 		})
 	}
 
@@ -806,7 +831,7 @@ func TestWhatCountsAsAGraphWrite(t *testing.T) {
 				return
 			}
 
-			refuses(t, got, "neither read")
+			owesEveryRead(t, got)
 
 			ground(t, env)
 			passes(t, run(t, env, "gate", bash(tc.command)))
@@ -822,7 +847,7 @@ func TestAPlainNewHasNoGroundedDraft(t *testing.T) {
 	compact(t, env)
 
 	passes(t, run(t, env, "gate", bash("agentic-capture "+draft)))
-	refuses(t, run(t, env, "gate", bash("sdd new d tac \"$(cat "+draft+")\"")), "neither read")
+	owesEveryRead(t, run(t, env, "gate", bash("sdd new d tac \"$(cat "+draft+")\"")))
 }
 
 func TestAGroundedDraftCarriesItsReads(t *testing.T) {
@@ -874,7 +899,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		record(t, env, save("Write", elsewhere))
 		nextTurn(t, env)
 
-		refuses(t, run(t, env, "gate", bash("agentic-capture .sdd/tmp/drafts/decision.md")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", bash("agentic-capture .sdd/tmp/drafts/decision.md")))
 	})
 
 	t.Run("a draft changed since the save owes the reads", func(t *testing.T) {
@@ -885,7 +910,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		nextTurn(t, env)
 		test.WriteFile(t, draft, test.Fixture(t, "drafts/done.md"))
 
-		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+		owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 	})
 
 	t.Run("a draft saved in a turn short of a read owes the reads", func(t *testing.T) {
@@ -895,7 +920,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		record(t, env, save("Write", draft))
 		nextTurn(t, env)
 
-		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+		owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 	})
 
 	t.Run("a graph that gained an entry since the save owes the reads", func(t *testing.T) {
@@ -907,7 +932,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		nextTurn(t, env)
 		entryIn(t, env, "25-130000-d-tac-def.md")
 
-		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+		owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 	})
 
 	t.Run("a file saved outside a drafts directory is never grounded", func(t *testing.T) {
@@ -918,7 +943,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		record(t, env, save("Write", draft))
 		nextTurn(t, env)
 
-		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+		owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 	})
 
 	t.Run("a failed save is never grounded", func(t *testing.T) {
@@ -928,7 +953,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		record(t, env, with(save("Write", draft), "tool_response", map[string]any{"is_error": true}))
 		nextTurn(t, env)
 
-		refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+		owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 	})
 
 	t.Run("another session's grounded draft is not this one's", func(t *testing.T) {
@@ -937,7 +962,7 @@ func TestAGroundedDraftCarriesItsReads(t *testing.T) {
 		ground(t, env)
 		record(t, env, save("Write", draft))
 
-		refuses(t, run(t, env, "gate", with(bash("agentic-capture "+draft), "session_id", "s2")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", with(bash("agentic-capture "+draft), "session_id", "s2")))
 	})
 }
 

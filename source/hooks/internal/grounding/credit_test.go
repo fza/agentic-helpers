@@ -17,8 +17,8 @@ func TestCreditLastsWhileTheGraphStands(t *testing.T) {
 
 	entryIn(t, env, "26-090000-d-tac-new.md")
 
-	refuses(t, run(t, env, "gate", ask("s1")), "neither read")
-	refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	owesEveryRead(t, run(t, env, "gate", ask("s1")))
+	owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 }
 
 func TestAReadAfterAGraphChangeClearsTheOlderCredit(t *testing.T) {
@@ -54,7 +54,7 @@ func TestOnlyACompactionForgetsTheReads(t *testing.T) {
 		record(t, env, save("Write", draft))
 		compact(t, env)
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 		passes(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 	})
 }
@@ -79,5 +79,5 @@ func TestADraftSavedAfterTheGraphMovedIsNotGrounded(t *testing.T) {
 	entryIn(t, env, "26-090000-d-tac-new.md")
 	record(t, env, save("Write", draft))
 
-	refuses(t, run(t, env, "gate", bash("agentic-capture "+draft)), "neither read")
+	owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
 }

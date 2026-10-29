@@ -168,7 +168,7 @@ func TestAWriteHoldingNoCredentialIsJudgedAsBefore(t *testing.T) {
 	for name, sample := range cleared {
 		t.Run(name, func(t *testing.T) {
 			env := areaProject(t)
-			refuses(t, run(t, env, "gate", bash(newWithBody(sample))), "neither read")
+			owesEveryRead(t, run(t, env, "gate", bash(newWithBody(sample))))
 
 			ground(t, env)
 			passes(t, run(t, env, "gate", bash(newWithBody(sample))))
@@ -265,7 +265,7 @@ func TestAnInterruptDuringTheScanIsNoCredential(t *testing.T) {
 			got := runIn(ctx, t, env, "gate", payload)
 			refuses(t, got, interrupted)
 
-			if strings.Contains(got.stderr, leaked) || strings.Contains(got.stderr, "Standing reads:") {
+			if strings.Contains(got.stderr, leaked) || strings.Contains(got.stderr, "reads owed") {
 				t.Errorf("an interrupted scan should refuse as unfinished, never as a credential or as reads owed, got: %s", got.stderr)
 			}
 		})

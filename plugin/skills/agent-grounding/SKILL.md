@@ -127,10 +127,13 @@ Immutable. Get it right before capture.
 ## What the gate refuses, and what it lets through
 
 **A question, a draft edit or a notebook edit is never refused.** Reads missing → the call goes
-ahead, and a note follows it, opening ``GROUNDING GATE: let through, reads owed.`` and naming what
-is still owed. A draft edit's note adds `This draft is not grounded: its capture owes the
-reads.` Treat the note as the refusal it replaces: run the reads, then go on. A question already
-asked → read before answering what it settled.
+ahead, and a note follows it, opening ``GROUNDING GATE: let through, reads owed before the next
+question or draft.`` A draft edit's note adds `This draft is not grounded: its capture owes the
+reads.` The note names only the reads still owed, each reason above its command; a read not named
+is credited, never re-run it. Run the named ones before the next question or draft; never re-ask
+the call that went through. A question already asked → read before answering what it settled. A
+refusal for reads owed opens ``GROUNDING GATE: refused. Run the reads owed, then run this call
+again.``
 
 A broken `.sdd/grounding.yaml` lets them through as ``GROUNDING GATE: let through.`` with the
 parse error. Fix the file.

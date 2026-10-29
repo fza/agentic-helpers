@@ -1,11 +1,3 @@
-GROUNDING GATE: refused. {missing}
-
-{run}
-
-  {read} search --term '<literal>'{flags}{suffix}
-  {read} search --query '<subject>'{flags}{suffix}
-  {read} {listing}{suffix}
-
-Empty search ≠ absence; a listing settles membership.
-
-Standing reads: {have}
+GROUNDING GATE: refused. Run the reads owed, then run this call again.
+{gather}
+{owed}

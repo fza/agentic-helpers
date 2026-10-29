@@ -92,7 +92,7 @@ func TestReadsThroughTheReadCommand(t *testing.T) {
 		env := configured(t, "read-command.yaml")
 		record(t, env, bash("echo '"+wrapper+" search --query foo --term bar'"), bash(`echo '`+wrapper+` view --layout "topic(area-hooks):as-list"'`))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	})
 
 	for _, command := range []string{
@@ -122,7 +122,7 @@ func TestReadsThroughTheReadCommand(t *testing.T) {
 	})
 
 	t.Run("a plain sdd new is still a write, the command's new is not", func(t *testing.T) {
-		refuses(t, run(t, configured(t, "read-command.yaml"), "gate", bash("sdd new d tac body")), "neither read")
+		owesEveryRead(t, run(t, configured(t, "read-command.yaml"), "gate", bash("sdd new d tac body")))
 		passes(t, run(t, configured(t, "read-command.yaml"), "gate", bash(wrapper+" new d tac body")))
 	})
 }
@@ -131,7 +131,7 @@ func TestTheWrapperIsNoReadWithoutTheConfig(t *testing.T) {
 	env := areaProject(t)
 	record(t, env, bash(wrapper+" search --term x"), bash(wrapper+" search --query 'a subject'"), bash(wrapper+` view --layout "topic(area-hooks):as-list"`))
 
-	refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+	owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	passes(t, run(t, env, "gate", bash(wrapper+" search --term x 2>/dev/null")))
 	passes(t, run(t, env, "gate", bash(wrapper+" show 20260907-164635-d-tac-vkm --down 0")))
 }

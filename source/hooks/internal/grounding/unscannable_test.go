@@ -244,7 +244,7 @@ func TestWhatCannotBeScannedIsRefusedLast(t *testing.T) {
 	env := areaProject(t)
 	absent := "agentic-capture " + filepath.Join(env.ProjectDir, "absent.md")
 
-	refuses(t, run(t, env, "gate", bash(absent)), "neither read")
+	owesEveryRead(t, run(t, env, "gate", bash(absent)))
 
 	ground(t, env)
 	refuses(t, run(t, env, "gate", bash(absent)), unreadable)
@@ -431,7 +431,7 @@ func TestOnlyALiteralAttachmentPathTheGateCanPlaceIsRead(t *testing.T) {
 			headed(t, env, "attach: [run.log]\n")
 			command := strings.ReplaceAll(tc.command, "{draft}", ".sdd/tmp/drafts/attached.md")
 
-			refuses(t, run(t, env, "gate", bash(command)), "neither read")
+			owesEveryRead(t, run(t, env, "gate", bash(command)))
 
 			ground(t, env)
 			refuses(t, run(t, env, "gate", bash(command)),

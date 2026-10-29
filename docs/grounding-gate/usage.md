@@ -76,13 +76,26 @@ file changed after the gate's scan is still caught ([capture](../capture/archite
 
 **A question, a draft edit and a notebook edit under `drafts/` are let through, never refused.**
 With reads owed the call goes ahead and the agent gets a note, opening
-`GROUNDING GATE: let through, reads owed.` and naming what is still owed; a draft edit's note
+`GROUNDING GATE: let through, reads owed before the next question or draft.`; a draft edit's note
 adds `This draft is not grounded: its capture owes the reads.`, since a draft saved while reads are
 missing reads never grounds. A `.sdd/grounding.yaml` that does not parse lets them through as
 `GROUNDING GATE: let through.` with the parse error. Claude Code draws any refusal of these tools as
 a red error in its default view, while a note is never shown to the user. Every other check stays a
 refusal, exit 2 with the reason on stderr: a capture, a plain `sdd new`, a discarded stream, a short
-show and an MCP capture, each a call Claude Code folds into one grey line.
+show and an MCP capture, each a call Claude Code folds into one grey line. A refusal for reads owed
+opens `GROUNDING GATE: refused. Run the reads owed, then run this call again.`
+
+**A note or refusal names only the reads still owed**, each as the reason it is owed above the
+command that answers it; a read already credited is not named. A question asked with both searches
+credited and no listing gets:
+
+    GROUNDING GATE: let through, reads owed before the next question or draft.
+
+    No listing of every topic since the graph last changed.
+      sdd view --layout "active:as-counts"
+
+`Empty search ≠ absence; a listing settles membership.` follows the reads only when a search is
+owed. The note comes on every gated call while reads are owed.
 
 The searches the gate suggests read five hits, header lines only, for a project on bare sdd:
 
@@ -156,8 +169,8 @@ wherever the gate looks for one; `read_suffix` ends every suggested read and is 
 project naming neither gets bare `sdd`. Graph writes stay with `sdd new` and `agentic-capture`.
 
 A project whose tooling runs every read in one call names it as `gather_command`, and the refusal
-offers that call ahead of the separate reads. A successful call through it counts as a semantic
-search when it carries `--query`, a literal one when it carries `--term`, and a listing for each
+offers that call ahead of the reads owed, however many are. A successful call through it counts as
+a semantic search when it carries `--query`, a literal one when it carries `--term`, and a listing for each
 `--area <name>` carrying the listing prefix; naming no `--area`, it counts as a listing of every area
 its `--entry` subject carries. A call missing a mode still owes it. A project naming no
 `gather_command` gets nothing credited for a call shaped like one.

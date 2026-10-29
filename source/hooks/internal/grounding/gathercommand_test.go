@@ -132,14 +132,14 @@ func TestAGatherCallGroundsTheTurn(t *testing.T) {
 		env := configured(t, "gather-command.yaml")
 		record(t, env, with(bash(gather+" s --query q --term x --entry "+subject), "tool_response", map[string]any{"exit_code": 1}))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	})
 
 	t.Run("no gather command configured", func(t *testing.T) {
 		env := configured(t, "read-command.yaml")
 		record(t, env, bash(gather+" s --query q --term x --entry "+subject))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "neither read")
+		owesEveryRead(t, run(t, env, "gate", ask("s1")))
 	})
 }
 
@@ -147,14 +147,27 @@ func TestRefusalsOfferTheGatherCall(t *testing.T) {
 	got := run(t, configured(t, "gather-command.yaml"), "gate", ask("s1"))
 
 	for _, line := range []string{
-		"One call runs all three, then ask again:\n\n  pilot graph gather <entry> --query '<subject>' --term '<literal>' --entry <entry>\n",
-		"Or run both + the listing apart:\n\n  pilot graph search --term '<literal>' --entry <entry>\n",
-		"  pilot graph search --query '<subject>' --entry <entry>\n",
+		"One call runs all three:\n\n  pilot graph gather <entry> --query '<subject>' --term '<literal>' --entry <entry>\n",
+		"Or each read owed apart:\n\nNo `--query` search since the graph last changed.\n  pilot graph search --query '<subject>' --entry <entry>\n",
+		"  pilot graph search --term '<literal>' --entry <entry>\n",
 		`  pilot graph view --layout "topic(area-<name>):as-list" --entry <entry>` + "\n",
 	} {
 		if !strings.Contains(got.said, line) {
 			t.Errorf("the refusal should offer the gather call before the separate reads, got: %s", got.said)
 		}
+	}
+}
+
+func TestTheGatherCallStaysBesideOneReadOwed(t *testing.T) {
+	env := configured(t, "gather-command.yaml")
+	record(t, env, bash(gather+" "+subject+" --query 'a subject' --term x --area hooks --entry "+subject))
+
+	got := run(t, env, "gate", ask("s1"))
+	refuses(t, got, "One call runs all three:\n\n  pilot graph gather <entry>",
+		"No `area-` listing since the graph last changed.\n  pilot graph view")
+
+	if strings.Contains(got.said, "pilot graph search") {
+		t.Errorf("searches already credited should not be asked for apart, got: %s", got.said)
 	}
 }
 
