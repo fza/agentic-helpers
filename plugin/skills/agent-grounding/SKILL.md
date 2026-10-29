@@ -131,9 +131,11 @@ ahead, and a note follows it, opening ``GROUNDING GATE: let through, reads owed 
 question or draft.`` A draft edit's note adds `This draft is not grounded: its capture owes the
 reads.` The note names only the reads still owed, each reason above its command; a read not named
 is credited, never re-run it. Run the named ones before the next question or draft; never re-ask
-the call that went through. A question already asked → read before answering what it settled. A
-refusal for reads owed opens ``GROUNDING GATE: refused. Run the reads owed, then run this call
-again.``
+the call that went through. A question already asked → read before answering what it settled. The
+note fires once per cause, the set of reads missing under the current graph: later gated calls
+owing the same reads go ahead silently, so act on the first note. It fires again after a graph
+change, a compaction, or a change in which reads are missing. A refusal for reads owed opens
+``GROUNDING GATE: refused. Run the reads owed, then run this call again.``, on every call.
 
 A broken `.sdd/grounding.yaml` lets them through as ``GROUNDING GATE: let through.`` with the
 parse error. Fix the file.

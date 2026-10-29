@@ -93,8 +93,12 @@ func TestAnExemptSeat(t *testing.T) {
 	})
 
 	t.Run("still owes the reads for everything else", func(t *testing.T) {
+		compact := map[string]any{"session_id": test.Session, "source": "compact"}
+
 		refuses(t, run(t, env, "gate", ask(test.Session)), "search")
+		run(t, env, "start", compact)
 		refuses(t, run(t, env, "gate", as(test.Session, edit(filepath.Join(env.ProjectDir, ".sdd", "tmp", "drafts", "d.md")))), "search")
+		run(t, env, "start", compact)
 		refuses(t, run(t, env, "gate", as(test.Session, map[string]any{"tool_name": "NotebookEdit", "tool_input": map[string]any{"file_path": filepath.Join(env.ProjectDir, "drafts", "n.ipynb")}})), "search")
 		refuses(t, run(t, env, "gate", as(test.Session, bash("sdd new d tac body"))), "search")
 		refuses(t, run(t, env, "gate", as(test.Session, bash("agentic-capture .sdd/tmp/drafts/d.md"))), "search")

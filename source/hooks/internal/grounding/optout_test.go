@@ -89,7 +89,7 @@ func TestASeatExemptFromTheWholeGate(t *testing.T) {
 	t.Run("a seat exempt from the depth alone still owes the reads", func(t *testing.T) {
 		test.ClaimOtherSeat(t, store, "scout", test.OtherSession)
 		passes(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))))
-		refuses(t, run(t, other, "gate", ask(test.OtherSession)), "search")
+		refuses(t, run(t, other, "gate", as(test.OtherSession, bash("sdd new d tac body"))), "search")
 	})
 }
 

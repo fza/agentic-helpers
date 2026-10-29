@@ -95,7 +95,13 @@ credited and no listing gets:
       sdd view --layout "active:as-counts"
 
 `Empty search ≠ absence; a listing settles membership.` follows the reads only when a search is
-owed. The note comes on every gated call while reads are owed.
+owed.
+
+**The note fires once per cause**: the cause is the set of reads missing under the graph as it
+stands. Once it fired, later gated calls owing the same reads go ahead silently. A graph change, a
+compaction clearing the reads' credit, or a changed set of missing reads arms it again, and the next
+gated call carries it. Refusals are not rationed: a capture, a plain `sdd new`, a short show and a
+discarded stream are refused with their full text on every call.
 
 The searches the gate suggests read five hits, header lines only, for a project on bare sdd:
 

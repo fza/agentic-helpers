@@ -1,6 +1,7 @@
 package grounding_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -172,4 +173,98 @@ func TestADraftWrittenWhileReadsAreOwedIsNotGrounded(t *testing.T) {
 	compact(t, env)
 
 	owesEveryRead(t, run(t, env, "gate", bash("agentic-capture "+draft)))
+}
+
+func TestTheNoteFiresOncePerCause(t *testing.T) {
+	cases := []struct {
+		name    string
+		between func(t *testing.T, env grounding.Env)
+		rearms  bool
+	}{
+		{name: "the same reads missing under the same graph", between: func(*testing.T, grounding.Env) {}},
+		{name: "a graph change", between: func(t *testing.T, env grounding.Env) {
+			entryIn(t, env, "26-090000-d-tac-new.md")
+		}, rearms: true},
+		{name: "a different set of reads missing", between: func(t *testing.T, env grounding.Env) {
+			record(t, env, bash(semanticRead))
+		}, rearms: true},
+		{name: "a compaction", between: compact, rearms: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := areaProject(t)
+			draft := draftIn(t, env)
+
+			first := run(t, env, "gate", ask("s1"))
+			if !first.noted {
+				t.Fatalf("the first gated call owing reads should carry the note, got exit %d: %s", first.code, first.said)
+			}
+
+			tc.between(t, env)
+
+			for position, payload := range []map[string]any{ask("s1"), save("Write", draft)} {
+				got := run(t, env, "gate", payload)
+
+				if got.code != 0 || got.stderr != "" {
+					t.Fatalf("a gated call owing reads should go ahead, got exit %d, stderr %q", got.code, got.stderr)
+				}
+
+				rearmed := tc.rearms && position == 0
+				if got.noted != rearmed {
+					t.Errorf("the note should fire again only on a new cause, and once, got noted %v: %s", got.noted, got.said)
+				}
+
+				if rearmed && !strings.HasPrefix(got.said, "GROUNDING GATE: let through, reads owed before the next question or draft.") {
+					t.Errorf("a re-armed note should keep its wording, got: %s", got.said)
+				}
+			}
+		})
+	}
+}
+
+func TestACaptureIsRefusedOnEveryCallAfterTheNote(t *testing.T) {
+	env := areaProject(t)
+	draft := draftIn(t, env)
+
+	if !run(t, env, "gate", ask("s1")).noted {
+		t.Fatal("the first gated call owing reads should carry the note")
+	}
+
+	passesSilently := run(t, env, "gate", ask("s1"))
+	if passesSilently.noted {
+		t.Fatalf("a second question with the same cause should carry no note, got: %s", passesSilently.said)
+	}
+
+	for range 2 {
+		got := run(t, env, "gate", bash("agentic-capture "+draft))
+		if got.code != 2 || !strings.HasPrefix(got.stderr, "GROUNDING GATE: refused. Run the reads owed, then run this call again.\n") {
+			t.Errorf("a capture should be refused with the full text on every call, got exit %d: %s", got.code, got.stderr)
+		}
+
+		owesEveryRead(t, got)
+	}
+}
+
+func TestTheSkillAndDocsStateTheNoteFiresOncePerCause(t *testing.T) {
+	for _, path := range []string{
+		"../../../../plugin/skills/agent-grounding/SKILL.md",
+		"../../../../docs/grounding-gate/usage.md",
+		"../../../../docs/grounding-gate/architecture.md",
+	} {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+
+		prose := strings.Join(strings.Fields(string(content)), " ")
+
+		if !strings.Contains(prose, "fires once per cause") {
+			t.Errorf("%s should state that the let-through note fires once per cause", path)
+		}
+
+		if strings.Contains(prose, "every gated call while reads are owed") {
+			t.Errorf("%s should no longer say the note comes on every gated call", path)
+		}
+	}
 }
