@@ -73,11 +73,18 @@ func (mem *memory) mergeRefusal(from string, into string) string {
 		return ""
 	}
 
-	if from == mem.key || mem.question.Offers(from) {
+	switch {
+	case from == mem.key:
+		return notOffered(into, "merge")
+	case into == mem.key:
+		return notOffered(from, "merge")
+	case !mem.question.Offers(from):
+		return notOffered(from, "merge")
+	case !mem.question.Offers(into):
 		return notOffered(into, "merge")
 	}
 
-	return notOffered(from, "merge")
+	return fmt.Sprintf("neither %s nor %s is this checkout's own store; run the merge in a terminal", from, into)
 }
 
 func notOffered(store string, verb string) string {
