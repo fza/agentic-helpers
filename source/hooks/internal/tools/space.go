@@ -383,11 +383,16 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	stores := lib.stores(ctx)
 	named := origins(stores)
 	limit := int64(lib.options.ToolsTotalMB) << 20
-	others := lib.unreached()
+	scoped := lib.scopeProject()
 
 	recorded := recordedBytes(stores, named)
-	for _, record := range others {
-		recorded = space.Add(recorded, record.Stored)
+
+	if scoped {
+		for key, record := range space.Read(ledgerPath(lib.root())) {
+			if key != lib.key {
+				recorded = space.Add(recorded, record.Stored)
+			}
+		}
 	}
 
 	if space.Add(recorded, incoming) <= limit {
@@ -395,8 +400,11 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	}
 
 	stored, prunable := measured(stores, named)
-	for key := range others {
-		stored = space.Add(stored, storeOnDisk(projectkey.Dir(lib.root(), key), limit))
+
+	if scoped {
+		for _, at := range lib.unreached() {
+			stored = space.Add(stored, storeOnDisk(at, limit))
+		}
 	}
 
 	over := space.Add(stored, incoming) - limit
@@ -434,25 +442,31 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	return nil
 }
 
-// unreached is the ledger's record of every store a project-scoped caller
-// cannot reach. The ledger is writable by anything sandboxed, so a key counts
-// only where it names a folder below the root in its one clean form: never a
-// folder elsewhere on the machine, never the own store a second time.
-func (lib *library) unreached() map[string]space.Record {
-	if !lib.scopeProject() {
-		return nil
-	}
+// unreached is the folder of every store on the machine but the own one, each
+// once: what a project-scoped caller measures on disk instead of trusting the
+// ledger. A store is a folder storeKeys walks to, each once, never a key the
+// ledger names, so no folder elsewhere on the machine counts. The own store is
+// told apart by the folder's identity, not its key: a case-insensitive file
+// system resolves the own key and the key the folder was made under, differing
+// in case, to one folder.
+func (lib *library) unreached() []string {
+	root := lib.root()
+	own, ownErr := os.Lstat(projectkey.Dir(root, lib.key))
 
-	records := map[string]space.Record{}
+	var folders []string
 
-	for key, record := range space.Read(ledgerPath(lib.root())) {
-		local := filepath.FromSlash(key)
-		if key != lib.key && filepath.IsLocal(local) && filepath.Clean(local) == local {
-			records[key] = record
+	for _, key := range storeKeys(root) {
+		at := projectkey.Dir(root, key)
+
+		info, err := os.Lstat(at)
+		if err != nil || (ownErr == nil && os.SameFile(own, info)) {
+			continue
 		}
+
+		folders = append(folders, at)
 	}
 
-	return records
+	return folders
 }
 
 func (lib *library) prune(ctx context.Context, version storedVersion) error {

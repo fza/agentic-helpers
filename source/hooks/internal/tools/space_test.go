@@ -349,6 +349,12 @@ func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
 				"--usage", "python3 the script < file", "--distinct", "rows, not words")
 			other.tamperIndex(tamper)
 
+			tools.Prune(context.Background(), h.home, 1)
+
+			if !h.stored("word-count/v1") {
+				t.Fatal("a pass with room on disk should prune nothing, whatever another store's index claims")
+			}
+
 			got := h.run("", "add", "line-count", "--from", h.sized("lines", 100), "--summary", "Count the lines of a file",
 				"--usage", "python3 the script < file", "--distinct", "lines, not words")
 			if got.code != 0 || !h.stored("word-count/v1") {
@@ -361,9 +367,10 @@ func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
 
 func TestAForgedLedgerCannotTriggerPruning(t *testing.T) {
 	cases := map[string]func(h *harness) string{
-		"a store claiming more than it holds": func(*harness) string { return otherRepo },
-		"a key naming no store":               func(*harness) string { return "ghost/store" },
-		"a key naming the own store again":    func(h *harness) string { return "./" + h.repoID },
+		"a store claiming more than it holds":  func(*harness) string { return otherRepo },
+		"a key naming no store":                func(*harness) string { return "ghost/store" },
+		"a key naming the own store again":     func(h *harness) string { return "./" + h.repoID },
+		"a key differing in case from the own": func(h *harness) string { return strings.ToUpper(h.repoID) },
 		"a key reaching outside the library": func(h *harness) string {
 			test.WriteFile(h.t, filepath.Join(h.home, "outside", "big", "v1", "big.py"), strings.Repeat("x", 2<<20))
 
@@ -376,9 +383,9 @@ func TestAForgedLedgerCannotTriggerPruning(t *testing.T) {
 			h := newHarness(t)
 			h.limitTools("1")
 
-			h.must("add", "word-count", "--from", h.sized("words-one", 200), "--summary", "Count the words of standard input",
+			h.must("add", "word-count", "--from", h.sized("words-one", 300), "--summary", "Count the words of standard input",
 				"--usage", "python3 the script < file")
-			h.must("update", "word-count", "--from", h.sized("words-two", 200), "--why", "faster")
+			h.must("update", "word-count", "--from", h.sized("words-two", 300), "--why", "faster")
 
 			other := h.elsewhere(otherRepo)
 			other.must("add", "row-tally", "--from", other.sized("tally", 200), "--summary", "Tally the rows of a table",
@@ -397,6 +404,35 @@ func TestAForgedLedgerCannotTriggerPruning(t *testing.T) {
 					got.code, got.err)
 			}
 		})
+	}
+}
+
+func TestAStoreCountsOnceWhateverTheCaseOfItsKey(t *testing.T) {
+	h := newHarness(t)
+	h.limitTools("1")
+
+	h.must("add", "word-count", "--from", h.sized("words-one", 300), "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file")
+	h.must("update", "word-count", "--from", h.sized("words-two", 300), "--why", "faster")
+
+	made := h.repoID
+	h.project(h.repo, strings.ToUpper(made))
+
+	_, err := os.Stat(h.store())
+	if err != nil {
+		t.Skip("the file system tells keys differing in case apart")
+	}
+
+	test.WriteFile(t, filepath.Join(tools.Root(h.home), ".space.json"),
+		fmt.Sprintf(`{%q:{"stored":%d,"held":%d}}`, made, int64(1)<<40, int64(1)<<40))
+
+	h.variables["AGENTIC_TOOLS_SCOPE"] = "project"
+
+	got := h.run("", "add", "line-count", "--from", h.sized("lines", 100), "--summary", "Count the lines of a file",
+		"--usage", "python3 the script < file", "--distinct", "lines, not words")
+	if got.code != 0 || !h.stored("word-count/v1") {
+		t.Errorf("the own store should count once, though its folder was made under a key differing in case, got %d %q",
+			got.code, got.err)
 	}
 }
 
