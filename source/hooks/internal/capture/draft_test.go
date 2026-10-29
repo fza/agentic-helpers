@@ -179,12 +179,15 @@ func TestACapturedDraftIsKeptWithALine(t *testing.T) {
 						return
 					}
 
-					err := os.Remove(path)
-					if err != nil {
-						f.t.Errorf("removing the judged draft: %v", err)
-					}
+					// Written beside the draft while the draft still exists, so
+					// no file system hands it the draft's inode again.
+					replacement := path + ".new"
+					test.WriteFile(f.t, replacement, swapped)
 
-					test.WriteFile(f.t, path, swapped)
+					err := os.Rename(replacement, path)
+					if err != nil {
+						f.t.Errorf("moving another file onto the judged draft: %v", err)
+					}
 				}
 			},
 			says: " changed while it was checked",
