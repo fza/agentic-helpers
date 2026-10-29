@@ -2,7 +2,6 @@ package memory_test
 
 import (
 	"encoding/json"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -401,22 +400,6 @@ func TestAHookWithoutASessionIDLeavesForksAlone(t *testing.T) {
 	}
 }
 
-// ageForkMarkers dates every fork marker under the cache root back to at.
-func ageForkMarkers(t *testing.T, cacheRoot string, at time.Time) {
-	t.Helper()
-
-	err := filepath.WalkDir(cacheRoot, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || filepath.Base(filepath.Dir(path)) != "forks" {
-			return err
-		}
-
-		return os.Chtimes(path, at, at)
-	})
-	if err != nil {
-		t.Fatalf("dating the fork markers: %v", err)
-	}
-}
-
 func TestAForkMarkerNobodyPromptedIsSweptAWeekOn(t *testing.T) {
 	parent := seatedParent(t, sessionTranscript(t, "parent.jsonl"))
 	fork := resumedOrForked(parent, test.OtherSession)
@@ -424,7 +407,7 @@ func TestAForkMarkerNobodyPromptedIsSweptAWeekOn(t *testing.T) {
 	fork.must(fork.startHook("fork", path), "session-start")
 	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
 
-	ageForkMarkers(t, parent.cache, parent.clock.Now().Add(-8*24*time.Hour))
+	ageSlots(t, parent.cacheDir(), "fork/", parent.clock.Now().Add(-8*24*time.Hour))
 	parent.must(parent.startHook("resume", ""), "session-start")
 
 	if out := fork.must(fork.promptIn(path), "prompt"); out != "" {

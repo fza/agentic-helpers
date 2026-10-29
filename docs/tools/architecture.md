@@ -12,16 +12,31 @@ so every worktree and every agent of the project shares it.
 | Path | Holds |
 |---|---|
 | `<tool>/current` | the current version number |
-| `<tool>/history.jsonl` | one line per version written: `{v, by, role, at, why}`, `by` the session |
-| `<tool>/takes.jsonl` | one line per copy taken: `{v, by, role, at}` |
+| `<tool>/history.jnl` | one record per version written: `{v, by, role, at, why}`, `by` the session |
+| `<tool>/takes.jnl` | one record per copy taken: `{v, by, role, at}` |
 | `<tool>/v<n>/tool.json` | `name`, `summary`, `usage`, `inputs`, `outputs`, `files`, and on a fork `forked_from: {project, tool, v}` |
 | `<tool>/v<n>/...` | the version's files |
 | `<tool>/merged` | a tombstone naming the survivor |
-| `<tool>/pruned.jsonl` | one line per version pruned to make room: `{v, at, hashes}`, its files' hashes and sizes |
+| `<tool>/pruned.jnl` | one record per version pruned to make room: `{v, at, hashes}`, its files' hashes and sizes |
 | `index.json` | per tool its current version and fields, the hash of its description, takers, roles, the file hashes and sizes of every stored version, when each was written, and the hashes of every pruned one; the merged names |
 | `.lock` | the write lock |
-| `sessions/<session>.json` | what a session holds and has been told |
+| `.ledger` | the store's size ledger: every file below it, its length and crc32c, and the bytes it counts |
+| `format.json` | the library's format, 2 |
 | `copies/` | copies taken where the checkout has no `.tmp/` |
+
+What a session holds and has been told lives outside the store, in the slot `session/<session>` of
+`<cache>/stores/<id>/tools/sessions.slots`. The `.jnl` files are journals of typed records,
+each record's body the line as JSON; the slot file, the journal and the ledger are the formats
+agentic-memory keeps ([memory architecture](../memory/architecture.md#file-formats)), and
+`agentic-helpers dump <file>` prints each as JSON lines. A tool folder's journal is only ever
+created holding every line of the JSON-lines file an earlier release kept under the `.jsonl` name,
+which then goes; a reader finding no journal reads that file. A journal cut short reads up to its
+last whole record, and the next append rewrites it whole.
+
+Library format 2 is moved to under the store's lock, by the first call of a release reading it:
+every tool folder's `.jsonl` files become journals, the session files of `sessions/` move into the
+slot file, `format.json` is written, then `sessions/` goes. A store of a format past 2 is skipped by
+every read, and refused by a write.
 
 Every read (find, list, take, the duplicate checks, the offer, the notices) uses `index.json` and
 never lists tool folders; a term search reads the current version's files by the names the index
@@ -39,18 +54,19 @@ A library of a release before the home is renamed into its store's `tools` folde
 
 ## Space
 
-`<data>/tools/.space.json` is the machine's ledger: per store id, `stored` (the bytes
-of every stored version) and `held` (those of versions that cannot be pruned), from the sizes the
-index recorded when it read each version, never from a stat of the files. A walk over every store
-is far too slow for a figure every write reply and the brief print. `add` and `update` rewrite it
-after writing, the own store's figures, or every store's where the caller reaches every store; the
-SessionStart pass rewrites it whole. Writes to it hold `.space.json.lock` (`internal/space`).
+Each store's `.ledger` counts, of every stored version's files, the size the index recorded when
+it read the version (`stored`), and of a version that cannot be pruned the same again as `held`,
+never a stat of the files; every other file below the store is listed and counts nothing. The
+machine's figure is the sum of every store's ledger: a walk over every store is far too slow for a
+figure every write reply and the brief print. Every write and prune refreshes its store's ledger
+under `.ledger.lock` (`internal/space`); the SessionStart pass writes one for a store that has none.
+The machine-wide `<data>/tools/.space.json` an earlier release kept goes with that pass.
 
 A write needing room sums the stored bytes of every store in reach (with `AGENTIC_TOOLS_SCOPE=project`,
-the own store plus the ledger's figures for the rest), and, holding the own store's lock, prunes the
+the own store plus the other stores' ledgers), and, holding the own store's lock, prunes the
 oldest prunable versions until the write fits, each foreign store under its own lock. Pruning is the
 one change a write makes to another project's store: the limit is one per machine, so the room may
-lie anywhere. Pruning appends the version's hashes to `<tool>/pruned.jsonl` first, so a crash before
+lie anywhere. Pruning appends the version's hashes to `<tool>/pruned.jnl` first, so a crash before
 the folder goes leaves the duplicate check whole, then removes `v<n>/` through `os.Root` and reads
 the tool's index row again. `tools.Prune`, run from agentic-memory's SessionStart pass, does the
 same over every store on the machine, passing over a store whose lock it cannot take within 200 ms,
@@ -100,8 +116,9 @@ nothing, and is removed.
 Every write takes `.lock` with `flock`, waiting at most two seconds; the holder writes its pid into
 the file, and a refusal names it. Before the lock, the writer's checkout is bound to its store: a
 checkout matching none gets one through `home.Resolver.Ensure`, and one whose store is the user's
-call is refused with the question, so no folder is made for a store nothing holds. A take line, an
-index a read rebuilt and a hook's session file are written the same way; a read creates nothing.
+call is refused with the question, so no folder is made for a store nothing holds. A take line and
+an index a read rebuilt are written the same way; a read creates nothing in the store, and a hook's
+session slot is written under the slot file's own lock in the cache.
 A version's files, its `tool.json` and its history line land
 before `current` names it, and the index is rewritten whole after every write; after a crash the
 index can trail the folders until the next write or `reindex`.
@@ -116,14 +133,14 @@ store holds another project's agents' text.
   alone follows a link that stays inside its tree. A file is read only where its lstat is a regular
   file with one name (a hard link could be an outside file linked in), opened with `O_NONBLOCK` and
   held to the lstat. Caps: a tool's files 1 MiB, a version folder
-  1 MiB + 64 KiB, `index.json`, `history.jsonl` and `takes.jsonl` 4 MiB each, a session file 1 MiB,
+  1 MiB + 64 KiB, `index.json`, `history.jnl` and `takes.jnl` 4 MiB each, a session's slot 128 KiB,
   `current` 64 bytes, a walk six folders deep and 2000 files. A malformed line is skipped.
 - **Writes open no path.** A write holds the descriptor of each folder, made and opened relative to
   its checked parent as a read opens it, and creates, appends and renames relative to that
   descriptor, so a folder swapped for a link after its check is never written through. A new file
   is created with `O_EXCL`, which opens no existing name; a replaced file (`current`, `index.json`,
-  a session file) is written under a fresh random name and renamed over the old one; an appended
-  file (`history.jsonl`, `takes.jsonl`, `.lock`) must be the regular file of one name its folder's
+  a journal cut short) is written under a fresh random name and renamed over the old one; an appended
+  file (`history.jnl`, `takes.jnl`, `.lock`) must be the regular file of one name its folder's
   lstat names.
 - **Every printed field is stripped of control characters**, an index row whose name is not its key
   is dropped, and every listing opens with the framing lead.
@@ -144,8 +161,8 @@ store's name, grown by a leading segment while two names share one.
 | `UserPromptSubmit` | `prompt` | delivers the nudges `stop` recorded, then offers up to three own tools whose vector lies at or above `tools_query_floor` (0.45 unless set) to the prompt's, not yet named or printed in this context, same-role first; a prompt holding a credential is never embedded and gets no offer |
 | `PostToolUse` | `notice` | for each holding older than its tool's current version, and each held fork whose origin moved on, adds a line once; it compares the stats of the indexes involved with what it saw last, and reads nothing more when none moved |
 | `Stop` | `stop` | records, without blocking or printing, scripts (`.py .sh .go .awk`) in the session's scratch whose content and name no version of any tool in reach holds, and taken copies whose files changed |
-| `SessionStart` | `start` | on a compaction, `/clear` or resume, removes the seen file |
-| `SessionEnd` | `end` | removes the session's file, its prompt vector slot and the seen file |
+| `SessionStart` | `start` | on a compaction, `/clear` or resume, clears the seen set |
+| `SessionEnd` | `end` | clears the session's slot, its prompt vector slot and the seen set |
 
 The offer's embed is bounded at five seconds, as agentic-memory's recall is; a timeout adds
 nothing. A prompt's vector lives in a slot per session under
@@ -153,13 +170,14 @@ nothing. A prompt's vector lives in a slot per session under
 embeds the prompt first leaves its vector for the other. The hooks of one event run in parallel, so
 the slot mostly saves an embed where recall finished first.
 
-What the context already holds lives in a seen file,
-`<cache>/tools/seen/<pid>-<start>.json`: `lines`, each tool version find
+What the context already holds lives in a seen set, the slot `seen/<pid>-<start>` of
+`<cache>/tools/sessions.slots` (format 2 of that cache, which takes in the `seen/<pid>-<start>.json`
+files an earlier release kept there): `lines`, each tool version find
 or list printed as `<name> v<n>`, and `offered`, the own tools the offer named. It is keyed on the
 owning `claude` process (its pid and start time, found as agentic-memory finds a seat's owner)
 rather than the session id: the MCP server keeps the `CLAUDE_CODE_SESSION_ID` it started with across
 a `/clear`, so a key on it would outlive the context it describes. The start time keeps a reused pid
-from reading a dead process's file. The offer prints names only, so it marks nothing printed: a
+from reading a dead process's set. The offer prints names only, so it marks nothing printed: a
 find after it still prints the tool in full.
 
 ## MCP answers

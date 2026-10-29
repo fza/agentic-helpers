@@ -138,6 +138,7 @@ func (mem *memory) purge(ctx context.Context, shelfIDs []string) (int, int, erro
 		return 0, 0, err
 	}
 	defer unlock()
+	defer mem.recordStore(ctx)
 
 	mem.forgetRegistry()
 	mem.forgetShelves()

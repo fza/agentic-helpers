@@ -51,8 +51,9 @@ func (lib *library) recorder(ctx context.Context) error {
 	return lib.writer(ctx)
 }
 
-// Join moves every tool folder and session file of one store's library into
-// another's, the folders being the libraries'. A tool name both hold refuses
+// Join moves every tool folder of one store's library into another's, the
+// folders being the libraries'. A session's state is the cache's, and stays
+// with the store it was kept for. A tool name both hold refuses
 // the join before anything moves; the target's index is rebuilt from its
 // folders at its next read.
 func Join(_ context.Context, from string, into string) error {
@@ -91,40 +92,9 @@ func Join(_ context.Context, from string, into string) error {
 		}
 	}
 
-	err = moveSessions(filepath.Join(from, "sessions"), filepath.Join(into, "sessions"))
-	if err != nil {
-		return err
-	}
-
 	err = os.Remove(filepath.Join(into, "index.json"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("dropping the index to rebuild: %w", err)
-	}
-
-	return nil
-}
-
-func moveSessions(from string, into string) error {
-	listed, err := os.ReadDir(from)
-	if err != nil {
-		return nil
-	}
-
-	err = os.MkdirAll(into, 0o700)
-	if err != nil {
-		return fmt.Errorf("creating %s: %w", into, err)
-	}
-
-	for _, entry := range listed {
-		_, statErr := os.Lstat(filepath.Join(into, entry.Name()))
-		if statErr == nil || !entry.Type().IsRegular() {
-			continue
-		}
-
-		err = os.Rename(filepath.Join(from, entry.Name()), filepath.Join(into, entry.Name()))
-		if err != nil {
-			return fmt.Errorf("moving the session file %s: %w", entry.Name(), err)
-		}
 	}
 
 	return nil

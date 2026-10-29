@@ -263,9 +263,13 @@ missing one reads as `default`.
   these modes. With the option at `0`, for a call shell-guard did not ask about, or in any other
   mode, the hook answers nothing and the prompt is the person's.
 
-A countdown that ran out is noted per session under
-`$XDG_CACHE_HOME/agentic-helpers/shell-guard/<session>.json` (`~/.cache` where the variable is
-unset). The session's last prompt is the newest typed prompt in its transcript (`transcript_path`):
+A countdown that ran out is noted in the slot of its session in
+`$XDG_CACHE_HOME/agentic-helpers/shell-guard/sessions.slots` (`~/.cache` where the variable is
+unset), a slot file keyed by session id ([memory architecture](../memory/architecture.md#file-formats));
+`agentic-helpers dump` prints it as JSON lines. Every write first clears the slots of sessions no
+write touched for a week, so the file never grows past the sessions of the last one. Its format 2
+takes in the `<session>.json` files an earlier release kept there, then removes them; a state of a
+format past 2 is neither read nor written. The session's last prompt is the newest typed prompt in its transcript (`transcript_path`):
 with three countdowns run out since it, the hook denies at once, message
 `agentic-shell-guard: 3 countdowns ran out unanswered since the last prompt; <reason>`, until the
 person prompts again. A note it cannot read or write counts nothing, which costs only the
@@ -277,8 +281,8 @@ Two asks name something the agent can fix by rewriting the command: `cannot judg
 <word> is not fixed text` (the name spelled out, a launcher's option value double-quoted) and `the
 command holds what looks like a credential (...)` (the value referenced as `"$NAME"`). A guard's
 verdict carries the reason's count key (`Verdict.Rewrite`: `not_fixed`, `credential`); the
-`PreToolUse` hook, finding the call's verdict an ask with a key, counts the attempt in the session's
-state file, the one the countdowns are noted in, under `attempts`. Before the third attempt it
+`PreToolUse` hook, finding the call's verdict an ask with a key, counts the attempt under `attempts` of the session's
+slot, the one the countdowns are noted in. Before the third attempt it
 answers `deny`, reason `<reason>; rewrite the command (attempt <n> of 3)`; from the third on it
 answers the ask, put as the permission mode says, so a person is prompted only for a command the
 agent could not make judgeable. Each key counts apart and never resets within a session. The
@@ -294,5 +298,6 @@ A call without a usable session id (missing, or not a file name) or without a st
 no count and is on its first attempt every time, so it is refused every time. Claude Code sends a
 session id with every call, and a refusal of one of these reasons always leaves the agent a rewrite;
 asking at once instead would put in front of the person the very prompt the rule spares them. A
-state file it cannot write leaves the count where it was. The hooks read and rewrite the whole file
-with no lock, so two calls of one session landing at once may lose one attempt or countdown note.
+slot it cannot write leaves the count where it was; a state too large for its slot gives up its
+oldest countdowns. A hook reads the slot and writes it back whole, so two calls of one session
+landing at once may lose one attempt or countdown note; the slot file itself never tears.

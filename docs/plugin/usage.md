@@ -34,6 +34,21 @@ every agent and every worktree of the project shares:
 | `<data>/sessions/claude/<session>/` | what one session leaves, as its context reading |
 | `<git common dir>/agentic-store` | the id of the checkout's store |
 
+Each component keeps what changes often in binary files: what a session or seat keeps between hook
+calls in a slot file (`sessions.slots`), its append-only records in journals (`.jnl`, memory's log
+tail and agentic-tools' histories), and a size ledger (`.ledger`) the space figures read instead of
+walking a store. `agentic-helpers dump <file>` prints any of them, and memory's log segments, as JSON
+lines:
+
+    agentic-helpers dump <data>/stores/<id>/memory/log/tail.jnl
+
+A slot prints `{"key", "generation", "written", "value"}` (`value_base64` for a value that is no
+JSON), a log event `{"record": "event", "event", "entry", "time", "seat", "target", "payload"}`, a
+ledger file `{"record": "ledger-file", "name", "length", "crc32c", "modified", "counted", "held",
+"bytes"}`, and any other record `{"record", "schema", "body"}`. A journal cut short prints its
+records up to the cut, then fails naming it; a file of no binary kind is refused. The JSON files
+(`format.json`, `index.json`, a claim) are read as they are.
+
 A store id is a UUID v7 and a suffix fixed at creation: the last path part of the sdd `repo_id`, else
 of the origin, else the checkout directory's name. A checkout is matched, in this order, by its
 pointer, the volume UUID and inode of its git common dir, its path, the graph repository a split

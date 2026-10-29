@@ -1,6 +1,9 @@
 package shellguard
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // An ask the agent can fix by rewriting the command refuses with its reason
 // the first times in a session and prompts only on the attempt reaching
@@ -28,8 +31,8 @@ func rewritable(setting string, reason string, key string) Verdict {
 // or no state directory, is on its first attempt every time: the agent can
 // always rewrite the command, while a prompt would be the one the rule spares
 // the person. Claude Code sends a session id with every call.
-func refuseFirst(env Env, session string, verdict Verdict) Verdict {
-	held := stateOf(env, session)
+func refuseFirst(ctx context.Context, env Env, session string, verdict Verdict) Verdict {
+	held := stateOf(ctx, env, session)
 	if held.Attempts == nil {
 		held.Attempts = map[string]int{}
 	}

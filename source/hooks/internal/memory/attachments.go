@@ -189,46 +189,67 @@ func (mem *memory) heldAttachments(folded *state) map[string]int64 {
 	return held
 }
 
-// ledgerPath is the attachment store's ledger: every stored file's size by
-// hash, as the attach that stored it recorded it.
-func (mem *memory) ledgerPath() string {
-	return filepath.Join(mem.attachmentsRoot(), ".space.json")
-}
-
-// attachmentsSpace is the attachment store's space, from the ledger's
-// recorded sizes, never from the files.
+// attachmentsSpace is the attachment store's space, from the sizes its
+// ledger recorded, never from the files.
 func (mem *memory) attachmentsSpace() space.Figure {
-	return mem.attachmentsFigure(space.Read(mem.ledgerPath()))
+	return mem.attachmentsFigure(space.ReadLedger(mem.attachmentsRoot()))
 }
 
-func (mem *memory) attachmentsFigure(records map[string]space.Record) space.Figure {
-	return space.Figure{Kind: space.Attachments, Used: space.Total(records).Stored,
+func (mem *memory) attachmentsFigure(files []space.LedgerFile) space.Figure {
+	return space.Figure{Kind: space.Attachments, Used: space.LedgerTotal(files).Stored,
 		Limit: int64(mem.options().AttachmentsTotalMB) << 20}
+}
+
+// ledgerSizes is every stored file's size as the attachment store's ledger
+// records it, by hash.
+func (mem *memory) ledgerSizes() map[string]int64 {
+	sizes := map[string]int64{}
+
+	for _, file := range space.ReadLedger(mem.attachmentsRoot()) {
+		if file.Counted {
+			sizes[strings.TrimSuffix(file.Name, ".gz")] = file.Bytes
+		}
+	}
+
+	return sizes
+}
+
+// recordSizes rewrites the attachment store's ledger: every stored file
+// counted at the size an attach row recorded for its hash, sizes naming each
+// it knows; a file it names none for keeps what the ledger recorded, and one
+// the ledger never listed, which no attach recorded, counts nothing.
+func (mem *memory) recordSizes(ctx context.Context, sizes map[string]int64) {
+	_ = space.Refresh(ctx, mem.attachmentsRoot(), func(name string) space.Account {
+		if strings.Contains(name, "/") || strings.HasPrefix(name, ".") {
+			return space.Account{Bytes: -1}
+		}
+
+		size, known := sizes[strings.TrimSuffix(name, ".gz")]
+		if !known || size < 0 {
+			return space.Account{Carry: true}
+		}
+
+		return space.Account{Counted: true, Held: true, Bytes: size}
+	})
 }
 
 // recordAttached enters each attached file's size in the ledger and answers
 // the store's space after it.
-func (mem *memory) recordAttached(prepared []preparedFile) space.Figure {
-	records := space.Read(mem.ledgerPath())
+func (mem *memory) recordAttached(ctx context.Context, prepared []preparedFile) space.Figure {
+	sizes := map[string]int64{}
+	for _, file := range prepared {
+		sizes[file.SHA256] = file.Size
+	}
 
-	_ = space.Update(mem.ledgerPath(), func(ledger map[string]space.Record) {
-		for _, file := range prepared {
-			ledger[file.SHA256] = space.Record{Stored: file.Size, Held: file.Size}
-		}
+	mem.recordSizes(ctx, sizes)
 
-		records = maps.Clone(ledger)
-	})
-
-	return mem.attachmentsFigure(records)
+	return mem.attachmentsSpace()
 }
 
 // withinLimit refuses files that would take every project's attachments on
 // the machine past attachments_total_mb, each stored file counted once.
 func (mem *memory) withinLimit(folded *state, prepared []preparedFile) error {
-	held := map[string]int64{}
-	for hash, record := range space.Read(mem.ledgerPath()) {
-		held[hash] = record.Stored
-	}
+	held := mem.ledgerSizes()
 
 	// The project's own files count even where the ledger lacks them: a file
 	// stored before the ledger was kept. Where both record a size the larger
@@ -405,7 +426,7 @@ func (mem *memory) attach(ctx context.Context, req request) result {
 		names = append(names, file.Name)
 	}
 
-	lines = append(lines, space.Line(mem.recordAttached(prepared)))
+	lines = append(lines, space.Line(mem.recordAttached(ctx, prepared)))
 
 	return done(strings.Join(lines, "\n")).with(attachedFields{ID: held.id, Attachments: names})
 }
@@ -655,6 +676,7 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 			}
 
 			other.writeRefs(folded)
+			other.recordStore(ctx)
 			maps.Copy(sizes, other.heldAttachments(folded))
 		}
 
@@ -697,21 +719,18 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 		removeIfThere(filepath.Join(mem.attachmentsRoot(), file.Name()))
 	}
 
-	// The ledger is recomputed from what every log recorded, so a total that
-	// drifted, a crash between a store and its record, is set right here. A
-	// file only a store this release cannot read names keeps its recorded size.
-	_ = space.Update(mem.ledgerPath(), func(ledger map[string]space.Record) {
-		for hash := range ledger {
-			if !stored[hash] {
-				delete(ledger, hash)
-			}
-		}
+	// The ledger is rewritten from the files left and what every log recorded,
+	// so a total that drifted, a crash between a store and its record, is set
+	// right here. A file only a store this release cannot read names keeps its
+	// recorded size.
+	known := map[string]int64{}
 
-		for hash := range stored {
-			size, known := sizes[hash]
-			if known && size >= 0 {
-				ledger[hash] = space.Record{Stored: size, Held: size}
-			}
+	for hash := range stored {
+		size, found := sizes[hash]
+		if found && size >= 0 {
+			known[hash] = size
 		}
-	})
+	}
+
+	mem.recordSizes(ctx, known)
 }

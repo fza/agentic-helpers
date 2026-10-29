@@ -213,13 +213,13 @@ func TestAFormat2StoreGetsAShelfPerSeat(t *testing.T) {
 	test.ClaimSeatByID(t, h.store(), "s-aaaaaa", "main", test.Session)
 	test.WriteFile(t, filepath.Join(h.store(), "seats.json"), `{"s-aaaaaa": {"name": "main", "follows": ["infra"]}}`)
 
-	test.WriteFile(t, filepath.Join(h.store(), "log", "tail.jsonl"), "")
+	test.WriteFile(t, filepath.Join(h.store(), "log", "tail.jnl"), "")
 	before := h.logBytes()
 
 	h.must("", "topics")
 
 	format, _ := os.ReadFile(filepath.Join(h.store(), "format.json"))
-	if !strings.Contains(string(format), `"format":5`) {
+	if !strings.Contains(string(format), `"format":6`) {
 		t.Fatalf("a format-2 store should migrate to the current format, got %s", format)
 	}
 

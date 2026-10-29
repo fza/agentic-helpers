@@ -123,7 +123,8 @@ store never embeds a description holding a credential.
 A project's library is the `tools` folder of its store in the agent-neutral home
 ([plugin usage](../plugin/usage.md#the-home)), the store agentic-memory uses too, so every worktree
 and every agent of the project writes one library. A checkout matching no store gets one of its
-own, silently, at its first write, a hook writing the session's file included; a read creates none.
+own, silently, at its first write; a read creates none, and neither does a hook, which keeps what a
+session holds in the cache.
 Where the checkout's store is the user's call (a second clone of a known repository, say), every
 write is refused with the question agentic-memory's SessionStart prints, the library untouched:
 

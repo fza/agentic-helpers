@@ -178,6 +178,13 @@ func (h *harness) tool(name string, summary string, extra ...string) {
 	h.must(args...)
 }
 
+// dumped is a journal of the own store as `agentic-helpers dump` prints it.
+func (h *harness) dumped(relative string) string {
+	h.t.Helper()
+
+	return test.Dumped(h.t, filepath.Join(h.store(), filepath.FromSlash(relative)))
+}
+
 func (h *harness) read(relative string) string {
 	h.t.Helper()
 
@@ -288,7 +295,7 @@ func TestAddRefusals(t *testing.T) {
 		h.must("add", "lines", "--from", h.file("f.py", "f"), "--summary", "Count the lines of a file quickly",
 			"--usage", "python3 line-count.py <file>", "--distinct", "counts blank lines too")
 
-		if !strings.Contains(h.read("lines/history.jsonl"), "distinct: counts blank lines too") {
+		if !strings.Contains(h.dumped("lines/history.jnl"), "distinct: counts blank lines too") {
 			t.Error("the history should keep how the tool differs")
 		}
 	})
@@ -374,7 +381,7 @@ func TestUpdateForksAForeignTool(t *testing.T) {
 		t.Errorf("an update of a foreign tool should fork it, got %q", out)
 	}
 
-	if !strings.Contains(h.read("line-count/history.jsonl"), "forked from "+otherRepo+" line-count v1") ||
+	if !strings.Contains(h.dumped("line-count/history.jnl"), "forked from "+otherRepo+" line-count v1") ||
 		!strings.Contains(h.read("line-count/v1/tool.json"), `"forked_from"`) {
 		t.Error("the fork's v1 should be the origin's current version, saying where it came from")
 	}

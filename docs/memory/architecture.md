@@ -7,20 +7,25 @@
 ├── format.json                                         the store's one format version
 ├── seats.json                                          seat id → its current name, its shelf, its private mark
 ├── shelves.json                                        shelf id → its name, follows and lifetime
-├── log/tail.jsonl, log/<hash>.seg, log/manifest.json   the append-only log: the truth
+├── log/tail.jnl, log/<hash>.seg, log/manifest.json    the append-only log: the truth
 ├── seats/<id>.json                                     who holds the seat, which process, which transcript
 ├── seats/<id>.last.json                                the claim of the seat's last holder
 ├── seats/<id>.slice                                    the last turns of the seat's last session
 ├── seats/.lock                                         held while a claim is read, judged and written
 ├── attachments.refs                                    the attachment hashes its entries still holding a body name
 ├── credentials-found.json                              what the migration scan found, until each seat's brief tells it
+├── .ledger                                             the size ledger: every file below the store, its length and crc32c
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
 <data>/stores/<id>/identity.json                        the store's checkouts and identifiers (internal/home)
 <data>/sessions/claude/<session>/context.json           the context reading the plugin writes, with the compaction window
 <data>/attachments/<sha256>[.gz]                        every project's attached files, once each
-<data>/attachments/.space.json                          the ledger: each stored file's size by hash, as its attach recorded it
-<cache>/stores/<id>/memory/                             vectors, heat, the folded log, anchor hashes, per-session state: rebuilt at will
+<data>/attachments/.ledger                              the size ledger: each stored file, its length, crc32c and the size its attach recorded
+<cache>/stores/<id>/memory/                             vectors, heat, the folded log, anchor hashes: rebuilt at will
+<cache>/stores/<id>/memory/sessions.slots               per-session and per-seat state, one slot each
 ```
+
+`agentic-helpers dump <file>` prints any of the binary files above (the log's tail and segments, a
+slot file, a ledger) as JSON lines ([File formats](#file-formats)).
 
 `internal/home` maps the checkout to its store before anything else a call does, the format
 migration included ([plugin architecture](../plugin/architecture.md#the-home)). A hook or a read on
@@ -37,17 +42,69 @@ leaves a stub holding only `{"format":999}`, which every release before the home
 store.
 
 Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
-`shelves.json`, a claim, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
+`shelves.json`, a claim, `.ledger`, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
 a temporary file named for that one writer, `.<name>.<random>.tmp` beside it, then renamed over it
 (`internal/atomicfile`). The hooks of one event run in parallel, and a temporary name every writer
 shares would let two of them interleave in it and the second rename publish the mix; a reader sees
 the old file or the new one. Unlike the log, these files are not synced: a sync on darwin is a full
 flush of the drive, paid inside hook calls.
 
+## File formats
+
+Store format 6 keeps what changes often in binary formats agentic-tools and shell-guard share:
+
+- **Slot file** (`internal/slots`): what a session or seat keeps between hook calls, in one
+  preallocated file per store, `sessions.slots`, rather than a file per session and purpose. A
+  20-byte header (`AGSLOT\0`, format 1, the slot width, the slot count, its crc32c) heads fixed-width
+  slots in A/B twin pairs. Each twin opens with a 32-byte head: a crc32c over the head and key, a
+  crc32c of the value, a generation counter, the write time, the key's and value's lengths; then the
+  key and value. A write goes with `pwrite` to the older twin of its key's pair at the next
+  generation, so a torn write leaves the other twin whole; a read takes, with `pread`, the newer twin
+  whose checksums hold, the older one where they do not. Clearing a key (a SessionEnd, or the
+  SessionStart pass reclaiming state older than `staleAfter`) frees its pair for the next key, so the
+  file holds its header's count of slots of its width and nothing more. A file out of free pairs is
+  written anew with twice the pairs it needs and renamed over the old one. Writers hold
+  `sessions.slots.lock`; readers take no lock. Keys are `<purpose>/<session or seat id>`: `shown`,
+  `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed` per session; `traps`, `do-now`,
+  `skipped`, `brief`, `seen` per seat; `graph-names/<yyyy>/<mm>` per month. A value is the JSON the
+  per-session file held.
+- **Journal** (`internal/memorylog`): the log's tail, `log/tail.jnl`, is the 8-byte header
+  `AGMJNL\0` and format 1, then length-prefixed records, each a length, a crc32c over the length and
+  the record, a kind byte, a schema byte and the body, appended under the log's lock. A reader skips a
+  kind or schema it does not know and stops at the first record whose length runs past the file or
+  whose checksum fails; the next locked write cuts the tail back to the last whole record. An event's
+  body is its kind, its time in Unix nanoseconds, its entry, seat and target, then its payload. The
+  sealed segments keep the `AGMSEG` codec.
+- **Size ledger** (`internal/space`): `.ledger` in a component's directory, a journal of one record
+  per data file below it: its name, length, crc32c, modification time, whether it counts as stored
+  or held, and the bytes it counts. Every write of the component rewrites it under `.ledger.lock`,
+  carrying the checksum of a file whose length and time are unchanged, so a figure reads the ledger
+  and never walks the files. Lock files, temp files and links are no data files.
+
+The seen list of the capture notice is a bitset over the store's table of the month's entry names
+(`graph-names/<yyyy>/<mm>`, appended under the slot file's writer lock, so two sessions never give
+two names one position), not the JSON list of names. On `BenchmarkCaptureNotice` over a month of
+2000 entries (Apple M4 Pro), a tool call finding the month unchanged took 19 µs, 4 KB and 24
+allocations with the bitset and 125 µs, 209 KB and 2035 with the names; a call finding an entry
+added took about 4.5 ms either way, since both then load the store. A table past its slot's width
+leaves the names it has no room for unnamed. The tables of months before the last go with the
+SessionStart pass.
+
+The migration to format 6 runs under the store lock and writes `format.json` last: it seals the
+JSON-lines tail an earlier release kept, `log/tail.jsonl`, into a segment, takes every per-session
+and per-seat file of the cache (`shown/`, `ladder/`, `traps/`, `briefs/`) into `sessions.slots`,
+refreshes the ledger, then removes those folders and the per-process markers (`forks/`, `waiters/`,
+`migration-failed/`, `graph-seen/`); a mark lost there costs a session one capture notice. Prompt
+vectors and the attachments' ledger move at the next SessionStart pass. A release reading up to
+format 5 refuses a format-6 store as newer, and this release refuses one past 6. Rejected: a
+database (a dependency, and a server or a CGO build for what a fixed-width file does); one file per
+session in a binary codec (the file count and the directory walks stay); keeping JSON-lines files
+(a torn line reads as garbage with no checksum to tell).
+
 ## Seat ids
 
 A seat has an id, `s-` and 6 random characters from `0-9a-z`, minted the first time its name is
-claimed and never changed. Events, claim files, slices and the cache's brief marks carry the id;
+claimed and never changed. Events, claim files, slices and the slot file's seat keys carry the id;
 `seats.json` maps each id to the seat's one current name, and no two seats share a name. A name
 reaches the store only through the registry: the log folds with every id turned into the name the
 seat has now, so a `rename` shows everywhere at once. No seat may be named in an id's shape.
@@ -217,7 +274,7 @@ use, as it reads as no heat.
 
 ## The log
 
-Events append to `log/tail.jsonl`. A call changing several entries (`supersede`, `confirm`,
+Events append to `log/tail.jnl`, a journal ([File formats](#file-formats)). A call changing several entries (`supersede`, `confirm`,
 `retain` and `retire` over several ids, `new --absorbs`) checks every id against one fold of the log
 and writes all its events in one append under the log's lock, or none: a refused batch leaves the
 log byte-identical. The tail seals past 64 KiB into an immutable segment, named for
@@ -266,8 +323,8 @@ claimed on its shelf. A claim from a release without `fork_uuid` matches by sess
 
 Claude Code writes a fork's transcript only after its first prompt's UserPromptSubmit hooks return,
 and the hook input names no parent session. A SessionStart with source `fork` that matches nothing
-while its transcript holds no record therefore prints nothing and leaves a marker, `forks/<session
-id>` under the project's cache directory. Every later UserPromptSubmit and PostToolUse of a seatless
+while its transcript holds no record therefore prints nothing and leaves a marker, the slot `fork/<session
+id>` in the project's slot file. Every later UserPromptSubmit and PostToolUse of a seatless
 session carrying the marker reads the transcript's first record. While there is none, the marker
 stays and the hook says nothing about it. Once there is one, the hook removes the marker and runs the
 same match: a match prints the claim's output as the hook's context (the prompt's output, or
@@ -445,8 +502,8 @@ carries `{}` and changes the status alone.
 
 The tool hook finds graph gains without reading a capture's output: it keeps, per session, the
 graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a month through the
-graph resolver), that directory's modification time and size, and the entry files it held, in
-`graph-seen/<session>.json` in the cache. A call `stat`s the directory; only a changed stamp lists
+graph resolver), that directory's modification time and size, and the entry files it held, as a
+bitset in the slot `graph-seen/<session>` ([File formats](#file-formats)). A call `stat`s the directory; only a changed stamp lists
 it, and an entry file not listed before is a gain. A session's first look records and says nothing.
 
 ## Todolists
@@ -492,7 +549,7 @@ the ended and inferred ends, the news, the topics), the character budget and the
 
 `inbox(<seat>)` keeps what `receives` (`internal/memory/shared.go`) says reaches the seat, the
 function the arrival notice routes by, so a view and the notice cannot diverge; `unread` reads the
-seat's seen mark, `briefs/<id>.seen.json`, once per section and never writes it.
+seat's seen mark, the slot `seen/<id>`, once per section and never writes it.
 
 `returns` computes an entry's reasons once per read, the first time a filter or a section asks:
 each anchor's file hashed against its hash at filing, each link's target from the folded log or the
@@ -511,8 +568,8 @@ stored is left as it is, so one file attached to entries of several projects is 
 it while its entry holds its body and drops it with the body.
 
 Every SessionStart, after the purges, sweeps the store: each store at the current format writes the
-hashes its entries still holding their body name to `<store>/attachments.refs`; a store this release
-cannot read keeps the refs it last wrote; then, under `attachments/.lock`, every stored file no refs
+hashes its entries still holding their body name to `<store>/attachments.refs` and refreshes its
+ledger; a store this release cannot read keeps the refs it last wrote; then, under `attachments/.lock`, every stored file no refs
 list names is removed. A `drop` sweeps the same way. A body counts as held until its drop is due by
 time, so a file outlives a retire by `retired_body_days` and a supersede by 14 days whether or not a
 merge has run.
@@ -520,22 +577,25 @@ merge has run.
 ### Space
 
 `attachments_total_mb` counts every stored file once, across every project, on the size of its
-original bytes. The figure comes from `attachments/.space.json`, a ledger of each stored file's
-size by hash, never from a stat of the store: the brief and every attach reply print it, and a walk
-over thousands of files is far too slow for either. An attach enters its files' sizes under
-`attachments/.space.json.lock` (`internal/space`) and checks the ledger's total, plus the
-project's own held files a ledger written before them may lack, against the limit. The SessionStart
-sweep rewrites the ledger from what every log at the current format records, dropping the files it
-removed, so a total that drifted through a crash between a store and its record is right again by the
-next session; a file only an unreadable store names keeps its recorded size.
+original bytes. The figure comes from `attachments/.ledger`, the store's size ledger
+([File formats](#file-formats)): each stored file's length and crc32c, and the size of its original
+bytes as its attach recorded it, never a stat of the store: the brief and every attach reply print
+it, and a walk over thousands of files is far too slow for either. An attach checks the ledger's
+total, plus the project's own held files a ledger written before them may lack, against the limit,
+then refreshes the ledger with its files' sizes under `attachments/.ledger.lock`. The SessionStart
+sweep refreshes it with what every log at the current format records, dropping the files it removed,
+so a total that drifted through a crash between a store and its record is right again by the next
+session; a file only an unreadable store names keeps its recorded size, and a file no attach
+recorded counts nothing. The JSON ledger an earlier release kept, `attachments/.space.json`, goes
+with the first sweep.
 
 The ledger and every log are writable by anything sandboxed, so neither may shrink the total. Where
 the ledger and the project's own log both record a file, the larger size counts; the sweep never
-writes a negative size the log records; the ledger drops a negative record on read; and every total
-saturates rather than wraps. A forged figure can still refuse attaches, never let one past the limit.
+writes a negative size the log records; and every total saturates rather than wraps. A forged
+figure can still refuse attaches, never let one past the limit.
 
-The brief's space line reads the same ledger, and the agentic-tools ledger beside the tool stores
-(`<data>/tools/.space.json`, [tools architecture](../tools/architecture.md)), and prints
+The brief's space line reads the same ledger, and the ledger of every tool store
+([tools architecture](../tools/architecture.md#space)), and prints
 only a store with under a tenth of its limit left. The same SessionStart pass, the tools piece on,
 runs agentic-tools' pruning over every tool store on the machine (`tools.Prune`), so one pass visits
 every store of both. Rejected: a `du` or stat walk per figure (too slow per call); a PreToolUse hook
@@ -549,13 +609,13 @@ A `new` row carries a trap's `when`, and a rule's `on` and `proof`, each trigger
 `<form>:<value>`. Globs are matched with `github.com/bmatcuk/doublestar/v4` (`doublestar.Match`),
 since `path.Match` has no `**`; command patterns are RE2.
 
-The tool hook keeps the seat's traps, its own and received, in `traps/<seat id>.json` in the cache:
+The tool hook keeps the seat's traps, its own and received, in the slot `traps/<seat id>`:
 each trap's id, anchored paths and triggers, and each note or todo declaring `--about` paths
 (`notes`, the paths as `new` stored them in the event's `about`), rebuilt whenever the hook finds the
 log changed, and removed where the seat holds neither. The seat's seen mark records how many it held
 then (`traps`), so a seat holding none reads nothing more on a tool call than it did before. A trap or
-note told is added to the session's shown set (`shown/<session>.json`, `traps` and `notes`), which a
-compaction, `/clear` and a resume empty. The same file holds what reads printed: `ids`, each entry
+note told is added to the session's shown set (the slot `shown/<session>`, `traps` and `notes`), which a
+compaction, `/clear` and a resume empty. The same slot holds what reads printed: `ids`, each entry
 whose line a brief, recall or read printed, and `bodies`, each whose body `show` or a view printed,
 both as `<id>@<digest>`, the digest over the entry's full line and its event count, so an entry that
 changed since never matches. A read opens the set once for the seated session it runs in and writes
@@ -582,16 +642,16 @@ not, so counts reset at the first hook after a state write rather than at the ne
 reads HEAD with the one `rev-parse` the checkout asks. The ladder goes with the window at a
 compaction or `/clear`, and the measure with it.
 
-Do-now items pending for a seat sit beside the nudge ladder, `ladder/<seat id>.do-now.json`: the
+Do-now items pending for a seat sit beside the nudge ladder, in the slot `do-now/<seat id>`: the
 session they are owed in, each item's rule, moment and proofs, and how often `Stop` held a turn per
-moment. A claim from a shell may not know its session yet, so the file is keyed by the seat and names
-the session inside; items of another session read as skipped. Skipped items wait in
-`briefs/<seat id>.skipped.json` until the seat's next do-now list prints them. A settlement is a
+moment. A claim from a shell may not know its session yet, so the slot is keyed by the seat and names
+the session inside; items of another session read as skipped. Skipped items wait in the slot
+`skipped/<seat id>` until the seat's next do-now list prints them. A settlement is a
 `settle` row on the rule (`how`: `proof`, `ack` or `decline`, with `proof` or `because`).
 
 ## Arrivals
 
-Each seat keeps a seen mark in the cache, `briefs/<id>.seen.json`: the filing time of the newest
+Each seat keeps a seen mark in the slot `seen/<id>`: the filing time of the newest
 received entry it was told about, and how the log stood at its last look. The prompt hook, the tool
 hook and the waiter each tell the seat about every received entry filed after the mark, then move
 it, so an arrival is told once.
@@ -600,7 +660,7 @@ The waiter is the `Stop` hook `agentic-memory wait`, marked `asyncRewake`: Claud
 background once a turn ends, and its exit 2 with the arrival lines on stderr starts a new turn with
 them. It looks every 5 seconds for up to 30 minutes. Each look first checks that the seat's claim
 still names this session and that the session's `claude` process runs, and that no later turn's
-waiter has taken its place (`waiters/<session>` in the cache names the newest); otherwise it exits 0
+waiter has taken its place (the slot `waiter/<session>` names the newest); otherwise it exits 0
 waking nothing. A session holding no seat starts none. The waiter delivers its own lines and
 nothing else, so a tool running its own `asyncRewake` waiter beside it keeps its deliveries apart.
 

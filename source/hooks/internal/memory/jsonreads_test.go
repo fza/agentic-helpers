@@ -2,8 +2,7 @@ package memory_test
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -167,9 +166,7 @@ func TestSearchAnswersJSON(t *testing.T) {
 
 func TestBriefAnswersJSON(t *testing.T) {
 	h, hub, cite := jsonReadsHarness(t)
-	mark := filepath.Join(h.cacheDir(), "briefs")
-
-	before := markFiles(t, mark)
+	before := h.slots("brief/")
 
 	for _, via := range []string{"cli", "mcp"} {
 		t.Run(via, func(t *testing.T) {
@@ -202,23 +199,9 @@ func TestBriefAnswersJSON(t *testing.T) {
 		})
 	}
 
-	if after := markFiles(t, mark); after != before {
-		t.Errorf("brief --json should leave the brief mark untouched, got %s from %s", after, before)
+	if after := h.slots("brief/"); !maps.Equal(after, before) {
+		t.Errorf("brief --json should leave the brief mark untouched, got %v from %v", after, before)
 	}
-}
-
-func markFiles(t *testing.T, dir string) string {
-	t.Helper()
-
-	var parts []string
-
-	files, _ := os.ReadDir(dir)
-	for _, file := range files {
-		data, _ := os.ReadFile(filepath.Join(dir, file.Name()))
-		parts = append(parts, file.Name()+"="+string(data))
-	}
-
-	return strings.Join(parts, "\n")
 }
 
 func TestWhoAndTopicsAnswerJSON(t *testing.T) {

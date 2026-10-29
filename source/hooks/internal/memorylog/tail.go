@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// tailLine is a line of the `tail.jsonl` earlier releases kept.
 type tailLine struct {
 	Kind    Kind            `json:"kind"`
 	Entry   string          `json:"entry"`
@@ -15,37 +16,6 @@ type tailLine struct {
 	Seat    string          `json:"seat"`
 	Target  string          `json:"target"`
 	Payload json.RawMessage `json:"payload"`
-}
-
-func encodeLines(events []Event) ([]byte, error) {
-	var lines bytes.Buffer
-
-	encoder := json.NewEncoder(&lines)
-	encoder.SetEscapeHTML(false)
-
-	for _, event := range events {
-		if !slices.Contains(kinds, event.Kind) {
-			return nil, fmt.Errorf("%w: %q", ErrUnknownKind, event.Kind)
-		}
-
-		line := tailLine{
-			Kind:   event.Kind,
-			Entry:  event.Entry,
-			Time:   lineTime(event.Time),
-			Seat:   event.Seat,
-			Target: event.Target,
-		}
-		if len(event.Payload) > 0 {
-			line.Payload = event.Payload
-		}
-
-		err := encoder.Encode(line)
-		if err != nil {
-			return nil, fmt.Errorf("encoding the %s event of %s: %w", event.Kind, event.Entry, err)
-		}
-	}
-
-	return lines.Bytes(), nil
 }
 
 // completeLines is tail up to its last newline: a line without one is a write

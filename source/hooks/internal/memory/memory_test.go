@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1617,20 +1617,17 @@ func TestStoredTimesAreUTC(t *testing.T) {
 
 	offset := regexp.MustCompile(`\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}:\d{2}`)
 
-	for _, path := range []string{
-		h.seatFile("main", ".json"),
-		filepath.Join(h.store(), "log", "tail.jsonl"),
-		filepath.Join(h.cacheDir(), "heat.json"),
-		filepath.Join(h.cacheDir(), "briefs", seatID(t, h.store(), "main")+".json"),
-		filepath.Join(h.cacheDir(), "ladder", h.session+".json"),
-	} {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("reading %s: %v", path, err)
-		}
+	held := map[string]string{
+		"claim":  test.ReadFile(t, h.seatFile("main", ".json")),
+		"tail":   test.Dumped(t, filepath.Join(h.store(), "log", "tail.jnl")),
+		"heat":   test.ReadFile(t, filepath.Join(h.cacheDir(), "heat.json")),
+		"brief":  h.slot("brief/" + seatID(t, h.store(), "main")),
+		"ladder": h.slot("ladder/" + h.session),
+	}
 
-		if offset.Match(raw) || !regexp.MustCompile(`\d{2}:\d{2}:\d{2}(?:\.\d+)?Z`).Match(raw) {
-			t.Errorf("%s should hold its times in UTC, ending in Z, got %s", filepath.Base(path), raw)
+	for name, raw := range held {
+		if offset.MatchString(raw) || !regexp.MustCompile(`\d{2}:\d{2}:\d{2}(?:\.\d+)?Z`).MatchString(raw) {
+			t.Errorf("the %s should hold its times in UTC, ending in Z, got %s", name, raw)
 		}
 	}
 
@@ -1734,21 +1731,21 @@ func TestRecallLeavesThePromptVectorForAgenticTools(t *testing.T) {
 	question := "how does the tail seal manifest rename work"
 	h.must(hookPayload("", "", question), "prompt")
 
-	_, held := promptvector.Load(promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
+	_, held := promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
 	if !held {
 		t.Error("recall should leave the prompt's vector in the session's slot")
 	}
 
 	h.must(hookPayload("", "", ""), "session-end")
 
-	_, held = promptvector.Load(promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
+	_, held = promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
 	if held {
 		t.Error("the session's end should empty its slot")
 	}
 }
 
-func (h *harness) ladderFile() string {
-	return filepath.Join(h.cacheDir(), "ladder", test.Session+".json")
+func (h *harness) ladderKey() string {
+	return "ladder/" + test.Session
 }
 
 func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
@@ -1769,7 +1766,7 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 		Size int64 `json:"replay_checked_size"`
 	}
 
-	data, _ := os.ReadFile(h.ladderFile())
+	data := []byte(h.slot(h.ladderKey()))
 	_ = json.Unmarshal(data, &checked)
 	info, _ := os.Stat(path)
 
@@ -1797,7 +1794,7 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 		Nudges int `json:"nudges"`
 	}
 
-	data, _ = os.ReadFile(h.ladderFile())
+	data = []byte(h.slot(h.ladderKey()))
 	_ = json.Unmarshal(data, &steps)
 
 	if steps.Nudges != 0 {
@@ -1827,7 +1824,7 @@ func TestTheReplayCheckWaitsForThePieceOfGrowth(t *testing.T) {
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Hour), 60, 1000)
 
 	info, _ := os.Stat(path)
-	test.WriteFile(t, h.ladderFile(), fmt.Sprintf(`{"rung":65,"replay_checked_size":%d}`, info.Size()-100))
+	h.putSlot(h.ladderKey(), fmt.Sprintf(`{"rung":65,"replay_checked_size":%d}`, info.Size()-100))
 
 	prompt := hookPayload("", path, "")
 

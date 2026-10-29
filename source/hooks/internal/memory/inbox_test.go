@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -66,23 +67,14 @@ func TestInboxAgreesWithTheArrivalNotice(t *testing.T) {
 	h, other, addressed := inboxStore(t)
 
 	cache := h.cacheDir()
-	marks, _ := filepath.Glob(filepath.Join(cache, "briefs", "*.seen.json"))
+	before := h.slots("seen/")
 	heat, _ := os.ReadFile(filepath.Join(cache, "heat.json"))
-
-	before := map[string]string{}
-	for _, mark := range marks {
-		raw, _ := os.ReadFile(mark)
-		before[mark] = string(raw)
-	}
 
 	unread := viewIDs(t, h, "active:inbox(idea):unread:as-list")
 	inbox := viewIDs(t, h, "inbox(idea):as-list")
 
-	for mark, raw := range before {
-		now, _ := os.ReadFile(mark)
-		if string(now) != raw {
-			t.Error("a view should leave the seen mark where it was")
-		}
+	if !maps.Equal(h.slots("seen/"), before) {
+		t.Error("a view should leave the seen mark where it was")
 	}
 
 	after, _ := os.ReadFile(filepath.Join(cache, "heat.json"))

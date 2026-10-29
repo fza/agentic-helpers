@@ -53,7 +53,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 	// first: it settles which store the copies' folder lies in.
 	writes := lib.recorder(ctx) == nil
 	base := lib.copyBase(ctx)
-	state := lib.loadSession()
+	state := lib.loadSession(ctx)
 	role := lib.role(ctx)
 	if !writes && !strings.HasPrefix(base, lib.checkout(ctx)+string(filepath.Separator)) {
 		return refused("this checkout is bound to no store yet and takes only into its own .tmp/: "+
@@ -101,7 +101,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 	}
 
 	if writes {
-		_ = lib.saveSession(state)
+		_ = lib.saveSession(ctx, state)
 	}
 
 	lib.forget()
@@ -225,7 +225,7 @@ func (lib *library) recordTake(name string, line takeLine) error {
 
 	defer folder.close()
 
-	err = appendLine(folder, "takes.jsonl", line)
+	err = appendJournal(folder, takesJournal, line)
 	if err != nil {
 		return err
 	}

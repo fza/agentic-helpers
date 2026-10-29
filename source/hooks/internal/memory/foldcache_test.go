@@ -87,11 +87,12 @@ func TestACacheThatDoesNotMatchIsRebuilt(t *testing.T) {
 			test.WriteFile(t, filepath.Join(h.cacheDir(), "fold.gob"), "planted")
 		}},
 		{name: "a rewritten tail", want: "Rewritten finding in the tail", change: func(t *testing.T, h *harness) {
-			tail := filepath.Join(h.store(), "log", "tail.jsonl")
-			raw, _ := os.ReadFile(tail)
+			tail := filepath.Join(h.store(), "log", "tail.jnl")
 			info, _ := os.Stat(tail)
 
-			test.WriteFile(t, tail, strings.Replace(string(raw), "Small finding in the tail", "Rewritten finding in the tail", 1))
+			test.EditTail(t, tail, func(payload string) string {
+				return strings.Replace(payload, "Small finding in the tail", "Rewritten finding in the tail", 1)
+			})
 			_ = os.Chtimes(tail, info.ModTime(), info.ModTime())
 		}},
 		{name: "a renamed seat", want: "[chief, note", change: func(t *testing.T, h *harness) {
@@ -122,7 +123,7 @@ func TestASealSinceTheCachedFoldIsFoldedAgain(t *testing.T) {
 		h.file(fmt.Sprintf("Large finding number %d here", index), body)
 	}
 
-	tail, _ := os.ReadFile(filepath.Join(h.store(), "log", "tail.jsonl"))
+	tail, _ := os.ReadFile(filepath.Join(h.store(), "log", "tail.jnl"))
 	if len(tail) != 0 {
 		t.Fatal("the store should have sealed its whole tail, so the cached fold holds no tail row")
 	}

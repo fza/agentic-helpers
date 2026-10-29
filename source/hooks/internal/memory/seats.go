@@ -269,6 +269,8 @@ func (mem *memory) closeSeat(ctx context.Context, name string, key string, owner
 		return false, "", err
 	}
 
+	mem.recordStore(ctx)
+
 	return true, "", nil
 }
 
@@ -332,6 +334,8 @@ func (mem *memory) take(ctx context.Context, name string, key string, own bool, 
 	if err != nil {
 		return taken{}, "", err
 	}
+
+	mem.recordStore(ctx)
 
 	return took, "", nil
 }

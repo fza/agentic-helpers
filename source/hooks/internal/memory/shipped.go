@@ -33,7 +33,7 @@ func (mem *memory) countShipped(ctx context.Context, session string, toolName st
 	}
 
 	held.Captured += captured
-	_ = writeJSON(mem.ladderPath(session), held)
+	_ = mem.writeSlot(mem.ladderKey(session), held)
 }
 
 func (mem *memory) startShipping(ctx context.Context, held *ladder) {

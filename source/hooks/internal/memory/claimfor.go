@@ -146,6 +146,8 @@ func (mem *memory) reserve(ctx context.Context, req request, key string) (string
 		return "", false, "", err
 	}
 
+	mem.recordStore(ctx)
+
 	return reply, moving, "", nil
 }
 

@@ -245,14 +245,13 @@ func (mem *memory) storeRefusal() string {
 // reportFailedMigration says once per session that the store stayed at its
 // earlier format; every call then runs on it as it is.
 func (mem *memory) reportFailedMigration(err error) {
-	marker := filepath.Join(mem.cacheDir(), "migration-failed", cmp.Or(mem.env.SessionID, "no-session"))
-	if _, statErr := os.Stat(marker); statErr == nil {
+	marker := "migration-failed/" + cmp.Or(mem.env.SessionID, "no-session")
+	if mem.hasSlot(marker) {
 		return
 	}
 
 	_, _ = fmt.Fprintln(mem.streams.Err, self+": "+err.Error())
-	_ = os.MkdirAll(filepath.Dir(marker), 0o700)
-	_ = os.WriteFile(marker, nil, 0o600)
+	_ = mem.writeSlot(marker, true)
 }
 
 func (mem *memory) outsideGitRefusal() string {
@@ -358,6 +357,8 @@ func (mem *memory) appendEvents(ctx context.Context, events ...memorylog.Event) 
 	if err != nil {
 		return fmt.Errorf("writing to the log: %w", err)
 	}
+
+	mem.recordStore(ctx)
 
 	return nil
 }
@@ -556,7 +557,7 @@ func (mem *memory) dump(ctx context.Context, args []string) int {
 
 	path := args[0]
 	if path == "--tail" {
-		path = filepath.Join(mem.logDir(), "tail.jsonl")
+		path = filepath.Join(mem.logDir(), memorylog.TailName)
 	} else if !strings.Contains(path, string(filepath.Separator)) {
 		path = filepath.Join(mem.logDir(), path)
 	}

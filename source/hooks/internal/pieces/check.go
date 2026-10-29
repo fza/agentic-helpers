@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
+	"github.com/fza/agentic-helpers/source/hooks/internal/dump"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
@@ -26,7 +27,7 @@ type Env struct {
 	CacheRoot string
 }
 
-const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end"
+const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | dump <file>"
 
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into
@@ -35,7 +36,8 @@ const usage = "usage: " + self + " check | config [get <key> | set <key> <value>
 // substitutions the machine needs, nothing where none is; run as a command
 // it lists every piece on or off and, under each, its features off through a
 // tie. sweep and end run and start the sweep of the old layout
-// (internal/migration).
+// (internal/migration). dump prints a data file kept in a binary format as
+// JSON lines (internal/dump).
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
 	if len(args) > 0 && args[0] == "config" {
 		return configure(args[1:], env, streams)
@@ -43,6 +45,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 	if len(args) == 1 && (args[0] == "sweep" || args[0] == "end") {
 		return sweep(ctx, args[0], env, streams)
+	}
+
+	if len(args) > 0 && args[0] == "dump" {
+		return dumpFile(ctx, args[1:], streams)
 	}
 
 	if len(args) != 1 || args[0] != "check" {
@@ -81,6 +87,23 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 	for _, problem := range resolution.Problems {
 		_, _ = fmt.Fprintln(streams.Out, "problem: "+problem)
+	}
+
+	return 0
+}
+
+func dumpFile(ctx context.Context, args []string, streams hookio.Streams) int {
+	if len(args) != 1 {
+		_, _ = fmt.Fprintln(streams.Err, "usage: "+self+" dump <file>")
+
+		return 1
+	}
+
+	err := dump.Dump(ctx, streams.Out, args[0])
+	if err != nil {
+		_, _ = fmt.Fprintln(streams.Err, self+": "+err.Error())
+
+		return 1
 	}
 
 	return 0

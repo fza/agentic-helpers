@@ -30,9 +30,9 @@ func buildSealStates(t *testing.T) sealStates {
 	sealing := t.TempDir()
 	log := openLog(t, sealing)
 
-	first := append(events(0, 50, 1000), event(50, 10000))
+	first := append(events(0, 50, 1000), event(50, 20000))
 	appendEvents(t, log, first[:50]...)
-	head := readFile(t, filepath.Join(sealing, "tail.jsonl"))
+	head := readFile(t, filepath.Join(sealing, memorylog.TailName))
 
 	if len(segmentFiles(t, sealing)) != 0 {
 		t.Fatal("building the seal states needs the first appends to stay in the tail")
@@ -40,7 +40,7 @@ func buildSealStates(t *testing.T) sealStates {
 
 	last := t.TempDir()
 	appendEvents(t, openLog(t, last), first[50])
-	lastLine := readFile(t, filepath.Join(last, "tail.jsonl"))
+	lastLine := readFile(t, filepath.Join(last, memorylog.TailName))
 
 	appendEvents(t, log, first[50])
 
@@ -51,7 +51,7 @@ func buildSealStates(t *testing.T) sealStates {
 
 	return sealStates{
 		events:   first,
-		fullTail: append(head, lastLine...),
+		fullTail: append(head, lastLine[memorylog.JournalHeaderSize:]...),
 		segment:  listed.Segments[0],
 		content:  readFile(t, filepath.Join(sealing, listed.Segments[0])),
 	}
@@ -72,9 +72,9 @@ func TestSealCrashStatesRepaired(t *testing.T) {
 	states := buildSealStates(t)
 	torn := states.fullTail[:len(states.fullTail)-400]
 
-	otherTail := bytes.Replace(states.fullTail, []byte(`"pad":"x`), []byte(`"pad":"y`), 1)
 	other := slices.Clone(states.events)
 	other[0].Payload = bytes.Replace(other[0].Payload, []byte(`"pad":"x`), []byte(`"pad":"y`), 1)
+	otherTail := journalOf(t, other)
 
 	cases := []struct {
 		name  string
@@ -83,44 +83,44 @@ func TestSealCrashStatesRepaired(t *testing.T) {
 	}{
 		{
 			name:  "temp file left by a crashed write",
-			files: map[string][]byte{"tail.jsonl": states.fullTail, ".tmp-123": []byte("half a segment")},
+			files: map[string][]byte{memorylog.TailName: states.fullTail, ".tmp-123": []byte("half a segment")},
 			want:  states.events,
 		},
 		{
 			name:  "segment written, manifest not yet",
-			files: map[string][]byte{"tail.jsonl": states.fullTail, states.segment: states.content},
+			files: map[string][]byte{memorylog.TailName: states.fullTail, states.segment: states.content},
 			want:  states.events,
 		},
 		{
 			name: "manifest lists the segment, tail still full",
 			files: map[string][]byte{
-				"tail.jsonl":    states.fullTail,
-				states.segment:  states.content,
-				"manifest.json": sealingManifest([]string{states.segment}, states.fullTail),
+				memorylog.TailName: states.fullTail,
+				states.segment:     states.content,
+				"manifest.json":    sealingManifest([]string{states.segment}, states.fullTail),
 			},
 			want: states.events,
 		},
 		{
 			name: "tail emptied, manifest still marks the seal",
 			files: map[string][]byte{
-				"tail.jsonl":    {},
-				states.segment:  states.content,
-				"manifest.json": sealingManifest([]string{states.segment}, states.fullTail),
+				memorylog.TailName: {},
+				states.segment:     states.content,
+				"manifest.json":    sealingManifest([]string{states.segment}, states.fullTail),
 			},
 			want: states.events,
 		},
 		{
 			name: "manifest marks a seal the tail does not hold",
 			files: map[string][]byte{
-				"tail.jsonl":    otherTail,
-				states.segment:  states.content,
-				"manifest.json": sealingManifest([]string{states.segment}, states.fullTail),
+				memorylog.TailName: otherTail,
+				states.segment:     states.content,
+				"manifest.json":    sealingManifest([]string{states.segment}, states.fullTail),
 			},
 			want: append(slices.Clone(states.events), other...),
 		},
 		{
 			name:  "tail line torn by a crashed append",
-			files: map[string][]byte{"tail.jsonl": torn},
+			files: map[string][]byte{memorylog.TailName: torn},
 			want:  states.events[:50],
 		},
 	}
@@ -206,7 +206,7 @@ func TestMergeCrashStatesRepaired(t *testing.T) {
 
 	state := func(extra map[string][]byte) map[string][]byte {
 		files := maps.Clone(old)
-		files["tail.jsonl"] = []byte{}
+		files[memorylog.TailName] = []byte{}
 		maps.Copy(files, extra)
 
 		return files

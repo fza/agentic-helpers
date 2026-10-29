@@ -1,6 +1,7 @@
 package memory_test
 
 import (
+	"github.com/fza/agentic-helpers/source/hooks/test"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,9 +47,7 @@ func (h *harness) logUnchanged(before map[string]string) bool {
 }
 
 func (h *harness) tailLines() int {
-	data, _ := os.ReadFile(filepath.Join(h.store(), "log", "tail.jsonl"))
-
-	return strings.Count(string(data), "\n")
+	return strings.Count(test.Dumped(h.t, filepath.Join(h.store(), "log", "tail.jnl")), "\n")
 }
 
 func TestABatchLandsEveryIDInOneAppend(t *testing.T) {

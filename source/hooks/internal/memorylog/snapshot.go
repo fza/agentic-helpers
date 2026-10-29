@@ -182,8 +182,15 @@ func (l *Log) read() (*Snapshot, error) {
 }
 
 func (s *Snapshot) readTail(sealing *sealing) error {
+	legacy, err := s.readLegacyTail(sealing)
+	if err != nil {
+		return err
+	}
+
 	file, err := os.Open(s.path(tailName))
 	if errors.Is(err, os.ErrNotExist) {
+		s.tail = legacy
+
 		return nil
 	}
 
@@ -205,17 +212,50 @@ func (s *Snapshot) readTail(sealing *sealing) error {
 		return fmt.Errorf("reading the tail: %w", err)
 	}
 
-	tail, _ = sealing.strip(tail)
+	var records []Record
 
-	events, err := decodeLines(tail)
+	rest, stripped := tail, false
+	if sealing != nil && !sealing.Legacy {
+		rest, stripped = sealing.strip(tail)
+	}
+
+	if stripped {
+		records, _, _ = ReadRecords(rest)
+	} else {
+		records, _, err = ReadJournal(tail)
+		if errors.Is(err, ErrNotJournal) {
+			return fmt.Errorf("%w: the tail: %w", ErrCorrupt, err)
+		}
+	}
+
+	events, err := eventsOf(records)
 	if err != nil {
 		return err
 	}
 
-	s.tail = events
+	s.tail = append(legacy, events...)
 	s.tailInfo = info
 
 	return nil
+}
+
+// readLegacyTail is the events of a `tail.jsonl` an earlier release left and
+// no write has sealed yet.
+func (s *Snapshot) readLegacyTail(sealing *sealing) ([]Event, error) {
+	legacy, err := os.ReadFile(s.path(legacyTailName))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", legacyTailName, err)
+	}
+
+	if sealing != nil && sealing.Legacy {
+		legacy, _ = sealing.strip(legacy)
+	}
+
+	return decodeLines(legacy)
 }
 
 func (s *Snapshot) path(name string) string {

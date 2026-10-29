@@ -19,7 +19,7 @@ func (l *Log) seal(current manifest) (manifest, error) {
 		return manifest{}, fmt.Errorf("reading the tail to seal: %w", err)
 	}
 
-	events, err := decodeLines(tail)
+	events, err := decodeTail(tail)
 	if err != nil {
 		return manifest{}, err
 	}
@@ -125,4 +125,14 @@ func (l *Log) writeSegment(events []Event) (string, error) {
 	}
 
 	return name, nil
+}
+
+// decodeTail is every event of a journal tail, up to where its read stops.
+func decodeTail(tail []byte) ([]Event, error) {
+	records, _, err := ReadJournal(tail)
+	if errors.Is(err, ErrNotJournal) {
+		return nil, fmt.Errorf("%w: the tail: %w", ErrCorrupt, err)
+	}
+
+	return eventsOf(records)
 }

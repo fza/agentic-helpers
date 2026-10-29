@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -70,29 +69,21 @@ type doNowState struct {
 	Stops   map[string]int `json:"stops,omitempty"`
 }
 
-func (mem *memory) doNowPath(seatName string) string {
-	return filepath.Join(mem.cacheDir(), "ladder", mem.seatKey(seatName)+".do-now.json")
-}
-
-func (mem *memory) skippedPath(seatName string) string {
-	return filepath.Join(mem.cacheDir(), "briefs", mem.seatKey(seatName)+".skipped.json")
-}
-
 func (mem *memory) pendingDoNow(seatName string) doNowState {
 	var pending doNowState
-	readJSON(mem.doNowPath(seatName), &pending)
+	mem.readSlot(mem.doNowKey(seatName), &pending)
 
 	return pending
 }
 
 func (mem *memory) savePending(seatName string, pending doNowState) {
 	if len(pending.Items) == 0 {
-		removeIfThere(mem.doNowPath(seatName))
+		mem.clearSlot(mem.doNowKey(seatName))
 
 		return
 	}
 
-	_ = writeJSON(mem.doNowPath(seatName), pending)
+	_ = mem.writeSlot(mem.doNowKey(seatName), pending)
 }
 
 // skip records items left pending, for the seat's next do-now list.
@@ -102,9 +93,9 @@ func (mem *memory) skip(seatName string, items []doNowItem) {
 	}
 
 	var skipped []doNowItem
-	readJSON(mem.skippedPath(seatName), &skipped)
+	mem.readSlot(mem.skippedKey(seatName), &skipped)
 
-	_ = writeJSON(mem.skippedPath(seatName), append(skipped, items...))
+	_ = mem.writeSlot(mem.skippedKey(seatName), append(skipped, items...))
 }
 
 func itemLine(number int, item doNowItem) string {
@@ -132,14 +123,14 @@ func (mem *memory) doNow(folded *state, seatName string, moment string, session 
 	var lines []string
 
 	var skipped []doNowItem
-	if readJSON(mem.skippedPath(seatName), &skipped) && len(skipped) > 0 {
+	if mem.readSlot(mem.skippedKey(seatName), &skipped) && len(skipped) > 0 {
 		lines = append(lines, "skipped last session:")
 
 		for _, item := range skipped {
 			lines = append(lines, fmt.Sprintf("  %s %s (%s)", item.ID, item.Title, item.Trigger))
 		}
 
-		removeIfThere(mem.skippedPath(seatName))
+		mem.clearSlot(mem.skippedKey(seatName))
 	}
 
 	var owed []doNowItem
@@ -352,5 +343,5 @@ func (mem *memory) holdForDoNow(seatName string, session string) string {
 func (mem *memory) skipAtEnd(seatName string) {
 	pending := mem.pendingDoNow(seatName)
 	mem.skip(seatName, pending.Items)
-	removeIfThere(mem.doNowPath(seatName))
+	mem.clearSlot(mem.doNowKey(seatName))
 }

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,20 +15,25 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
-// ledgerName is the machine's ledger of every store's recorded size, in the
-// home's shared tools folder: what the agentic-memory brief reads without
-// opening an index.
-const ledgerName = ".space.json"
-
 // pruneLockWait bounds how long the SessionStart pass waits for a store's
 // lock: a store being written is passed over until the next session.
 const pruneLockWait = 200 * time.Millisecond
 
-func ledgerPath(roots home.Roots) string { return filepath.Join(roots.Shared(home.Tools), ledgerName) }
-
-// Space is the tool library's space as the machine's ledger records it.
+// Space is the tool library's space as every store's size ledger records it:
+// the bytes of the versions nothing may prune.
 func Space(roots home.Roots, limitMB int) space.Figure {
-	return figureOf(space.Read(ledgerPath(roots)), limitMB)
+	return figureOf(ledgers(roots), limitMB)
+}
+
+// ledgers is what every store's size ledger records, by store id.
+func ledgers(roots home.Roots) map[string]space.Record {
+	records := map[string]space.Record{}
+
+	for _, key := range storeIDs(roots) {
+		records[key] = space.LedgerTotal(space.ReadLedger(roots.Store(key, home.Tools)))
+	}
+
+	return records
 }
 
 func figureOf(records map[string]space.Record, limitMB int) space.Figure {
@@ -344,7 +348,7 @@ func pruneVersion(version storedVersion) error {
 
 	tool := version.store.index.Tools[version.tool]
 
-	err = appendLine(folder, "pruned.jsonl", prunedLine{V: version.v, At: version.at,
+	err = appendJournal(folder, prunedJournal, prunedLine{V: version.v, At: version.at,
 		Hashes: tool.Hashes[versionDir(version.v)]})
 	if err != nil {
 		return err
@@ -386,7 +390,7 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	recorded := recordedBytes(stores, named)
 
 	if scoped {
-		for key, record := range space.Read(ledgerPath(lib.env.Roots)) {
+		for key, record := range ledgers(lib.env.Roots) {
 			if key != lib.key {
 				recorded = space.Add(recorded, record.Stored)
 			}
@@ -431,7 +435,7 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	}
 
 	for _, version := range picked {
-		err := lib.prune(ctx, version)
+		err := lib.prune(ctx, version, named)
 		if err != nil {
 			return fmt.Errorf("pruning %s to make room: %w", version, err)
 		}
@@ -464,46 +468,24 @@ func (lib *library) unreached() []string {
 	return folders
 }
 
-func (lib *library) prune(ctx context.Context, version storedVersion) error {
+func (lib *library) prune(ctx context.Context, version storedVersion, named map[forkOrigin]bool) error {
 	if version.store.own {
 		return pruneVersion(version)
 	}
 
-	return pruneLocked(ctx, version, cmp.Or(lib.env.LockWait, 2*time.Second))
+	return pruneLocked(ctx, version, named, cmp.Or(lib.env.LockWait, 2*time.Second))
 }
 
-// recordSpace writes the figures of every store in reach into the machine's
-// ledger and answers the library's space. Reaching every store, it replaces
-// the whole ledger, a store gone included.
+// recordSpace is the library's space as every store's ledger records it, the
+// own store's refreshed by the write before it.
 func (lib *library) recordSpace(ctx context.Context) space.Figure {
-	lib.forget()
-
-	stores := lib.stores(ctx)
-	named := origins(stores)
-
-	records := map[string]space.Record{}
-	for _, held := range stores {
-		records[held.key] = usageOf(held, named)
-	}
-
-	scoped := lib.scopeProject()
-
-	_ = space.Update(ledgerPath(lib.env.Roots), func(ledger map[string]space.Record) {
-		if !scoped {
-			clear(ledger)
-		}
-
-		maps.Copy(ledger, records)
-		records = maps.Clone(ledger)
-	})
-
-	return figureOf(records, lib.options.ToolsTotalMB)
+	return Space(lib.env.Roots, lib.options.ToolsTotalMB)
 }
 
 // Prune is the SessionStart pass over every store on the machine: while the
 // stores hold more than limitMB, it prunes their oldest prunable versions,
-// passing over a store another process is writing, then records every
-// store's figures in the ledger afresh.
+// passing over a store another process is writing, then brings every store
+// still of an earlier format to this one and gives it its size ledger.
 func Prune(ctx context.Context, roots home.Roots, limitMB int) {
 	ids := storeIDs(roots)
 	if len(ids) == 0 {
@@ -542,19 +524,43 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int) {
 				break
 			}
 
-			if pruneLocked(ctx, version, pruneLockWait) == nil {
+			if pruneLocked(ctx, version, named, pruneLockWait) == nil {
 				over -= version.bytes
 			}
 		}
 	}
 
-	_ = space.Update(ledgerPath(roots), func(ledger map[string]space.Record) {
-		clear(ledger)
-
-		for _, held := range stores {
-			ledger[held.key] = usageOf(held, named)
+	// A pruned store's ledger was refreshed with its prune; the pass writes
+	// one only where a store keeps none yet, so a ledger stays what its
+	// writers recorded.
+	for _, held := range stores {
+		if ledgerMissing(held.path) {
+			ledgerLocked(ctx, held, named, roots.StoreCache(held.key, home.Tools))
 		}
-	})
+	}
+}
+
+// ledgerLocked refreshes a store's size ledger holding its lock, passing over
+// a store another process is writing.
+func ledgerLocked(ctx context.Context, held *store, named map[forkOrigin]bool, cache string) {
+	root, err := openDir(held.path)
+	if err != nil {
+		return
+	}
+
+	defer root.close()
+
+	unlock, err := lockStore(ctx, root, pruneLockWait)
+	if err != nil {
+		return
+	}
+
+	defer unlock()
+
+	err = prepareStore(ctx, root, held.path, cache)
+	if err == nil {
+		refreshLedger(ctx, held, named)
+	}
 }
 
 // keepIndex writes an index the pass rebuilt back into its store, so the next
@@ -577,7 +583,7 @@ func keepIndex(ctx context.Context, at string, built *index) {
 	_ = writeIndexInto(root, built)
 }
 
-func pruneLocked(ctx context.Context, version storedVersion, wait time.Duration) error {
+func pruneLocked(ctx context.Context, version storedVersion, named map[forkOrigin]bool, wait time.Duration) error {
 	root, err := openDir(version.store.path)
 	if err != nil {
 		return err
@@ -592,5 +598,12 @@ func pruneLocked(ctx context.Context, version storedVersion, wait time.Duration)
 
 	defer unlock()
 
-	return pruneVersion(version)
+	err = pruneVersion(version)
+	if err != nil {
+		return err
+	}
+
+	refreshLedger(ctx, version.store, named)
+
+	return nil
 }

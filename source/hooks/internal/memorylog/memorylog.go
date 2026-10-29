@@ -1,10 +1,11 @@
 // Package memorylog is the append-only event log behind agentic-memory.
 //
-// A log directory holds an open segment, `tail.jsonl`, one JSON event per
-// line; sealed, immutable segments named `<sha256[:8]>.seg`; `manifest.json`
-// listing the sealed segments oldest first; and `.lock`, taken around every
-// write. Readers take no lock: they map the sealed segments and read the tail,
-// retrying while a write moves files under them.
+// A log directory holds an open segment, `tail.jnl`, a journal of one event
+// record each (journal.go); sealed, immutable segments named
+// `<sha256[:8]>.seg`; `manifest.json` listing the sealed segments oldest
+// first; and `.lock`, taken around every write. Readers take no lock: they map
+// the sealed segments and read the tail, retrying while a write moves files
+// under them.
 //
 // A seal commits through the manifest. The manifest naming the new segment also
 // records the digest and size of the tail bytes it sealed, until the tail has
@@ -64,11 +65,14 @@ const (
 )
 
 const (
-	tailName     = "tail.jsonl"
-	manifestName = "manifest.json"
-	lockName     = ".lock"
-	tempPrefix   = ".tmp-"
-	segmentExt   = ".seg"
+	// TailName is the open segment's file.
+	TailName       = "tail.jnl"
+	tailName       = TailName
+	legacyTailName = "tail.jsonl"
+	manifestName   = "manifest.json"
+	lockName       = ".lock"
+	tempPrefix     = ".tmp-"
+	segmentExt     = ".seg"
 )
 
 var (
@@ -129,13 +133,13 @@ func (l *Log) Append(ctx context.Context, events ...Event) error {
 // SealBytes, and merges every sealed segment through policy once a seal leaves
 // MaxSegments of them. A nil policy keeps every event.
 func (l *Log) AppendWith(ctx context.Context, policy Policy, events ...Event) error {
-	lines, err := encodeLines(events)
+	framed, err := encodeRecords(events)
 	if err != nil {
 		return err
 	}
 
 	return l.locked(ctx, func(current manifest) error {
-		size, err := l.appendTail(lines)
+		size, err := l.appendTail(framed)
 		if err != nil {
 			return err
 		}
@@ -252,7 +256,14 @@ func (l *Log) path(name string) string {
 	return filepath.Join(l.dir, name)
 }
 
-func (l *Log) appendTail(lines []byte) (int64, error) {
+// appendTail appends framed records to the tail, opening an empty one with
+// the journal header. The caller holds the log lock, so the append needs no
+// atomicity of its own.
+func (l *Log) appendTail(framed []byte) (int64, error) {
+	if len(framed) == 0 {
+		return statSize(l.path(tailName))
+	}
+
 	_, err := os.Stat(l.path(tailName))
 	created := errors.Is(err, os.ErrNotExist)
 
@@ -262,7 +273,16 @@ func (l *Log) appendTail(lines []byte) (int64, error) {
 	}
 	defer tail.Close()
 
-	_, err = tail.Write(lines)
+	opened, err := tail.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("measuring the tail: %w", err)
+	}
+
+	if opened.Size() == 0 {
+		framed = append(JournalHeader(), framed...)
+	}
+
+	_, err = tail.Write(framed)
 	if err != nil {
 		return 0, fmt.Errorf("appending to the tail: %w", err)
 	}
@@ -287,9 +307,16 @@ func (l *Log) appendTail(lines []byte) (int64, error) {
 	return info.Size(), nil
 }
 
+// Repair settles the log under its lock: what a crash left of an earlier
+// write, and a `tail.jsonl` an earlier release left, sealed into a segment.
+func (l *Log) Repair(ctx context.Context) error {
+	return l.locked(ctx, func(manifest) error { return nil })
+}
+
 // repair returns the log to a state every write may start from, after a
 // crash at any step of an earlier one: stray temp files and unlisted segments
-// go, a tail still holding sealed events is emptied, a torn last line is cut.
+// go, a tail still holding sealed events is emptied, a torn last record is
+// cut, and a legacy `tail.jsonl` is sealed.
 func (l *Log) repair() (manifest, error) {
 	current, _, err := readManifest(l.path(manifestName))
 	if err != nil {
@@ -310,26 +337,41 @@ func (l *Log) repair() (manifest, error) {
 		return manifest{}, err
 	}
 
-	err = l.cutTornLine()
+	err = l.cutTornTail()
 	if err != nil {
 		return manifest{}, err
 	}
 
-	return current, nil
+	return l.sealLegacy(current)
 }
 
 func (l *Log) finishSeal(current manifest) error {
-	tail, err := os.ReadFile(l.path(tailName))
+	name := tailName
+	if current.Sealing.Legacy {
+		name = legacyTailName
+	}
+
+	tail, err := os.ReadFile(l.path(name))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("reading the tail: %w", err)
 	}
 
 	rest, sealed := current.Sealing.strip(tail)
-	if sealed {
-		err = l.replaceFile(tailName, rest)
-		if err != nil {
-			return fmt.Errorf("emptying the sealed tail: %w", err)
+
+	switch {
+	case sealed && current.Sealing.Legacy && len(completeLines(rest)) == 0:
+		err = os.Remove(l.path(name))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("removing the sealed %s: %w", name, err)
 		}
+	case sealed && !current.Sealing.Legacy && len(rest) > 0:
+		err = l.replaceFile(name, append(JournalHeader(), rest...))
+	case sealed:
+		err = l.replaceFile(name, rest)
+	}
+
+	if err != nil {
+		return fmt.Errorf("emptying the sealed tail: %w", err)
 	}
 
 	settled := current
@@ -362,7 +404,9 @@ func (l *Log) removeStrays(current manifest) error {
 	return nil
 }
 
-func (l *Log) cutTornLine() error {
+// cutTornTail cuts the tail where its read stops: a record a crash tore, or
+// one failing its checksum, and every record after it, which no read reaches.
+func (l *Log) cutTornTail() error {
 	tail, err := os.ReadFile(l.path(tailName))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -372,17 +416,87 @@ func (l *Log) cutTornLine() error {
 		return fmt.Errorf("reading the tail: %w", err)
 	}
 
-	complete := completeLines(tail)
-	if len(complete) == len(tail) {
+	_, end, err := ReadJournal(tail)
+	if errors.Is(err, ErrNotJournal) {
+		return fmt.Errorf("%w: the tail: %w", ErrCorrupt, err)
+	}
+
+	if err == nil {
 		return nil
 	}
 
-	err = os.Truncate(l.path(tailName), int64(len(complete)))
+	if end <= JournalHeaderSize {
+		end = 0
+	}
+
+	err = os.Truncate(l.path(tailName), int64(end))
 	if err != nil {
-		return fmt.Errorf("cutting a torn tail line: %w", err)
+		return fmt.Errorf("cutting a torn tail record: %w", err)
 	}
 
 	return nil
+}
+
+// sealLegacy seals a `tail.jsonl` an earlier release left into a segment,
+// through the steps of every seal, so a crash at any of them neither loses
+// its events nor reads them twice.
+func (l *Log) sealLegacy(current manifest) (manifest, error) {
+	legacy, err := os.ReadFile(l.path(legacyTailName))
+	if errors.Is(err, os.ErrNotExist) {
+		return current, nil
+	}
+
+	if err != nil {
+		return manifest{}, fmt.Errorf("reading %s: %w", legacyTailName, err)
+	}
+
+	complete := completeLines(legacy)
+
+	events, err := decodeLines(complete)
+	if err != nil {
+		return manifest{}, err
+	}
+
+	next := current
+
+	if len(events) > 0 {
+		name, err := l.writeSegment(events)
+		if err != nil {
+			return manifest{}, err
+		}
+
+		next.Segments = append(slices.Clone(current.Segments), name)
+	}
+
+	next.Sealing = newSealing(complete)
+	next.Sealing.Legacy = true
+
+	err = l.writeManifest(next)
+	if err != nil {
+		return manifest{}, fmt.Errorf("listing the sealed %s: %w", legacyTailName, err)
+	}
+
+	err = l.finishSeal(next)
+	if err != nil {
+		return manifest{}, err
+	}
+
+	next.Sealing = nil
+
+	return next, nil
+}
+
+func statSize(path string) (int64, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+
+	if err != nil {
+		return 0, fmt.Errorf("measuring %s: %w", filepath.Base(path), err)
+	}
+
+	return info.Size(), nil
 }
 
 // replaceFile swaps content in under name: a temp file in the log directory,

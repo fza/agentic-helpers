@@ -9,8 +9,9 @@ import (
 	"time"
 )
 
-// Dump prints the events of a segment or a tail, one per line: time, kind,
-// entry, seat, target and payload, a dash standing for an empty field.
+// Dump prints the events of a segment, a journal tail or a `tail.jsonl` an
+// earlier release left, one per line: time, kind, entry, seat, target and
+// payload, a dash standing for an empty field.
 func Dump(ctx context.Context, w io.Writer, path string) error {
 	err := ctx.Err()
 	if err != nil {
@@ -25,7 +26,8 @@ func Dump(ctx context.Context, w io.Writer, path string) error {
 
 	var events []Event
 
-	if bytes.HasPrefix(data, []byte(segmentMagic)) {
+	switch {
+	case bytes.HasPrefix(data, []byte(segmentMagic)):
 		err = guardFault(func() error {
 			var decodeErr error
 
@@ -33,7 +35,15 @@ func Dump(ctx context.Context, w io.Writer, path string) error {
 
 			return decodeErr
 		})
-	} else {
+	case IsJournal(data):
+		err = guardFault(func() error {
+			var decodeErr error
+
+			events, decodeErr = decodeTail(data)
+
+			return decodeErr
+		})
+	default:
 		err = guardFault(func() error {
 			var decodeErr error
 
@@ -61,6 +71,26 @@ func Dump(ctx context.Context, w io.Writer, path string) error {
 	}
 
 	return nil
+}
+
+// SegmentEvents is every event of a sealed segment's bytes.
+func SegmentEvents(data []byte) ([]Event, error) {
+	var events []Event
+
+	err := guardFault(func() error {
+		var decodeErr error
+
+		events, decodeErr = decodeSegmentEvents(data)
+
+		return decodeErr
+	})
+
+	return events, err
+}
+
+// IsSegment is whether data opens with a sealed segment's header.
+func IsSegment(data []byte) bool {
+	return bytes.HasPrefix(data, []byte(segmentMagic))
 }
 
 func decodeSegmentEvents(data []byte) ([]Event, error) {

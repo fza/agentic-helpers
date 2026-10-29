@@ -34,19 +34,19 @@ func TestAWriteNeverFollowsAPlantedLink(t *testing.T) {
 		},
 		{
 			name:  "a history file",
-			plant: func(h *harness) string { return filepath.Join(h.store(), "word-count", "history.jsonl") },
+			plant: func(h *harness) string { return filepath.Join(h.store(), "word-count", "history.jnl") },
 			write: func(h *harness) ran {
 				return h.run("", "update", "word-count", "--summary", "Count words, a new way", "--why", "x")
 			},
 		},
 		{
 			name:  "a takes file",
-			plant: func(h *harness) string { return filepath.Join(h.store(), "word-count", "takes.jsonl") },
+			plant: func(h *harness) string { return filepath.Join(h.store(), "word-count", "takes.jnl") },
 			write: func(h *harness) ran { return h.run("", "take", "word-count") },
 		},
 		{
 			name:   "a history file linked inside the store",
-			plant:  func(h *harness) string { return filepath.Join(h.store(), "word-count", "history.jsonl") },
+			plant:  func(h *harness) string { return filepath.Join(h.store(), "word-count", "history.jnl") },
 			inside: "word-count/spare.txt",
 			write: func(h *harness) ran {
 				return h.run("", "update", "word-count", "--summary", "Count words, a new way", "--why", "x")
@@ -148,7 +148,7 @@ func TestNeitherReaderNorWriterUsesAHardLinkedFile(t *testing.T) {
 	outside := filepath.Join(h.home, "outside.txt")
 	test.WriteFile(t, outside, "untouched\n")
 
-	history := filepath.Join(h.store(), "word-count", "history.jsonl")
+	history := filepath.Join(h.store(), "word-count", "history.jnl")
 	_ = os.Remove(history)
 
 	err := os.Link(outside, history)

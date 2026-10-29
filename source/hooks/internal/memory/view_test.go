@@ -366,13 +366,7 @@ func TestAViewWarmsNothingAndMovesNoMark(t *testing.T) {
 
 	cache := h.cacheDir()
 	heat, _ := os.ReadFile(filepath.Join(cache, "heat.json"))
-	marks, _ := filepath.Glob(filepath.Join(cache, "briefs", "*"))
-
-	before := map[string]string{}
-	for _, mark := range marks {
-		raw, _ := os.ReadFile(mark)
-		before[mark] = string(raw)
-	}
+	before := h.generations("")
 
 	h.must("", "view", "--layout", "active:mine:as-list,top(3),active:as-bodies")
 	h.must("", "view", "--layout", "active:as-list", "--json")
@@ -382,10 +376,12 @@ func TestAViewWarmsNothingAndMovesNoMark(t *testing.T) {
 		t.Error("a view should leave heat.json as it was: a listing is not a use")
 	}
 
-	for mark, raw := range before {
-		now, _ := os.ReadFile(mark)
-		if string(now) != raw {
-			t.Errorf("a view should move no seen or brief mark, %s changed", filepath.Base(mark))
+	moved := h.generations("")
+	for _, purpose := range []string{"seen/", "brief/"} {
+		for key, generation := range before {
+			if strings.HasPrefix(key, purpose) && moved[key] != generation {
+				t.Errorf("a view should move no seen or brief mark, %s changed", key)
+			}
 		}
 	}
 }
