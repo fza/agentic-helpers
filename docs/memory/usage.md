@@ -1184,7 +1184,9 @@ that made it), `linked_from` (ids, superseded entries aside) and `attachments` (
 
 Set once per machine in `config.yaml` or the plugin's configuration dialog, as
 [plugin usage](../plugin/usage.md#options) layers them; no project overrides them. Keys marked
-`config.yaml` only are never read from the dialog.
+`config.yaml` only are never read from the dialog; `embedding_endpoint` and `embedding_api_key_env`
+are never read from `config.yaml`, since any agent can write it and the two together could send any
+environment variable to a server the writer picks.
 
 | Option | Sets |
 |---|---|

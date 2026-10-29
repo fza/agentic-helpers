@@ -98,8 +98,8 @@ func settingsListing(resolution pluginconfig.Resolution) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// settingLine is `<key>  <value>  (<layer>)`, a key only config.yaml sets
-// saying so.
+// settingLine is `<key>  <value>  (<layer>)`, a key config.yaml alone sets,
+// never sets or only tightens saying so.
 func settingLine(resolution pluginconfig.Resolution, key string, width int) string {
 	layer := resolution.From[key]
 	if layer == "" {
@@ -108,6 +108,14 @@ func settingLine(resolution pluginconfig.Resolution, key string, width int) stri
 
 	if slices.Contains(pluginconfig.ConfigOnly, key) {
 		layer += ", never a plugin option"
+	}
+
+	if slices.Contains(pluginconfig.NeverConfig, key) {
+		layer += ", never config.yaml"
+	}
+
+	if slices.Contains(pluginconfig.TightenOnly, key) {
+		layer += ", config.yaml only tightens"
 	}
 
 	return fmt.Sprintf("%-*s  %s  (%s)", width, key, shown(resolution.Options.Value(key)), layer)

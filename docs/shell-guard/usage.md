@@ -35,7 +35,10 @@ options off.
 ## The guards and their options
 
 Every guard is on by default and has its own plugin option (`/plugin`, or `pluginConfigs` in the
-user or managed settings):
+user or managed settings). The shared `config.yaml` only tightens one, since any agent can write it:
+a switch only to `true`, a verdict only stricter (`off` < `ask` < `deny`), the timeout only shorter;
+a looser value there is ignored and named at session start
+([plugin usage](../plugin/usage.md#options)).
 
 | Option | Values | Default | Judges |
 |---|---|---|---|
@@ -250,6 +253,9 @@ redacted too.
 |---|---|---|---|
 | `shell_guard_secret_output` | `all`, `files`, `off` | `all` | which output is scanned: every tool's, only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash, or none |
 | `shell_guard_secret_output_skip` | comma-separated tool names or patterns | none | tools whose output is never scanned, as `path.Match` reads a pattern (`mcp__sdd__*`); a pattern that does not compile skips nothing |
+
+`config.yaml` sets `shell_guard_secret_output` only stricter (`off` < `files` < `all`) and never
+`shell_guard_secret_output_skip`, which can only loosen; both stay settable in Claude Code's settings.
 
 - **A scan that cannot finish withholds everything**: every string of the output becomes the marker
   with rule `scan-incomplete`, and the note says

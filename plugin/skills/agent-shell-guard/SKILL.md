@@ -10,7 +10,11 @@ A stray `rm -rf` outside the project cannot be undone. Shell-guard parses every 
 before it runs. Reason starts `agentic-shell-guard: ` → this hook.
 
 **Every project, every Bash call.** No directory opts in or out. Only the user turns it off
-(`shell_guard_*` plugin options).
+(`shell_guard_*` plugin options, in Claude Code's settings). The shared `config.yaml` only tightens a
+guard: a looser value there is ignored (`agentic-helpers: config.yaml may only tighten <key>; <value> ignored`),
+and `agentic-helpers config set` refuses it
+(`refused: config.yaml may only tighten <key>; loosen it in Claude Code's settings`). Never route
+around that; ask the user.
 
 ## What passes
 
@@ -154,7 +158,8 @@ Every other line is as the tool returned it. The file or response itself is unto
   user; the output passed as the tool returned it.
 
 The user sets `shell_guard_secret_output` (`all` unless set, `files` for Read, Grep, NotebookRead,
-Edit, Write, NotebookEdit and Bash only, `off`) and `shell_guard_secret_output_skip` (tool names or patterns never scanned).
+Edit, Write, NotebookEdit and Bash only, `off`) and `shell_guard_secret_output_skip` (tool names or patterns never scanned),
+the skip list in Claude Code's settings only: `config.yaml` never sets it.
 
 ## Fails closed
 

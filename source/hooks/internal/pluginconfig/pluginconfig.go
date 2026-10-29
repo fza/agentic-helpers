@@ -1,9 +1,10 @@
 // Package pluginconfig reads the plugin's options in layers, lowest first: the
 // built-in defaults, the agent-neutral `config.yaml`, the answers a user gave
 // Claude Code's `userConfig` dialog, then Claude Code's managed settings,
-// which win. Claude Code exports the answers only to hook processes, so a
-// command the Bash tool runs from the plugin's `bin/` reads them from the
-// settings files themselves.
+// which win. `config.yaml` only tightens a guard and never sets the
+// embedder's endpoint or key variable, since any agent can write it. Claude
+// Code exports the answers only to hook processes, so a command the Bash tool
+// runs from the plugin's `bin/` reads them from the settings files themselves.
 package pluginconfig
 
 import (
@@ -11,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -185,6 +187,32 @@ var Keys = []string{
 // `userConfig` declares none.
 var ConfigOnly = []string{"retired_body_days", "temporary_seat_lifetime", "tools_total_mb", "orphan_store_grace"}
 
+// NeverConfig is every key `config.yaml` never sets. Any agent can write that
+// file in one Bash call, where Claude Code's settings sit behind its permission
+// prompts: the embedder's endpoint and key variable together would send any
+// environment variable to a host the writer picks, and the tools whose output
+// is never scanned can only loosen shell-guard. The CLAUDE_PLUGIN_OPTION_<KEY>
+// environment never sets one either, since an agent can prefix its own command
+// with it; none is a `sensitive` option, so Claude Code keeps them in the
+// settings files Resolve reads anyway. CLAUDE_CONFIG_DIR stays honoured as
+// Claude Code's own contract, an accepted cost: redirecting it needs a settings
+// file the agent writes there, a visible step.
+var NeverConfig = []string{"embedding_endpoint", "embedding_api_key_env", "shell_guard_secret_output_skip"}
+
+// TightenOnly is every guard key `config.yaml` may only set at least as strict
+// as the layers below it, for the same reason: the file must not lift a guard.
+// Loosening one stays possible through Claude Code's settings.
+var TightenOnly = []string{
+	"shell_guard_enabled", "grounding_gate_enabled", "shell_guard_lone_removal", "shell_guard_expansion",
+	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_alternatives", "shell_guard_secret_output",
+	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_secrets", "shell_guard_ask_timeout",
+}
+
+var (
+	ErrNeverConfig = errors.New("config.yaml never sets")
+	ErrLoosens     = errors.New("config.yaml may only tighten")
+)
+
 // LayerDefault ... LayerManaged name where an option's value comes from.
 const (
 	LayerDefault  = "default"
@@ -247,11 +275,11 @@ type Resolution struct {
 
 // Resolve folds paths as Paths orders them: each leading `config.yaml`, then
 // the user's settings, then the hook environment's
-// CLAUDE_PLUGIN_OPTION_<KEY> variables, then the remaining, managed settings,
-// which no environment overrides: they are how a machine locks a piece on. An
-// invalid value in `config.yaml` is skipped, leaving the layer below it, and
-// named among the problems; one in a settings file or the environment is an
-// error. An empty value is unset.
+// CLAUDE_PLUGIN_OPTION_<KEY> variables but for NeverConfig keys, then the
+// remaining, managed settings, which no environment overrides: they are how a
+// machine locks a piece on. An invalid value in `config.yaml` is skipped,
+// leaving the layer below it, and named among the problems; one in a settings
+// file or the environment is an error. An empty value is unset.
 func Resolve(paths []string, getenv func(string) string) (Resolution, error) {
 	resolution := Resolution{Options: Defaults(), From: map[string]string{}}
 
@@ -271,6 +299,10 @@ func Resolve(paths []string, getenv func(string) string) (Resolution, error) {
 		values := map[string]json.RawMessage{}
 
 		for _, key := range Keys {
+			if slices.Contains(NeverConfig, key) {
+				continue
+			}
+
 			value := getenv("CLAUDE_PLUGIN_OPTION_" + strings.ToUpper(key))
 			if value == "" {
 				continue
@@ -468,6 +500,35 @@ func (options *Options) fields() fields {
 			"shell_guard_enabled":      &options.ShellGuardEnabled,
 		},
 	}
+}
+
+// loosens says whether options sets the TightenOnly key looser than below.
+func (options Options) loosens(key string, below Options) bool {
+	if !slices.Contains(TightenOnly, key) {
+		return false
+	}
+
+	return options.strictness(key) < below.strictness(key)
+}
+
+// strictness ranks a guard key's value, a higher rank stricter. An ask
+// timeout of 0 or below waits without limit, the loosest.
+func (options Options) strictness(key string) int {
+	ranks := map[string]int{
+		ShellGuardOff: 0, ShellGuardAsk: 1, ShellGuardDeny: 2,
+		SecretOutputFiles: 1, SecretOutputAll: 2,
+		"false": 0, "true": 1,
+	}
+
+	if key != "shell_guard_ask_timeout" {
+		return ranks[options.Value(key)]
+	}
+
+	if options.ShellGuardAskTimeout <= 0 {
+		return math.MinInt
+	}
+
+	return -options.ShellGuardAskTimeout
 }
 
 // Value is the option's value as `config set` takes it; empty for a key the

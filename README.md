@@ -120,6 +120,18 @@ stored data every agent shares is deleted, so Claude Code's dialog lacks them an
 ignored; two agents set apart would otherwise leave the lowest value deciding for both. A key deleting
 only what one session made for itself, such as `capture_remove_draft`, stays in the dialog.
 
+**`config.yaml` only tightens a guard.** Any agent can write the file in one Bash call, so it never
+lifts what shell-guard and the grounding gate hold. A guard switch (`shell_guard_enabled`,
+`grounding_gate_enabled`, `shell_guard_lone_removal`, `shell_guard_expansion`,
+`shell_guard_nested_code`, `shell_guard_mktemp`, `shell_guard_alternatives`) applies there only as
+`true`; a verdict (`shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets`)
+only stricter, `off` < `ask` < `deny`; `shell_guard_secret_output` only stricter, `off` < `files` <
+`all`; `shell_guard_ask_timeout` only shorter. A looser value there is ignored, and
+`agentic-helpers config set` refuses it. `embedding_endpoint`, `embedding_api_key_env` and
+`shell_guard_secret_output_skip` are never read from `config.yaml`: the first two together could send
+any environment variable to a server the writer picks. Loosen a guard or point the embedder elsewhere
+in Claude Code's settings, behind its permission prompts.
+
 ### Turning pieces off
 
 | Option | Default | What it controls |
@@ -149,9 +161,9 @@ OpenAI-compatible server) or as a hosted service.
 |---|---|---|
 | `embedding_provider` | none | `openai` for any OpenAI-compatible API, or `ollama`. Empty turns search by meaning off |
 | `embedding_model` | none | The model the endpoint serves, such as `embeddinggemma-300m` |
-| `embedding_endpoint` | the provider's | The server's base URL. Empty means `https://api.openai.com` or `http://localhost:11434` |
+| `embedding_endpoint` | the provider's | Claude Code's settings only. The server's base URL. Empty means `https://api.openai.com` or `http://localhost:11434` |
 | `embedding_dimensions` | `0` | Vector size to ask an `openai` provider for. `0` keeps the model's own; `ollama` ignores it |
-| `embedding_api_key_env` | none | Name of the environment variable holding a hosted service's API key. The key itself is never stored |
+| `embedding_api_key_env` | none | Claude Code's settings only. Name of the environment variable holding a hosted service's API key. The key itself is never stored |
 
 Changing the provider, the model or the dimensions starts a fresh vector index, since vectors from
 two models cannot be compared. Memory embeds its entries again on its next search by meaning;
@@ -191,7 +203,8 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 
 ### Shell-guard
 
-An option whose default is `ask` also takes `deny` or `off`.
+An option whose default is `ask` also takes `deny` or `off`. `config.yaml` sets each only stricter
+than its default.
 
 | Option | Default | What it controls |
 |---|---|---|
@@ -204,7 +217,7 @@ An option whose default is `ask` also takes `deny` or `off`.
 | `shell_guard_mktemp` | `true` | Refuses `mktemp` in any Bash command |
 | `shell_guard_alternatives` | `true` | Refuses a command missing here (`timeout`) or a usage BSD `sed` or `date` gets wrong, naming the command that works, and names at session start what the machine needs |
 | `shell_guard_secret_output` | `all` | Hides output lines from outside the project that look like credentials. `files` checks only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; `off` checks nothing |
-| `shell_guard_secret_output_skip` | none | Tools whose output is never hidden, comma-separated. Patterns such as `mcp__sdd__*` work |
+| `shell_guard_secret_output_skip` | none | Claude Code's settings only. Tools whose output is never hidden, comma-separated. Patterns such as `mcp__sdd__*` work |
 | `shell_guard_ask_timeout` | `120` | Seconds an ask waits in `auto` and `bypassPermissions` mode before it denies (at most 3600; `0` waits forever) |
 
 ## Dependencies
