@@ -79,7 +79,7 @@ func TestEveryRuleBetweenKeysIsStatedInItsToolDescription(t *testing.T) {
 
 	for _, rule := range []struct{ tool, stated string }{
 		{"supersede", "takes by, because or both, at least one"},
-		{"ack", "takes done or decline, not both"},
+		{"ack", "takes one of done, decline, undo, remove, add or order"},
 		{"search", "needs term, query or status"},
 		{"view", "takes layout or explain"},
 	} {

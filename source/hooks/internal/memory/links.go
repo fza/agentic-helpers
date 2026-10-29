@@ -466,6 +466,24 @@ func (mem *memory) annotateLinks(ctx context.Context, folded *state) {
 		return statuses
 	}
 
+	folded.itemLinks = func(link string) (bool, string) {
+		_, _, qualified := splitQualified(link)
+		if qualified {
+			return followGraph(ask(), link, foreignName)
+		}
+
+		if !isGraphID(link) {
+			return followMemory(folded, link)
+		}
+
+		_, err := os.Stat(mem.graphPath(ctx, link))
+		if err != nil {
+			return false, "→ " + link + " gone"
+		}
+
+		return followGraph(ask(), link, func(id string) string { return id })
+	}
+
 	folded.flagger = func(held *entry) []string {
 		var flags []string
 
@@ -514,6 +532,79 @@ func (mem *memory) annotateLinks(ctx context.Context, folded *state) {
 
 		return flags
 	}
+}
+
+// followMemory is whether a linked item's memory target ended, following a
+// supersede to the newest entry, and the flag naming the chain: a superseded
+// target only moved the work, so it ends nothing until its successor does.
+func followMemory(folded *state, link string) (bool, string) {
+	linked, found := folded.entries[link]
+	if !found {
+		return false, "→ " + link + " gone"
+	}
+
+	chain := []string{link}
+
+	for range chainHops {
+		last, _ := linked.latest()
+		if linked.status != statusSuperseded || last.by == "" {
+			break
+		}
+
+		next, known := folded.entries[last.by]
+		if !known {
+			break
+		}
+
+		chain, linked = append(chain, last.by), next
+	}
+
+	flag := "→ " + strings.Join(chain, " → ")
+
+	switch linked.status {
+	case statusRetired:
+		return true, flag + " retired"
+	case statusSuperseded:
+		return false, flag + " superseded"
+	}
+
+	return false, flag
+}
+
+// followGraph is followMemory for a graph target, read from the export's
+// statuses; without them nothing says the target ended.
+func followGraph(statuses map[string]graphState, link string, name func(string) string) (bool, string) {
+	repo, _, qualified := splitQualified(link)
+	chain := []string{name(link)}
+	current := statuses[link]
+
+	for range chainHops {
+		if current.Status != "superseded-by" || current.By == "" {
+			break
+		}
+
+		next := current.By
+
+		_, _, already := splitQualified(next)
+		if qualified && !already {
+			next = repo + ":" + next
+		}
+
+		chain, current = append(chain, name(next)), statuses[next]
+	}
+
+	flag := "→ " + strings.Join(chain, " → ")
+
+	switch current.Status {
+	case "closed-by":
+		return true, strings.TrimSpace(flag + " closed by " + current.By)
+	case "settled":
+		return true, flag + " settled"
+	case "superseded-by":
+		return false, flag + " superseded"
+	}
+
+	return false, flag
 }
 
 func memoryLinkState(linked *entry, found bool) string {

@@ -27,7 +27,7 @@ import (
 
 // foldLayout changes whenever the cached shape does, so a cache of another
 // release's shape is folded again rather than misread.
-const foldLayout = 3
+const foldLayout = 4
 
 type foldKey struct {
 	Layout     int
@@ -93,6 +93,8 @@ type cachedEntry struct {
 	UntilHashes                            map[string]string
 	UntilHold                              *hold
 	Attachments                            []attachPayload
+	Items                                  []todoItem
+	ItemsChanged, Revived                  time.Time
 }
 
 func (mem *memory) foldCachePath() string {
@@ -261,7 +263,7 @@ func cacheOf(key foldKey, folded *state) cachedFold {
 			Topics: held.topics, History: held.history, ForKeys: held.forKeys, TextLinks: held.textLinks,
 			Until: held.until, When: held.when, On: held.on, Proof: held.proof, Forbids: held.forbids, About: held.about,
 			Anchors: held.anchors, Dropped: held.dropped, ForAll: held.forAll, UntilHashes: held.untilHashes,
-			UntilHold: held.untilHold, Attachments: held.attachments,
+			UntilHold: held.untilHold, Attachments: held.attachments, Items: held.items, ItemsChanged: held.itemsChanged, Revived: held.revived,
 		}
 
 		for _, step := range held.transitions {
@@ -306,7 +308,7 @@ func (cached cachedFold) state() *state {
 			topics: one.Topics, history: one.History, forKeys: one.ForKeys, textLinks: one.TextLinks,
 			until: one.Until, when: one.When, on: one.On, proof: one.Proof, forbids: one.Forbids, about: one.About,
 			anchors: one.Anchors, dropped: one.Dropped, forAll: one.ForAll, untilHashes: one.UntilHashes,
-			untilHold: one.UntilHold, attachments: one.Attachments,
+			untilHold: one.UntilHold, attachments: one.Attachments, items: one.Items, itemsChanged: one.ItemsChanged, revived: one.Revived,
 		}
 
 		for _, step := range one.Transitions {

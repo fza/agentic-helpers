@@ -354,7 +354,7 @@ func (mem *memory) reachEnds(ctx context.Context, folded *state, seatName string
 	var order []string
 
 	for _, held := range folded.entryList() {
-		if held.status != statusLive || held.kind == kindRule || len(held.until) == 0 || !mem.onShelf(held, seatName) ||
+		if held.status != statusLive || held.kind == kindRule || !mem.onShelf(held, seatName) ||
 			(only != "" && held.id != only) {
 			continue
 		}
@@ -366,6 +366,13 @@ func (mem *memory) reachEnds(ctx context.Context, folded *state, seatName string
 
 				break
 			}
+		}
+
+		// A finished todolist is an end the todo declared by holding one.
+		finished, total := folded.itemsFinished(held)
+		if reached[held.id] == "" && finished && (form == "" || form == formItems) {
+			reached[held.id] = fmt.Sprintf("items %d/%d", total, total)
+			order = append(order, held.id)
 		}
 	}
 

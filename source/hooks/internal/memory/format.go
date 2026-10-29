@@ -14,11 +14,12 @@ import (
 
 // storeFormat is the store's shape this release reads and writes: seats keyed
 // by id through the registry, each filing onto a shelf of shelves.json, every
-// entry filed with a kind, and state rows in the log. A store without
-// format.json is format 1, keyed by seat name; format 2 has no shelves; format
-// 3 files entries with a retention level and no kind.
+// entry filed with a kind, state rows in the log, and todolist items as `item`
+// rows. A store without format.json is format 1, keyed by seat name; format 2
+// has no shelves; format 3 files entries with a retention level and no kind;
+// format 4 holds no `item` rows, which a format-4 binary cannot read.
 const (
-	storeFormat = 4
+	storeFormat = 5
 	formatName  = "format.json"
 )
 

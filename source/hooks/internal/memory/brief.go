@@ -333,13 +333,29 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 
 		for _, one := range page {
-			if !mem.addLine(out, "  ", one, shortLine(here, one, seatName, now, flagged[one.id]...)) {
+			extra := flagged[one.id]
+
+			count, items := folded.briefItems(one, "    ")
+			if count != "" {
+				extra = append(slices.Clone(extra), count)
+			}
+
+			// A pointer stands for the line and its items, both printed before.
+			fresh := !mem.seen.hasLine(one)
+
+			if !mem.addLine(out, "  ", one, shortLine(here, one, seatName, now, extra...)) {
 				missing++
 
 				continue
 			}
 
 			printed[one.id] = true
+
+			if fresh {
+				for _, text := range items {
+					out.add(text)
+				}
+			}
 
 			for _, cited := range citingLines(one, listed, "    ") {
 				out.add(cited)

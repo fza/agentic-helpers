@@ -516,6 +516,67 @@ the seat's next do-now list:
     skipped last session:
       m-d4e5f6 Read the board (claim)
 
+## Todolists
+
+A todo can hold one todolist: the steps of one piece of work, each an item kept beside the body, so
+ticking a step changes a few bytes instead of superseding the whole todo. An item is a record in the
+log, never a line of the body; only a todo holds items, and `--item` on another kind is refused,
+`--item files a todolist, which only a todo holds`.
+
+    agentic-memory new --kind todo --title '...' --topic t --item 'read the timer' --item m-abc123 < body
+    agentic-memory ack m-1oqsjs#k3x... --done | --undo | --decline '<why>' | --remove
+    agentic-memory ack m-1oqsjs --add '<step>'... | --order k3x,p9a
+    agentic-memory show m-1oqsjs [--with-removed]
+
+Each item gets an id of three lowercase base36 characters (never all digits), unique within its todo
+and never reused; `<todo>#<id>` is the only address of an item, and the filing reply names them,
+`items m-1oqsjs: #k3x #p9a`. An item is text, or a memory id or a graph id (a qualified foreign one
+included), which links it: a linked item shows its target's title (a graph item its id) and reads
+its target's state at every read, never stored. A graph target closed or settled, or a memory target
+retired, ticks it; a target reopening unticks it. A superseded target does not tick it: the item
+follows the supersede chain to the newest entry and ticks once that ends, shown
+`→ <target> → <newest>`. A target that is gone keeps it open, flagged `gone`. An explicit `--done`,
+`--decline` or `--remove` wins over what a target says; `--undo` gives the item back to its target.
+
+`ack` changes items for good, one change a call, every address checked before anything lands:
+`--done` ticks, `--undo` unticks, `--decline '<why>'` drops (decided not to do it: it stays listed
+with its reason and counts toward done), `--remove` removes an item that never belonged (it leaves
+the count, the brief and `show`; `show --with-removed` lists it). `--add` adds items at the end and
+`--order` puts the named items first in that order, every other item keeping its relative order
+behind them; both take one todo id. Refused: an unknown address (`<address>: no such item`), a
+position as an address (`#2 is a position; address an item by its id, which show <todo> lists`), an
+item on another kind (`<id> is a <kind>; items belong to a todo`), and more or fewer than one change.
+`ack <rule> --done | --decline` still settles pending do-now rules.
+
+The brief gives a todo's short line `<done>/<total>`, then up to three open items in order, each cut
+at about 60 characters:
+
+    todos:
+      m-1oqsjs Port the waiter  [2h]  1/4
+        2. #p9a: swap the clock
+        3. #k3x: run CI on Linux
+
+`show` lists every item but removed ones, `<n>. [ ] #<id>: <text>`, `[x]` ticked, `[-]` dropped with
+`    dropped: <why>` under it, a linked item adding `  → <target> <state>`. JSON (`--json`, MCP) gives
+the todo `items` (each `id`, `position`, `text`, `link`, `state` of open, done or dropped, `reason`),
+`done` and `total`.
+
+A todo whose every item is ticked or dropped has reached a declared end: the end check retires it,
+`end reached: items <n>/<n>`, and lists it once under `ended since last brief`. `revive` undoes it,
+and the todo stays live until an item changes again. With `--until` conditions as well, whichever
+comes first ends it. A linked target reopening afterwards does not bring the todo back.
+
+Superseding a todo that holds a todolist needs `--items carry|leave` (MCP `items`), and is refused
+without it: `<id> holds a todolist; pass --items carry or --items leave`. `carry` moves every item
+but removed ones to the successor, which must be a todo (`supersede --by`, or `new --absorbs`),
+open, ticked and dropped alike, with ids and order kept; a carried item whose id the successor
+already holds gets a new one, named in the reply as `<old>#<id> is now #<new>`. `<old>#<id>` keeps
+resolving through the supersede to the carried item. `leave` keeps the list on the superseded todo.
+
+A todo filed with list lines in its body (`- `, `* `, `1. `) lands as written, and the reply says
+`<n> list lines in the text; steps go into --item`: not every list is a todolist, so lines never
+turn into items.
+
 ## Shared entries
 
 An entry can reach seats besides the one that filed it. A seat receives an entry when any of these

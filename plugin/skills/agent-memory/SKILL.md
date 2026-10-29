@@ -93,6 +93,17 @@ EOF
 - **Owner decision waiting for capture → `--kind todo --until captured`.** `agentic-memory: graph
   gained <id>...; ... link the one it settles: agentic-memory link <todo> <graph id>` → link the one
   it settles, nothing else.
+- **Steps of one piece of work → a todolist**, never list lines in the body, never a supersede to
+  tick one. `new --kind todo --item '<step>' --item <memory or graph id>...`; the reply names each
+  `#<id>`. Address an item `<todo>#<id>` only, never by position:
+  - `ack <todo>#<id>... --done` ticks, `--undo` unticks, `--decline '<why>'` drops (counts as done),
+    `--remove` removes one that never belonged. `ack <todo> --add '<step>'...`, `--order <id>,<id>...`.
+  - A linked item ticks itself when its target closes or retires; a superseded target moves it on.
+  - Every item ticked or dropped → the todo retires, `end reached: items <n>/<n>`.
+  - Brief: `<todo line>  <done>/<total>`, then up to three open items, `    <n>. #<id>: <text>`.
+  - Supersede of a todo with items needs `--items carry` (list moves, ids kept) or `--items leave`.
+  - `<n> list lines in the text; steps go into --item` after filing → those lines were steps:
+    file a todo with `--item`, supersede the one just filed.
 - **Language → the brief's** (`entries in de`). Domain terms keep the project's spelling.
 - **Style → the brief's** (`entries in de, terse`), titles, bodies and state alike. `terse`: no
   articles, filler or hedging; fragments fine; code, paths, ids, quotes, domain terms exact. `plain`:

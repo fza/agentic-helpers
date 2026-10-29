@@ -83,6 +83,13 @@ type request struct {
 	Again          bool     `json:"again,omitempty"`
 	Layout         string   `json:"layout,omitempty"`
 	Explain        string   `json:"explain,omitempty"`
+	Items          []string `json:"item,omitempty"`
+	ItemsMode      string   `json:"items,omitempty"`
+	Undo           bool     `json:"undo,omitempty"`
+	Remove         bool     `json:"remove,omitempty"`
+	Add            []string `json:"add,omitempty"`
+	Order          string   `json:"order,omitempty"`
+	WithRemoved    bool     `json:"with_removed,omitempty"`
 
 	given map[string]bool
 }
@@ -259,18 +266,20 @@ func (req *request) set(spec flagSpec, value string) error {
 		"title": &req.Title, "kind": &req.Kind, "from": &req.From, "query": &req.Query,
 		"by": &req.By, "because": &req.Because, "session": &req.Session, "shelf": &req.Shelf,
 		"lifetime": &req.Lifetime, "decline": &req.Decline, "to": &req.To,
-		"layout": &req.Layout, "explain": &req.Explain,
+		"layout": &req.Layout, "explain": &req.Explain, "items": &req.ItemsMode, "order": &req.Order,
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
 		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs, "until": &req.Until, "attach": &req.Attach,
 		"when": &req.When, "on": &req.On, "proof": &req.Proof, "forbids": &req.Forbids,
+		"item": &req.Items, "add": &req.Add,
 	}
 	numbers := map[string]*int{"limit": &req.Limit, "skip": &req.Skip, "offset": &req.Offset, "max-bytes": &req.MaxBytes}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
-		"private": &req.Private, "again": &req.Again,
+		"private": &req.Private, "again": &req.Again, "undo": &req.Undo, "remove": &req.Remove,
+		"with-removed": &req.WithRemoved,
 	}
 
 	switch spec.kind {
@@ -390,12 +399,13 @@ func allCommands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [--item '<step>']... [--items carry|leave] [options]",
 			description: "file an entry, in the language and style the brief names; kind sets its decay, note unless given",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
 				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList}, {"attach", flagList},
 				{"when", flagList}, {"on", flagList}, {"proof", flagList}, {"forbids", flagList},
+				{"item", flagList}, {"items", flagText},
 			},
 			readsBody: true,
 			replaced:  map[string]string{"retention": retentionReplaced},
@@ -409,6 +419,8 @@ func allCommands() []command {
 				`"for":{"type":"array","items":{"type":"string"},"description":"other seats it is for, or all"},` +
 				`"link":{"type":"array","items":{"type":"string"},"description":"graph or memory ids to link"},` +
 				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"ids it supersedes"},` +
+				`"item":{"type":"array","items":{"type":"string"},"description":"todo only: the steps of one piece of work, each text or a memory or graph id; ticked later through ack <todo>#<item>, never a supersede"},` +
+				`"items":{"type":"string","enum":["carry","leave"],"description":"an absorbed todo's items move here, or stay"},` +
 				`"until":{"type":"array","items":{"type":"string"},"description":"ending conditions: ` + untilForms + `"},` +
 				`"when":{"type":"array","items":{"type":"string"},"description":"trap triggers: ` + triggerForms + `"},` +
 				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"when a rule is owed"},` +
@@ -441,11 +453,15 @@ func allCommands() []command {
 			run: (*memory).search,
 		},
 		{
-			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--again]",
-			description: "entries in full: stamps, anchors, flags, events",
-			flags:       []flagSpec{{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"again", flagSwitch}}, positional: someIDs, run: (*memory).show,
+			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--again]",
+			description: "entries in full: stamps, anchors, flags, events, a todo's items",
+			flags: []flagSpec{
+				{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"with-removed", flagSwitch}, {"again", flagSwitch},
+			},
+			positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{` + idsKey + `,` + noHeat + `,` + againKey + `,` +
-				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"}},"required":["ids"]}`,
+				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"},` +
+				`"with_removed":{"type":"boolean","description":"also a todo's removed items"}},"required":["ids"]}`,
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--again]",
@@ -526,12 +542,19 @@ func allCommands() []command {
 				`"to":{"type":"string","description":"a new path to write the attachment's bytes to"}},"required":["id"]}`,
 		},
 		{
-			name: "ack", usage: "ack <id>... --done | --decline '<why>'",
-			description: "settle pending do-now items no tool call proves, all or none; takes done or decline, not both",
-			flags:       []flagSpec{{"done", flagSwitch}, {"decline", flagText}, {"no-heat", flagSwitch}},
-			positional:  someIDs, run: (*memory).ack,
-			schema: `{"type":"object","properties":{` + idsKey + `,` +
-				`"done":{"type":"boolean","description":"items done"},"decline":{"type":"string","description":"why not done"},` +
+			name: "ack", usage: "ack <id>... --done | --decline '<why>'  |  ack <todo>#<item>... --done | --undo | --decline '<why>' | --remove  |  ack <todo> --add '<text>'... | --order <item>,<item>...",
+			description: "settle pending do-now items, or change a todo's items for good, each id then todo#item; all or none; takes one of done, decline, undo, remove, add or order",
+			flags: []flagSpec{
+				{"done", flagSwitch}, {"decline", flagText}, {"undo", flagSwitch}, {"remove", flagSwitch},
+				{"add", flagList}, {"order", flagText}, {"no-heat", flagSwitch},
+			},
+			positional: someIDs, run: (*memory).ack,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string","pattern":"^m-[a-z0-9]{4,16}(#[a-z0-9]+)?$"},` +
+				`"description":"rule ids, or <todo>#<item> addresses, or one todo id for add and order; array even for one"},` +
+				`"done":{"type":"boolean","description":"done, or an item ticked"},"decline":{"type":"string","description":"why not done, or why an item is dropped"},` +
+				`"undo":{"type":"boolean","description":"untick items"},"remove":{"type":"boolean","description":"remove items that never belonged"},` +
+				`"add":{"type":"array","items":{"type":"string"},"description":"items to add at the end: text, or a memory or graph id"},` +
+				`"order":{"type":"string","description":"item ids, comma-separated, to put first in that order"},` +
 				noHeat + `},"required":["ids"]}`,
 		},
 		{
@@ -553,12 +576,13 @@ func allCommands() []command {
 				`"because":{"type":"string","description":"why they ended"}},"required":["ids"]}`,
 		},
 		{
-			name: "supersede", usage: "supersede <id>... [--by <id>] [--because '<why>']",
-			description: "take entries out of results, all or none; takes by, because or both, at least one",
-			flags:       []flagSpec{{"by", flagText}, {"because", flagText}}, positional: someIDs, run: (*memory).supersede,
+			name: "supersede", usage: "supersede <id>... [--by <id>] [--because '<why>'] [--items carry|leave]",
+			description: "take entries out of results, all or none; takes by, because or both, at least one; a todo with items needs items",
+			flags:       []flagSpec{{"by", flagText}, {"because", flagText}, {"items", flagText}}, positional: someIDs, run: (*memory).supersede,
 			schema: `{"type":"object","properties":{` + idsKey +
 				`,"by":{"type":"string","pattern":"^m-[a-z0-9]{4,16}$","description":"replacing entry id"}` +
-				`,"because":{"type":"string","description":"why wrong or replaced"}},"required":["ids"]}`,
+				`,"because":{"type":"string","description":"why wrong or replaced"}` +
+				`,"items":{"type":"string","enum":["carry","leave"],"description":"a todolist moves to by, or stays"}},"required":["ids"]}`,
 		},
 		{
 			name: "revive", cliOnly: true, usage: "revive <id>", description: "reverse the latest retire or supersede",

@@ -46,9 +46,23 @@ type jsonEntry struct {
 	// Expanded is the memory entries the entry links to, in a section
 	// expand(refs) widens.
 	Expanded []jsonEntry `json:"expanded,omitempty"`
+	// Items is a todo's todolist, removed items aside, with Done counting the
+	// items done or dropped of Total.
+	Items []jsonItem `json:"items,omitempty"`
+	Done  *int       `json:"done,omitempty"`
+	Total *int       `json:"total,omitempty"`
 	// Seen marks an entry the calling session's context already holds; it
 	// then answers with its id and title alone.
 	Seen bool `json:"seen,omitempty"`
+}
+
+type jsonItem struct {
+	ID       string `json:"id"`
+	Position int    `json:"position"`
+	Text     string `json:"text"`
+	Link     string `json:"link,omitempty"`
+	State    string `json:"state"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 type jsonStatusChange struct {
@@ -94,6 +108,17 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 		From: held.from, Filed: held.filed.UTC(), Branch: held.branch, Commit: held.commit, Status: held.status,
 		OtherBranch: held.branch != "" && here.branch != "" && held.branch != here.branch,
 		Anchors:     []jsonAnchor{}, Links: []jsonLink{}, LinkedFrom: []string{}, Attachments: []jsonAttachment{},
+	}
+
+	views, settled, total := folded.itemViews(held, false)
+	if total > 0 {
+		object.Done, object.Total = &settled, &total
+
+		for _, view := range views {
+			object.Items = append(object.Items, jsonItem{
+				ID: view.item.ID, Position: view.position, Text: view.text, Link: view.item.Link, State: view.state, Reason: view.item.Reason,
+			})
+		}
 	}
 
 	switch {
