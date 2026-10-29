@@ -60,7 +60,7 @@ runs in:
       remotes of this checkout: <remotes>
 
 `<reason>` is one of `it is another checkout of a repository a store already holds`,
-`its path belonged to a checkout of another repository`,
+`its path or inode belonged to a checkout of another repository`,
 `it carries the pointer of a store that admits other checkouts`,
 ``its `.sdd/` names the graph repository <graph folder>, whose store does not admit it`` (the
 split-layout link is committed config a clone brings along, so it joins silently only once a bind

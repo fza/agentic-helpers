@@ -395,7 +395,9 @@ func (admitted Admitted) is(checkout Checkout) bool {
 }
 
 // strongMatch is the store the checkout's pointer, inode or path names, in
-// that order, or a question where they disagree with the store they name.
+// that order, or a question where they disagree with the store they name. An
+// inode is held to the store's identity as a path is: linux gives a removed
+// directory's inode to the next one created, wherever it is.
 func (held *mapping) strongMatch(checkout Checkout) (string, *Question) {
 	if checkout.Pointer != "" {
 		id := held.canonical(checkout.Pointer)
@@ -418,7 +420,7 @@ func (held *mapping) strongMatch(checkout Checkout) (string, *Question) {
 			return "", held.question(checkout, ReasonConflict, ids)
 		case len(ids) == 1:
 			identity, _ := held.store(ids[0])
-			if key != inodeKey(checkout.Volume, checkout.Inode) && contradicts(*identity, checkout) {
+			if contradicts(*identity, checkout) {
 				return "", held.question(checkout, ReasonReused, ids)
 			}
 
