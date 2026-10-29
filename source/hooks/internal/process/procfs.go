@@ -74,6 +74,12 @@ func (procfs Procfs) stat(pid int) ([]string, string, bool) {
 		return nil, "", false
 	}
 
+	// A zombie or a dead process keeps its stat until reaped, though it runs
+	// nothing any more.
+	if fields[0] == "Z" || fields[0] == "X" {
+		return nil, "", false
+	}
+
 	return fields, string(raw[opening+1 : closing]), true
 }
 

@@ -8,11 +8,11 @@ import (
 )
 
 // ParentAndName is the parent pid and the executable's name, or zero and an
-// empty name where the process is gone. The kernel keeps the name truncated to
-// 16 bytes.
+// empty name where the process is gone or exiting. The kernel keeps the name
+// truncated to 16 bytes.
 func (Table) ParentAndName(_ context.Context, pid int) (int, string) {
 	info, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
-	if err != nil {
+	if err != nil || Exiting(info.Proc.P_stat, info.Proc.P_flag) {
 		return 0, ""
 	}
 
@@ -23,7 +23,7 @@ func (Table) ParentAndName(_ context.Context, pid int) (int, string) {
 // process that held it before. It is whole seconds, as claims record it.
 func (Table) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	info, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
-	if err != nil {
+	if err != nil || Exiting(info.Proc.P_stat, info.Proc.P_flag) {
 		return time.Time{}, false
 	}
 
