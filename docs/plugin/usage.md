@@ -99,13 +99,16 @@ claude plugin marketplace add /path/to/agentic-helpers
 claude plugin install agentic-helpers@agentic-helpers
 ```
 
-The binaries the checkout builds reach the hooks through `AGENTIC_HELPERS_BIN_DIR`, set once in the
-`env` block of the settings file to the directory `go install` writes to:
+The binaries the checkout builds reach the hooks through `AGENTIC_HELPERS_BIN_DIR`, set to the
+directory `go install` writes to in the `env` block of the checkout's own
+`.claude/settings.local.json`:
 
 ```json
 { "env": { "AGENTIC_HELPERS_BIN_DIR": "/Users/you/go/bin" } }
 ```
 
 A change to a binary then reaches the hooks on the next event after
-`go install -C source/hooks ./cmd/...`. While the variable is set, no release is fetched or run on
-that machine.
+`go install -C source/hooks ./cmd/...`. Where the variable is set, no release is fetched or run.
+Set in the user settings instead, it would hold every project on the machine to the last
+`go install` build: a release would reach no session until installed, and an install from a tree
+holding unfinished work would run it everywhere.
