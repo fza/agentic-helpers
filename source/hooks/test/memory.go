@@ -35,6 +35,10 @@ type Git struct {
 	Unborn bool
 	// Log answers `log --oneline -n <n> <range>` by its range.
 	Log map[string]string
+	// Tracked lists the paths `ls-files -- <path>` names as tracked, and
+	// ListFails answers `ls-files` as git does outside a work tree.
+	Tracked   []string
+	ListFails bool
 
 	mutex sync.Mutex
 	calls [][]string
@@ -87,6 +91,10 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 
 		return "true\n", nil
 	case "rev-parse --show-toplevel":
+		if fake.OutsideWorkTree {
+			return "", errors.New("fatal: not a git repository")
+		}
+
 		return fake.Top + "\n", nil
 	case "rev-parse --short=8 HEAD":
 		return fake.Commit + "\n", nil
@@ -114,6 +122,17 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 		}
 
 		return answer, nil
+	}
+
+	if len(args) == 3 && args[0] == "ls-files" && args[1] == "--" {
+		switch {
+		case fake.ListFails:
+			return "", errors.New("fatal: not a git repository")
+		case slices.Contains(fake.Tracked, args[2]):
+			return args[2] + "\n", nil
+		}
+
+		return "", nil
 	}
 
 	if len(args) == 3 && args[0] == "check-ignore" && args[1] == "-q" {

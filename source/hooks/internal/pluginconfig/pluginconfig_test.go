@@ -127,6 +127,15 @@ func TestRead(t *testing.T) {
 			want: defaultsWith(func(options *pluginconfig.Options) { options.EntryIDLength = pluginconfig.MaxEntryIDLength }),
 		},
 		{
+			name: "a captured draft is removed unless switched",
+			want: defaultsWith(func(options *pluginconfig.Options) { options.CaptureRemoveDraft = true }),
+		},
+		{
+			name: "draft removal switches off",
+			user: own + `{"capture_remove_draft":false}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) { options.CaptureRemoveDraft = false }),
+		},
+		{
 			name: "memory works only inside git unless switched",
 			want: defaultsWith(func(options *pluginconfig.Options) { options.MemoryRequireGit = true }),
 		},

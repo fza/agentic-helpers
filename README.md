@@ -165,6 +165,12 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 | `tools_query_floor` | `0.45` | Similarity (cosine) from which a tool counts as a match for a search or a prompt |
 | `tools_duplicate_floor` | `0.85` | Similarity from which a new tool is refused as a duplicate of another |
 
+### Capture
+
+| Option | Default | What it controls |
+|---|---|---|
+| `capture_remove_draft` | `true` | `agentic-capture` deletes a draft once its entry is captured, unless git tracks it or it lies outside the work tree and `/tmp` |
+
 ### Shell-guard
 
 An option whose default is `ask` also takes `deny` or `off`.

@@ -26,6 +26,11 @@ type fixture struct {
 	runner *test.Runner
 	pauses *test.Pauses
 	limit  string
+	repo   *test.Git
+	temp   string
+	// settings is the user settings file carrying the plugin's options, or
+	// none.
+	settings string
 }
 
 type result struct {
@@ -44,7 +49,8 @@ func newFixture(t *testing.T, config string) *fixture {
 		test.WriteFile(t, filepath.Join(root, ".sdd", "grounding.yaml"), test.Fixture(t, config))
 	}
 
-	return &fixture{t: t, root: root, runner: &test.Runner{Capture: process.Result{Stdout: "captured\n"}}, pauses: &test.Pauses{}}
+	return &fixture{t: t, root: root, runner: &test.Runner{Capture: process.Result{Stdout: "captured\n"}}, pauses: &test.Pauses{},
+		repo: &test.Git{Top: root}, temp: t.TempDir()}
 }
 
 func (f *fixture) draft(fixture string) string {
@@ -66,7 +72,11 @@ func (f *fixture) runIn(ctx context.Context, args ...string) result {
 	f.t.Helper()
 
 	captured := &test.Captured{}
-	env := capture.Env{WorkingDir: f.root, Runner: f.runner, Limit: f.limit, Pause: f.pauses.Pause}
+	env := capture.Env{WorkingDir: f.root, Runner: f.runner, Limit: f.limit, Pause: f.pauses.Pause, Git: f.repo, TempRoot: f.temp}
+	if f.settings != "" {
+		env.Settings = []string{f.settings}
+	}
+
 	code := capture.Main(ctx, args, env, captured.Streams(""))
 
 	return result{code: code, stdout: captured.Out.String(), stderr: captured.Err.String()}
@@ -892,9 +902,10 @@ func TestAPreflightTheCallerRan(t *testing.T) {
 	t.Run("a mismatch names the draft's own hash", func(t *testing.T) {
 		f := newFixture(t, "")
 		path := f.draft("capture/full.md")
+		digest := digestOf(t, path)
 
 		got := f.run(path, "--preflight-done", strings.Repeat("0", 64))
-		if !strings.Contains(got.stderr, "the draft hashes to "+digestOf(t, path)+"; running the pre-flight\n") {
+		if !strings.Contains(got.stderr, "the draft hashes to "+digest+"; running the pre-flight\n") {
 			t.Errorf("the line should name the hash the caller should have sent, got: %s", got.stderr)
 		}
 	})

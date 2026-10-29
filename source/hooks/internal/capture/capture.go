@@ -124,6 +124,10 @@ type Runner interface {
 	Run(ctx context.Context, dir string, argv []string) (process.Result, error)
 }
 
+type Git interface {
+	Output(ctx context.Context, dir string, args ...string) (string, error)
+}
+
 // Env is where a capture runs: the caller's working directory, what runs `sdd`
 // and the project's lint, the value of LimitVariable (empty where unset), and
 // what waits out a retry delay.
@@ -140,6 +144,11 @@ type Env struct {
 	// per binary; either left empty, sdd's help is read on every capture.
 	SddCache string
 	LookPath func(string) (string, error)
+	// Git and TempRoot decide whether a captured draft may be removed: the work
+	// tree and TempRoot (/tmp) are where it may lie, and git says whether it
+	// tracks the draft.
+	Git      Git
+	TempRoot string
 }
 
 type request struct {
@@ -337,7 +346,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 	run := &capture{env: env, streams: streams, root: filepath.Dir(governing), graph: graph, request: held, path: path}
 
-	return run.do(ctx)
+	code := run.do(ctx)
+	if code == 0 && options.CaptureRemoveDraft {
+		run.removeDraft(ctx)
+	}
+
+	return code
 }
 
 type capture struct {
@@ -897,6 +911,59 @@ func (run *capture) write(ctx context.Context, held draft, preflight string) int
 	_, _ = fmt.Fprint(run.streams.Err, result.Stderr)
 
 	return result.Code
+}
+
+// removeDraft deletes the draft of a capture whose `sdd new` exited 0. A draft
+// git tracks stays: its deletion would be a change nobody asked for, which
+// another commit could sweep in. So does one outside the work tree and
+// TempRoot, the places shell-guard lets an agent remove files, since a file
+// elsewhere may belong to something other than the capture. A draft that
+// cannot be judged or removed stays without a line.
+func (run *capture) removeDraft(ctx context.Context) {
+	resolved := graphconfig.RealPath(run.path)
+	inWorkTree := within(resolved, run.workTree(ctx))
+	inTemp := within(resolved, graphconfig.RealPath(run.env.TempRoot))
+
+	if !inWorkTree && !inTemp {
+		run.say("draft kept: %s is outside the work tree", run.path)
+
+		return
+	}
+
+	// Outside any work tree `ls-files` fails, so a draft under TempRoot is
+	// untracked then; in the work tree a failure leaves the question open.
+	listed, err := run.env.Git.Output(ctx, filepath.Dir(resolved), "ls-files", "--", resolved)
+	if err != nil && inWorkTree {
+		return
+	}
+
+	if strings.TrimSpace(listed) != "" {
+		run.say("draft kept: %s is tracked by git", run.path)
+
+		return
+	}
+
+	err = os.Remove(resolved)
+	if err != nil {
+		return
+	}
+
+	run.say("draft removed: %s", run.path)
+}
+
+// workTree is the top level of the git work tree the capture runs in, through
+// its symlinks, or nothing outside one.
+func (run *capture) workTree(ctx context.Context) string {
+	top, err := run.env.Git.Output(ctx, run.env.WorkingDir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return ""
+	}
+
+	return graphconfig.RealPath(strings.TrimSpace(top))
+}
+
+func within(target string, directory string) bool {
+	return directory != "" && strings.HasPrefix(target, directory+string(filepath.Separator))
 }
 
 func (run *capture) lock() (func(), error) {

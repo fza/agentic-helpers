@@ -49,6 +49,8 @@ func main() {
 		Getenv:     os.Getenv,
 		SddCache:   sddcaps.CacheDir(cacheRoot),
 		LookPath:   exec.LookPath,
+		Git:        process.Git{},
+		TempRoot:   "/tmp",
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

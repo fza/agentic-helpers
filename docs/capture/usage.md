@@ -108,6 +108,26 @@ pre-flight runs as usual. The flag is refused beside `--skip-preflight`.
 
 Exit 0 is captured, 2 is a high finding holding the draft back, 1 everything else.
 
+## The draft after a capture
+
+Once `sdd new` exits 0, the entry is written and committed, and `agentic-capture` deletes the draft,
+saying `draft removed: <path>` on stderr. A deleted draft cannot be recovered; a summary that drifts
+is fixed with `sdd summarize <id> --text`, which never needs it. Two drafts stay, with a line saying
+why:
+
+- `draft kept: <path> is tracked by git`: deleting it would leave a git change nobody asked for,
+  which another commit could sweep in.
+- `draft kept: <path> is outside the work tree`: it lies outside both the work tree the capture runs
+  in and `/tmp`, the places shell-guard lets an agent remove files, so it may belong to something
+  other than the capture.
+
+A capture that fails, at the lint, the pre-flight, `sdd new` or the time limit, keeps the draft and
+says nothing about it: it is the copy to fix and run again. So does a captured draft where git cannot
+say whether it tracks it.
+
+The plugin option `capture_remove_draft` switches the deletion for the machine, on unless set. Off,
+every draft stays and no line prints.
+
 ## Off on the machine
 
 The plugin option `capture_enabled` switches capture on or off for the machine, on unless set. Off, `agentic-capture` exits 1 with `agentic-capture: off on this machine (plugin option capture_enabled)`; with `grounding_gate_enabled` off it exits 1 with `agentic-capture: off while grounding gate is off (plugin option grounding_gate_enabled)`, since a draft would land ungrounded.

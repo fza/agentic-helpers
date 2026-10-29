@@ -31,6 +31,19 @@ The write runs once. Its only model call is the summary, and sdd writes the entr
 that call fails, so a failure of the write itself comes from the file or git, after the entry may
 already be on disk.
 
+## Removing the draft
+
+Success is `sdd new` exiting 0; it writes and commits in one step, and nothing runs after it, so the
+draft is deleted only then, and only where `capture_remove_draft` is on. Every symlink in the
+draft's path is resolved first. `git rev-parse --show-toplevel`, asked in the working directory,
+names the work tree; a draft outside it and outside `/tmp` stays with `draft kept: <path> is outside
+the work tree`. `git ls-files -- <draft>`, asked in the draft's directory, then says whether git
+tracks it: a tracked draft stays with `draft kept: <path> is tracked by git`, since `git rm` would
+touch the index outside the capture's own commit and a plain deletion would be an uncommitted
+change another commit can sweep in. `ls-files` fails outside any work tree, which leaves a draft
+under `/tmp` untracked; inside the work tree a failure leaves the question open, and the draft stays
+without a line. Git runs behind the `capture.Git` interface, so the tests answer it with a fake.
+
 ## Credentials
 
 The grounding gate scans a capture before the Bash call runs: the command, the draft as it is on

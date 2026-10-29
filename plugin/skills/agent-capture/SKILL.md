@@ -160,8 +160,17 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
 ## After
 
 - **Read the generated summary.** Drift (wrong actor, wrong ref attribution, lost identifier) →
-  `sdd summarize <id> --text '<faithful summary>'`.
-- **The draft stays.** Delete it once the entry reads right.
+  `sdd summarize <id> --text '<faithful summary>'`. Never needs the draft.
+- **Captured (exit 0) → the draft is deleted**, stderr `draft removed: <path>`. Gone for good: never
+  recreate it, never look for it.
+- **Kept, with a line saying why:**
+  - `draft kept: <path> is tracked by git` → the capture leaves no git change nobody asked for. Remove
+    it in its own commit if the project wants it gone.
+  - `draft kept: <path> is outside the work tree` → it lies outside the work tree and `/tmp`, where
+    a file may belong to something else. Leave it, or remove it by hand once sure it is yours.
+- **Kept, no line:** plugin option `capture_remove_draft` off on the machine; or git could not say
+  whether it tracks the draft. Delete it once the entry reads right.
+- **Failed (exit 1 or 2) → the draft always stays**, no line: it is the copy to fix and run again.
 
 ## Off on the machine
 

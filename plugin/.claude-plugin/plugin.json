@@ -155,6 +155,13 @@
       "default": true,
       "required": false
     },
+    "capture_remove_draft": {
+      "type": "boolean",
+      "title": "agentic-capture: remove the draft",
+      "description": "Delete a draft once its entry is captured, unless git tracks it or it lies outside the work tree and /tmp; off keeps every draft",
+      "default": true,
+      "required": false
+    },
     "shell_guard_enabled": {
       "type": "boolean",
       "title": "Switch on shell-guard",

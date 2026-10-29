@@ -127,6 +127,7 @@ type Options struct {
 	ShellGuardAskTimeout int
 	ToolsDuplicateFloor  float64
 	ToolsQueryFloor      float64
+	CaptureRemoveDraft   bool
 	// MemoryEnabled ... ShellGuardEnabled switch each piece on or off for the
 	// machine; every one is on unless set.
 	MemoryEnabled        bool
@@ -143,7 +144,7 @@ var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
 	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachment_budget_mb", "memory_require_git", "memory_language",
 	"memory_turns_off_auto",
-	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor",
+	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
 	"shell_guard_secret_output", "shell_guard_secret_output_skip",
@@ -298,7 +299,7 @@ func Defaults() Options {
 		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentBudgetMB: DefaultAttachmentBudgetMB,
 		MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
-		ToolsQueryFloor:          DefaultToolsQueryFloor,
+		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
 		ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
@@ -412,6 +413,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		"shell_guard_expansion":    &options.ShellGuardExpansion,
 		"shell_guard_nested_code":  &options.ShellGuardNestedCode,
 		"shell_guard_mktemp":       &options.ShellGuardMktemp,
+		"capture_remove_draft":     &options.CaptureRemoveDraft,
 		"memory_enabled":           &options.MemoryEnabled,
 		"tools_enabled":            &options.ToolsEnabled,
 		"scratch_enabled":          &options.ScratchEnabled,
