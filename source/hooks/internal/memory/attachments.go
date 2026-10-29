@@ -231,8 +231,11 @@ func (mem *memory) withinLimit(folded *state, prepared []preparedFile) error {
 	}
 
 	// The project's own files count even where the ledger lacks them: a file
-	// stored before the ledger was kept.
-	maps.Copy(held, mem.heldAttachments(folded))
+	// stored before the ledger was kept. Where both record a size the larger
+	// counts, so neither a log nor the ledger can shrink the other's figure.
+	for hash, bytes := range mem.heldAttachments(folded) {
+		held[hash] = max(held[hash], bytes)
+	}
 
 	before := len(held)
 
@@ -246,7 +249,7 @@ func (mem *memory) withinLimit(folded *state, prepared []preparedFile) error {
 
 	var total int64
 	for _, bytes := range held {
-		total += bytes
+		total = space.Add(total, bytes)
 	}
 
 	limit := int64(mem.options().AttachmentsTotalMB) << 20
@@ -706,7 +709,7 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 
 		for hash := range stored {
 			size, known := sizes[hash]
-			if known {
+			if known && size >= 0 {
 				ledger[hash] = space.Record{Stored: size, Held: size}
 			}
 		}

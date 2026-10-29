@@ -3,6 +3,7 @@ package memory_test
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,58 @@ func TestAttachmentsCountOnceAcrossTheMachine(t *testing.T) {
 
 	if got := other.run("", "attach", held, shared); got.code != 0 {
 		t.Errorf("a file another project already stored should count once, got %d %q", got.code, got.err)
+	}
+}
+
+func TestALedgerCannotWrapTheTotalPastTheLimit(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.limitSpace(`"attachment_max_mb":1,"attachments_total_mb":1`)
+
+	test.WriteFile(t, filepath.Join(h.home, ".claude", "agentic-memory", "attachments", ".space.json"),
+		fmt.Sprintf(`{"a":{"stored":%d,"held":0},"b":{"stored":%d,"held":0}}`, int64(math.MaxInt64), int64(math.MaxInt64)))
+
+	got := h.run("body", "new", "--title", "Finding past the limit", "--topic", "gate", "--attach",
+		h.sizedFile("log.txt", 'l', 1<<10))
+	if got.code != 1 || !strings.Contains(got.err, "past the 1 MB limit (attachments_total_mb)") {
+		t.Errorf("a total past the largest size should stay past the limit, never wrap below it, got %d %q",
+			got.code, got.err)
+	}
+}
+
+func TestANegativeLoggedSizeCannotDefeatTheLimit(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.limitSpace(`"attachment_max_mb":1,"attachments_total_mb":1`)
+
+	held := h.file("Finding with a big log", "body", "--attach", h.sizedFile("first.bin", 'a', 600<<10))
+
+	tail := filepath.Join(h.store(), "log", "tail.jsonl")
+
+	logged, err := os.ReadFile(tail)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	forged := strings.ReplaceAll(string(logged), fmt.Sprintf(`"size":%d`, 600<<10), fmt.Sprintf(`"size":%d`, int64(-1)<<40))
+	if forged == string(logged) {
+		t.Fatal("the log should record the attachment's size")
+	}
+
+	test.WriteFile(t, tail, forged)
+
+	got := h.run("", "attach", held, h.sizedFile("second.bin", 'b', 600<<10))
+	if got.code != 1 || !strings.Contains(got.err, "past the 1 MB limit (attachments_total_mb)") {
+		t.Errorf("a size the log records below nothing should never shrink the machine's total, got %d %q",
+			got.code, got.err)
+	}
+
+	h.must(hookPayload("startup", "", ""), "session-start")
+
+	got = h.run("", "attach", held, h.sizedFile("second.bin", 'b', 600<<10))
+	if got.code != 1 || !strings.Contains(got.err, "past the 1 MB limit (attachments_total_mb)") {
+		t.Errorf("the SessionStart pass should keep a recorded size over one the log records below nothing, got %d %q",
+			got.code, got.err)
 	}
 }
 
@@ -238,6 +291,16 @@ func TestTheViewListsAttachedEntriesBySize(t *testing.T) {
 		t.Errorf("the list should show each file's name and size and the entry's total:\n%s", out)
 	case strings.Index(out, larger) > strings.Index(out, smaller):
 		t.Errorf("rank(size) should list the most attachment bytes first:\n%s", out)
+	}
+
+	if ranked := h.must("", "view", "--layout", "active:rank(size):as-list"); !strings.Contains(ranked,
+		"  attached: big.log (5.0 KB); total 5.0 KB") {
+		t.Errorf("ranking by size alone should show the sizes it ranks by:\n%s", ranked)
+	}
+
+	if filtered := h.must("", "view", "--layout", "active:attached:as-list"); !strings.Contains(filtered,
+		"  attached: big.log (5.0 KB); total 5.0 KB") {
+		t.Errorf("filtering by attached alone should show what each entry holds:\n%s", filtered)
 	}
 
 	if plain := h.must("", "view", "--layout", "active:as-list"); strings.Contains(plain, "attached:") {
