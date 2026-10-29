@@ -20,8 +20,8 @@ inside a git work tree unless `memory_require_git` is off.
 
 ## Verbs
 
-    agentic-tools find [--query '<need>'] [--term '<literal>']... [--limit <n>] [--page <n>] [--json]
-    agentic-tools list [--json]
+    agentic-tools find [--query '<need>'] [--term '<literal>']... [--limit <n>] [--page <n>] [--json] [--again]
+    agentic-tools list [--json] [--again]
     agentic-tools take <name>...
     agentic-tools add <name> --from <path> --summary '<one line>' --usage '<how to run it>' [--inputs '<...>'] [--outputs '<...>'] [--distinct '<how it differs>']
     agentic-tools update <name> [--from <path>] [--summary ...] [--usage ...] [--inputs ...] [--outputs ...] --why '<what changed>'
@@ -135,6 +135,21 @@ at `<path>`, a second clone or a CI checkout, for agentic-tools and agentic-memo
 its own `.tmp/` only, recording nothing; its hooks stay silent. A list that cannot be read refuses
 every write until it is mended.
 
+## Each tool version once per context
+
+find and list print a tool version in full once per context. A later find or list hitting the same
+version prints a pointer in its place, keeping its rank, without its usage lines:
+
+    word-count v1 (seen)
+
+Over MCP and `--json` such a tool is `{"name", "label", "version", "seen": true}`. A newer version
+prints in full. The offer skips an own tool find or list printed, and names each tool once. A
+compaction, `/clear` and a resume start afresh; so does the next session of the same `claude`
+process. `--again` (MCP `"again": true`) on `find` and `list` prints every hit in full. A freshly
+spawned subagent shares its parent's `claude` process and never saw what it printed, so it passes
+`again`; a forked one inherits the context and needs none. Where no owning `claude` process is
+found, everything prints in full.
+
 ## Names and reach
 
 A bare name reaches the own project's tool first, else the one tool of that name another project
@@ -155,7 +170,7 @@ Each line names tools, paths and commands only, never another agent's summary or
 | the next prompt after a turn left scripts the library lacks | `` tool library: your scratch holds scripts the library lacks: check.py, split.sh. `agentic-tools add <name> --from <path> --summary '...' --usage '...'` registers one `` |
 | the next prompt after a turn changed a taken copy | `` tool library: you changed your copy of `word-count` (<copy>): `agentic-tools update word-count --from <copy> --why '...'` `` |
 
-The offer names up to three own tools, each once per session, the caller's role first; nothing when
+The offer names up to three own tools, each once per context and none find or list printed, the caller's role first; nothing when
 none is near. A prompt holding a credential is never embedded and gets no offer; agentic-memory
 says so once ([memory](../memory/usage.md#prompt-recall-and-credentials)). The two turn-end lines also open the session's next agentic-tools call, once.
 

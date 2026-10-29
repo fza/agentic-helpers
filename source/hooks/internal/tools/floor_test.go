@@ -51,12 +51,13 @@ func TestTheQueryFloorDefaultsAndMoves(t *testing.T) {
 		t.Fatal("the test needs a need scoring between 0.45 and 0.6 against the tool")
 	}
 
-	if !strings.Contains(h.must("find", "--query", need), "markdown-words") {
-		t.Errorf("a need at %.2f should be found under the default floor", score)
-	}
-
+	// The offer goes first: it skips a tool find already printed.
 	if !strings.Contains(h.hook("prompt", map[string]any{"prompt": need}), "markdown-words") {
 		t.Error("the offer should hold to the default floor too")
+	}
+
+	if !strings.Contains(h.must("find", "--query", need), "markdown-words") {
+		t.Errorf("a need at %.2f should be found under the default floor", score)
 	}
 
 	h.queryFloor(score + 0.01)

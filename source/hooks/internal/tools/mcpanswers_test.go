@@ -21,8 +21,8 @@ func TestEveryToolAnswersItsOutputSchema(t *testing.T) {
 	h.elsewhere(otherRepo).tool("tally-rows", "Tally the rows of a table")
 
 	calls := []struct{ tool, arguments string }{
-		{"list", `{}`},
-		{"list", `{"json":true}`},
+		{"list", `{"again":true}`},
+		{"list", `{"json":true,"again":true}`},
 		{"find", `{"term":["count"]}`},
 		{"take", `{"names":["word-count"]}`},
 		{"add", `{"name":"csv-sum","from":"` + added + `","summary":"Sum a column of a CSV file","usage":"python3 csv-sum.py"}`},
@@ -151,7 +151,7 @@ func TestTheJSONKeyPassesOnlyWhereTheCommandTakesJSON(t *testing.T) {
 	cases := []struct {
 		name, tool, without, with, refusal string
 	}{
-		{name: "find, whose command takes --json", tool: "find", without: `{"term":["words"]}`, with: `{"term":["words"],"json":true}`},
+		{name: "find, whose command takes --json", tool: "find", without: `{"term":["words"],"again":true}`, with: `{"term":["words"],"json":true,"again":true}`},
 		{name: "list, whose command takes --json", tool: "list", without: `{}`, with: `{"json":false}`},
 		{name: "take, whose command takes no --json", tool: "take", with: `{"names":["word-count"],"json":true}`,
 			refusal: `take takes no key \"json\"; it takes names`},

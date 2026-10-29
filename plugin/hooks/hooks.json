@@ -13,6 +13,7 @@
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-memory session-log 5", "timeout": 120 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-scratch start", "timeout": 120 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-grounding-gate start", "timeout": 120 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-tools start", "timeout": 120 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" --session-start agentic-helpers check", "timeout": 120 }
         ]
       }

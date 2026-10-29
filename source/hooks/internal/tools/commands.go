@@ -31,6 +31,7 @@ type request struct {
 	Limit    int      `json:"limit"`
 	Page     int      `json:"page"`
 	JSON     bool     `json:"json"`
+	Again    bool     `json:"again"`
 }
 
 type flagKind int
@@ -59,9 +60,10 @@ type command struct {
 
 // text, names and number are a key's type, described by described.
 const (
-	text   = `{"type":"string"}`
-	names  = `{"type":"array","items":{"type":"string"}}`
-	number = `{"type":"integer","minimum":1}`
+	text    = `{"type":"string"}`
+	names   = `{"type":"array","items":{"type":"string"}}`
+	number  = `{"type":"integer","minimum":1}`
+	boolean = `{"type":"boolean"}`
 )
 
 // described is a key's schema with what the key is for.
@@ -81,19 +83,20 @@ func commands() []command {
 	return []command{
 		{
 			name:        "find",
-			usage:       "find [--query '<need>'] [--term '<literal>']... [--limit <n>] [--page <n>] [--json]",
+			usage:       "find [--query '<need>'] [--term '<literal>']... [--limit <n>] [--page <n>] [--again] [--json]",
 			description: "search the tool library of every project on the machine, the own project first",
 			flags: []flagSpec{{"query", flagText}, {"term", flagList}, {"limit", flagNumber}, {"page", flagNumber},
-				{"json", flagSwitch}},
+				{"json", flagSwitch}, {"again", flagSwitch}},
 			run: (*library).find,
 			schema: `{"type":"object","properties":{"query":` + described(text, "a need, matched by meaning") +
 				`,"term":` + described(names, "literals, every one required") +
-				`,"limit":` + described(number, "tools per page") + `,"page":` + described(number, "the page to answer, from 1") + `}}`,
+				`,"limit":` + described(number, "tools per page") + `,"page":` + described(number, "the page to answer, from 1") +
+				`,"again":` + described(boolean, "print tools already seen in full") + `}}`,
 		},
 		{
-			name: "list", usage: "list [--json]", description: "list the own project's tools and how many each other project holds",
-			flags: []flagSpec{{"json", flagSwitch}}, run: (*library).list,
-			schema: `{"type":"object","properties":{}}`,
+			name: "list", usage: "list [--again] [--json]", description: "list the own project's tools and how many each other project holds",
+			flags: []flagSpec{{"json", flagSwitch}, {"again", flagSwitch}}, run: (*library).list,
+			schema: `{"type":"object","properties":{"again":` + described(boolean, "print tools already seen in full") + `}}`,
 		},
 		{
 			name: "take", usage: "take <name>...", description: "copy the current version of each named tool into the checkout, all or none",
@@ -231,7 +234,8 @@ func parseArgs(held command, args []string) (request, error) {
 		}
 
 		if spec.kind == flagSwitch {
-			req.JSON = true
+			req.JSON = req.JSON || name == "json"
+			req.Again = req.Again || name == "again"
 
 			continue
 		}

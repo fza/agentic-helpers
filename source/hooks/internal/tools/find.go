@@ -126,12 +126,21 @@ func (lib *library) find(ctx context.Context, req request) result {
 	end := min(start+limit, len(hits))
 	shown := hits[start:end]
 
+	seen := lib.presenting(ctx, req.Again)
+	defer seen.save()
+
 	if req.JSON {
-		return lib.findJSON(shown, len(hits), total, len(stores), page)
+		return lib.findJSON(seen, shown, len(hits), total, len(stores), page)
 	}
 
 	lines := []string{framing}
 	for _, hit := range shown {
+		if seen.printed(hit.hit) {
+			lines = append(lines, seenPointer(hit.hit))
+
+			continue
+		}
+
 		lines = append(lines, hitLine(hit))
 	}
 
@@ -200,6 +209,9 @@ type listedTool struct {
 	Outputs string   `json:"outputs"`
 	Score   *float64 `json:"score,omitempty"`
 	Takers  int      `json:"takers"`
+	// Seen marks a version the calling agent's context already holds; it then
+	// answers with its name and version alone.
+	Seen bool `json:"-"`
 }
 
 func asListed(hit found, score *float64) listedTool {
@@ -232,10 +244,12 @@ type listing[T any] struct {
 	Page     int    `json:"page"`
 }
 
-func (lib *library) findJSON(shown []ranked, matching int, total int, projects int, page int) result {
+func (lib *library) findJSON(seen *presented, shown []ranked, matching int, total int, projects int, page int) result {
 	tools := make([]scoredTool, 0, len(shown))
 	for _, hit := range shown {
-		tools = append(tools, scoredTool{listedTool: asListed(hit.hit, nil), Score: hit.score})
+		listed := asListed(hit.hit, nil)
+		listed.Seen = seen.printed(hit.hit)
+		tools = append(tools, scoredTool{listedTool: listed, Score: hit.score})
 	}
 
 	return encoded(listing[scoredTool]{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(shown),
@@ -255,11 +269,17 @@ func (lib *library) list(ctx context.Context, req request) result {
 	stores := lib.stores(ctx)
 	own := stores[0]
 
+	seen := lib.presenting(ctx, req.Again)
+	defer seen.save()
+
 	if req.JSON {
 		tools := []listedTool{}
 
 		for _, name := range own.names() {
-			tools = append(tools, asListed(found{store: own, tool: own.index.Tools[name]}, nil))
+			hit := found{store: own, tool: own.index.Tools[name]}
+			listed := asListed(hit, nil)
+			listed.Seen = seen.printed(hit)
+			tools = append(tools, listed)
 		}
 
 		total := 0
@@ -275,6 +295,12 @@ func (lib *library) list(ctx context.Context, req request) result {
 
 	for _, name := range own.names() {
 		tool := own.index.Tools[name]
+
+		if seen.printed(found{store: own, tool: tool}) {
+			lines = append(lines, seenPointer(found{store: own, tool: tool}))
+
+			continue
+		}
 
 		taken := fmt.Sprintf("taken %d", tool.Takes)
 		if tool.LastTake != "" {

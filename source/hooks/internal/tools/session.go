@@ -28,8 +28,6 @@ type nudge struct {
 // sessionState is what one session holds and has been told.
 type sessionState struct {
 	Holdings []holding `json:"holdings"`
-	// Shown is every own tool the offer named this session.
-	Shown []string `json:"shown"`
 	// Notified is the newest version a notice named, per holding key.
 	Notified map[string]int `json:"notified"`
 	// Pending are nudges stop found, delivered once; Nudged are their keys

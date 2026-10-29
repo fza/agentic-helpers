@@ -27,6 +27,7 @@ var hooks = map[string]func(lib *library, ctx context.Context) int{
 	"notice": (*library).notice,
 	"stop":   (*library).stop,
 	"end":    (*library).end,
+	"start":  (*library).start,
 }
 
 // hookPayload reads the event and takes its session. A hook never fails its
@@ -101,15 +102,21 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 
 	defer func() { _ = snapshot.Close() }()
 
-	state := lib.loadSession()
+	// The offer names tools only, so it never counts as printing their lines;
+	// it skips what find or list printed, and what it named itself, since the
+	// context last started afresh.
+	seen := lib.presenting(ctx, false)
 
 	var candidates []string
 
 	wanted := map[string]bool{}
 
 	for _, name := range own.names() {
-		described := own.index.Tools[name].Described
-		if !slices.Contains(state.Shown, name) && snapshot.Holds(described, described) {
+		hit := found{store: own, tool: own.index.Tools[name]}
+		described := hit.tool.Described
+
+		offered := seen != nil && (slices.Contains(seen.set.Offered, name) || slices.Contains(seen.set.Lines, versionKey(hit)))
+		if !offered && snapshot.Holds(described, described) {
 			candidates = append(candidates, name)
 			wanted[described] = true
 		}
@@ -175,10 +182,14 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 	var named []string
 	for _, hit := range near {
 		named = append(named, hit.name)
-		state.Shown = append(state.Shown, hit.name)
+
+		if seen != nil {
+			seen.set.Offered = append(seen.set.Offered, hit.name)
+			seen.changed = true
+		}
 	}
 
-	_ = lib.saveSession(state)
+	seen.save()
 
 	return fmt.Sprintf("tool library: near this prompt: %s. `%s take <name>` copies one", strings.Join(named, ", "), self)
 }
@@ -523,7 +534,8 @@ func copyChanged(held holding) (bool, string) {
 	return false, ""
 }
 
-// end removes the session's file and its prompt vector slot.
+// end removes the session's file, its prompt vector slot and what its
+// context held.
 func (lib *library) end(ctx context.Context) int {
 	_, usable := lib.hookPayload(ctx)
 	if !usable {
@@ -532,6 +544,18 @@ func (lib *library) end(ctx context.Context) int {
 
 	_ = os.Remove(lib.sessionPath())
 	promptvector.Remove(lib.promptVectors(), lib.session)
+	lib.forgetSeen(ctx)
+
+	return 0
+}
+
+// start empties what the context held where it starts afresh: a compaction,
+// a `/clear` or a resume.
+func (lib *library) start(ctx context.Context) int {
+	payload, usable := lib.hookPayload(ctx)
+	if usable && slices.Contains([]string{"compact", "clear", "resume"}, payload.Source) {
+		lib.forgetSeen(ctx)
+	}
 
 	return 0
 }
