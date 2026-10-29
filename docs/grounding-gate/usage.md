@@ -20,6 +20,14 @@ the entry back for the owner's confirmation and checks its summary, which `agent
 not. `cli_capture: true` in `.sdd/grounding.yaml` lifts the refusal for a project capturing through
 `agentic-capture` on purpose. A plain `sdd new` keeps its own rule.
 
+**How much of the dialogue stays the owner's is sdd's setting, not the gate's.** The sdd fork reads
+`dialogue.mode` (`guided`, the default, or `autonomous`) from the user's own sdd config or
+`.sdd/config.local.yaml`, never the committed `.sdd/config.yaml`: `sdd config set [--local]
+dialogue.mode autonomous`. Under `autonomous` the agent starts and concludes moves and sessions
+itself and answers a delegable chooser, the playback included, with its own `reason`; overriding a
+failed pre-flight stays the owner's. A changed mode reaches new sessions only. The gate's reads and
+credential scan hold under either mode.
+
 **A graph write holding a credential is refused, whatever else holds.** A Bash `sdd new` or
 `agentic-capture` command's text and every file a plain `sdd new` attaches, the `agentic-capture`
 draft and every file its header's `attach` names, the `report` of `mcp__sdd__next`, the `params`
