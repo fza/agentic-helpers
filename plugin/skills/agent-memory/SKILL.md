@@ -38,7 +38,7 @@ Memory works in the background. The user hears of it only when something goes wr
 ```bash
 agentic-memory claim <seat>        # prints brief + last turns of the previous session
 agentic-memory release [<seat>]
-agentic-memory who [--all]         # seats, shelves, state, filed / used (14d); frees dead holders
+agentic-memory who [--all] [--unused] # seats, shelves, state, filed / used (14d); frees dead holders
 agentic-memory rename '<new name>' # this seat; id and entries stay
 ```
 
@@ -131,6 +131,8 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - **Only use warms** (`confirm`, `show`, `link`, a search's top hits); heat orders the brief. A read
   nobody asked for (sweep, script, loop) → `--no-heat` (MCP `"no_heat": true`).
 - `who` shows `filed <n> / used <m> (14d)`. Filing far more than using → file less, retire unread.
+  Free seats with `filed 0 / used 0` are counted, not listed: `+<n> unused seats: agentic-memory who
+  --unused`. A seat the user names is missing from `who` → run that.
 
 ## Change
 

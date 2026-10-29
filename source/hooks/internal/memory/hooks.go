@@ -174,7 +174,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		return 0
 	}
 
-	_ = mem.seatRows(ctx, true)
+	_ = mem.seatRecords(ctx, true)
 
 	inherited := mem.inherit(ctx, payload)
 	if inherited != "" {

@@ -905,22 +905,30 @@ answer carries are the ones below. The command line keeps its text and its `--js
 
 ## Seats of the project, and of the machine
 
-`agentic-memory who` (MCP `who`) lists every seat of the current project, one row each, grouped by
-shelf, then by seat:
+`agentic-memory who` lists the seats of the current project, one row each, grouped by shelf, then
+by seat:
 
     impl   shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET  filed 6 / used 2 (14d)
     rev    shelf row-7ah  reserved a1b2c3d4  filed 0 / used 0 (14d)
     main   shelf main     free  filed 3 / used 5 (14d)
     gone   shelf gone     free (holder a1b2c3d4 gone, freed)  filed 0 / used 0 (14d)
+    +12 unused seats: agentic-memory who --unused
 
 Each row ends with the seat's entries filed in the last 14 days and how many of all its entries a
 use warmed in that time (see [Search](#search)), so a seat filing far more than it uses shows it.
 
+A free seat with `filed 0 / used 0` is left out and counted in the block's last line, `+<n> unused
+seats: agentic-memory who --unused`; `who --unused` lists it too. Every seat ever claimed stays in
+the store, a finished board row's seats among them, and listing each would bury the seats in use.
+A held or reserved seat is always listed, as is a seat this call freed. `who --json` and the MCP
+`who` tool list every seat.
+
 It frees the project's claims whose holder is gone and its reservations nobody took over in 10
 minutes, saying `freed` on their row; from a checkout not listed for the project it frees nothing.
 `who --all` (MCP key `all`) adds every other project's seats on the machine, a migration's backups
-aside, under a line naming the project key; it never writes to another project's store. `who`
-migrates no store and runs anywhere: outside a project it says `no seat in this project` and, with
+aside, under a line naming the project key, each project's block closing with its own count line,
+`+<n> unused seats: agentic-memory who --all --unused`; it never writes to another project's store.
+`who` migrates no store and runs anywhere: outside a project it says `no seat in this project` and, with
 `--all`, lists the others.
 
 ## Other tools

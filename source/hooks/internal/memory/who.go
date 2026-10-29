@@ -16,11 +16,13 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/writers"
 )
 
-// who lists every seat of the current project, held, reserved or free, with
+// who lists the seats of the current project, held, reserved or free, with
 // its shelf, and frees the project's claims whose holder is gone and its
 // reservations nobody took over. With --all it adds every other project's
 // seats on the machine under a heading naming the project, and never writes
-// to another project. It runs from anywhere and migrates no store.
+// to another project. A free seat nothing was filed by or used from in
+// usedWindow is counted rather than listed, unless --unused. It runs from
+// anywhere and migrates no store.
 func (mem *memory) who(ctx context.Context, req request) result {
 	if req.JSON {
 		return mem.whoJSON(ctx, req)
@@ -33,7 +35,7 @@ func (mem *memory) who(ctx context.Context, req request) result {
 	if mem.key != "" && mem.storeExists() {
 		here = mem.key
 
-		rows := mem.seatRows(ctx, mem.mayFree(ctx))
+		rows := seatLines(mem.seatRecords(ctx, mem.mayFree(ctx)), req.Unused, self+" who --unused")
 		if len(rows) == 0 {
 			rows = []string{"no seat in this project"}
 		}
@@ -54,7 +56,7 @@ func (mem *memory) who(ctx context.Context, req request) result {
 
 		other := &memory{env: mem.env, streams: mem.streams, key: key}
 
-		rows := other.seatRows(ctx, false)
+		rows := seatLines(other.seatRecords(ctx, false), req.Unused, self+" who --all --unused")
 		if len(rows) > 0 {
 			blocks = append(blocks, key+":\n"+indent(rows))
 		}
@@ -157,9 +159,16 @@ type seatRow struct {
 	shelf, seat, state string
 	usage              seatUse
 	// status is held, reserved or free, and holder the claim of a held or
-	// reserved seat.
+	// reserved seat; freed is a free seat whose gone holder this call freed.
 	status string
 	holder *seat.Claim
+	freed  bool
+}
+
+// unused is a free seat nothing was filed by or used from within usedWindow.
+// A seat this call freed is listed once, so the freeing is seen.
+func (row seatRow) unused() bool {
+	return row.status == seatFree && !row.freed && row.usage.filed == 0 && row.usage.used == 0
 }
 
 const (
@@ -251,7 +260,7 @@ func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 			row.state = "reserved " + short(claim.SessionID)
 		case free:
 			mem.sweep(ctx, key, claim)
-			row.state = fmt.Sprintf("free (holder %s gone, freed)", short(claim.SessionID))
+			row.state, row.freed = fmt.Sprintf("free (holder %s gone, freed)", short(claim.SessionID)), true
 		}
 
 		rows = append(rows, row)
@@ -264,8 +273,6 @@ func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 	return rows
 }
 
-// seatRows is one line per seat of the store, grouped by shelf, freeing the
-// claims nobody uses any more where free is set.
 // sweep frees the seat filed under key from the claim a gone holder left,
 // under the seats lock, so a claim written since the holder was judged gone
 // stays.
@@ -284,8 +291,23 @@ func (mem *memory) sweep(ctx context.Context, key string, gone seat.Claim) {
 	}
 }
 
-func (mem *memory) seatRows(ctx context.Context, free bool) []string {
-	rows := mem.seatRecords(ctx, free)
+// seatLines is one line per seat of rows, grouped by shelf as rows come, the
+// unused ones left out and counted in a closing line naming the command that
+// lists them, unless every seat is asked for.
+func seatLines(rows []seatRow, every bool, listsUnused string) []string {
+	unused := 0
+
+	if !every {
+		rows = slices.DeleteFunc(slices.Clone(rows), func(row seatRow) bool {
+			if row.unused() {
+				unused++
+
+				return true
+			}
+
+			return false
+		})
+	}
 
 	seats := 0
 	for _, row := range rows {
@@ -297,11 +319,15 @@ func (mem *memory) seatRows(ctx context.Context, free bool) []string {
 		shelves = max(shelves, len([]rune(row.shelf)))
 	}
 
-	lines := make([]string, 0, len(rows))
+	lines := make([]string, 0, len(rows)+1)
 	for _, row := range rows {
 		lines = append(lines, fmt.Sprintf("%s%s  shelf %s%s  %s  filed %d / used %d (14d)", row.seat,
 			strings.Repeat(" ", seats-len([]rune(row.seat))), row.shelf, strings.Repeat(" ", shelves-len([]rune(row.shelf))),
 			row.state, row.usage.filed, row.usage.used))
+	}
+
+	if unused > 0 {
+		lines = append(lines, "+"+plural(unused, "unused seat")+": "+listsUnused)
 	}
 
 	return lines

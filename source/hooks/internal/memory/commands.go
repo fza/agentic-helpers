@@ -76,6 +76,7 @@ type request struct {
 	Lifetime       string   `json:"lifetime,omitempty"`
 	Value          string   `json:"value,omitempty"`
 	All            bool     `json:"all,omitempty"`
+	Unused         bool     `json:"unused,omitempty"`
 	JSON           bool     `json:"json,omitempty"`
 	NoHeat         bool     `json:"no_heat,omitempty"`
 	Layout         string   `json:"layout,omitempty"`
@@ -263,7 +264,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	numbers := map[string]*int{"limit": &req.Limit, "skip": &req.Skip, "offset": &req.Offset, "max-bytes": &req.MaxBytes}
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
-		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done,
+		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
 	}
 
 	switch spec.kind {
@@ -611,9 +612,9 @@ func allCommands() []command {
 			schema: `{"type":"object","properties":{"path":{"type":"string","description":"a checkout of this project"}},"required":["path"]}`,
 		},
 		{
-			name: "who", usage: "who [--all]",
+			name: "who", usage: "who [--all] [--unused]",
 			description: "this project's seats and shelves; frees seats whose holder is gone",
-			flags: []flagSpec{{"all", flagSwitch}}, run: (*memory).who,
+			flags: []flagSpec{{"all", flagSwitch}, {"unused", flagSwitch}}, run: (*memory).who,
 			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add other projects' seats"}}}`,
 		},
 		{
