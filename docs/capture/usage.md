@@ -112,7 +112,7 @@ Exit 0 is captured, 2 is a high finding holding the draft back, 1 everything els
 
 Once `sdd new` exits 0, the entry is written and committed, and `agentic-capture` deletes the draft,
 saying `draft removed: <path>` on stderr. A deleted draft cannot be recovered; a summary that drifts
-is fixed with `sdd summarize <id> --text`, which never needs it. Two drafts stay, with a line saying
+is fixed with `sdd summarize <id> --text`, which never needs it. These drafts stay, with a line saying
 why:
 
 - `draft kept: <path> is tracked by git`: deleting it would leave a git change nobody asked for,
@@ -120,10 +120,14 @@ why:
 - `draft kept: <path> is outside the work tree`: it lies outside both the work tree the capture runs
   in and `/tmp`, the places shell-guard lets an agent remove files, so it may belong to something
   other than the capture.
+- `draft kept: <path> is not a regular file`: the path is a symlink or no plain file, and the capture
+  never deletes through a link; neither the link nor its target is touched.
+- `draft kept: <path> changed while it was checked`: another file took the path while git was asked
+  about it, so the file there now was never judged.
 
 A capture that fails, at the lint, the pre-flight, `sdd new` or the time limit, keeps the draft and
 says nothing about it: it is the copy to fix and run again. So does a captured draft where git cannot
-say whether it tracks it.
+say whether it tracks it, or whose deletion fails.
 
 The plugin option `capture_remove_draft` switches the deletion for the machine, on unless set. Off,
 every draft stays and no line prints.

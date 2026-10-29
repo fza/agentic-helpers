@@ -919,7 +919,22 @@ func (run *capture) write(ctx context.Context, held draft, preflight string) int
 // TempRoot, the places shell-guard lets an agent remove files, since a file
 // elsewhere may belong to something other than the capture. A draft that
 // cannot be judged or removed stays without a line.
+//
+// Only the path as given is ever removed, and only while it is the regular
+// file the checks judged: a symlink would have them judge its target, and a
+// file swapped in while git runs was never judged at all.
 func (run *capture) removeDraft(ctx context.Context) {
+	judged, err := os.Lstat(run.path)
+	if err != nil {
+		return
+	}
+
+	if !judged.Mode().IsRegular() {
+		run.say("draft kept: %s is not a regular file", run.path)
+
+		return
+	}
+
 	resolved := graphconfig.RealPath(run.path)
 	inWorkTree := within(resolved, run.workTree(ctx))
 	inTemp := within(resolved, graphconfig.RealPath(run.env.TempRoot))
@@ -930,10 +945,11 @@ func (run *capture) removeDraft(ctx context.Context) {
 		return
 	}
 
-	// Outside any work tree `ls-files` fails, so a draft under TempRoot is
-	// untracked then; in the work tree a failure leaves the question open.
+	// A draft past the check above and outside the work tree lies under
+	// TempRoot, where git refusing a directory outside any repository means
+	// nothing tracks it. Any other failure leaves the question open.
 	listed, err := run.env.Git.Output(ctx, filepath.Dir(resolved), "ls-files", "--", resolved)
-	if err != nil && inWorkTree {
+	if err != nil && (inWorkTree || !errors.Is(err, process.ErrNotARepository)) {
 		return
 	}
 
@@ -943,7 +959,18 @@ func (run *capture) removeDraft(ctx context.Context) {
 		return
 	}
 
-	err = os.Remove(resolved)
+	current, err := os.Lstat(run.path)
+	if err != nil {
+		return
+	}
+
+	if !os.SameFile(judged, current) {
+		run.say("draft kept: %s changed while it was checked", run.path)
+
+		return
+	}
+
+	err = os.Remove(run.path)
 	if err != nil {
 		return
 	}

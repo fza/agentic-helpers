@@ -34,15 +34,23 @@ already be on disk.
 ## Removing the draft
 
 Success is `sdd new` exiting 0; it writes and commits in one step, and nothing runs after it, so the
-draft is deleted only then, and only where `capture_remove_draft` is on. Every symlink in the
-draft's path is resolved first. `git rev-parse --show-toplevel`, asked in the working directory,
-names the work tree; a draft outside it and outside `/tmp` stays with `draft kept: <path> is outside
-the work tree`. `git ls-files -- <draft>`, asked in the draft's directory, then says whether git
-tracks it: a tracked draft stays with `draft kept: <path> is tracked by git`, since `git rm` would
-touch the index outside the capture's own commit and a plain deletion would be an uncommitted
-change another commit can sweep in. `ls-files` fails outside any work tree, which leaves a draft
-under `/tmp` untracked; inside the work tree a failure leaves the question open, and the draft stays
-without a line. Git runs behind the `capture.Git` interface, so the tests answer it with a fake.
+draft is deleted only then, and only where `capture_remove_draft` is on. The path as given must be a
+regular file under `lstat`: a symlink stays with `draft kept: <path> is not a regular file`, since
+the checks below would judge its target. Every symlink among the path's parents is then resolved.
+`git rev-parse --show-toplevel`, asked in the working directory, names the work tree; a draft outside
+it and outside `/tmp` stays with `draft kept: <path> is outside the work tree`.
+`git ls-files -- <draft>`, asked in the draft's directory, then says whether git tracks it: a tracked
+draft stays with `draft kept: <path> is tracked by git`, since `git rm` would touch the index outside
+the capture's own commit and a plain deletion would be an uncommitted change another commit can sweep
+in. Git runs under `LC_ALL=C`, so its refusal outside a repository (`not a git repository`) reads the
+same on every machine; that refusal leaves a draft under `/tmp` untracked, and every other failure,
+or that refusal for a draft inside the work tree, leaves the question open and the draft stays
+without a line. Right before the deletion the path is `lstat`ed again: a file other than the one
+judged (`os.SameFile`) stays with `draft kept: <path> changed while it was checked`. Only the path
+as given is deleted, never a resolved target. A swap between that last `lstat` and the deletion
+remains possible; only an `unlinkat` against a held directory would close it, and both files would
+then lie where an agent may delete files anyway. Git runs behind the `capture.Git` interface, so the
+tests answer it with a fake.
 
 ## Credentials
 

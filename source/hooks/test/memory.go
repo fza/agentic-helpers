@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"math"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
 // Git answers the questions agentic-memory asks git: whether the directory is
@@ -35,10 +37,15 @@ type Git struct {
 	Unborn bool
 	// Log answers `log --oneline -n <n> <range>` by its range.
 	Log map[string]string
-	// Tracked lists the paths `ls-files -- <path>` names as tracked, and
-	// ListFails answers `ls-files` as git does outside a work tree.
-	Tracked   []string
-	ListFails bool
+	// Tracked lists the paths `ls-files -- <path>` names as tracked.
+	// ListOutsideRepository answers `ls-files` as git does outside a
+	// repository, ListFails as git failing any other way.
+	Tracked               []string
+	ListOutsideRepository bool
+	ListFails             bool
+	// Before runs ahead of every call it answers, the way a file changes on
+	// disk while git runs.
+	Before func(args []string)
 
 	mutex sync.Mutex
 	calls [][]string
@@ -61,6 +68,10 @@ func (fake *Git) Calls() [][]string {
 }
 
 func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, error) {
+	if fake.Before != nil {
+		fake.Before(args)
+	}
+
 	fake.mutex.Lock()
 	fake.calls = append(fake.calls, slices.Clone(args))
 	branch := fake.Branch
@@ -126,8 +137,10 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 
 	if len(args) == 3 && args[0] == "ls-files" && args[1] == "--" {
 		switch {
+		case fake.ListOutsideRepository:
+			return "", fmt.Errorf("running git %v: %w", args, process.ErrNotARepository)
 		case fake.ListFails:
-			return "", errors.New("fatal: not a git repository")
+			return "", errors.New("fatal: unable to read index file")
 		case slices.Contains(fake.Tracked, args[2]):
 			return args[2] + "\n", nil
 		}
