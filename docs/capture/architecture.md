@@ -19,8 +19,12 @@ command substitution and every code identifier vanishes from an entry that can n
 
 ## The pre-flight's provider
 
-Each try runs under its own time limit, and a cut-off try kills sdd's whole process group, so a
-`claude -p` it started dies with it. A provider fault waits 10 seconds, then 30, and gives up after
+The limit reaches sdd as `sdd new --preflight-timeout`, the bound sdd puts on the pre-flight's model
+call, where the probe of `sdd new --help` finds the flag; without a caller's limit it is the larger of
+5m and sdd's configured `llm.timeout`, read once per capture with `sdd config get`. Each try is cut
+off after that limit, sdd's extraction bound (`llm.extract_timeout`) and a 30-second margin, so sdd's
+own bound fires first, and a cut-off try kills sdd's whole process group, so a `claude -p` it started
+dies with it. A provider fault waits 10 seconds, then 30, and gives up after
 the third try; the fallback routes then get one try each. The faults told apart from a refusal are
 an empty answer, a rate limit, status 408, 409 or 5xx, and a timeout; a refusal is checked first, so
 a high finding quoting "timed out" is still a refusal.

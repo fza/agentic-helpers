@@ -9,7 +9,7 @@ lists it in its `--help`.
 agentic-capture <draft.md>                                    # lint, pre-flight, capture
 agentic-capture <draft.md> --force                            # capture despite a high finding: the graph owner's call
 agentic-capture <draft.md> --skip-preflight                   # no pre-flight; the entry records that nothing checked it
-agentic-capture <draft.md> --preflight-limit 8m               # cut off each pre-flight try after 8m (default 5m)
+agentic-capture <draft.md> --preflight-limit 8m               # give each pre-flight try's model call 8m
 agentic-capture <draft.md> --preflight-route <model>=<layer>  # a fallback for the pre-flight, repeatable
 agentic-capture <draft.md> --preflight-done <sha256>          # the caller ran the pre-flight on these bytes
 agentic-capture --help                                        # usage and one line per flag
@@ -80,9 +80,22 @@ fork's `--preflight-verified`), and a graph whose `.sdd/meta.json` holds `graph_
 
 The pre-flight is a model call, so a provider can fail it without the draft being at fault. A try
 that answers nothing, is rate-limited, fails with status 408, 409 or 5xx, times out within sdd, or
-runs past `--preflight-limit` (or `CAPTURE_PREFLIGHT_LIMIT` for a caller; the flag wins) runs again
-after 10 seconds, then after 30, and gives up with exit 1 after the third. A refusal of the draft
-never retries: a high finding, a shape error, or any other status.
+runs past its cut-off runs again after 10 seconds, then after 30, and gives up with exit 1 after the
+third. A refusal of the draft never retries: a high finding, a shape error, or any other status.
+Giving up after timeouts adds `a long draft may need more than <limit>; run again with a longer
+--preflight-limit`, since a long draft takes the model longer and the same limit fails the same way.
+
+The limit is the model call's bound per try: `--preflight-limit`, else `CAPTURE_PREFLIGHT_LIMIT` (the
+flag wins), else the larger of 5m and sdd's configured `llm.timeout` (`sdd config get llm.timeout`),
+so an owner's higher setting is never cut down. It reaches sdd as `sdd new --preflight-timeout
+<limit>` wherever `sdd new --help` lists the flag, stock and fork alike. That flag does not bound the
+extraction sdd falls back to (`llm.extract_timeout`, 1m unless configured), so a try is cut off only
+after the limit, the extraction's bound and 30 seconds more, and sdd's own bound fires first. An sdd
+without the flag keeps its own `llm.timeout`, and the limit alone cuts the try off.
+
+A capture through sdd's MCP server has no such flag: only `llm.timeout` reaches its model calls
+(writing guide, pre-flight, summary). Where it fails with `claude -p timed out` on a long entry,
+raising it (`sdd config set --local llm.timeout 5m`) is the owner's call.
 
 A caller with more than one provider names fallback routes, each with
 `--preflight-route <model>=<layer>`: the model sdd gets as `--model`, and a configuration layer it

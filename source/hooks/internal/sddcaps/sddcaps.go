@@ -32,7 +32,7 @@ const (
 	// surfaces counts the changes to what the probe reads. It opens the cache
 	// key, so an answer kept before a surface was added is probed again
 	// rather than read as the binary lacking it.
-	surfaces = 2
+	surfaces = 3
 )
 
 // Caps is what one sdd binary offers. Runs is false where no sdd answered;
@@ -41,6 +41,7 @@ type Caps struct {
 	Runs              bool   `json:"runs"`
 	Printed           string `json:"-"`
 	PreflightVerified bool   `json:"preflight_verified"`
+	PreflightTimeout  bool   `json:"preflight_timeout"`
 	Title             bool   `json:"title"`
 	ActorKind         bool   `json:"actor_kind"`
 	LocalConfig       bool   `json:"local_config"`
@@ -120,6 +121,7 @@ func (probe Probe) Of(ctx context.Context, dir string) Caps {
 	found := Caps{
 		Runs:              true,
 		PreflightVerified: newFlags["preflight-verified"],
+		PreflightTimeout:  newFlags["preflight-timeout"],
 		Title:             newFlags["title"],
 		ActorKind:         newFlags["actor-kind"],
 		LocalConfig:       rootFlags["local-config"],

@@ -24,6 +24,7 @@
 package capture
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -58,17 +59,24 @@ const usage = "usage: agentic-capture <draft.md> [--force] [--skip-preflight] [-
 const help = usage + `
   --force                            capture despite a high-severity pre-flight finding
   --skip-preflight                   capture with no pre-flight; the entry records that nothing checked it
-  --preflight-limit <duration>       cut off each pre-flight try after <duration>; default 5m, or ` + LimitVariable + `
+  --preflight-limit <duration>       give each pre-flight try's model call <duration>, passed to sdd as --preflight-timeout; default ` + LimitVariable + `, else the larger of 5m and sdd's llm.timeout
   --preflight-route <model>=<layer>  once the caller's own configuration fails on a provider fault, try <model> under the sdd configuration layer <layer>, once; repeatable
   --preflight-done <sha256>          the sha256 of the draft file's bytes as read from disk, front matter included, as sha256sum <draft.md> prints it; on a match the pre-flight is skipped and the entry recorded as verified
 `
 
 const LimitVariable = "CAPTURE_PREFLIGHT_LIMIT"
 
-// sdd bounds a pre-flight call by `llm.timeout` (2m by default) and the
-// extraction it falls back to by `llm.extract_timeout` (1m): twice the first
-// plus the second leaves sdd's own limits to fire first.
-const defaultLimit = 5 * time.Minute
+// The limit reaches sdd as `--preflight-timeout`, which bounds the pre-flight's
+// model call but not the extraction it falls back to (`llm.extract_timeout`,
+// 1m unless configured). A try is cut off only after both plus a margin, so
+// sdd's own bound fires first and the group kill stays the backstop for a
+// `claude -p` that hangs. Where sdd lacks the flag, its own `llm.timeout`
+// applies and the limit alone cuts the try off.
+const (
+	defaultLimit   = 5 * time.Minute
+	extractTimeout = time.Minute
+	cutOffMargin   = 30 * time.Second
+)
 
 var ErrDraft = errors.New("draft refused")
 
@@ -149,6 +157,9 @@ type Env struct {
 	// tracks the draft.
 	Git      Git
 	TempRoot string
+	// Margin is how much longer than sdd's own bounds a try may run before it
+	// is cut off; zero means cutOffMargin.
+	Margin time.Duration
 }
 
 type request struct {
@@ -313,10 +324,6 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		held.limit = limit
 	}
 
-	if held.limit == 0 {
-		held.limit = defaultLimit
-	}
-
 	path := held.draft
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(env.WorkingDir, path)
@@ -362,6 +369,10 @@ type capture struct {
 	request request
 	path    string
 	caps    sddcaps.Caps
+	// limit is the model call's bound per pre-flight try, cutOff the point a
+	// try is given up on.
+	limit  time.Duration
+	cutOff time.Duration
 	// single is a capture through an sdd without `--preflight-verified`: one
 	// `sdd new` runs the pre-flight and writes, so no separate dry run comes
 	// first and the lock covers the whole call.
@@ -502,6 +513,7 @@ func (run *capture) do(ctx context.Context) int {
 	}
 
 	run.single = !run.caps.PreflightVerified
+	run.limits(ctx)
 
 	if config.DraftLint != "" {
 		alerts, err := run.lint(ctx, config.DraftLint, held)
@@ -693,6 +705,8 @@ func (run *capture) preflight(ctx context.Context, held draft) (process.Result, 
 			run.say("%s", output)
 		}
 
+		run.moreTime(fault)
+
 		return result, errGaveUp
 	}
 
@@ -727,8 +741,20 @@ func (run *capture) preflight(ctx context.Context, held draft) (process.Result, 
 	}
 
 	run.say("the pre-flight's provider failed on every route; the draft did not cause it, so capture it again later")
+	run.moreTime(fault)
 
 	return result, errGaveUp
+}
+
+// moreTime names the limit after tries that ran out of time: a long draft
+// takes the model longer, and capturing again under the same limit fails the
+// same way.
+func (run *capture) moreTime(fault string) {
+	if !strings.HasSuffix(fault, "timed out") && !strings.HasPrefix(fault, "the pre-flight gave no answer") {
+		return
+	}
+
+	run.say("a long draft may need more than %s; run again with a longer --preflight-limit", run.limit)
 }
 
 // retried runs the pre-flight on the caller's own configuration until a try
@@ -804,15 +830,52 @@ func lastError(via route, fault string, result process.Result) string {
 	return fmt.Sprintf("route %s: %s: %s", via.name(), fault, last)
 }
 
+// limits sets the model call's bound per try: the caller's limit, else the
+// larger of the default and sdd's configured `llm.timeout`, so an owner's
+// higher setting is never cut down. A try is cut off once that bound and the
+// extraction's have both passed, plus the margin.
+func (run *capture) limits(ctx context.Context) {
+	run.limit = run.request.limit
+	if run.limit == 0 {
+		run.limit = max(defaultLimit, run.configured(ctx, "llm.timeout", 0))
+	}
+
+	run.cutOff = run.limit
+	if run.caps.PreflightTimeout {
+		run.cutOff += run.configured(ctx, "llm.extract_timeout", extractTimeout) + cmp.Or(run.env.Margin, cutOffMargin)
+	}
+}
+
+// configured is a duration sdd's configuration holds for key, or fallback
+// where it holds none: `sdd config get` answers a bare value, and an error
+// where the key is unset.
+func (run *capture) configured(ctx context.Context, key string, fallback time.Duration) time.Duration {
+	result, err := run.env.Runner.Run(ctx, run.root, []string{"sdd", "config", "get", key})
+	if err != nil || result.Code != 0 {
+		return fallback
+	}
+
+	value, valid := positiveDuration(strings.TrimSpace(result.Stdout))
+	if !valid {
+		return fallback
+	}
+
+	return value
+}
+
 // try runs one pre-flight under the limit and names the provider fault that
 // ended it, or nothing where the provider answered.
 func (run *capture) try(ctx context.Context, held draft, via route) (process.Result, string, error) {
-	bounded, cancel := context.WithTimeout(ctx, run.request.limit)
+	bounded, cancel := context.WithTimeout(ctx, run.cutOff)
 	defer cancel()
 
 	argv := via.command(held)
 	if run.single {
 		argv = command(held, "")
+	}
+
+	if run.caps.PreflightTimeout {
+		argv = append(argv, "--preflight-timeout", run.limit.String())
 	}
 
 	result, err := run.env.Runner.Run(bounded, run.root, argv)
@@ -824,11 +887,11 @@ func (run *capture) try(ctx context.Context, held draft, via route) (process.Res
 	// A single call cut off by the limit may have written already, so it is
 	// never tried again.
 	if errors.Is(bounded.Err(), context.DeadlineExceeded) && run.single {
-		return result, "", fmt.Errorf("sdd new gave no answer within %s; it checks and writes in one call, so check `git log` before capturing again", run.request.limit)
+		return result, "", fmt.Errorf("sdd new gave no answer within %s; it checks and writes in one call, so check `git log` before capturing again", run.cutOff)
 	}
 
 	if errors.Is(bounded.Err(), context.DeadlineExceeded) {
-		return result, fmt.Sprintf("the pre-flight gave no answer within %s", run.request.limit), nil
+		return result, fmt.Sprintf("the pre-flight gave no answer within %s", run.cutOff), nil
 	}
 
 	if err != nil || result.Code == 0 {

@@ -49,7 +49,7 @@ func newFixture(t *testing.T, config string) *fixture {
 		test.WriteFile(t, filepath.Join(root, ".sdd", "grounding.yaml"), test.Fixture(t, config))
 	}
 
-	return &fixture{t: t, root: root, runner: &test.Runner{Capture: process.Result{Stdout: "captured\n"}}, pauses: &test.Pauses{},
+	return &fixture{t: t, root: root, runner: &test.Runner{Capture: process.Result{Stdout: "captured\n"}, Config: map[string]string{"llm.extract_timeout": "1ms"}}, pauses: &test.Pauses{},
 		repo: &test.Git{Top: root}, temp: t.TempDir()}
 }
 
@@ -72,7 +72,7 @@ func (f *fixture) runIn(ctx context.Context, args ...string) result {
 	f.t.Helper()
 
 	captured := &test.Captured{}
-	env := capture.Env{WorkingDir: f.root, Runner: f.runner, Limit: f.limit, Pause: f.pauses.Pause, Git: f.repo, TempRoot: f.temp}
+	env := capture.Env{WorkingDir: f.root, Runner: f.runner, Limit: f.limit, Pause: f.pauses.Pause, Git: f.repo, TempRoot: f.temp, Margin: time.Millisecond}
 	if f.settings != "" {
 		env.Settings = []string{f.settings}
 	}
@@ -504,7 +504,7 @@ func TestTheLimitCutsOffATry(t *testing.T) {
 			t.Fatalf("a try cut off should retry and still capture, got %d, stderr: %s", got.code, got.stderr)
 		}
 
-		if !strings.Contains(got.stderr, "the pre-flight gave no answer within 20ms; trying again in 10s") {
+		if !strings.Contains(got.stderr, "the pre-flight gave no answer within 22ms; trying again in 10s") {
 			t.Errorf("the retry should name the limit, got: %s", got.stderr)
 		}
 	})
@@ -514,12 +514,12 @@ func TestTheLimitCutsOffATry(t *testing.T) {
 		f.runner.Hangs = 9
 
 		got := f.run(f.draft("capture/full.md"), "--preflight-limit", "10ms")
-		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 3 || !strings.Contains(got.stderr, "within 10ms on all 3 tries") {
+		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 3 || !strings.Contains(got.stderr, "within 12ms on all 3 tries") {
 			t.Errorf("a try cut off every time should give up, got %d, stderr: %s", got.code, got.stderr)
 		}
 
-		if !strings.HasSuffix(got.stderr, "capture it again later\n") {
-			t.Errorf("a try that printed nothing should leave nothing to show, got: %q", got.stderr)
+		if !strings.HasSuffix(got.stderr, "capture it again later\na long draft may need more than 10ms; run again with a longer --preflight-limit\n") {
+			t.Errorf("a try that printed nothing should leave nothing to show but the hint naming the limit, got: %q", got.stderr)
 		}
 	})
 
@@ -527,8 +527,14 @@ func TestTheLimitCutsOffATry(t *testing.T) {
 		f := newFixture(t, "")
 		f.runner.Hangs = 9
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
+		f.runner.Before = func(argv []string) {
+			if slices.Contains(argv, "--dry-run") {
+				cancel()
+			}
+		}
 
 		got := f.runIn(ctx, f.draft("capture/full.md"))
 		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 1 || len(f.pauses.Waited) != 0 || !strings.Contains(got.stderr, "interrupted") {
@@ -556,7 +562,7 @@ func TestWhereTheLimitComesFrom(t *testing.T) {
 
 			f.run(append([]string{f.draft("capture/full.md")}, tc.args...)...)
 
-			if len(f.runner.Limits) != 1 || f.runner.Limits[0] > tc.limit || f.runner.Limits[0] < tc.limit-time.Second {
+			if len(f.runner.Limits) != 1 || f.runner.Limits[0] < tc.limit || f.runner.Limits[0] > tc.limit+time.Second {
 				t.Errorf("the pre-flight should run under the limit that applies, got: %v", f.runner.Limits)
 			}
 		})
@@ -760,7 +766,7 @@ func TestEveryRouteFailing(t *testing.T) {
 		f.runner.Hangs = 9
 
 		got := f.run(f.draft("capture/full.md"), "--preflight-limit", "10ms", "--preflight-route", "glm-5.3="+f.layer("glm.yaml", 0o600))
-		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 4 || !strings.Contains(got.stderr, "\nroute glm-5.3: the pre-flight gave no answer within 10ms\n") {
+		if got.code != 1 || len(f.runner.CallsOf("dry-run")) != 4 || !strings.Contains(got.stderr, "\nroute glm-5.3: the pre-flight gave no answer within 12ms\n") {
 			t.Errorf("a route cut off should be passed over by its limit, got %d, stderr: %s", got.code, got.stderr)
 		}
 	})
@@ -1025,4 +1031,65 @@ func TestASplitLayoutTakesTheGraphRepositorysSettings(t *testing.T) {
 	if !test.Exists(t, filepath.Join(graph, ".sdd", "tmp", "capture.lock")) {
 		t.Error("the capture lock should live in the graph repository, where every capture of it meets")
 	}
+}
+
+func TestTheLimitReachesSdd(t *testing.T) {
+	cases := []struct {
+		name       string
+		args       []string
+		configured string
+		stock      bool
+		noFlag     bool
+		passed     string
+	}{
+		{name: "the default", passed: "5m0s"},
+		{name: "the caller's limit", args: []string{"--preflight-limit", "8m"}, passed: "8m0s"},
+		{name: "a configured llm.timeout above the default", configured: "10m", passed: "10m0s"},
+		{name: "a configured llm.timeout below the default", configured: "1m", passed: "5m0s"},
+		{name: "stock sdd's single call", stock: true, passed: "5m0s"},
+		{name: "an sdd without the flag", noFlag: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			f.runner.Stock = tc.stock
+			f.runner.NoPreflightTimeout = tc.noFlag
+
+			if tc.configured != "" {
+				f.runner.Config["llm.timeout"] = tc.configured
+			}
+
+			f.run(append([]string{f.draft("capture/full.md")}, tc.args...)...)
+
+			calls := f.runner.CallsOf("dry-run")
+			if tc.stock {
+				calls = f.runner.CallsOf("capture")
+			}
+
+			if len(calls) == 0 {
+				t.Fatalf("a pre-flight should have run, got calls: %v", f.runner.Calls)
+			}
+
+			index := slices.Index(calls[0], "--preflight-timeout")
+			if tc.passed == "" && index >= 0 {
+				t.Errorf("an sdd without the flag should not be handed it, got: %v", calls[0])
+			}
+
+			if tc.passed != "" && (index < 0 || index+1 >= len(calls[0]) || calls[0][index+1] != tc.passed) {
+				t.Errorf("the pre-flight should hand sdd the limit that applies, got: %v", calls[0])
+			}
+		})
+	}
+
+	t.Run("without the flag the limit alone cuts a try off", func(t *testing.T) {
+		f := newFixture(t, "")
+		f.runner.NoPreflightTimeout = true
+
+		f.run(f.draft("capture/full.md"), "--preflight-limit", "2m")
+
+		if len(f.runner.Limits) != 1 || f.runner.Limits[0] > 2*time.Minute || f.runner.Limits[0] < 2*time.Minute-time.Second {
+			t.Errorf("a try should be cut off at the limit where sdd cannot take it, got: %v", f.runner.Limits)
+		}
+	})
 }

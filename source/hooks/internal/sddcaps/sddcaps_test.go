@@ -24,18 +24,18 @@ func TestWhatEachBuildOffers(t *testing.T) {
 		{
 			name:   "stock sdd",
 			runner: &test.Runner{Stock: true},
-			want:   sddcaps.Caps{Runs: true, Export: true},
+			want:   sddcaps.Caps{Runs: true, PreflightTimeout: true, Export: true},
 		},
 		{
 			name:   "the fork",
 			runner: &test.Runner{},
-			want: sddcaps.Caps{Runs: true, PreflightVerified: true, Title: true, ActorKind: true, LocalConfig: true,
+			want: sddcaps.Caps{Runs: true, PreflightVerified: true, PreflightTimeout: true, Title: true, ActorKind: true, LocalConfig: true,
 				Migrate: true, Export: true, ProjectDir: true, InfoJSON: true},
 		},
 		{
 			name:   "a fork release before info json",
 			runner: &test.Runner{NoInfoFormat: true},
-			want: sddcaps.Caps{Runs: true, PreflightVerified: true, Title: true, ActorKind: true, LocalConfig: true,
+			want: sddcaps.Caps{Runs: true, PreflightVerified: true, PreflightTimeout: true, Title: true, ActorKind: true, LocalConfig: true,
 				Migrate: true, Export: true, ProjectDir: true},
 		},
 	}
