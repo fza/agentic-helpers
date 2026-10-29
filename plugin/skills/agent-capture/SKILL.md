@@ -151,8 +151,9 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
   then sdd's output of the last try, where it printed any. Do not edit the draft for it. Run again later.
 - **Gave up on timeouts** → also `a long draft may need more than <limit>; run again with a longer
   --preflight-limit`. Do that; the same limit fails the same way.
-- **Engine (MCP) capture fails `claude -p timed out`** → no flag reaches it, only sdd's
-  `llm.timeout`. Raising it (`sdd config set --local llm.timeout 5m`) is the owner's call: tell them.
+- **Engine (MCP) capture fails `claude -p timed out` or `no answer within llm.timeout`** → no flag
+  reaches it, only sdd's `llm.timeout`. Raising it (`sdd config set --local llm.timeout <duration>`)
+  is the owner's call: tell them.
 - **Fallback routes** (`--preflight-route <model>=<layer>`, in order given): primary gave up → each
   route one try, no wait. sdd gets `--model <model> --local-config <layer>`. First answering decides,
   findings as the primary's. Capture step stays on the caller's own config.

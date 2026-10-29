@@ -96,8 +96,9 @@ after the limit, the extraction's bound and 30 seconds more, and sdd's own bound
 without the flag keeps its own `llm.timeout`, and the limit alone cuts the try off.
 
 A capture through sdd's MCP server has no such flag: only `llm.timeout` reaches its model calls
-(writing guide, pre-flight, summary). Where it fails with `claude -p timed out` on a long entry,
-raising it (`sdd config set --local llm.timeout 5m`) is the owner's call.
+(writing guide, pre-flight, summary). Where it fails with `claude -p timed out` or `no answer within
+llm.timeout` on a long entry, raising it (`sdd config set --local llm.timeout <duration>`) is the
+owner's call.
 
 A caller with more than one provider names fallback routes, each with
 `--preflight-route <model>=<layer>`: the model sdd gets as `--model`, and a configuration layer it
