@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
 )
 
@@ -116,7 +117,7 @@ func Permission(ctx context.Context, env Env, streams Streams) (code int) {
 		return 0
 	}
 
-	held := stateOf(env, call.SessionID)
+	held := stateOf(ctx, env, call.SessionID)
 	if held.unanswered(lastPrompt(ctx, call.TranscriptPath)) >= unansweredLimit {
 		return deny(streams, fmt.Sprintf("%s: %d countdowns ran out unanswered since the last prompt; %s",
 			self, unansweredLimit, verdict.Reason))
@@ -145,31 +146,68 @@ func deny(streams Streams, message string) int {
 }
 
 // sessionState is what shell-guard keeps for a session: its countdowns that
-// ran out, and how often each rewritable ask was refused. A session without a
-// usable state file reads as fresh and keeps nothing.
+// ran out, and how often each rewritable ask was refused. It lives in the
+// session's slot of `<cache>/shell-guard/sessions.slots`, keyed by the session
+// id. A session without a usable slot reads as fresh and keeps nothing.
 type sessionState struct {
-	path     string
+	ctx      context.Context
+	file     *slots.File
+	key      string
 	RanOut   []time.Time    `json:"ran_out"`
 	Attempts map[string]int `json:"attempts,omitempty"`
 }
 
-func stateOf(env Env, session string) *sessionState {
-	held := &sessionState{}
+const (
+	stateDir  = "shell-guard"
+	slotsName = "sessions.slots"
+	slotWidth = 4096
+	// stateFormat is the shell-guard state's layout: one slot per session; 1
+	// was a JSON file per session.
+	stateFormat = 2
+	staleState  = 7 * 24 * time.Hour
+)
+
+// StateSlots is shell-guard's slot file below the cache root.
+func StateSlots(cache string) *slots.File {
+	return slots.Open(filepath.Join(cache, stateDir, slotsName), slotWidth)
+}
+
+func stateOf(ctx context.Context, env Env, session string) *sessionState {
+	held := &sessionState{ctx: ctx}
 
 	if env.StateDir == "" || !sessionName.MatchString(session) {
 		return held
 	}
 
-	held.path = filepath.Join(env.StateDir, "shell-guard", session+".json")
+	file := StateSlots(env.StateDir)
 
-	content, err := os.ReadFile(held.path)
+	err := file.Adopt(ctx, filepath.Join(env.StateDir, stateDir), stateFormat, func() []slots.Legacy {
+		return legacyStates(filepath.Join(env.StateDir, stateDir))
+	})
 	if err != nil {
 		return held
 	}
 
-	_ = json.Unmarshal(content, held)
+	held.file, held.key = file, session
+	file.GetJSON(ctx, session, held)
 
 	return held
+}
+
+// legacyStates is every per-session JSON file an earlier release kept.
+func legacyStates(dir string) []slots.Legacy {
+	paths, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+
+	var legacy []slots.Legacy
+
+	for _, path := range paths {
+		session := strings.TrimSuffix(filepath.Base(path), ".json")
+		if sessionName.MatchString(session) {
+			legacy = append(legacy, slots.Legacy{Path: path, Key: session})
+		}
+	}
+
+	return legacy
 }
 
 func lastPrompt(ctx context.Context, transcriptPath string) time.Time {
@@ -200,27 +238,26 @@ func (held *sessionState) ranOut(at time.Time) {
 	held.save()
 }
 
+// save writes the state back, dropping the oldest countdowns where they would
+// not fit the slot: only those since the last prompt count. It first clears
+// every other session's slot no write touched for staleState, so the file
+// holds the sessions of the last week and never grows past them.
 func (held *sessionState) save() {
-	if held.path == "" {
+	if held.file == nil {
 		return
 	}
 
-	content, err := json.Marshal(held)
-	if err != nil {
-		return
+	cutoff := time.Now().Add(-staleState)
+	_ = held.file.Reclaim(held.ctx, func(slot slots.Slot) bool {
+		return slot.Key != held.key && slot.Written.Before(cutoff)
+	})
+
+	for {
+		err := held.file.PutJSON(held.ctx, held.key, held)
+		if !errors.Is(err, slots.ErrTooLarge) || len(held.RanOut) == 0 {
+			return
+		}
+
+		held.RanOut = held.RanOut[len(held.RanOut)/2+len(held.RanOut)%2:]
 	}
-
-	err = os.MkdirAll(filepath.Dir(held.path), 0o700)
-	if err != nil {
-		return
-	}
-
-	staged := fmt.Sprintf("%s.%d", held.path, os.Getpid())
-
-	err = os.WriteFile(staged, content, 0o600)
-	if err != nil {
-		return
-	}
-
-	_ = os.Rename(staged, held.path)
 }

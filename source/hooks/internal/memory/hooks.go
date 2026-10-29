@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
 )
 
@@ -138,6 +140,7 @@ func (mem *memory) rewriteClaim(ctx context.Context, key string, still func(seat
 
 	change(&current)
 	_ = seat.Write(dir, key, current)
+	mem.recordStore(ctx)
 }
 
 func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
@@ -153,7 +156,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
-	mem.housekeep()
+	mem.housekeep(ctx)
 	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
@@ -168,7 +171,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		// A resumed session's context holds what its transcript brings back,
 		// not what reads showed it before: its reads start afresh too.
 		if payload.Source == "resume" {
-			removeIfThere(mem.shownPath(held.SessionID))
+			mem.clearSlot(mem.shownKey(held.SessionID))
 		}
 
 		if payload.Source == "compact" || payload.Source == "clear" {
@@ -197,8 +200,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	// hooks return, so a fork is matched at the first hook finding it written;
 	// told to claim now, the agent would take a seat that hook is about to give.
 	if payload.Source == "fork" && payload.SessionID != "" && !mem.transcriptStarted(ctx, payload) {
-		_ = os.MkdirAll(filepath.Dir(mem.forkPath(payload.SessionID)), 0o700)
-		_ = os.WriteFile(mem.forkPath(payload.SessionID), nil, 0o600)
+		_ = mem.writeSlot(mem.forkKey(payload.SessionID), true)
 
 		return 0
 	}
@@ -218,10 +220,6 @@ func (mem *memory) transcriptStarted(ctx context.Context, payload hookio.Payload
 	return first != ""
 }
 
-func (mem *memory) forkPath(session string) string {
-	return filepath.Join(mem.cacheDir(), "forks", session)
-}
-
 // seatFork matches a fork its SessionStart could not, at the first prompt or
 // tool call finding its transcript written, once: the marker stays until then
 // and goes either way after.
@@ -230,15 +228,14 @@ func (mem *memory) seatFork(ctx context.Context, payload hookio.Payload, seated 
 		return ""
 	}
 
-	marker := mem.forkPath(payload.SessionID)
+	marker := mem.forkKey(payload.SessionID)
 
-	_, err := os.Stat(marker)
-	if err != nil {
+	if !mem.hasSlot(marker) {
 		return ""
 	}
 
 	if seated {
-		removeIfThere(marker)
+		mem.clearSlot(marker)
 
 		return ""
 	}
@@ -247,7 +244,7 @@ func (mem *memory) seatFork(ctx context.Context, payload hookio.Payload, seated 
 		return ""
 	}
 
-	removeIfThere(marker)
+	mem.clearSlot(marker)
 
 	inherited := mem.inherit(ctx, payload)
 	if inherited != "" {
@@ -294,26 +291,17 @@ func (mem *memory) seatless(ctx context.Context) string {
 	return fmt.Sprintf("%s: this session holds no seat. Seats: %s. Claim one: %s claim <seat>", self, seats, self)
 }
 
-// housekeep removes per-session cache files nobody came back to.
-func (mem *memory) housekeep() {
+// housekeep clears the per-session slots nobody came back to.
+func (mem *memory) housekeep(ctx context.Context) {
 	cutoff := mem.now().Add(-staleAfter)
 
-	for _, pattern := range []string{
-		filepath.Join(mem.cacheDir(), "shown", "*.json"),
-		filepath.Join(mem.cacheDir(), "ladder", "*.json"),
-		filepath.Join(mem.cacheDir(), "graph-seen", "*.json"),
-		filepath.Join(mem.cacheDir(), "forks", "*"),
-	} {
-		paths, err := filepath.Glob(pattern)
-		if err != nil {
-			continue
-		}
+	mem.reclaimSessions(ctx, func(slot slots.Slot) bool { return slot.Written.Before(cutoff) })
+	_ = promptvector.Adopt(ctx, promptvector.Dir(mem.env.Roots.Cache))
 
-		for _, path := range paths {
-			info, err := os.Stat(path)
-			if err == nil && info.ModTime().Before(cutoff) {
-				removeIfThere(path)
-			}
+	if !mem.outsideGit && mem.storeExists() && mem.unreadable == "" {
+		version, err := readFormat(mem.store())
+		if err == nil && version == storeFormat {
+			mem.removeLegacyCache()
 		}
 	}
 }
@@ -509,13 +497,9 @@ func (at *sensorTime) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-func (mem *memory) ladderPath(session string) string {
-	return filepath.Join(mem.cacheDir(), "ladder", session+".json")
-}
-
 func (mem *memory) loadLadder(session string) ladder {
 	var held ladder
-	readJSON(mem.ladderPath(session), &held)
+	mem.readSlot(mem.ladderKey(session), &held)
 
 	if held.Rung == 0 {
 		held.Rung = contextPercentThreshold
@@ -527,8 +511,8 @@ func (mem *memory) loadLadder(session string) ladder {
 // resetWindow starts a fresh context window: the ladder at its first rung, and
 // nothing counted as shown.
 func (mem *memory) resetWindow(session string) {
-	removeIfThere(mem.ladderPath(session))
-	removeIfThere(mem.shownPath(session))
+	mem.clearSlot(mem.ladderKey(session))
+	mem.clearSlot(mem.shownKey(session))
 }
 
 // contextPercent is how full the session's context is, as a share of the
@@ -678,7 +662,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		steps.LastPrompt = strings.TrimSpace(payload.Prompt)
 	}
 
-	_ = writeJSON(mem.ladderPath(session), steps)
+	_ = mem.writeSlot(mem.ladderKey(session), steps)
 
 	recalled := mem.recall(ctx, name, session, payload.Prompt, withheld != "")
 	if recalled != "" {
@@ -774,7 +758,7 @@ func (mem *memory) arrivalsAtTool(ctx context.Context, name string) ([]string, b
 	signature := mem.logSignature()
 
 	var mark seenMark
-	if readJSON(mem.seenPath(name), &mark) && mark.Log == signature {
+	if mem.readSlot(mem.seenKey(name), &mark) && mark.Log == signature {
 		return nil, mark.Traps > 0
 	}
 
@@ -799,7 +783,7 @@ func (mem *memory) arrivalsAtTool(ctx context.Context, name string) ([]string, b
 func (mem *memory) logSignature() string {
 	parts := make([]string, 0, 2)
 
-	for _, name := range []string{"tail.jsonl", "manifest.json"} {
+	for _, name := range []string{memorylog.TailName, "manifest.json"} {
 		info, err := os.Stat(filepath.Join(mem.logDir(), name))
 		if err != nil {
 			parts = append(parts, "-")
@@ -838,9 +822,8 @@ func (mem *memory) wait(ctx context.Context, _ []string) int {
 	// Each turn end starts a waiter; the newest one names itself here, and every
 	// older one sees the name change and ends.
 	me := fmt.Sprintf("%d %d", mem.env.Processes.Self(), time.Now().UnixNano())
-	waiter := filepath.Join(mem.cacheDir(), "waiters", session)
-	_ = os.MkdirAll(filepath.Dir(waiter), 0o700)
-	_ = os.WriteFile(waiter, []byte(me), 0o600)
+	waiter := mem.waiterKey(session)
+	_ = mem.writeSlot(waiter, me)
 
 	for range polls + 1 {
 		claim, found := seat.Read(mem.seatsDir(), key)
@@ -848,8 +831,8 @@ func (mem *memory) wait(ctx context.Context, _ []string) int {
 			return 0
 		}
 
-		current, err := os.ReadFile(waiter)
-		if err != nil || string(current) != me {
+		var current string
+		if !mem.readSlot(waiter, &current) || current != me {
 			return 0
 		}
 
@@ -903,7 +886,7 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
 	shipped := mem.shippedDue(ctx, name, &steps) && mem.crossed(session, payload.TranscriptPath, steps)
 	steps.Held = steps.Held || shipped
-	_ = writeJSON(mem.ladderPath(session), steps)
+	_ = mem.writeSlot(mem.ladderKey(session), steps)
 
 	if shipped {
 		return mem.hold(shippedText)
@@ -941,8 +924,8 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 
 	held = mem.track(ctx, name, held, payload)
 	mem.draftState(ctx, name, held, cmp.Or(held.SessionID, payload.SessionID))
-	removeIfThere(mem.shownPath(held.SessionID))
-	promptvector.Remove(promptvector.Dir(mem.env.Roots.Cache), held.SessionID)
+	mem.clearSlot(mem.shownKey(held.SessionID))
+	promptvector.Remove(ctx, promptvector.Dir(mem.env.Roots.Cache), held.SessionID)
 
 	text := mem.recentTurns(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath))
 	if text == "" {
@@ -989,10 +972,6 @@ type shownSet struct {
 	Notes    []string `json:"notes,omitempty"`
 }
 
-func (mem *memory) shownPath(session string) string {
-	return filepath.Join(mem.cacheDir(), "shown", session+".json")
-}
-
 // recall is up to three entries the prompt touches that stand out from the
 // rest: the own seat's two standard deviations above the mean, another seat's
 // three, none already shown since the last compaction.
@@ -1020,7 +999,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	}
 
 	var shown shownSet
-	readJSON(mem.shownPath(session), &shown)
+	mem.readSlot(mem.shownKey(session), &shown)
 
 	here := mem.checkout(ctx)
 
@@ -1034,7 +1013,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 		}
 
 		shown.Notified = true
-		_ = writeJSON(mem.shownPath(session), shown)
+		_ = mem.writeSlot(mem.shownKey(session), &shown)
 
 		return fmt.Sprintf("%s: prompt recall is off this session: %v", self, err)
 	}
@@ -1087,7 +1066,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	}
 
 	shown.IDs = append(shown.IDs, ids...)
-	_ = writeJSON(mem.shownPath(session), shown)
+	_ = mem.writeSlot(mem.shownKey(session), &shown)
 
 	return strings.Join(lines, "\n")
 }

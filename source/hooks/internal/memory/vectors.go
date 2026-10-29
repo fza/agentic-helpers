@@ -230,7 +230,7 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 
 	slots := promptvector.Dir(mem.env.Roots.Cache)
 
-	cached, hit := promptvector.Load(slots, session, phrase, embedder.Fingerprint())
+	cached, hit := promptvector.Load(ctx, slots, session, phrase, embedder.Fingerprint())
 
 	query := [][]float32{cached}
 	if !hit {
@@ -247,7 +247,7 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 		}
 
 		if session != "" {
-			_ = promptvector.Save(slots, session, phrase, embedder.Fingerprint(), query[0])
+			_ = promptvector.Save(ctx, slots, session, phrase, embedder.Fingerprint(), query[0])
 		}
 	}
 

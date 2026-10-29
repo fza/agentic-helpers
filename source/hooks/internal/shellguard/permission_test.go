@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -292,5 +294,64 @@ func TestTheHookArgumentsAreChecked(t *testing.T) {
 	})
 	if status != 2 || !strings.Contains(errs.String(), "usage: agentic-shell-guard [permission|output]") {
 		t.Errorf("an unknown event should refuse with the usage, exit %d: %s", status, errs.String())
+	}
+}
+
+func TestALegacyStateFileIsAdoptedIntoTheSlotFile(t *testing.T) {
+	c := newCountdown(t, "")
+	dir := filepath.Join(c.guard.env.StateDir, "shell-guard")
+	legacy := filepath.Join(dir, c.session+".json")
+	test.WriteFile(t, legacy, test.Fixture(t, "shellguard/legacy-state.json"))
+
+	said := c.request(context.Background(), askedFind, "auto")
+	if !strings.HasPrefix(said, "agentic-shell-guard: 3 countdowns ran out unanswered since the last prompt; ") {
+		t.Errorf("the countdowns an earlier release noted should still count, got %q", said)
+	}
+
+	_, err := os.Stat(legacy)
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Error("the adopted per-session file should be removed")
+	}
+
+	_, err = os.Stat(filepath.Join(dir, "format.json"))
+	if err != nil {
+		t.Errorf("the adoption should record the state's format: %v", err)
+	}
+}
+
+func TestASaveClearsTheSlotsOfSessionsGoneAWeek(t *testing.T) {
+	c := newCountdown(t, "")
+
+	planted := shellguard.StateSlots(c.guard.env.StateDir)
+	planted.Now = func() time.Time { return time.Now().Add(-8 * 24 * time.Hour) }
+
+	err := planted.Put(context.Background(), test.OtherSession, []byte(`{"ran_out":[]}`))
+	if err != nil {
+		t.Fatalf("planting a stale session's state: %v", err)
+	}
+
+	c.request(context.Background(), askedFind, "auto")
+
+	_, found, err := shellguard.StateSlots(c.guard.env.StateDir).Get(context.Background(), test.OtherSession)
+	if err != nil || found {
+		t.Errorf("a session's slot no write touched for a week should be cleared by the next save, found %v: %v", found, err)
+	}
+}
+
+func TestANewerStateFormatIsLeftAlone(t *testing.T) {
+	c := newCountdown(t, "")
+	dir := filepath.Join(c.guard.env.StateDir, "shell-guard")
+	test.WriteFile(t, filepath.Join(dir, "format.json"), `{"format":99}`)
+
+	for range 4 {
+		said := c.request(context.Background(), askedFind, "auto")
+		if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 120s; ") {
+			t.Errorf("a state of a newer format should be neither read nor written, got %q", said)
+		}
+	}
+
+	_, err := os.Stat(filepath.Join(dir, "sessions.slots"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Error("a state of a newer format should get no slot file")
 	}
 }

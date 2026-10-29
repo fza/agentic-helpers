@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 	"io/fs"
 	"path/filepath"
 	"regexp"
@@ -265,12 +266,11 @@ func (row *indexed) spec() spec {
 }
 
 func (row *indexed) readLines(folder *dir) error {
-	history, err := folder.readOptional("history.jsonl", lineFileLimit)
+	lines, err := readJournal[historyLine](folder, historyJournal)
 	if err != nil {
 		return err
 	}
 
-	lines, _ := jsonLines[historyLine](history)
 	for _, line := range lines {
 		if line.V == 1 && row.RegisteredBy == "" {
 			row.RegisteredBy = line.By
@@ -284,12 +284,11 @@ func (row *indexed) readLines(folder *dir) error {
 		row.addRole(line.Role)
 	}
 
-	takes, err := folder.readOptional("takes.jsonl", lineFileLimit)
+	taken, err := readJournal[takeLine](folder, takesJournal)
 	if err != nil {
 		return err
 	}
 
-	taken, _ := jsonLines[takeLine](takes)
 	for _, line := range taken {
 		row.Takes++
 		row.LastTake = max(row.LastTake, line.At)
@@ -304,12 +303,11 @@ func (row *indexed) readLines(folder *dir) error {
 }
 
 func (row *indexed) readPruned(folder *dir) error {
-	data, err := folder.readOptional("pruned.jsonl", lineFileLimit)
+	lines, err := readJournal[prunedLine](folder, prunedJournal)
 	if err != nil {
 		return err
 	}
 
-	lines, _ := jsonLines[prunedLine](data)
 	for _, line := range lines {
 		_, stored := row.Hashes[versionDir(line.V)]
 		if line.V <= 0 || stored {
@@ -485,7 +483,7 @@ func loadIndex(at string) (*index, bool) {
 // isStore says whether a folder holds a library: an index, a lock, or a tool
 // folder with a `current`.
 func isStore(folder *dir) bool {
-	for _, marker := range []string{"index.json", ".lock"} {
+	for _, marker := range []string{"index.json", ".lock", space.LedgerName} {
 		_, err := folder.fileInfo(marker)
 		if err == nil {
 			return true

@@ -3,7 +3,7 @@ package memory_test
 import (
 	"bytes"
 	"fmt"
-	"math"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,8 +30,10 @@ func (h *harness) sizedFile(name string, first byte, size int) string {
 }
 
 // toolsLedger is where the tool library's machine-wide ledger lives.
-func (h *harness) toolsLedger() string {
-	return filepath.Join(h.roots().Shared(home.Tools), ".space.json")
+// toolsStore is a tool store of another project, whose ledger a case
+// writes.
+func (h *harness) toolsStore() string {
+	return h.roots().Store("01a17249-ce50-7d47-bf5f-6f16ef31c669-other", home.Tools)
 }
 
 func lastLine(out string) string {
@@ -80,8 +82,9 @@ func TestALedgerCannotWrapTheTotalPastTheLimit(t *testing.T) {
 	h.must("", "claim", "main")
 	h.limitSpace(`"attachment_max_mb":1,"attachments_total_mb":1`)
 
-	test.WriteFile(t, filepath.Join(h.roots().Shared("attachments"), ".space.json"),
-		fmt.Sprintf(`{"a":{"stored":%d,"held":0},"b":{"stored":%d,"held":0}}`, int64(math.MaxInt64), int64(math.MaxInt64)))
+	test.WriteLedger(t, h.roots().Shared("attachments"),
+		fmt.Sprintf(`[{"name":"a","counted":true,"bytes":%d},{"name":"b","counted":true,"bytes":%d}]`, int64(1)<<62,
+			int64(1)<<62))
 
 	got := h.run("body", "new", "--title", "Finding past the limit", "--topic", "gate", "--attach",
 		h.sizedFile("log.txt", 'l', 1<<10))
@@ -98,19 +101,19 @@ func TestANegativeLoggedSizeCannotDefeatTheLimit(t *testing.T) {
 
 	held := h.file("Finding with a big log", "body", "--attach", h.sizedFile("first.bin", 'a', 600<<10))
 
-	tail := filepath.Join(h.store(), "log", "tail.jsonl")
+	tail := filepath.Join(h.store(), "log", "tail.jnl")
+	forged := false
 
-	logged, err := os.ReadFile(tail)
-	if err != nil {
-		t.Fatal(err)
-	}
+	test.EditTail(t, tail, func(payload string) string {
+		edited := strings.ReplaceAll(payload, fmt.Sprintf(`"size":%d`, 600<<10), fmt.Sprintf(`"size":%d`, int64(-1)<<40))
+		forged = forged || edited != payload
 
-	forged := strings.ReplaceAll(string(logged), fmt.Sprintf(`"size":%d`, 600<<10), fmt.Sprintf(`"size":%d`, int64(-1)<<40))
-	if forged == string(logged) {
+		return edited
+	})
+
+	if !forged {
 		t.Fatal("the log should record the attachment's size")
 	}
-
-	test.WriteFile(t, tail, forged)
 
 	got := h.run("", "attach", held, h.sizedFile("second.bin", 'b', 600<<10))
 	if got.code != 1 || !strings.Contains(got.err, "past the 1 MB limit (attachments_total_mb)") {
@@ -189,7 +192,7 @@ func TestTheAttachmentSpaceComesFromRecordedSizes(t *testing.T) {
 		t.Errorf("a file in the store no attach recorded should not count, got %q", lastLine(out))
 	}
 
-	ledger := filepath.Join(h.roots().Shared("attachments"), ".space.json")
+	ledger := filepath.Join(h.roots().Shared("attachments"), space.LedgerName)
 
 	err := os.Remove(ledger)
 	if err != nil {
@@ -200,7 +203,7 @@ func TestTheAttachmentSpaceComesFromRecordedSizes(t *testing.T) {
 		t.Errorf("the project's own files should count even where the ledger lacks them, got %d %q", got.code, got.out)
 	}
 
-	test.WriteFile(t, ledger, test.Fixture(t, "memory/space/attachments-stale.json"))
+	test.WriteLedger(t, h.roots().Shared("attachments"), test.Fixture(t, "memory/space/attachments-stale.json"))
 	h.must(hookPayload("startup", "", ""), "session-start")
 
 	if out := h.must("", "attach", id, h.sizedFile("three.log", 'c', 1<<10)); lastLine(out) != "space left: attachments 1021.0 KB of 1.0 MB" {
@@ -239,7 +242,7 @@ func TestTheBriefNamesOnlyAStoreRunningLow(t *testing.T) {
 			}
 
 			if tc.tools != "" {
-				test.WriteFile(t, h.toolsLedger(), test.Fixture(t, tc.tools))
+				test.WriteLedger(t, h.toolsStore(), test.Fixture(t, tc.tools))
 			}
 
 			if got := spaceLine(h.must("", "brief")); got != tc.want {

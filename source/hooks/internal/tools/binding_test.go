@@ -100,7 +100,6 @@ func TestASecondCloneWritesNothingUntilBound(t *testing.T) {
 func TestJoinMovesEveryToolAndRefusesASharedName(t *testing.T) {
 	from, into := t.TempDir(), t.TempDir()
 	test.WriteFile(t, filepath.Join(from, "word-count", "current"), "1\n")
-	test.WriteFile(t, filepath.Join(from, "sessions", test.Session+".json"), "{}")
 	test.WriteFile(t, filepath.Join(into, "line-count", "current"), "1\n")
 	test.WriteFile(t, filepath.Join(into, "index.json"), "{}")
 
@@ -109,7 +108,7 @@ func TestJoinMovesEveryToolAndRefusesASharedName(t *testing.T) {
 		t.Fatalf("joining two libraries: %v", err)
 	}
 
-	for _, moved := range []string{"word-count/current", "line-count/current", "sessions/" + test.Session + ".json"} {
+	for _, moved := range []string{"word-count/current", "line-count/current"} {
 		if !test.Exists(t, filepath.Join(into, moved)) {
 			t.Errorf("the joined library should hold %s", moved)
 		}

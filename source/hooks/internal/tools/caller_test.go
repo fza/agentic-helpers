@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -28,8 +29,8 @@ func TestTheRoleIsRecordedAndOrdersTheOffer(t *testing.T) {
 	h.tool("markdown-beta", "Count markdown section words", "--distinct", "a third")
 	h.tool("markdown-gamma", "Count markdown section words", "--distinct", "a fourth")
 
-	if !strings.Contains(h.read("markdown-zeta/history.jsonl"), `"role":"reviewer"`) ||
-		!strings.Contains(h.read("markdown-zeta/history.jsonl"), `"by":"`+h.session+`"`) {
+	if !strings.Contains(h.dumped("markdown-zeta/history.jnl"), `"role":"reviewer"`) ||
+		!strings.Contains(h.dumped("markdown-zeta/history.jnl"), `"by":"`+h.session+`"`) {
 		t.Error("history should record the session and its role")
 	}
 
@@ -65,7 +66,7 @@ func TestThePromptReusesAVectorAgenticMemoryLeft(t *testing.T) {
 	prompt := "count the words of standard input"
 	vector, _ := h.embedder.Embed(t.Context(), []string{prompt})
 
-	err := promptvector.Save(promptvector.Dir(h.roots().Cache), h.session, prompt, h.embedder.Fingerprint(), vector[0])
+	err := promptvector.Save(context.Background(), promptvector.Dir(h.roots().Cache), h.session, prompt, h.embedder.Fingerprint(), vector[0])
 	if err != nil {
 		t.Fatalf("saving the slot: %v", err)
 	}

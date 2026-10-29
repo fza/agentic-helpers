@@ -18,7 +18,7 @@ import (
 // carries the entry's state as it was printed, so an entry that changed since
 // (a retire, a new link, a drifted anchor) prints in full again.
 type presented struct {
-	path    string
+	key     string
 	set     shownSet
 	again   bool
 	changed bool
@@ -37,13 +37,13 @@ func (mem *memory) presenting(ctx context.Context, again bool) func() {
 		return func() {}
 	}
 
-	seen := &presented{path: mem.shownPath(claim.SessionID), again: again, here: mem.checkout(ctx)}
-	readJSON(seen.path, &seen.set)
+	seen := &presented{key: mem.shownKey(claim.SessionID), again: again, here: mem.checkout(ctx)}
+	mem.readSlot(seen.key, &seen.set)
 	mem.seen = seen
 
 	return func() {
 		if seen.changed {
-			_ = writeJSON(seen.path, seen.set)
+			_ = mem.writeSlot(seen.key, &seen.set)
 		}
 
 		mem.seen = nil

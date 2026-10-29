@@ -70,11 +70,18 @@ func (mem *memory) migrate(ctx context.Context) error {
 		}
 	}
 
-	if version <= 3 {
-		return mem.migrateFormat3(ctx)
+	switch {
+	case version <= 3:
+		err = mem.migrateFormat3(ctx)
+	case version == 4:
+		err = mem.migrateFormat4()
 	}
 
-	return mem.migrateFormat4()
+	if err != nil {
+		return err
+	}
+
+	return mem.migrateFormat5(ctx)
 }
 
 // migrateFormat4 moves a format-4 store to format 5, whose log may hold
@@ -89,7 +96,7 @@ func (mem *memory) migrateFormat4() error {
 		return fmt.Errorf("backing up the store's log: %w", err)
 	}
 
-	return writeFormat(mem.store(), storeFormat)
+	return writeFormat(mem.store(), itemsFormat)
 }
 
 // migrateFormat1 turns a format-1 store, keyed by seat name, into format 2,

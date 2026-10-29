@@ -152,3 +152,20 @@ func segmentFiles(t *testing.T, dir string) []string {
 
 	return names
 }
+
+func journalOf(t *testing.T, held []memorylog.Event) []byte {
+	t.Helper()
+
+	records := make([]memorylog.Record, 0, len(held))
+
+	for _, one := range held {
+		record, err := memorylog.EventRecord(one)
+		if err != nil {
+			t.Fatalf("framing an event: %v", err)
+		}
+
+		records = append(records, record)
+	}
+
+	return memorylog.EncodeJournal(records...)
+}

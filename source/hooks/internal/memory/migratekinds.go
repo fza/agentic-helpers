@@ -38,7 +38,7 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 
 	_, err = os.Stat(mem.logDir())
 	if errors.Is(err, fs.ErrNotExist) {
-		return writeFormat(mem.store(), storeFormat)
+		return writeFormat(mem.store(), itemsFormat)
 	}
 
 	events, err := mem.allEvents(ctx)
@@ -77,7 +77,7 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 
 	// A log no pass changed stays as it is, byte for byte.
 	if !changed {
-		err = writeFormat(mem.store(), storeFormat)
+		err = writeFormat(mem.store(), itemsFormat)
 		if err != nil {
 			undo.run()
 		}
@@ -115,7 +115,7 @@ func (mem *memory) rebuildLog(ctx context.Context, events []memorylog.Event, und
 		return err
 	}
 
-	err = writeFormat(mem.store(), storeFormat)
+	err = writeFormat(mem.store(), itemsFormat)
 	if err != nil {
 		return err
 	}

@@ -1,20 +1,15 @@
 // Package space keeps the machine-wide size figures of agentic-memory's
-// attachment store and the agentic-tools library: a ledger of sizes each store
-// records as it writes, read instead of walking the store, since a figure the
-// brief and every write reply print cannot wait on a stat of every file.
+// attachment store and the agentic-tools library from each component's size
+// ledger (ledger.go): every data file with its length, checksum and the bytes
+// it counts, recorded as the component writes and read instead of walking the
+// store, since a figure the brief and every write reply print cannot wait on
+// a stat of every file.
 package space
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"math"
-	"os"
-	"path/filepath"
 	"strings"
-
-	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
-	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 )
 
 // LowShare is the share of a limit under which space counts as running low:
@@ -23,7 +18,7 @@ const LowShare = 10
 
 // ledgerLimit bounds a ledger read: a store anything sandboxed can write must
 // not make a read exhaust memory.
-const ledgerLimit = 16 << 20
+const ledgerLimit = 64 << 20
 
 const (
 	Attachments = "attachments"
@@ -113,80 +108,4 @@ func Total(records map[string]Record) Record {
 	}
 
 	return total
-}
-
-// Read is the ledger at path, empty where it is missing, unreadable or not a
-// regular file.
-func Read(path string) map[string]Record {
-	records := map[string]Record{}
-
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > ledgerLimit {
-		return records
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return records
-	}
-
-	defer func() { _ = file.Close() }()
-
-	data, err := io.ReadAll(io.LimitReader(file, ledgerLimit))
-	if err != nil {
-		return records
-	}
-
-	var parsed map[string]Record
-
-	err = json.Unmarshal(data, &parsed)
-	if err != nil {
-		return records
-	}
-
-	for key, record := range parsed {
-		if record.Stored >= 0 && record.Held >= 0 {
-			records[key] = record
-		}
-	}
-
-	return records
-}
-
-// Update changes the ledger at path under its lock, so two writers on the
-// machine never lose each other's record.
-func Update(path string, change func(records map[string]Record)) error {
-	err := os.MkdirAll(filepath.Dir(path), 0o700)
-	if err != nil {
-		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
-	}
-
-	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return fmt.Errorf("opening the lock of %s: %w", path, err)
-	}
-
-	defer func() { _ = lock.Close() }()
-
-	err = filelock.Exclusive(lock)
-	if err != nil {
-		return fmt.Errorf("locking %s: %w", path, err)
-	}
-
-	defer func() { _ = filelock.Unlock(lock) }()
-
-	records := Read(path)
-	change(records)
-
-	data, err := json.Marshal(records)
-	if err != nil {
-		return fmt.Errorf("encoding %s: %w", path, err)
-	}
-
-	err = atomicfile.Write(path, data, 0o600)
-	if err != nil {
-		return fmt.Errorf("writing %s: %w", path, err)
-	}
-
-	return nil
 }

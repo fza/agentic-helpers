@@ -60,8 +60,8 @@ type Verdict struct {
 // Env / ProjectDir is $CLAUDE_PROJECT_DIR, the directory the session started
 // in. The payload's cwd follows every cd, so it only anchors relative targets
 // and never widens the project. Settings are the files the plugin's options
-// are read from. StateDir holds each session's countdowns that ran out and
-// its refused rewritable asks; Clock times the countdowns, read only by the
+// are read from. StateDir holds, in shell-guard's slot file, each session's
+// countdowns that ran out and its refused rewritable asks; Clock times the countdowns, read only by the
 // PermissionRequest hook. The PATH read through Getenv says which commands
 // are installed, and StateDir, the cache root, keeps each command's flavour.
 type Env struct {
@@ -190,7 +190,7 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 	}
 
 	if verdict.Decision == Ask && verdict.Rewrite != "" {
-		verdict = refuseFirst(env, call.SessionID, verdict)
+		verdict = refuseFirst(ctx, env, call.SessionID, verdict)
 	}
 
 	var reply answer

@@ -114,12 +114,14 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	hook, isHook := hooks[verb]
 	if isHook {
 		lib.locate(ctx)
+		lib.prepare(ctx)
 
 		return hook(lib, ctx)
 	}
 
 	if verb == "mcp" {
 		lib.locate(ctx)
+		lib.prepare(ctx)
 
 		return lib.serveMCP(ctx)
 	}
@@ -138,6 +140,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	lib.locate(ctx)
+	lib.prepare(ctx)
 
 	req, err := parseArgs(held, rest)
 	if err != nil {
@@ -167,7 +170,7 @@ func (lib *library) run(ctx context.Context, held command, req request) result {
 		return answer
 	}
 
-	pending := lib.takeNudges()
+	pending := lib.takeNudges(ctx)
 	if pending != "" {
 		answer.text = pending + "\n" + answer.text
 	}

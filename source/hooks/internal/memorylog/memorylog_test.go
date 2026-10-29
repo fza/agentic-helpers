@@ -78,7 +78,7 @@ func TestSealOnceTailOutgrowsSealBytes(t *testing.T) {
 		appended = append(appended, event(number, 1000))
 		appendEvents(t, log, appended[len(appended)-1])
 
-		info, err := os.Stat(filepath.Join(dir, "tail.jsonl"))
+		info, err := os.Stat(filepath.Join(dir, memorylog.TailName))
 		if err != nil {
 			t.Fatalf("measuring the tail: %v", err)
 		}
@@ -100,7 +100,7 @@ func TestSealOnceTailOutgrowsSealBytes(t *testing.T) {
 		t.Error("the manifest should list the sealed segment and no seal in progress")
 	}
 
-	if len(readFile(t, filepath.Join(dir, "tail.jsonl"))) != 0 {
+	if len(readFile(t, filepath.Join(dir, memorylog.TailName))) != 0 {
 		t.Error("the seal should leave the tail empty")
 	}
 
@@ -452,7 +452,7 @@ func TestCancelledContext(t *testing.T) {
 			return err
 		}},
 		{name: "dump", run: func() error {
-			return memorylog.Dump(cancelled, &strings.Builder{}, filepath.Join(dir, "tail.jsonl"))
+			return memorylog.Dump(cancelled, &strings.Builder{}, filepath.Join(dir, memorylog.TailName))
 		}},
 	}
 
@@ -469,20 +469,47 @@ func TestCancelledContext(t *testing.T) {
 	}
 }
 
-func TestATailRowCarriesItsTimeAsRFC3339(t *testing.T) {
+func TestATailRowKeepsItsInstantToTheNanosecond(t *testing.T) {
 	dir := t.TempDir()
 	log := openLog(t, dir)
 
 	at := time.Date(2026, 10, 25, 14, 3, 47, 829928123, time.FixedZone("CET", 60*60))
 	appendEvents(t, log, memorylog.Event{Kind: memorylog.KindRetire, Entry: "m-00001", Time: at, Seat: "main"})
 
-	raw, err := os.ReadFile(filepath.Join(dir, "tail.jsonl"))
+	raw, err := os.ReadFile(filepath.Join(dir, memorylog.TailName))
 	if err != nil {
 		t.Fatalf("reading the tail: %v", err)
 	}
 
-	if !strings.Contains(string(raw), `"time":"2026-10-25T13:03:47.829928123Z"`) {
-		t.Errorf("a tail row should carry its time as RFC 3339 in UTC with every nanosecond, got %s", raw)
+	if !memorylog.IsJournal(raw) {
+		t.Error("the tail should be a journal")
+	}
+
+	read := readEvents(t, log)
+	if len(read) != 1 || !read[0].Time.Equal(at) || read[0].Time.Location() != time.UTC {
+		t.Errorf("a tail row should read back at its instant in UTC, got %v", read)
+	}
+}
+
+func TestALegacyTailIsSealedByTheNextWrite(t *testing.T) {
+	dir := t.TempDir()
+	test.WriteFile(t, filepath.Join(dir, "tail.jsonl"), test.Fixture(t, "memorylog/tail-mixed-times.jsonl"))
+
+	log := openLog(t, dir)
+	if len(readEvents(t, log)) != 2 {
+		t.Fatal("a reader should read a legacy tail no write has sealed yet")
+	}
+
+	appendEvents(t, log, event(7, 0))
+
+	_, err := os.Stat(filepath.Join(dir, "tail.jsonl"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Error("the next write should seal the legacy tail and remove it")
+	}
+
+	read := readEvents(t, log)
+	if len(read) != 3 || read[2].Entry != "m-00007" {
+		t.Errorf("the legacy events should come before the new one, each once, got %v", read)
 	}
 }
 

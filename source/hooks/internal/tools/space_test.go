@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
-	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -367,15 +366,8 @@ func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
 
 func TestAForgedLedgerCannotTriggerPruning(t *testing.T) {
 	cases := map[string]func(h *harness) string{
-		"a store claiming more than it holds":  func(*harness) string { return otherRepo },
-		"a key naming no store":                func(*harness) string { return "ghost/store" },
-		"a key naming the own store again":     func(h *harness) string { return "./" + h.repoID },
-		"a key differing in case from the own": func(h *harness) string { return strings.ToUpper(h.repoID) },
-		"a key reaching outside the library": func(h *harness) string {
-			test.WriteFile(h.t, filepath.Join(h.home, "outside", "big", "v1", "big.py"), strings.Repeat("x", 2<<20))
-
-			return "../../outside"
-		},
+		"another store claiming more than it holds": func(h *harness) string { return h.elsewhere(otherRepo).store() },
+		"the own store claiming more than it holds": func(h *harness) string { return h.store() },
 	}
 
 	for name, forge := range cases {
@@ -391,9 +383,8 @@ func TestAForgedLedgerCannotTriggerPruning(t *testing.T) {
 			other.must("add", "row-tally", "--from", other.sized("tally", 200), "--summary", "Tally the rows of a table",
 				"--usage", "python3 the script < file", "--distinct", "rows, not words")
 
-			key := forge(h)
-			test.WriteFile(t, filepath.Join(h.roots().Shared(home.Tools), ".space.json"),
-				fmt.Sprintf(`{%q:{"stored":%d,"held":%d}}`, key, int64(1)<<40, int64(1)<<40))
+			test.WriteLedger(t, forge(h), fmt.Sprintf(`[{"name":"forged/v1/x.py","counted":true,"held":true,"bytes":%d}]`,
+				int64(1)<<40))
 
 			h.variables["AGENTIC_TOOLS_SCOPE"] = "project"
 
@@ -423,8 +414,8 @@ func TestAStoreCountsOnceWhateverTheCaseOfItsKey(t *testing.T) {
 		t.Skip("the file system tells keys differing in case apart")
 	}
 
-	test.WriteFile(t, filepath.Join(h.roots().Shared(home.Tools), ".space.json"),
-		fmt.Sprintf(`{%q:{"stored":%d,"held":%d}}`, made, int64(1)<<40, int64(1)<<40))
+	test.WriteLedger(t, h.store(), fmt.Sprintf(`[{"name":"forged/v1/x.py","counted":true,"held":true,"bytes":%d}]`,
+		int64(1)<<40))
 
 	h.variables["AGENTIC_TOOLS_SCOPE"] = "project"
 

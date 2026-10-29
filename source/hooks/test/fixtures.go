@@ -14,7 +14,7 @@ import (
 //go:embed fixtures
 var fixtures embed.FS
 
-func Fixture(t *testing.T, name string) string {
+func Fixture(t testing.TB, name string) string {
 	t.Helper()
 
 	sample, secret := strings.CutPrefix(name, "secrets/")
@@ -43,8 +43,8 @@ func FixtureTree(t *testing.T, name string, dest string) {
 }
 
 // FixtureTreeReplacing copies the fixture directory name to dest as
-// FixtureTree does, each file's content passed through replacer, so a fixture
-// can name a path only the test knows.
+// FixtureTree does, each file's name and content passed through replacer, so
+// a fixture can name a path only the test knows.
 func FixtureTreeReplacing(t *testing.T, name string, dest string, replacer *strings.Replacer) {
 	t.Helper()
 
@@ -60,7 +60,7 @@ func FixtureTreeReplacing(t *testing.T, name string, dest string, replacer *stri
 			return err
 		}
 
-		WriteFile(t, filepath.Join(dest, filepath.FromSlash(strings.TrimPrefix(path, root+"/"))),
+		WriteFile(t, filepath.Join(dest, filepath.FromSlash(replacer.Replace(strings.TrimPrefix(path, root+"/")))),
 			replacer.Replace(string(content)))
 
 		return nil
@@ -79,7 +79,7 @@ const encodedSuffix = ".b64"
 // SecretFixtures is the credential samples the secrets scanner and every
 // refusal built on it are tested against, decoded: positive/, negative/,
 // clean.txt and gitleaks' own per-rule samples under gitleaks/.
-func SecretFixtures(t *testing.T) fs.FS {
+func SecretFixtures(t testing.TB) fs.FS {
 	t.Helper()
 
 	tree := fstest.MapFS{}

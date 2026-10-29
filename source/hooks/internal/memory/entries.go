@@ -280,7 +280,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	lines = append(lines, mem.forbidden(folded, held, name)...)
 
 	if len(prepared) > 0 {
-		lines = append(lines, space.Line(mem.recordAttached(prepared)))
+		lines = append(lines, space.Line(mem.recordAttached(ctx, prepared)))
 	}
 
 	return done(strings.Join(lines, "\n")).with(fields)

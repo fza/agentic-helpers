@@ -64,7 +64,7 @@ func (lib *library) prompt(ctx context.Context) int {
 
 	var lines []string
 
-	pending := lib.takeNudges()
+	pending := lib.takeNudges(ctx)
 	if pending != "" {
 		lines = append(lines, pending)
 	}
@@ -220,7 +220,7 @@ func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, 
 
 	fingerprint := embedder.Fingerprint()
 
-	cached, hit := promptvector.Load(lib.promptVectors(), lib.session, prompt, fingerprint)
+	cached, hit := promptvector.Load(ctx, lib.promptVectors(), lib.session, prompt, fingerprint)
 	if hit {
 		return cached, fingerprint, nil
 	}
@@ -230,7 +230,7 @@ func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, 
 		return nil, "", fmt.Errorf("embedding the prompt: %w", cmp.Or(err, fmt.Errorf("no vector answered")))
 	}
 
-	_ = promptvector.Save(lib.promptVectors(), lib.session, prompt, fingerprint, vectors[0])
+	_ = promptvector.Save(ctx, lib.promptVectors(), lib.session, prompt, fingerprint, vectors[0])
 
 	return vectors[0], fingerprint, nil
 }
@@ -266,7 +266,7 @@ func (lib *library) notice(ctx context.Context) int {
 		return 0
 	}
 
-	state := lib.loadSession()
+	state := lib.loadSession(ctx)
 	if len(state.Holdings) == 0 {
 		return 0
 	}
@@ -337,9 +337,9 @@ func (lib *library) notice(ctx context.Context) int {
 	lines = append(lines, origins...)
 
 	state.Signature = ""
-	_ = lib.saveSession(state)
+	_ = lib.saveSession(ctx, state)
 	state.Signature = lib.noticeSignature(state)
-	_ = lib.saveSession(state)
+	_ = lib.saveSession(ctx, state)
 
 	if len(lines) > 0 {
 		_ = hookio.AddContext(lib.streams.Out, "PostToolUse", strings.Join(lines, "\n"))
@@ -393,7 +393,7 @@ func (lib *library) stop(ctx context.Context) int {
 		return 0
 	}
 
-	state := lib.loadSession()
+	state := lib.loadSession(ctx)
 	before := len(state.Pending)
 
 	known, names := lib.knownFiles(ctx)
@@ -434,7 +434,7 @@ func (lib *library) stop(ctx context.Context) int {
 	}
 
 	if len(state.Pending) != before || len(fresh) > 0 {
-		_ = lib.saveSession(state)
+		_ = lib.saveSession(ctx, state)
 	}
 
 	return 0
@@ -543,8 +543,8 @@ func (lib *library) end(ctx context.Context) int {
 		return 0
 	}
 
-	_ = os.Remove(lib.sessionPath())
-	promptvector.Remove(lib.promptVectors(), lib.session)
+	lib.forgetSession(ctx)
+	promptvector.Remove(ctx, lib.promptVectors(), lib.session)
 	lib.forgetSeen(ctx)
 
 	return 0

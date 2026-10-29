@@ -123,7 +123,7 @@ func (lib *library) update(ctx context.Context, req request) result {
 			return refused("%v", err)
 		}
 
-		lib.moveHolding(req.From, hit, old.Name, number)
+		lib.moveHolding(ctx, req.From, hit, old.Name, number)
 
 		return done(fmt.Sprintf("updated %s to v%d, now current\n%s", old.Name, number, space.Line(lib.recordSpace(ctx)))).
 			with(updatedFields{Name: old.Name, Version: number})
@@ -172,7 +172,7 @@ func (lib *library) fork(ctx context.Context, req request, hit found, previous [
 		return refused("%v", err)
 	}
 
-	lib.moveHolding(req.From, hit, old.Name, 2)
+	lib.moveHolding(ctx, req.From, hit, old.Name, 2)
 
 	return done(fmt.Sprintf("forked %s from %s into this project; updated it, now current\n%s", old.Name,
 		lib.storeName(hit.store.key), space.Line(lib.recordSpace(ctx)))).
@@ -181,7 +181,7 @@ func (lib *library) fork(ctx context.Context, req request, hit found, previous [
 
 // moveHolding points the session's holding at the version just written where
 // --from lay in the copy the session took.
-func (lib *library) moveHolding(from string, hit found, name string, written int) {
+func (lib *library) moveHolding(ctx context.Context, from string, hit found, name string, written int) {
 	if from == "" {
 		return
 	}
@@ -192,7 +192,7 @@ func (lib *library) moveHolding(from string, hit found, name string, written int
 	}
 
 	at = filepath.Clean(at)
-	state := lib.loadSession()
+	state := lib.loadSession(ctx)
 
 	for index, held := range state.Holdings {
 		if held.Project != hit.store.key || held.Tool != hit.tool.Name {
@@ -206,7 +206,7 @@ func (lib *library) moveHolding(from string, hit found, name string, written int
 
 		state.Holdings[index].Project, state.Holdings[index].Tool = lib.key, name
 		state.Holdings[index].Version = written
-		_ = lib.saveSession(state)
+		_ = lib.saveSession(ctx, state)
 
 		return
 	}

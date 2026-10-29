@@ -19,7 +19,8 @@ import (
 var ErrLocked = errors.New("the store is locked")
 
 // stores is every store a read may use, the own one first, each with its
-// index loaded. AGENTIC_TOOLS_SCOPE=project keeps it to the own store.
+// index loaded. A store of a format newer than this release reads is left
+// out; the own one then reads as empty, and every write to it is refused. AGENTIC_TOOLS_SCOPE=project keeps it to the own store.
 func (lib *library) stores(ctx context.Context) []*store {
 	if lib.reach != nil {
 		return lib.reach
@@ -40,13 +41,17 @@ func (lib *library) stores(ctx context.Context) []*store {
 	reach := []*store{own}
 
 	for _, key := range keys {
-		if key != lib.key {
-			reach = append(reach, &store{key: key, label: named[key], path: lib.env.Roots.Store(key, home.Tools)})
+		at := lib.env.Roots.Store(key, home.Tools)
+		if key != lib.key && newer(at) == "" {
+			reach = append(reach, &store{key: key, label: named[key], path: at})
 		}
 	}
 
 	for _, held := range reach {
-		held.index = lib.indexOf(ctx, held)
+		held.index = emptyIndex()
+		if newer(held.path) == "" {
+			held.index = lib.indexOf(ctx, held)
+		}
 	}
 
 	lib.reach = reach
@@ -159,7 +164,22 @@ func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) er
 
 	defer unlock()
 
-	return write()
+	err = prepareStore(ctx, store, lib.ownDir(), lib.env.Roots.StoreCache(lib.key, home.Tools))
+	if err != nil {
+		return fmt.Errorf("bringing the store to this release's format: %w", err)
+	}
+
+	err = write()
+	if err != nil {
+		return err
+	}
+
+	lib.forget()
+
+	stores := lib.stores(ctx)
+	refreshLedger(ctx, stores[0], origins(stores))
+
+	return nil
 }
 
 // lockStore takes a store's lock, waiting at most wait, and answers how to let

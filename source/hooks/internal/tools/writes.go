@@ -75,7 +75,7 @@ func (lib *library) writeVersion(ctx context.Context, next version) error {
 		return err
 	}
 
-	err = appendLine(folder, "history.jsonl", historyLine{
+	err = appendJournal(folder, historyJournal, historyLine{
 		V: next.number, By: lib.session, Role: lib.role(ctx), At: lib.stamp(), Why: next.why,
 	})
 	if err != nil {
@@ -153,33 +153,6 @@ func (lib *library) reindexTool(name string, vector []float32) error {
 	}
 
 	lib.keepVector(row.Described, vector)
-
-	return nil
-}
-
-func appendLine(folder *dir, name string, value any) error {
-	at := path.Join(folder.path, name)
-
-	data, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("encoding a line of %s: %w", name, err)
-	}
-
-	file, err := folder.appendTo(name)
-	if err != nil {
-		return err
-	}
-
-	_, err = file.Write(append(data, '\n'))
-	closeErr := file.Close()
-
-	if err != nil {
-		return fmt.Errorf("appending to %s: %w", at, err)
-	}
-
-	if closeErr != nil {
-		return fmt.Errorf("closing %s: %w", at, closeErr)
-	}
 
 	return nil
 }

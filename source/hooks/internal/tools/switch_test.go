@@ -51,7 +51,7 @@ func TestTheSeatNameRestsOnMemory(t *testing.T) {
 
 			h.tool("word-count", "Count the words of standard input")
 
-			if strings.Contains(h.read("word-count/history.jsonl"), `"role":"reviewer"`) != tc.stamped {
+			if strings.Contains(h.dumped("word-count/history.jnl"), `"role":"reviewer"`) != tc.stamped {
 				t.Errorf("the seat name should be stamped exactly while memory is on")
 			}
 		})

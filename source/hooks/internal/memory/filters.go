@@ -265,7 +265,7 @@ var filterWords = []filterWord{
 			}
 
 			var mark seenMark
-			if !readJSON(scope.mem.seenPath(scope.inbox), &mark) {
+			if !scope.mem.readSlot(scope.mem.seenKey(scope.inbox), &mark) {
 				return func(*viewScope, *entry) bool { return false }, nil
 			}
 

@@ -1,12 +1,16 @@
 package tools
 
 import (
-	"encoding/json"
+	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 )
 
 var sessionShape = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
@@ -39,36 +43,27 @@ type sessionState struct {
 	Signature string `json:"signature"`
 }
 
-func (lib *library) sessionPath() string {
-	return filepath.Join(lib.ownDir(), "sessions", lib.session+".json")
+// sessionSlotWidth holds a session's holdings, each with its files' hashes.
+const sessionSlotWidth = 128 << 10
+
+// sessionSlots is the own store's slot file in the cache: one slot per
+// session, `session/<id>` (internal/slots).
+func (lib *library) sessionSlots() *slots.File {
+	file := slots.Open(filepath.Join(lib.env.Roots.StoreCache(lib.key, home.Tools), "sessions.slots"), sessionSlotWidth)
+	file.Now = lib.now
+
+	return file
 }
 
-func (lib *library) loadSession() *sessionState {
+func (lib *library) sessionKey() string { return "session/" + lib.session }
+
+func (lib *library) loadSession(ctx context.Context) *sessionState {
 	held := &sessionState{Notified: map[string]int{}}
-	if !sessionShape.MatchString(lib.session) {
+	if !sessionShape.MatchString(lib.session) || lib.key == "" {
 		return held
 	}
 
-	root, err := openDir(lib.ownDir())
-	if err != nil {
-		return held
-	}
-
-	defer root.close()
-
-	sessions, err := root.sub("sessions")
-	if err != nil {
-		return held
-	}
-
-	defer sessions.close()
-
-	data, err := sessions.read(lib.session+".json", sessionLimit)
-	if err != nil {
-		return held
-	}
-
-	_ = json.Unmarshal(data, held)
+	lib.sessionSlots().GetJSON(ctx, lib.sessionKey(), held)
 
 	if held.Notified == nil {
 		held.Notified = map[string]int{}
@@ -77,24 +72,34 @@ func (lib *library) loadSession() *sessionState {
 	return held
 }
 
-func (lib *library) saveSession(held *sessionState) error {
-	if !sessionShape.MatchString(lib.session) {
-		return fmt.Errorf("session %q names no session file", lib.session)
+// saveSession writes the session's state; one too large for its slot gives
+// up its oldest delivered nudges, then its oldest holdings.
+func (lib *library) saveSession(ctx context.Context, held *sessionState) error {
+	if !sessionShape.MatchString(lib.session) || lib.key == "" {
+		return fmt.Errorf("session %q names no session slot", lib.session)
 	}
 
-	data, err := json.Marshal(held)
-	if err != nil {
-		return fmt.Errorf("encoding the session: %w", err)
+	for {
+		err := lib.sessionSlots().PutJSON(ctx, lib.sessionKey(), held)
+		if !errors.Is(err, slots.ErrTooLarge) {
+			return err
+		}
+
+		switch {
+		case len(held.Nudged) > 0:
+			held.Nudged = held.Nudged[len(held.Nudged)/2+len(held.Nudged)%2:]
+		case len(held.Holdings) > 0:
+			held.Holdings = held.Holdings[len(held.Holdings)/2+len(held.Holdings)%2:]
+		default:
+			return err
+		}
 	}
+}
 
-	sessions, err := ensureDir(lib.env.Roots.Stores(), lib.ownRel()+"/sessions")
-	if err != nil {
-		return fmt.Errorf("creating the sessions folder: %w", err)
+func (lib *library) forgetSession(ctx context.Context) {
+	if sessionShape.MatchString(lib.session) && lib.key != "" {
+		_ = lib.sessionSlots().Delete(ctx, lib.sessionKey())
 	}
-
-	defer sessions.close()
-
-	return sessions.replace(lib.session+".json", data)
 }
 
 func holdingKey(project string, tool string) string { return project + "\x00" + tool }
@@ -123,12 +128,12 @@ func (held *sessionState) addPending(next nudge) {
 
 // takeNudges is every nudge stop recorded and no prompt or call delivered yet,
 // marked delivered.
-func (lib *library) takeNudges() string {
+func (lib *library) takeNudges(ctx context.Context) string {
 	if lib.session == "" || lib.key == "" {
 		return ""
 	}
 
-	held := lib.loadSession()
+	held := lib.loadSession(ctx)
 	if len(held.Pending) == 0 {
 		return ""
 	}
@@ -140,7 +145,7 @@ func (lib *library) takeNudges() string {
 	}
 
 	held.Pending = nil
-	_ = lib.saveSession(held)
+	_ = lib.saveSession(ctx, held)
 
 	return strings.Join(lines, "\n")
 }

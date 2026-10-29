@@ -29,6 +29,9 @@ type manifest struct {
 type sealing struct {
 	TailSHA256 string `json:"tail_sha256"`
 	TailSize   int64  `json:"tail_size"`
+	// Legacy says the sealed bytes are those of a `tail.jsonl` an earlier
+	// release left, not of the journal tail.
+	Legacy bool `json:"legacy,omitempty"`
 }
 
 func newSealing(tail []byte) *sealing {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -250,10 +249,6 @@ type seenMark struct {
 	Traps int `json:"traps,omitempty"`
 }
 
-func (mem *memory) seenPath(seatName string) string {
-	return filepath.Join(mem.cacheDir(), "briefs", mem.seatKey(seatName)+".seen.json")
-}
-
 // arrives is whether the entry is news for seatName: filed by a shelf mate, or
 // received from another shelf.
 func (mem *memory) arrives(folded *state, held *entry, seatName string) bool {
@@ -268,7 +263,7 @@ func (mem *memory) arrives(folded *state, held *entry, seatName string) bool {
 // mark, oldest first. A seat without a mark has seen everything filed so far.
 func (mem *memory) arrivals(folded *state, seatName string) []*entry {
 	var mark seenMark
-	if !readJSON(mem.seenPath(seatName), &mark) {
+	if !mem.readSlot(mem.seenKey(seatName), &mark) {
 		mem.markSeen(seatName, mem.now())
 
 		return nil
@@ -304,9 +299,9 @@ type shelfChange struct {
 // count now.
 func (mem *memory) shelfChanges(folded *state, seatName string) []shelfChange {
 	var mark seenMark
-	if !readJSON(mem.seenPath(seatName), &mark) || mark.Changed.IsZero() {
+	if !mem.readSlot(mem.seenKey(seatName), &mark) || mark.Changed.IsZero() {
 		mark.Changed = mem.now()
-		_ = writeJSON(mem.seenPath(seatName), mark)
+		_ = mem.writeSlot(mem.seenKey(seatName), mark)
 
 		return nil
 	}
@@ -332,23 +327,23 @@ func (mem *memory) shelfChanges(folded *state, seatName string) []shelfChange {
 
 func (mem *memory) markSeen(seatName string, at time.Time) {
 	var mark seenMark
-	readJSON(mem.seenPath(seatName), &mark)
+	mem.readSlot(mem.seenKey(seatName), &mark)
 	mark.At = at
-	_ = writeJSON(mem.seenPath(seatName), mark)
+	_ = mem.writeSlot(mem.seenKey(seatName), mark)
 }
 
 func (mem *memory) markChanged(seatName string, at time.Time) {
 	var mark seenMark
-	readJSON(mem.seenPath(seatName), &mark)
+	mem.readSlot(mem.seenKey(seatName), &mark)
 	mark.Changed = at
-	_ = writeJSON(mem.seenPath(seatName), mark)
+	_ = mem.writeSlot(mem.seenKey(seatName), mark)
 }
 
 func (mem *memory) noteLog(seatName string, signature string, traps int) {
 	var mark seenMark
-	readJSON(mem.seenPath(seatName), &mark)
+	mem.readSlot(mem.seenKey(seatName), &mark)
 	mark.Log, mark.Traps = signature, traps
-	_ = writeJSON(mem.seenPath(seatName), mark)
+	_ = mem.writeSlot(mem.seenKey(seatName), mark)
 }
 
 // announce is the lines telling seatName what arrived and what its shelf mates

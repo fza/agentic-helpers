@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -235,10 +234,6 @@ func (trap indexedTrap) touchedBy(call toolCall) string {
 	return firstMatch(trap.When, call)
 }
 
-func (mem *memory) trapIndexPath(seatName string) string {
-	return filepath.Join(mem.cacheDir(), "traps", mem.seatKey(seatName)+".json")
-}
-
 // indexTraps writes the seat's traps for the tool hook, and removes the index
 // where it holds none, so a seat without traps reads nothing on a tool call.
 func (mem *memory) indexTraps(folded *state, seatName string) int {
@@ -262,12 +257,12 @@ func (mem *memory) indexTraps(folded *state, seatName string) int {
 	}
 
 	if len(index.Traps) == 0 && len(index.Notes) == 0 {
-		removeIfThere(mem.trapIndexPath(seatName))
+		mem.clearSlot(mem.trapIndexKey(seatName))
 
 		return 0
 	}
 
-	_ = writeJSON(mem.trapIndexPath(seatName), index)
+	_ = mem.writeSlot(mem.trapIndexKey(seatName), index)
 
 	return len(index.Traps) + len(index.Notes)
 }
@@ -277,12 +272,12 @@ func (mem *memory) indexTraps(folded *state, seatName string) int {
 // `--when` names.
 func (mem *memory) trapNotices(ctx context.Context, seatName string, session string, call toolCall) []string {
 	var index trapIndex
-	if !readJSON(mem.trapIndexPath(seatName), &index) {
+	if !mem.readSlot(mem.trapIndexKey(seatName), &index) {
 		return nil
 	}
 
 	var shown shownSet
-	readJSON(mem.shownPath(session), &shown)
+	mem.readSlot(mem.shownKey(session), &shown)
 
 	matched := map[string]string{}
 
@@ -349,7 +344,7 @@ func (mem *memory) trapNotices(ctx context.Context, seatName string, session str
 		shown.Notes = append(shown.Notes, told.id)
 	}
 
-	_ = writeJSON(mem.shownPath(session), shown)
+	_ = mem.writeSlot(mem.shownKey(session), &shown)
 
 	return lines
 }

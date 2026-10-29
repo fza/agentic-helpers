@@ -42,7 +42,7 @@ func TestAnEntryNamesWhoItIsFor(t *testing.T) {
 	named := h.file("Review owes the API diff", "a handover", "--for", "idea", "--for", "review")
 	everyone := h.file("Staging DB moved to db2", "a changed fact", "--for", "all")
 
-	tail, _ := os.ReadFile(filepath.Join(h.store(), "log", "tail.jsonl"))
+	tail := []byte(test.Dumped(t, filepath.Join(h.store(), "log", "tail.jnl")))
 	if !strings.Contains(string(tail), `"for":["`+shelfID(t, h.store(), "idea")+`","`+shelfID(t, h.store(), "review")+`"]`) ||
 		!strings.Contains(string(tail), `"for":"all"`) {
 		t.Errorf("--for should store the named seats' shelves by id, and all as all, got %s", tail)
@@ -175,18 +175,16 @@ func TestAToolCallWithNoLogChangeReadsNoLog(t *testing.T) {
 	h, other := twoSeats(t)
 	other.must("", "tool")
 
-	seen := filepath.Join(h.cacheDir(), "briefs", seatID(t, h.store(), "idea")+".seen.json")
-	past := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	seen := "seen/" + seatID(t, h.store(), "idea")
 
-	err := os.Chtimes(seen, past, past)
-	if err != nil {
-		t.Fatalf("aging the seen mark: %v", err)
+	before := h.generations(seen)
+	if len(before) != 1 {
+		t.Fatal("the first tool call should leave the seat's seen mark")
 	}
 
 	other.must("", "tool")
 
-	info, err := os.Stat(seen)
-	if err != nil || !info.ModTime().Equal(past) {
+	if after := h.generations(seen); after[seen] != before[seen] {
 		t.Error("a tool call finding the log as it stood should read nothing and write nothing")
 	}
 }

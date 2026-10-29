@@ -92,7 +92,7 @@ func (lib *library) fold(member string, survivor string) error {
 		return err
 	}
 
-	takes, err := folder.readOptional("takes.jsonl", lineFileLimit)
+	takes, err := readJournal[takeLine](folder, takesJournal)
 	folder.close()
 
 	if err != nil {
@@ -105,17 +105,12 @@ func (lib *library) fold(member string, survivor string) error {
 			return err
 		}
 
-		lines, _ := jsonLines[takeLine](takes)
-		for _, line := range lines {
-			err = appendLine(kept, "takes.jsonl", line)
-			if err != nil {
-				kept.close()
-
-				return err
-			}
-		}
-
+		err = appendJournal(kept, takesJournal, takes...)
 		kept.close()
+
+		if err != nil {
+			return err
+		}
 	}
 
 	err = store.root.RemoveAll(member)

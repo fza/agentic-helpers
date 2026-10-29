@@ -57,7 +57,7 @@ func TestDump(t *testing.T) {
 
 	want := test.Fixture(t, "memorylog/dump.txt")
 
-	for _, name := range []string{readManifest(t, dir).Segments[0], "tail.jsonl"} {
+	for _, name := range []string{readManifest(t, dir).Segments[0], memorylog.TailName} {
 		t.Run(name, func(t *testing.T) {
 			var out bytes.Buffer
 

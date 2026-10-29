@@ -2,7 +2,6 @@ package memory_test
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -91,10 +90,9 @@ func TestASeatWithoutTrapsReadsNoTrapState(t *testing.T) {
 		t.Errorf("a seat holding no trap should hear nothing:\n%s", out)
 	}
 
-	for _, dir := range []string{"traps", "shown"} {
-		entries, _ := os.ReadDir(filepath.Join(h.cacheDir(), dir))
-		if len(entries) > 0 {
-			t.Errorf("a seat holding no trap should write no %s state", dir)
+	for _, purpose := range []string{"traps/", "shown/"} {
+		if len(h.slots(purpose)) > 0 {
+			t.Errorf("a seat holding no trap should write no %s state", purpose)
 		}
 	}
 }

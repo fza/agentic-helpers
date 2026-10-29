@@ -176,7 +176,7 @@ func TestTake(t *testing.T) {
 		t.Error("an existing copy should be reused, never overwritten")
 	}
 
-	if strings.Count(h.read("word-count/takes.jsonl"), "\n") != 1 {
+	if strings.Count(h.dumped("word-count/takes.jnl"), "\n") != 1 {
 		t.Error("a take line should be written per copy written, not per take")
 	}
 
@@ -206,7 +206,7 @@ func TestMerge(t *testing.T) {
 		t.Error("a member's folder should be removed")
 	}
 
-	if strings.Count(h.read("word-count/takes.jsonl"), "\n") != 1 {
+	if strings.Count(h.dumped("word-count/takes.jnl"), "\n") != 1 {
 		t.Error("the member's takes should fold into the survivor's")
 	}
 

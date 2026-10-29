@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -42,13 +41,9 @@ type briefMark struct {
 	At time.Time `json:"at"`
 }
 
-func (mem *memory) briefMarkPath(seatName string) string {
-	return filepath.Join(mem.cacheDir(), "briefs", mem.seatKey(seatName)+".json")
-}
-
 func (mem *memory) previousBrief(seatName string) time.Time {
 	var mark briefMark
-	readJSON(mem.briefMarkPath(seatName), &mark)
+	mem.readSlot(mem.briefMarkKey(seatName), &mark)
 
 	return mark.At
 }
@@ -425,7 +420,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add(fmt.Sprintf("+%d more: %s brief --topic <name>", missing, self))
 	}
 
-	_ = writeJSON(mem.briefMarkPath(seatName), briefMark{At: mem.now()})
+	_ = mem.writeSlot(mem.briefMarkKey(seatName), briefMark{At: mem.now()})
 
 	return strings.Join(out.lines, "\n")
 }
