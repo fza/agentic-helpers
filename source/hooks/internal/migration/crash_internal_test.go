@@ -109,7 +109,7 @@ func describeHome(t *testing.T, env Env, root string) string {
 				t.Fatalf("reading the identity of %s: %v", entry.Name(), err)
 			}
 
-			key := section + "|" + strings.ReplaceAll(strings.Join(identity.LegacyKeys, ","), plain.LegacyKey, "@PLAIN@")
+			key := section + "|" + strings.Join(stableKeys(identity.LegacyKeys, plain.LegacyKey), ",")
 			keyOf[entry.Name()] = key
 
 			lines = append(lines, key+" admits "+clean.Replace(strings.Join(identity.Paths(), ","))+
@@ -141,6 +141,24 @@ func describeHome(t *testing.T, env Env, root string) string {
 	slices.Sort(lines)
 
 	return strings.Join(lines, "\n")
+}
+
+// stableKeys is legacy keys as two test folders share them: the plain
+// checkout's key, a hash of its path, named alike, and the list sorted after
+// that, since the hash sorts anywhere among the other keys.
+func stableKeys(keys []string, plain string) []string {
+	stable := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if key == plain {
+			key = "@PLAIN@"
+		}
+
+		stable = append(stable, key)
+	}
+
+	slices.Sort(stable)
+
+	return stable
 }
 
 func TestARunKilledAtAnyStepIsUndoneAndThenMigratedAfresh(t *testing.T) {
