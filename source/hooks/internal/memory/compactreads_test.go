@@ -256,7 +256,7 @@ func TestAnEmptyBodyLeavesTheAnswer(t *testing.T) {
 	}
 }
 
-var scoredLine =regexp.MustCompile(`^(m-[a-z0-9]+) (\d+)% (\S.*)$`)
+var scoredLine = regexp.MustCompile(`^(m-[a-z0-9]+) (\d+)% (\S.*)$`)
 
 func TestSearchLinesPrintTheScoreAfterTheID(t *testing.T) {
 	h := newHarness(t)

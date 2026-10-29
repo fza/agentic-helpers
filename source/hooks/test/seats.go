@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 )
 
 // OwnerStart is when the fake owner process started, and OwnerStarted how a
