@@ -1,0 +1,3 @@
+GROUNDING GATE: refused. This capture holds no topic opening with `{prefix}`, the `listing_prefix` `.sdd/grounding.yaml` sets, so its playback cannot be confirmed.
+
+Choose `adjust` with `topics` carrying at least one `{prefix}` topic, then play the entry back again.

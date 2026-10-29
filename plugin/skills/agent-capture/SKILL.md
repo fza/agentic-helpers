@@ -32,6 +32,14 @@ license: MIT
   A path with `$` or `~`, or a relative one with a `cd` or a launcher (`env`, `sudo`, `xargs`,
   ...) in the command → `... which cannot be read to scan for a credential: <why>; attach it by a
   literal absolute path`. Run the capture as its own plain call.
+- **The project's rules hold on the engine too.** `.sdd/grounding.yaml` setting `listing_prefix` →
+  `topics` lacking it refused (``GROUNDING GATE: refused. These `topics` carry none opening with
+  ...``), playback `confirm` refused while none held (``... This capture holds no topic opening
+  with ...``). `draft_lint` set → every `body`, and every `bodyPatch` applied to the last body,
+  linted; findings refused as ``... The project's draft lint (`draft_lint` in `.sdd/grounding.yaml`)
+  reports on the body this call leaves``, named `body:<line>:...`. Fix, report again. A patch the
+  gate holds no body for → ``... This `bodyPatch` edits a body the gate holds no record of`` →
+  report `body` in full once.
 - **`sdd-engine` is deprecated.** The `sdd` skill is the engine flow.
 
 ## agentic-capture

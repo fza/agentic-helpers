@@ -134,7 +134,39 @@ sdd's MCP tools count and owe the same. `mcp__sdd__search` counts as the semanti
 and the literal read with `terms`, `mcp__sdd__view` as a listing by its `layout`, and only a call
 that succeeded counts. `mcp__sdd__show` owes the same depth as `sdd show`, an omitted `down` or `up`
 counting as the server's default (1 and 2), and `mcp__sdd__start_procedure` starting `capture` owes
-the reads `agentic-capture` owes. Every other MCP tool passes.
+the reads `agentic-capture` owes. Every other MCP tool passes, apart from the project's own rules
+below.
+
+## A capture through sdd's engine
+
+A capture through sdd's engine never passes through `agentic-capture`, so the gate holds it to the
+two rules `agentic-capture` holds a draft to, wherever `.sdd/grounding.yaml` sets them: the
+`listing_prefix` topic rule and the `draft_lint`. sdd's writing guide and pre-flight know nothing of
+either. The gate checks `mcp__sdd__start_procedure` starting `capture` and every `mcp__sdd__next` to
+a capture it saw start, reading the `params` or `report` and the `fields` of a chooser answer:
+
+- **`listing_prefix`**: `topics` carrying no label opening with the prefix are refused:
+  ``GROUNDING GATE: refused. These `topics` carry none opening with `<prefix>`, the `listing_prefix` `.sdd/grounding.yaml` sets: ...``.
+  The playback's `confirm` is refused while the capture holds no such topic, seeded or reported:
+  ``GROUNDING GATE: refused. This capture holds no topic opening with `<prefix>`, the `listing_prefix` `.sdd/grounding.yaml` sets, so its playback cannot be confirmed.``
+- **`draft_lint`**: the body a call leaves the capture with is linted as `agentic-capture` lints a
+  draft: written to a file in the gate's scratch directory, the command run on it from the
+  project's root. A finding refuses the call, each one named with the file shown as `body` and its
+  line counted from the body's first:
+  ``GROUNDING GATE: refused. The project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) reports on the body this call leaves, lines counted from the body's first:``.
+  A lint that fails and prints nothing never read the body, and refuses as
+  ``GROUNDING GATE: refused. The project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) did not read the body this call leaves: <why>``.
+- **A `bodyPatch`** is applied by the gate to the last whole body it saw for the capture, by sdd's
+  own rule (each old text found exactly once, in order, all or nothing), and the result linted. A
+  patch sdd would refuse passes the gate unlinted, since sdd refuses the report itself. A patch to a
+  capture whose body the gate holds no record of is refused once, asking for the whole body:
+  ``GROUNDING GATE: refused. This `bodyPatch` edits a body the gate holds no record of, so the project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) cannot read the result.``
+
+The gate learns a capture from its start, and keeps its body and topics per instance in its ledger
+from every call that went through; neither a compaction nor a graph change clears them. A capture
+that completed or was abandoned is dropped. A report to an instance the gate never saw start
+passes, since it cannot be told from another procedure's. A seat `exempt_seats` names passes these
+checks as it passes every other.
 
 ## Grounded drafts
 
@@ -194,7 +226,7 @@ read_command: python3 scripts/graph.py      # plain words: no quotes, variables 
 gather_command: python3 scripts/gather.py   # plain words too; absent, no call counts as one
 read_suffix: --entry <entry>                # one line, printed only
 listing_prefix: area-                       # the topic prefix a listing reads
-draft_lint: vale --output=line              # agentic-capture's lint, see ../capture/usage.md
+draft_lint: vale --output=line              # the body's lint, see ../capture/usage.md and above
 ```
 
 ## Off on the machine

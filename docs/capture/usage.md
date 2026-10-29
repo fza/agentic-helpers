@@ -24,7 +24,9 @@ review and checks the generated summary; `agentic-capture` does none of these. T
 refuses `agentic-capture` in a project whose `.mcp.json` declares `mcpServers.sdd`, naming the
 engine's capture instead. A project that captures through `agentic-capture` on purpose beside an sdd
 server, a pipeline or a scripted capture, sets `cli_capture: true` in `.sdd/grounding.yaml`. An sdd
-server configured at user or local scope, outside `.mcp.json`, goes unseen.
+server configured at user or local scope, outside `.mcp.json`, goes unseen. The project's
+`draft_lint` and `listing_prefix` rule still hold on the engine's capture: the grounding gate applies
+them to its reports ([the gate](../grounding-gate/usage.md#a-capture-through-sdds-engine)).
 
 ## What a draft must clear
 

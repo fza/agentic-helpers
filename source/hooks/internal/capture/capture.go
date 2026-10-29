@@ -43,6 +43,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/draftlint"
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
@@ -1096,31 +1097,17 @@ func (run *capture) lint(ctx context.Context, lint string, held draft) ([]string
 
 	defer func() { _ = os.Remove(body) }()
 
-	result, err := run.env.Runner.Run(ctx, run.root, []string{"sh", "-c", lint + ` "$@"`, "sh", body})
+	alerts, err := draftlint.Run(ctx, run.env.Runner, run.root, lint, body)
+	if errors.Is(err, draftlint.ErrSilent) {
+		return nil, fmt.Errorf("%w: %w", ErrDraft, err)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("the draft lint did not run: %w", err)
+		return nil, err
 	}
 
-	if result.Code == 0 {
-		return nil, nil
-	}
-
-	var alerts []string
-
-	for line := range strings.SplitSeq(result.Stdout, "\n") {
-		if strings.TrimSpace(line) != "" {
-			alerts = append(alerts, shift(line, body, run.path, held.offset))
-		}
-	}
-
-	if len(alerts) == 0 {
-		stderr := strings.TrimSpace(result.Stderr)
-		if len(stderr) > 200 {
-			stderr = stderr[:200]
-		}
-
-		return nil, fmt.Errorf("%w: the draft lint exited %d and reported nothing, so the body went unread: %s",
-			ErrDraft, result.Code, stderr)
+	for index, alert := range alerts {
+		alerts[index] = shift(alert, body, run.path, held.offset)
 	}
 
 	return alerts, nil
