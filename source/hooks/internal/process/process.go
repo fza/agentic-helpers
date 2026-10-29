@@ -34,3 +34,17 @@ func ParseLstart(text string, zone *time.Location) (time.Time, bool) {
 
 	return started, true
 }
+
+// darwin's process states and flags, from <sys/proc.h>: a zombie, and a
+// process inside exit (`ps` shows it as E).
+const (
+	darwinZombie  = 5
+	darwinExiting = 0x00002000
+)
+
+// Exiting is whether a darwin process with stat and flags is a zombie or on
+// its way out. Such a husk keeps its pid and name while its parent has not
+// reaped it, though it runs no session any more.
+func Exiting(stat int8, flags int32) bool {
+	return stat == darwinZombie || flags&darwinExiting != 0
+}

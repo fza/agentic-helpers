@@ -100,7 +100,9 @@ func TestProcfsReadsTheProcTree(t *testing.T) {
 		{name: "a stat cut before the start time", tree: "process/proc", pid: 4646},
 		{name: "a name never closed", tree: "process/proc", pid: 4848},
 		{name: "a parent that is no number", tree: "process/proc", pid: 4747, started: time.Unix(booted+50, 0), found: true},
-		{name: "a start time that is no number", tree: "process/proc", pid: 4545, parent: 4242, command: "zombie"},
+		{name: "a start time that is no number", tree: "process/proc", pid: 4545, parent: 4242, command: "sleeper"},
+		{name: "a zombie awaiting its reaping", tree: "process/proc", pid: 4949},
+		{name: "a dead process", tree: "process/proc", pid: 5050},
 		{name: "a pid not in the tree", tree: "process/proc", pid: 999},
 		{name: "no boot time", tree: "process/proc-without-btime", pid: 4242, parent: 4000, command: "bash"},
 		{name: "a boot time that is no number", tree: "process/proc-with-bad-btime", pid: 4242, parent: 4000, command: "bash"},
@@ -121,6 +123,28 @@ func TestProcfsReadsTheProcTree(t *testing.T) {
 			started, found := procfs.StartTime(tc.pid)
 			if found != tc.found || !started.Equal(tc.started) {
 				t.Errorf("the start should be the boot time plus whole seconds of ticks, or none, got %v %v", started, found)
+			}
+		})
+	}
+}
+
+func TestADarwinProcessOnItsWayOutIsGone(t *testing.T) {
+	cases := []struct {
+		name    string
+		stat    int8
+		flags   int32
+		exiting bool
+	}{
+		{name: "running", stat: 2},
+		{name: "sleeping with other flags", stat: 3, flags: 0x4004},
+		{name: "a zombie", stat: 5, exiting: true},
+		{name: "inside exit", stat: 2, flags: 0x00002000, exiting: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if process.Exiting(tc.stat, tc.flags) != tc.exiting {
+				t.Error("only a zombie or a process inside exit should read as on its way out")
 			}
 		})
 	}

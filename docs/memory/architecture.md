@@ -283,7 +283,10 @@ seats while it runs; a registry kept from an earlier call would judge a seat min
 no claim and overwrite its holder's.
 
 A holder is alive while its pid runs `claude` and that process started at the recorded instant, so a
-reused pid never passes. The process table is read from the kernel, never through a `ps` spawn:
+reused pid never passes. A process on its way out counts as gone: on darwin a zombie or one inside
+exit (`P_WEXIT`, state `E` in `ps`), on Linux state `Z` or `X`. Such a husk keeps its pid and name
+until its parent reaps it, which may never happen when the parent is a husk too, and it runs no
+session any more. The process table is read from the kernel, never through a `ps` spawn:
 `sysctl kern.proc.pid` on darwin (parent pid, name and start time in one call), and on Linux
 `/proc/<pid>/stat` with the boot time from `/proc/stat`, ticks counted at 100 a second. The name is
 the kernel's, truncated to 16 bytes, which `claude` fits. Start times are whole seconds, the same
