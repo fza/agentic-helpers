@@ -668,6 +668,12 @@ func (mem *memory) resolveItem(folded *state, name string, address string) (*ent
 		held, id = successor, successor.items[index].ID
 	}
 
+	// The list may have moved onto a todo of another shelf, which this seat
+	// may not change.
+	if !mem.mayEdit(folded, held, name) {
+		return nil, "", errors.New(mem.notOnShelf(held))
+	}
+
 	one := held.item(id)
 	if one == nil || one.State == itemRemoved {
 		return nil, "", fmt.Errorf("%s: no such item", address)

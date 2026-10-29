@@ -208,6 +208,8 @@ func (mem *memory) supersede(ctx context.Context, req request) result {
 		return refused("%s", modeRefusal)
 	}
 
+	name, _ := mem.seated(ctx)
+
 	check := func(folded *state, held *entry) error {
 		err := mem.supersedable(req.By)(folded, held)
 		if err != nil || !holdsItems(held) {
@@ -219,6 +221,9 @@ func (mem *memory) supersede(ctx context.Context, req request) result {
 			return fmt.Errorf("%s %w", held.id, ErrItemsUnnamed)
 		case req.ItemsMode == itemsCarry && (req.By == "" || folded.entries[req.By].kind != kindTodo):
 			return fmt.Errorf("%s: --items carry moves a todolist onto a todo named by --by", held.id)
+		case req.ItemsMode == itemsCarry && !mem.mayEdit(folded, folded.entries[req.By], name):
+			// Carrying writes the successor's items, which only its shelf may.
+			return errors.New(mem.notOnShelf(folded.entries[req.By]))
 		}
 
 		return nil
