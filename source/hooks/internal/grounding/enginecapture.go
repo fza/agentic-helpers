@@ -271,9 +271,16 @@ type serve struct {
 }
 
 // serveOf reads the serve from a tool response, whichever way the client
-// hands it on: the serve itself, the MCP result carrying it as structured
-// content or as JSON in a text block, or the bare list of blocks.
+// hands it on: the serve's JSON as one string (Claude Code's form), the serve
+// itself, the MCP result carrying it as structured content or as JSON in a
+// text block, or the bare list of blocks.
 func serveOf(raw json.RawMessage) serve {
+	var text string
+
+	if json.Unmarshal(raw, &text) == nil {
+		raw = json.RawMessage(text)
+	}
+
 	var direct serve
 
 	err := json.Unmarshal(raw, &direct)
