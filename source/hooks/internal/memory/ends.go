@@ -453,12 +453,22 @@ func (probe *endProbe) inferredEnd(ctx context.Context, held *entry) string {
 	return ""
 }
 
+// retireCandidate is a live entry whose end the tool infers, with why.
+type retireCandidate struct {
+	held *entry
+	why  string
+}
+
+func (candidate retireCandidate) flag() string {
+	return "retire? " + candidate.why
+}
+
 // retireCandidates is every live entry on seatName's shelf, other than a
-// rule, whose end the tool infers, each line with why.
-func (mem *memory) retireCandidates(ctx context.Context, here tree, folded *state, seatName string) []string {
+// rule, whose end the tool infers, each with why.
+func (mem *memory) retireCandidates(ctx context.Context, folded *state, seatName string) []retireCandidate {
 	probe := mem.probe(ctx)
 
-	var lines []string
+	var candidates []retireCandidate
 
 	for _, held := range folded.entryList() {
 		if held.status != statusLive || held.kind == kindRule || !mem.onShelf(held, seatName) {
@@ -467,9 +477,9 @@ func (mem *memory) retireCandidates(ctx context.Context, here tree, folded *stat
 
 		why := probe.inferredEnd(ctx, held)
 		if why != "" {
-			lines = append(lines, fmt.Sprintf("  %s  (%s)", shortLine(here, held, seatName, mem.now()), why))
+			candidates = append(candidates, retireCandidate{held: held, why: why})
 		}
 	}
 
-	return lines
+	return candidates
 }

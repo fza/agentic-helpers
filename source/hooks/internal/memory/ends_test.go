@@ -314,19 +314,18 @@ func TestRetireQuestionListsInferredEnds(t *testing.T) {
 
 	brief := h.must("", "brief")
 
-	_, listed, found := strings.Cut(brief, "retire?\n")
-	if !found {
-		t.Fatalf("the brief should list inferred ends under retire?:\n%s", brief)
-	}
-
-	for id, why := range map[string]string{linked: "(every link ended)", anchored: "(every anchor gone)", branch: "(branch feature is gone)"} {
-		if !strings.Contains(listed, id) || !strings.Contains(listed, why) {
-			t.Errorf("retire? should list %s with why, missing in:\n%s", id, listed)
+	for id, why := range map[string]string{linked: "every link ended", anchored: "every anchor gone", branch: "branch feature is gone"} {
+		if !strings.HasSuffix(briefLine(brief, id), "retire? "+why) {
+			t.Errorf("an entry whose end is inferred should carry retire? with why on its own line:\n%s", brief)
 		}
 	}
 
-	if strings.Contains(listed, kept) {
-		t.Errorf("an entry whose link is live should not be listed:\n%s", listed)
+	if strings.Contains(briefLine(brief, kept), "retire?") {
+		t.Errorf("an entry whose link is live should not be flagged:\n%s", brief)
+	}
+
+	if strings.Contains(brief, "\nretire?\n") {
+		t.Errorf("the retire? section should not repeat entries printed above:\n%s", brief)
 	}
 
 	if out := h.must("", "search", "--status", "retired"); out != "no entry matches\n" {
@@ -428,12 +427,53 @@ func TestRetireQuestionReadsAConnectedRepo(t *testing.T) {
 
 	brief := h.must("", "brief")
 
-	_, listed, found := strings.Cut(brief, "retire?\n")
-	if !found || !strings.Contains(listed, ended) || !strings.Contains(listed, "(every link ended)") {
-		t.Errorf("an entry whose only link is a closed entry of a connected repo should be listed under retire?:\n%s", brief)
+	if !strings.HasSuffix(briefLine(brief, ended), "retire? every link ended") {
+		t.Errorf("an entry whose only link is a closed entry of a connected repo should be flagged retire?:\n%s", brief)
 	}
 
-	if strings.Contains(listed, kept) {
-		t.Errorf("an entry whose connected-repo link is live should not be listed:\n%s", listed)
+	if strings.Contains(briefLine(brief, kept), "retire?") {
+		t.Errorf("an entry whose connected-repo link is live should not be flagged:\n%s", brief)
 	}
+}
+
+func TestRetireQuestionFlagsInPlaceAndListsOnlyTheRest(t *testing.T) {
+	h := newHarness(t)
+	withGraph(t, h)
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"brief_note_limit":1}}}}`)
+	h.must("", "claim", "main")
+
+	overCap := h.file("Cold finding citing a closed decision", "body", "--link", closedDecision)
+	listed := h.file("Hot finding citing a closed decision", "body", "--link", closedDecision)
+	h.must("", "show", listed)
+	h.must("", "show", listed)
+
+	brief := h.must("", "brief")
+
+	if !strings.HasSuffix(briefLine(brief, listed), "retire? every link ended") {
+		t.Errorf("a candidate the notes print should carry retire? on its own line:\n%s", brief)
+	}
+
+	_, section, found := strings.Cut(brief, "\nretire?\n")
+	if !found {
+		t.Fatalf("a candidate past the note limit should be named under retire?:\n%s", brief)
+	}
+
+	if strings.Contains(section, listed) {
+		t.Errorf("a candidate printed above should not repeat under retire?:\n%s", brief)
+	}
+
+	if !strings.HasPrefix(section, "  "+overCap+" Cold finding citing a closed decision  retire? every link ended\n") {
+		t.Errorf("a candidate past the note limit should be named under retire? with its title and why alone:\n%s", brief)
+	}
+}
+
+// briefLine is the brief's line for id, its two-space indent cut.
+func briefLine(brief string, id string) string {
+	for _, text := range strings.Split(brief, "\n") {
+		if strings.HasPrefix(text, "  "+id+" ") {
+			return strings.TrimPrefix(text, "  ")
+		}
+	}
+
+	return ""
 }

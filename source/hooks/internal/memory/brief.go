@@ -267,6 +267,16 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add(fmt.Sprintf("%s: the brief's layout: %v", self, err))
 	}
 
+	// A candidate printed in a section carries its retire? flag there; the
+	// retire? section names only the ones no section printed.
+	candidates := mem.retireCandidates(ctx, folded, seatName)
+	flagged := map[string][]string{}
+
+	for _, candidate := range candidates {
+		flagged[candidate.held.id] = []string{candidate.flag()}
+	}
+
+	printed := map[string]bool{}
 	missing := 0
 
 	for _, section := range sections {
@@ -298,11 +308,13 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 
 		for _, one := range page {
-			if !out.add("  " + shortLine(here, one, seatName, now)) {
+			if !out.add("  " + shortLine(here, one, seatName, now, flagged[one.id]...)) {
 				missing++
 
 				continue
 			}
+
+			printed[one.id] = true
 
 			for _, cited := range citingLines(one, listed, "    ") {
 				out.add(cited)
@@ -314,10 +326,18 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 	}
 
-	if candidates := mem.retireCandidates(ctx, here, folded, seatName); len(candidates) > 0 {
+	var unprinted []string
+
+	for _, candidate := range candidates {
+		if !printed[candidate.held.id] {
+			unprinted = append(unprinted, fmt.Sprintf("  %s %s  %s", candidate.held.id, candidate.held.title, candidate.flag()))
+		}
+	}
+
+	if len(unprinted) > 0 {
 		out.add("retire?")
 
-		for _, text := range candidates {
+		for _, text := range unprinted {
 			out.add(text)
 		}
 	}

@@ -5,7 +5,7 @@ m-atlo54 Deploy runs at noon daily  [3h, idea]
 m-qxmnz0 Staging DB moved to db2  [3h, idea]
 m-o7axno Review owes the API diff  [3h, idea]
 m-9nvycp Readme names the build steps  [4h]  gone: README.md
-m-xsqupf Finding citing a closed decision  [4h]  → 20261025-162357-d-tac-427 closed by 20261026-101500-s-tac-a1b
+m-xsqupf Finding citing a closed decision  [4h]  → 1 ended
 m-g6cqa7 Note about the lima finding  [4h]
 m-adr7gq Note about the kilo finding  [4h]
 m-iy625a Note about the india finding  [4h]

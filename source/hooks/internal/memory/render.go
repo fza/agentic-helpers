@@ -36,14 +36,14 @@ func line(here tree, held *entry) string {
 
 	text := fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", "))
 
-	return withFlags(text, append(flagsOf(here, held), declared(held)...))
+	return withFlags(text, append(flagsOf(here, held, held.flags()), declared(held)...))
 }
 
 // shortLine is how an entry shows in the brief and in recall, read every
 // claim and compaction: id, title, its age, the filing seat where it is not
 // the reader, a retain override that differs from the kind's decay, then its
-// flags.
-func shortLine(here tree, held *entry, reader string, now time.Time) string {
+// flags with the ended links folded, then any extra flag the caller adds.
+func shortLine(here tree, held *entry, reader string, now time.Time, extra ...string) string {
 	parts := []string{age(now.Sub(held.filed))}
 	if held.seat != reader {
 		parts = append(parts, held.seat)
@@ -53,16 +53,64 @@ func shortLine(here tree, held *entry, reader string, now time.Time) string {
 		parts = append(parts, "retain "+retained)
 	}
 
-	return withFlags(fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", ")), flagsOf(here, held))
+	flags := append(flagsOf(here, held, foldedLinks(held.flags())), extra...)
+
+	return withFlags(fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", ")), flags)
+}
+
+// foldedLinks is a short line's link flags: a settled target in full, since a
+// decision in force is context, every other ended one folded into one count,
+// a superseded one kept by its successor, which is what an agent follows.
+func foldedLinks(flags []string) []string {
+	var (
+		listed     []string
+		successors []string
+	)
+
+	ended := 0
+	bySuccessor := map[string]int{}
+
+	for _, flag := range flags {
+		_, state, _ := strings.Cut(strings.TrimPrefix(flag, "→ "), " ")
+		successor, superseded := strings.CutPrefix(state, "superseded by ")
+
+		switch {
+		case state == "settled":
+			listed = append(listed, flag)
+		case superseded:
+			if bySuccessor[successor] == 0 {
+				successors = append(successors, successor)
+			}
+
+			bySuccessor[successor]++
+		default:
+			ended++
+		}
+	}
+
+	var folded []string
+	if ended > 0 {
+		folded = append(folded, fmt.Sprintf("%d ended", ended))
+	}
+
+	for _, successor := range successors {
+		folded = append(folded, fmt.Sprintf("%d superseded by %s", bySuccessor[successor], successor))
+	}
+
+	if len(folded) > 0 {
+		listed = append(listed, "→ "+strings.Join(folded, ", "))
+	}
+
+	return listed
 }
 
 // flagsOf is every flag an entry's line carries: its status, its staleness
-// against the checkout, its links, and how many live or retired entries link
-// to it.
-func flagsOf(here tree, held *entry) []string {
+// against the checkout, the link flags given, and how many live or retired
+// entries link to it.
+func flagsOf(here tree, held *entry, links []string) []string {
 	flags := statusFlags(held)
 	flags = append(flags, staleness(here, held)...)
-	flags = append(flags, held.flags()...)
+	flags = append(flags, links...)
 
 	if inbound := held.linkedFrom(false); len(inbound) > 0 {
 		flags = append(flags, fmt.Sprintf("← %d", len(inbound)))

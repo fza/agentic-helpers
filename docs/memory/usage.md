@@ -560,7 +560,8 @@ A link is read, never followed for bodies. A line flags each target that is no l
 open: `→ <target> closed by <id>`, `superseded by <id>`, `settled`, `retired`, or `gone` where the
 graph entry's file is missing from the checkout, or, for a connected repo's entry, where the export no
 longer carries it. A line names a connected repo's entry by the last path segment of its `repo_id`,
-`→ fdbox:20261024-120000-d-tac-k2m closed by <id>`, and `show` by its full qualified id. `← <n>` counts the entries linking to it, superseded ones aside. `show` adds
+`→ fdbox:20261024-120000-d-tac-k2m closed by <id>`, and `show` by its full qualified id. The brief's
+and recall's short line folds the ended ones into a count (see [What comes back](#what-comes-back)). `← <n>` counts the entries linking to it, superseded ones aside. `show` adds
 `links:` and `linked from:`, which leaves out superseded entries too, every older link of a supersede
 chain being one; `show --with-superseded` (MCP `with_superseded`) lists them. A retired entry linking
 in stays listed: it ended, and nothing replaced it. Recall and the brief name, under a hit, up to two
@@ -645,10 +646,12 @@ retire does, by the checking seat, with the reason `end reached: <condition>`; `
 The brief lists each such retire once, under `ended since last brief (revive to undo):`, as
 `<id> <title>: <condition>`.
 
-`retire?` in the brief lists live entries on the shelf, rules aside, whose end the tool infers but
-nobody declared, with why: `(every link ended)` where every link target is closed, superseded,
-retired or gone, `(every anchor gone)`, `(branch <b> is gone)` for a `merged:` branch that no longer
-exists, merged or abandoned. Nothing is retired from it.
+The brief flags each live entry on the shelf, rules aside, whose end the tool infers but nobody
+declared, with why: `retire? every link ended` where every link target is closed, superseded,
+retired or gone, `retire? every anchor gone`, `retire? branch <b> is gone` for a `merged:` branch
+that no longer exists, merged or abandoned. The flag ends the entry's own line under its kind; the
+`retire?` section lists only candidates no section printed, notes past `brief_note_limit` among
+them, as `<id> <title>  retire? <why>`. Nothing is retired from either.
 
 ## Search
 
@@ -816,8 +819,15 @@ The brief and prompt recall print a short line, read at every claim and compacti
 
 the id and title, the time since filing in its largest whole unit (`m`, `h`, `d`, `w`), the filing
 seat only where it is not the reader, `retain <level>` only where an override differs from the
-kind's decay, then the flags every line carries. `search`, `show` and `show`'s `linked from:` keep
-the full line, with seat, kind, source, filing time and commit.
+kind's decay, then the flags every line carries, the link flags folded: a `settled` target stays
+listed in full, being a decision in force, and every other ended target folds into one count, a
+superseded one kept by its successor, the id to read next:
+
+    m-q2rk7d Waiter flaky on CI  [2d]  → 20261024-110000-d-tac-set settled; → 17 ended, 1 superseded by m-xlez8q; ← 1
+
+`ended` counts the targets closed, retired, gone, or superseded naming no successor. `search`, `show`
+and `show`'s `linked from:` keep the full line, with seat, kind, source, filing time and commit, and
+every link flag in full; `show` says which target closed and by what.
 
 Near compaction a nudge asks for a state write first:
 

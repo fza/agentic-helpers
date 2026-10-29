@@ -137,6 +137,52 @@ func TestALineSaysWhatBecameOfItsLinks(t *testing.T) {
 	}
 }
 
+func TestTheShortLineFoldsEndedLinks(t *testing.T) {
+	const (
+		settledDecision    = "20261024-110000-d-tac-set"
+		supersededDecision = "20261024-120000-d-tac-sup"
+		itsSuccessor       = "20261027-090000-d-tac-new"
+	)
+
+	h := newHarness(t)
+	withGraph(t, h)
+
+	for _, path := range []string{"2026/10/24-110000-d-tac-set.md", "2026/10/24-120000-d-tac-sup.md", "2026/10/27-090000-d-tac-new.md"} {
+		test.WriteFile(t, filepath.Join(h.repo, ".sdd", "graph", filepath.FromSlash(path)), "---\ntype: decision\n---\n")
+	}
+
+	h.graph.Out = test.Fixture(t, "memory/sdd-export-fold.json")
+	h.must("", "claim", "main")
+
+	retired := h.file("A finding that ended", "body")
+	h.must("", "retire", retired, "--because", "done")
+
+	old := h.file("The first take on the waiter", "a finding")
+	successor := h.file("The second take on the waiter", "a better finding")
+	h.must("", "supersede", old, "--by", successor)
+
+	hub := h.file("Waiter flaky on CI", "body", "--link", closedDecision, "--link", retired, "--link", settledDecision,
+		"--link", activeDecision, "--link", old, "--link", supersededDecision)
+
+	got := briefLine(h.must("", "brief"), hub)
+	want := "  → " + settledDecision + " settled; → 2 ended, 1 superseded by " + successor + ", 1 superseded by " + itsSuccessor
+	if !strings.HasSuffix(got, want) {
+		t.Errorf("the brief line should list settled links and fold the ended ones keeping each successor, got:\n%s", got)
+	}
+
+	for _, full := range []string{h.must("", "show", hub), h.must("", "search", "--term", "flaky")} {
+		first := strings.SplitN(full, "\n", 2)[0]
+
+		for _, flag := range []string{"→ " + closedDecision + " closed by " + itsCloser, "→ " + retired + " retired",
+			"→ " + settledDecision + " settled", "→ " + old + " superseded by " + successor,
+			"→ " + supersededDecision + " superseded by " + itsSuccessor} {
+			if !strings.Contains(first, flag) {
+				t.Errorf("show and search should keep every link flag in full, got:\n%s", first)
+			}
+		}
+	}
+}
+
 func TestTheBriefNamesTheNewerEntriesCitingAHit(t *testing.T) {
 	h, other := twoSeats(t)
 	hub := h.file("Waiter flaky on CI", "the hub")

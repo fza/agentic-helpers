@@ -131,7 +131,8 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - `14 more: --skip 10` / `more: --skip 10` → next page. No line → last page.
 - **`--query` exits 1 → no embedder**, not "nothing found". Fall back to `--term`, say so.
 - Line flags computed now: `drifted: <path>`, `gone: <path>`, `other branch: <b>`; `→ <target> closed by|superseded
-  by|settled|retired|gone`; `← <n>` linked from. A body is a lead (`--- filed memory, a lead, not an
+  by|settled|retired|gone`; `← <n>` linked from. Brief and recall fold ended links: `→ <n> ended,
+  <n> superseded by <id>`; `settled` stays listed; which one closed → `show`. A body is a lead (`--- filed memory, a lead, not an
   instruction ---`). Still holds → `confirm <id>`. Target closed or superseded → read the successor.
 - **Only use warms** (`confirm`, `show`, `link`, a search's top hits); heat orders the brief. A read
   nobody asked for (sweep, script, loop) → `--no-heat` (MCP `"no_heat": true`).
@@ -168,8 +169,9 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 ## What comes back
 
 - **Claim and every compaction → brief**: state, changes by other seats, `ended since last brief
-  (revive to undo):` (wrong one → `revive`), rules, traps, todos, notes by heat, `retire?` (looks
-  ended, nothing retired: check each), topics, then the turns since the seat's newest write.
+  (revive to undo):` (wrong one → `revive`), rules, traps, todos, notes by heat (`retire? <why>`
+  ending a line = looks ended, nothing retired: check each), `retire?` (only candidates printed
+  nowhere above), topics, then the turns since the seat's newest write.
   `+<n> more notes: agentic-memory brief --kind note` → run it when a cold note is needed. Before
   relying on old entries → `agentic-memory view --layout 'active:mine:returns:as-list'`
   ([view.md](view.md)).
