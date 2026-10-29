@@ -14,9 +14,9 @@ import (
 
 const captureInstance = "inst-7"
 
-// served is an engine answer as the client hands it on: the serve as JSON in
-// a text block of the MCP result.
-func served(t *testing.T, instance string, status string) []any {
+// served is an engine answer as Claude Code hands it to a hook: the serve's
+// JSON text as one string.
+func served(t *testing.T, instance string, status string) string {
 	t.Helper()
 
 	serve, err := json.Marshal(map[string]any{"instance": instance, "procedure": "capture", "status": status})
@@ -24,7 +24,7 @@ func served(t *testing.T, instance string, status string) []any {
 		t.Fatalf("encoding the serve: %v", err)
 	}
 
-	return []any{map[string]any{"type": "text", "text": string(serve)}}
+	return string(serve)
 }
 
 func startCapture(params map[string]any) map[string]any {
@@ -161,6 +161,34 @@ func TestEngineCaptureTopicPrefix(t *testing.T) {
 			}
 
 			refuses(t, got, tc.says)
+		})
+	}
+}
+
+func TestEngineCaptureReadsEveryServeShape(t *testing.T) {
+	serve := map[string]any{"instance": captureInstance, "procedure": "capture", "status": "running"}
+
+	cases := []struct {
+		name     string
+		response func(t *testing.T) any
+	}{
+		{name: "the serve's JSON as one string", response: func(t *testing.T) any { return served(t, captureInstance, "running") }},
+		{name: "the serve's JSON in a text block", response: func(t *testing.T) any {
+			return []any{map[string]any{"type": "text", "text": served(t, captureInstance, "running")}}
+		}},
+		{name: "the serve as structured content", response: func(*testing.T) any { return map[string]any{"structuredContent": serve} }},
+		{name: "the serve itself", response: func(*testing.T) any { return serve }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := configured(t, "area-prefix.yaml")
+			ground(t, env)
+			record(t, env, bash(`sdd view --layout "active:as-counts"`))
+			record(t, env, answered(startCapture(nil), tc.response(t)))
+
+			got := run(t, env, "gate", report(map[string]any{"body": "Text.", "topics": []any{"hooks"}}))
+			refuses(t, got, "These `topics` carry none opening with `area-`")
 		})
 	}
 }

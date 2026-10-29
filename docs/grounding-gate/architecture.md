@@ -43,7 +43,8 @@ file is byte-identical and the graph still holds the same entries.
 `captures` holds each engine capture the session started, by its instance handle: the last whole
 body and the topics the engine holds for it, and whether the gate already asked for the whole body
 once. The serve a start answers with names the instance; the gate reads it whether the client hands
-on the serve itself, the MCP result's `structuredContent`, or JSON in a text block. Only a call that
+on the serve's JSON as one string (as Claude Code does), the serve itself, the MCP result's
+`structuredContent`, or JSON in a text block. Only a call that
 went through is recorded, a `bodyPatch` applied by sdd's own rule (`applyPatch`), and a serve
 reporting the capture `completed` or `abandoned` drops it. Neither a graph change nor a compaction
 clears `captures`: it mirrors the engine's state, not a read.
