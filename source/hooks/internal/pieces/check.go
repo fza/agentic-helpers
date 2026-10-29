@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
@@ -15,11 +16,14 @@ const self = "agentic-helpers"
 // Env says where the plugin's options are read, and whether the call is the
 // SessionStart hook rather than a command an agent or the user runs.
 // Migration is the machine `sweep` and the SessionEnd hook `end` work on.
+// CacheRoot keeps each command's flavour, for the line naming what the
+// machine needs.
 type Env struct {
 	Settings  []string
 	Getenv    func(string) string
 	Hook      bool
 	Migration migration.Env
+	CacheRoot string
 }
 
 const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end"
@@ -27,7 +31,8 @@ const usage = "usage: " + self + " check | config [get <key> | set <key> <value>
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into
 // `config.yaml`. As the SessionStart hook it then prints one line per broken
-// tie and per `config.yaml` problem, nothing where none is; run as a command
+// tie and per `config.yaml` problem, then one naming the command
+// substitutions the machine needs, nothing where none is; run as a command
 // it lists every piece on or off and, under each, its features off through a
 // tie. sweep and end run and start the sweep of the old layout
 // (internal/migration).
@@ -64,6 +69,11 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 			_, _ = fmt.Fprintln(streams.Out, self+": "+problem)
 		}
 
+		line := machineLine(ctx, env, resolution.Options)
+		if line != "" {
+			_, _ = fmt.Fprintln(streams.Out, self+": "+line)
+		}
+
 		return 0
 	}
 
@@ -95,6 +105,24 @@ func sweep(ctx context.Context, name string, env Env, streams hookio.Streams) in
 	}
 
 	return 0
+}
+
+// machineLine names the substitutions the machine needs for the command
+// alternatives shell-guard refuses: empty where it needs none, or where
+// shell-guard or its alternatives are off.
+func machineLine(ctx context.Context, env Env, options pluginconfig.Options) string {
+	if !ShellGuard.On(options) || !options.ShellGuardAlternatives {
+		return ""
+	}
+
+	path := ""
+	if env.Getenv != nil {
+		path = env.Getenv("PATH")
+	}
+
+	machine := alternatives.Machine{Path: path, CacheFile: alternatives.CacheFile(env.CacheRoot)}
+
+	return machine.Line(ctx)
 }
 
 func listing(options pluginconfig.Options) string {

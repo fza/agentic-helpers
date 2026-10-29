@@ -4,7 +4,9 @@ A stray `rm -rf` outside the project is the one mistake an agent cannot undo, an
 such as `cd ~ && rm -rf x` slips past any rule that reads targets without parsing the command.
 `agentic-shell-guard` runs before every Bash call, parses the command as bash, and holds an agent's
 removals (`rm`, `rmdir`, `unlink`, `git rm`) to the project and `/tmp`, asks before `find -delete`
-and before a command holding what looks like a credential, and bans `mktemp`. After every tool call it withholds each line of output from outside the project that looks like a credential (see [Credentials in tool output](#credentials-in-tool-output)). A removal named inside a quoted argument (a sed script, a grep pattern, a commit
+and before a command holding what looks like a credential, and bans `mktemp`. A command missing on
+the machine, or a usage its flavour of a command gets wrong, is refused with the command that works
+(see [Command alternatives](#command-alternatives)). After every tool call it withholds each line of output from outside the project that looks like a credential (see [Credentials in tool output](#credentials-in-tool-output)). A removal named inside a quoted argument (a sed script, a grep pattern, a commit
 message) is text and passes; code handed to `eval`, `trap`, a shell's `-c`, or a shell's standard
 input by a here-document or here-string is parsed again.
 
@@ -24,6 +26,10 @@ options off.
   two hex digits other than `00`, so `$'rm' -rf /` is judged as `rm -rf /`; one holding any other
   escape (octal, `\u`, `\U`, `\c`, `\e`, a one-digit `\x`, a NUL) is read as an expansion.
   Targets resolve through symlinks, so a link inside the project pointing elsewhere is elsewhere.
+  A time limit in front of it keeps it lone: `timeout`, `gtimeout` or `uu-timeout` with options and
+  duration all fixed text (no variable, substitution, glob or brace, quoted or not), or exactly
+  `perl -e 'alarm N; exec @ARGV'`, which bound only how long the
+  removal runs, never where or what (`gtimeout 30 rm -rf ./build` passes).
 - Anything naming no removal and no `mktemp`.
 
 ## The guards and their options
@@ -40,6 +46,7 @@ user or managed settings):
 | `shell_guard_expansion` | boolean | `true` | a removal target built from a variable or command substitution |
 | `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it |
 | `shell_guard_mktemp` | boolean | `true` | `mktemp` anywhere in the command |
+| `shell_guard_alternatives` | boolean | `true` | a command missing on the machine, or a usage its BSD flavour gets wrong (see [Command alternatives](#command-alternatives)); off, the session start line naming the machine's substitutions goes too |
 | `shell_guard_ask_timeout` | seconds, at most 3600 | `120` | how long an ask waits in `auto` and `bypassPermissions` mode before it denies; `0` waits without limit |
 
 A boolean guard denies when on. **A command that does not parse as bash is denied whatever the
@@ -76,6 +83,80 @@ options say**: the guard cannot judge it.
   of them off, a removal it no longer denies takes `shell_guard_outside_project`'s verdict, reason
   `cannot place: <target> (<why>)`; with that off too, it runs.
 
+## Command alternatives
+
+Agents write GNU habits. On macOS `timeout` is not installed, so a bounded command fails, and BSD
+`sed` reads `sed -i 's/a/b/' f` as a backup suffix and a script named `f`, while `\+` or `\s` in a
+basic expression match nothing without an error. Shell-guard carries a built-in table of such
+commands, each with what to run instead, and refuses a call that would fail or silently do the
+wrong thing, naming the command that works. The table lives in the binary, not in `config.yaml`:
+that file is agent-writable, and a wrong launcher declared there would make shell-guard judge the
+wrong word.
+
+**Missing commands.** A command not on the `PATH` is stood in for by the first of its alternatives
+that is. For `timeout`: `timeout` itself (Linux, or macOS with GNU's gnubin or uutils' uubin first
+on the `PATH`), then `gtimeout` (GNU coreutils), then `uu-timeout` (uutils), then
+`perl -e 'alarm N; exec @ARGV' <command>`. The refusal names the whole command rewritten, quoting,
+pipelines and every other call kept:
+
+    agentic-shell-guard: timeout is not installed here; use: gtimeout 9 make test
+
+The perl form takes whole seconds, a duration's `s`, `m`, `h` or `d` multiplied out and a fraction
+rounded up; options (`-s`, `-k`) and a duration built at run time have no exact perl form, so the
+refusal then names the form with its slots,
+`timeout is not installed here; use: perl -e 'alarm <seconds>; exec @ARGV' <command>`. A command
+the perl form ends by its alarm exits 142 (`SIGALRM`), not GNU's 124. With no alternative installed
+the call runs, and fails as it would have.
+
+Every alternative launching a command is a launcher for every other guard: the command behind
+`gtimeout`, `uu-timeout` or the exact perl alarm form is judged as the command behind `timeout`, so
+`perl -e 'alarm 9; exec @ARGV' rm -rf ~/x` asks as outside the project rather than refusing as
+inline perl code. The perl form counts only where the word after it does not start with `-` (perl
+would read it as one more option, `-e` code among them), that word is fixed text with no
+whitespace and no shell metacharacter, since perl's `exec` hands such a word to `/bin/sh` when it
+stands alone (`perl -e 'alarm 9; exec @ARGV' 'rm -rf ~/x'`), and every word after it stays exactly
+one word, so none can vanish and leave it alone (`'rm -rf ~/x' $empty`, `"$@"`, a glob matching
+nothing). Any other perl call is inline code.
+
+**Dialects.** A command present in another flavour than the GNU one agents write for has its
+binary read, never run, for the strings its flavour carries: GNU sed names `GNU sed` and GNU date
+`GNU coreutils`; macOS's carry their project tag (`PROGRAM:sed  PROJECT:text_cmds`) and BSD's usage
+line. A binary carrying neither has no flavour and is never refused. The answer is kept per binary
+under the cache root (`command-flavours.json`) and read again when the binary changes. On a BSD
+flavour, a
+usage verified to fail or mislead there is refused, naming the GNU tool where it is installed
+(`gsed`, `gdate`) with the command rewritten to it, else BSD's own form:
+
+| Command | Usage refused | BSD's form |
+|---|---|---|
+| `sed` | `-i` with no suffix word (`sed -i 's/a/b/' f`, `sed -i -e ...`) | `-i ''`, or `-i.bak` |
+| `sed` | any long option (`--in-place`, `--expression=...`) | the short option |
+| `sed` | `-z` | none: GNU sed, or work line by line |
+| `sed` | `\+ \? \| \s \w \b \< \>` in a basic expression (no `-E` or `-r`) | `-E` with `+ ? \|`, `[[:space:]]`, `[[:alnum:]_]`, `[[:<:]]` `[[:>:]]` |
+| `sed` | a `0,/re/` address | `1,/re/` where line 1 cannot match |
+| `sed` | one-line `a`, `i` or `c` text (`/x/a text`) | `a\` and a newline before the text |
+| `date` | `-d` | `date -j -f <format> <value>` |
+
+Only a verified failure gets an entry: `readlink -f` and `grep -P` work on the macOS checked and
+have none, and `sed -E 's/a+/X/' f`, `sed -i '' 's/a/b/' f` and a `\+` in replacement text run.
+Options are read up to the first operand, as BSD's getopt reads them, and only an expression is
+read for escapes: replacement text, `y` strings, labels, file names and appended text are not.
+
+**What is judged.** Every call the command makes by a fixed name, those a launcher runs and those
+in a substitution among them. Code handed to another shell (`bash -c '...'`) is not rewritten, and
+a command named by a path (`/usr/local/bin/timeout`, `/usr/bin/sed`, `./sed`) is not judged: only
+a binary the `PATH` finds by its bare name is read for its flavour, never a file the proposed
+command picks. Only absolute `PATH` entries are searched; an empty or relative one (`.`, `bin`)
+names a directory under the working directory, where a project's own `sed` could sit.
+
+**At session start** `agentic-helpers check` prints one line naming the substitutions the machine
+needs, and nothing where none is (Linux with GNU tools):
+
+    agentic-helpers: this machine: timeout -> gtimeout; sed and date are BSD
+
+`shell_guard_alternatives` switches the refusals and the line together; with shell-guard off,
+neither appears.
+
 ## Refusals
 
 Every reason starts `agentic-shell-guard: `:
@@ -96,6 +177,8 @@ Every reason starts `agentic-shell-guard: `:
 | `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | secrets; `scan-incomplete` as the rule when the scan could not finish |
 | `the hook was cut short before its credential scan finished; nothing says whether the command holds one` | secrets, when the hook's own context ended during the scan |
 | `<reason>; rewrite the command (attempt <n> of 3)` | the first and second ask for a command name that is not fixed text or a credential, per session and reason |
+| `timeout is not installed here; use: <rewritten command>` | command alternatives, a missing command |
+| `<command> here is BSD <command>: <usage>; use: <rewritten command>`, `<command> here is BSD <command>: <usage>; instead <form>` | command alternatives, a dialect usage, with and without the GNU tool installed |
 | `cannot parse the command; refusing` | always |
 | `nobody answered within <n>s; <reason>` | an ask in `auto` or `bypassPermissions` mode whose countdown ran out |
 | `3 countdowns ran out unanswered since the last prompt; <reason>` | an ask in `auto` or `bypassPermissions` mode after three countdowns ran out |
@@ -209,6 +292,7 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
         "shell_guard_expansion": true,
         "shell_guard_nested_code": true,
         "shell_guard_mktemp": true,
+        "shell_guard_alternatives": true,
         "shell_guard_ask_timeout": 120
       }
     }

@@ -93,6 +93,43 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 		{name: "code piped to a shell", command: "echo x | sh", events: []string{"piped sh", "call echo x", "call sh"}},
 		{name: "a script piped into", command: "echo x | sh run.sh", events: []string{"call echo x", "call sh run.sh"}},
 		{name: "inline code", command: "perl -e 'unlink 1'", events: []string{"call perl -e unlink 1", "inline perl: -e unlink 1"}},
+		{
+			name: "gtimeout past its options and duration", command: "gtimeout -k 5 9 sdd info",
+			events: []string{"call gtimeout -k 5 9 sdd info", "launched -k 5 9 sdd info", "launched 5 9 sdd info", "launched 9 sdd info", "launched sdd info (certain)", "launched info"},
+		},
+		{
+			name: "uu-timeout past its duration", command: "uu-timeout 9 sdd",
+			events: []string{"call uu-timeout 9 sdd", "launched 9 sdd", "launched sdd (certain)"},
+		},
+		{
+			name: "the perl alarm form as a launcher", command: "perl -e 'alarm 9; exec @ARGV' sdd info",
+			events: []string{"call perl -e alarm 9; exec @ARGV sdd info", "launched -e alarm 9; exec @ARGV sdd info", "launched alarm 9; exec @ARGV sdd info", "launched sdd info (certain)", "launched info"},
+		},
+		{
+			name: "the perl alarm form under a launcher", command: "nohup perl -e 'alarm 9; exec @ARGV' sdd",
+			events: []string{"call nohup perl -e alarm 9; exec @ARGV sdd", "launched perl -e alarm 9; exec @ARGV sdd (certain)", "launched -e alarm 9; exec @ARGV sdd", "launched alarm 9; exec @ARGV sdd", "launched sdd (certain)"},
+		},
+		{
+			name: "perl options after the alarm form stay inline", command: "perl -e 'alarm 9; exec @ARGV' -e 'print 1' sdd",
+			events: []string{"call perl -e alarm 9; exec @ARGV -e print 1 sdd", "inline perl: -e alarm 9; exec @ARGV -e print 1 sdd"},
+		},
+		{
+			name: "one word perl hands to the shell stays inline", command: "perl -e 'alarm 9; exec @ARGV' 'sdd info'",
+			events: []string{"call perl -e alarm 9; exec @ARGV sdd info", "inline perl: -e alarm 9; exec @ARGV sdd info"},
+		},
+		{
+			name: "a word that may vanish after the alarm form stays inline", command: "perl -e 'alarm 9; exec @ARGV' sdd $empty",
+			events: []string{"call perl -e alarm 9; exec @ARGV sdd $empty", "inline perl: -e alarm 9; exec @ARGV sdd $empty"},
+		},
+		{
+			name: "a double-quoted expansion after the alarm form launches", command: `perl -e 'alarm 9; exec @ARGV' sdd "$x"`,
+			events: []string{`call perl -e alarm 9; exec @ARGV sdd $x`, `launched -e alarm 9; exec @ARGV sdd $x`, `launched alarm 9; exec @ARGV sdd $x`, `launched sdd $x (certain)`, `launched $x`},
+		},
+		{
+			name: "other perl code stays inline", command: "perl -e 'alarm 9; system @ARGV' sdd",
+			events: []string{"call perl -e alarm 9; system @ARGV sdd", "inline perl: -e alarm 9; system @ARGV sdd"},
+		},
+		{name: "code piped to a shell under the perl alarm form", command: "echo x | perl -e 'alarm 9; exec @ARGV' sh", events: []string{"piped sh", "call echo x", "call perl -e alarm 9; exec @ARGV sh", "launched -e alarm 9; exec @ARGV sh", "launched alarm 9; exec @ARGV sh", "launched sh (certain)"}},
 	}
 
 	for _, tc := range cases {
@@ -107,6 +144,43 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 
 			if !slices.Equal(recorder.Events, tc.events) {
 				t.Errorf("the walk should offer each command it runs, in order, got: %q", recorder.Events)
+			}
+		})
+	}
+}
+
+func TestCertainAndTimeLimitsFindTheCommandRun(t *testing.T) {
+	cases := []struct {
+		command   string
+		certain   []int
+		timeLimit int
+	}{
+		{command: "make test", certain: []int{0}, timeLimit: -1},
+		{command: "timeout -s KILL 9 make", certain: []int{0, 4}, timeLimit: 4},
+		{command: "gtimeout 9 make", certain: []int{0, 2}, timeLimit: 2},
+		{command: "uu-timeout 9 make", certain: []int{0, 2}, timeLimit: 2},
+		{command: "perl -e 'alarm 9; exec @ARGV' make", certain: []int{0, 3}, timeLimit: 3},
+		{command: "perl -e 'print 1' make", certain: []int{0}, timeLimit: -1},
+		{command: "sudo gtimeout 9 make", certain: []int{0, 1, 3}, timeLimit: -1},
+		{command: "nice -n 5 make", certain: []int{0, 3}, timeLimit: -1},
+		{command: "gtimeout 9", certain: []int{0}, timeLimit: -1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			file, err := shellwalk.Parse(tc.command)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			args := file.Stmts[0].Cmd.(*syntax.CallExpr).Args
+
+			if got := shellwalk.Certain(args); !slices.Equal(got, tc.certain) {
+				t.Errorf("every word the shell certainly runs as a command should be found, got %v", got)
+			}
+
+			if got := shellwalk.TimeLimitRuns(args); got != tc.timeLimit {
+				t.Errorf("only a time limit should name the command it runs, got %d", got)
 			}
 		})
 	}

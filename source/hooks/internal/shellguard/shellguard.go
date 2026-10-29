@@ -9,6 +9,10 @@
 // for any other interpreter cannot be parsed, so naming a removal or mktemp
 // there is judged by the nested-code guard.
 //
+// A call naming a command the machine lacks, or a usage its flavour of a
+// command gets wrong, is refused with the command that works (see
+// internal/alternatives).
+//
 // After every tool call, Output withholds each line of output from outside
 // the project that looks like a credential.
 //
@@ -58,7 +62,8 @@ type Verdict struct {
 // and never widens the project. Settings are the files the plugin's options
 // are read from. StateDir holds each session's countdowns that ran out and
 // its refused rewritable asks; Clock times the countdowns, read only by the
-// PermissionRequest hook.
+// PermissionRequest hook. The PATH read through Getenv says which commands
+// are installed, and StateDir, the cache root, keeps each command's flavour.
 type Env struct {
 	ProjectDir string
 	Home       string
@@ -85,6 +90,7 @@ type Options struct {
 	Expansion      bool
 	NestedCode     bool
 	Mktemp         bool
+	Alternatives   bool
 	// Scratch is whether the project carries the .tmp/ the mktemp refusal
 	// points at.
 	Scratch bool
@@ -94,7 +100,7 @@ func optionsFrom(read pluginconfig.Options) Options {
 	return Options{
 		OutsideProject: read.ShellGuardOutsideProject, FindDelete: read.ShellGuardFindDelete, Secrets: read.ShellGuardSecrets,
 		LoneRemoval: read.ShellGuardLoneRemoval, Expansion: read.ShellGuardExpansion,
-		NestedCode: read.ShellGuardNestedCode, Mktemp: read.ShellGuardMktemp,
+		NestedCode: read.ShellGuardNestedCode, Mktemp: read.ShellGuardMktemp, Alternatives: read.ShellGuardAlternatives,
 	}
 }
 
@@ -264,6 +270,7 @@ func Judge(ctx context.Context, command string, workingDir string, env Env, opti
 		found.add(inspection.found.decided)
 	}
 
+	found.add(judgeAlternatives(ctx, command, env, options))
 	found.add(holdsCredential(ctx, command, options))
 
 	return found.decided
@@ -291,7 +298,9 @@ func holdsCredential(ctx context.Context, command string, options Options) Verdi
 
 // loneRemoval returns the call when the whole command is one removal and
 // nothing else: one statement, no redirection, no assignment, not negated, not
-// in the background.
+// in the background. A time limit before it (timeout, or an alternative
+// standing in for it) changes neither where it runs nor its targets, so the
+// removal behind one still stands alone.
 func loneRemoval(file *syntax.File) (*syntax.CallExpr, int) {
 	if len(file.Stmts) != 1 {
 		return nil, 0
@@ -307,15 +316,35 @@ func loneRemoval(file *syntax.File) (*syntax.CallExpr, int) {
 		return nil, 0
 	}
 
-	name := shellwalk.CommandName(call.Args[0])
-	if slices.Contains(removers, name) {
-		return call, 1
+	start := 0
+	for {
+		next := shellwalk.TimeLimitRuns(call.Args[start:])
+		if next < 0 || start+next >= len(call.Args) {
+			break
+		}
+
+		start += next
 	}
 
-	if name == "git" && len(call.Args) > 1 {
-		subcommand, isLiteral := shellwalk.Literal(call.Args[1])
+	// Every word the time limits take must be fixed text: an option value
+	// such as "$(rm -rf ~/x)" stays one word, so the walk skips it as a value,
+	// and only the inspector's walk reaches the command it substitutes.
+	for _, word := range call.Args[:start] {
+		_, isLiteral := shellwalk.Literal(word)
+		if !isLiteral || shellwalk.Patterned(word) {
+			return nil, 0
+		}
+	}
+
+	name := shellwalk.CommandName(call.Args[start])
+	if slices.Contains(removers, name) {
+		return call, start + 1
+	}
+
+	if name == "git" && len(call.Args) > start+1 {
+		subcommand, isLiteral := shellwalk.Literal(call.Args[start+1])
 		if isLiteral && subcommand == "rm" {
-			return call, 2
+			return call, start + 2
 		}
 	}
 
