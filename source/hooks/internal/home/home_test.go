@@ -462,7 +462,7 @@ func TestAnUnclaimedStoreIsDeletedOnceItsGraceHasPassed(t *testing.T) {
 	}
 }
 
-func TestASplitLayoutResolvesToTheGraphRepositorysStore(t *testing.T) {
+func TestASplitLayoutJoinsTheGraphRepositorysStoreOnceItAdmitsTheCheckout(t *testing.T) {
 	cases := []struct {
 		name   string
 		config string
@@ -481,15 +481,112 @@ func TestASplitLayoutResolvesToTheGraphRepositorysStore(t *testing.T) {
 			code := m.checkout("app", "", "")
 			test.WriteFile(t, filepath.Join(code, ".sdd", "config.yaml"), tc.config)
 
+			asked := m.ensure(code)
+			if asked.Store != "" || asked.Question == nil || asked.Question.Reason != home.ReasonSplit ||
+				!asked.Question.Offers(id) {
+				t.Fatalf("a graph store not admitting the code repository should be asked about, got %+v", asked)
+			}
+
+			text := asked.Question.Text("agentic-memory")
+			if !strings.HasPrefix(text, "no store is bound to the checkout "+code+" yet: its `.sdd/` names the graph "+
+				"repository "+graph+", whose store does not admit it. Ask the user which store it belongs to, then run "+
+				"`agentic-memory bind <store>` or `agentic-memory bind --new` from this checkout.\n  "+id+": ") {
+				t.Errorf("the question should name the checkout, the graph folder, the store and both commands, got:\n%s", text)
+			}
+
+			if test.Exists(t, filepath.Join(code, ".git", home.PointerName)) {
+				t.Error("an unanswered question should write no pointer")
+			}
+
+			identity, err := m.roots.Identity(id)
+			if err != nil || len(identity.Checkouts) != 1 {
+				t.Errorf("an unanswered question should leave the graph store admitting the graph repository alone, got %+v: %v",
+					identity.Checkouts, err)
+			}
+
+			_, err = m.resolver().Bind(context.Background(), m.inspect(code), id)
+			if err != nil {
+				t.Fatalf("binding to the graph repository's store: %v", err)
+			}
+
 			got := m.find(code)
 			if got.Store != id || got.Question != nil {
-				t.Fatalf("the code repository should bind silently to the graph repository's store, got %+v", got)
+				t.Fatalf("after the bind the code repository should join the graph repository's store silently, got %+v", got)
 			}
 
 			for _, dir := range []string{graph, code} {
 				if pointer := strings.TrimSpace(test.ReadFile(t, filepath.Join(dir, ".git", home.PointerName))); pointer != id {
 					t.Errorf("the pointer in %s should name the graph repository's store, got %q", dir, pointer)
 				}
+			}
+		})
+	}
+}
+
+// TestASplitLayoutJoinsSilentlyWhereTheGraphStoreAdmitsTheCheckout reaches the
+// join itself, past the lookup that finds an admitted checkout first: the
+// code repository's pointer is gone and the index knows nothing of it.
+func TestASplitLayoutJoinsSilentlyWhereTheGraphStoreAdmitsTheCheckout(t *testing.T) {
+	cases := []struct {
+		name string
+		// moved is where the code repository is moved after the bind, empty
+		// where it stays: the store then knows it by volume and inode alone.
+		moved string
+		// recreated gives the code repository a new git directory at the
+		// same path: the store then knows it by path alone.
+		recreated bool
+	}{
+		{name: "admitted by path", recreated: true},
+		{name: "admitted by volume and inode", moved: "app-moved"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMachine(t)
+			graph := m.checkout("app-sdd", "github.com/acme/app-sdd", "")
+			id := m.bound(graph)
+
+			code := m.checkout("app", "", "")
+			test.WriteFile(t, filepath.Join(code, ".sdd", "config.yaml"), "project_dir: ../app-sdd\n")
+
+			_, err := m.resolver().Bind(context.Background(), m.inspect(code), id)
+			if err != nil {
+				t.Fatalf("binding to the graph repository's store: %v", err)
+			}
+
+			if tc.moved != "" {
+				moved := filepath.Join(m.root, tc.moved)
+
+				err = os.Rename(code, moved)
+				if err != nil {
+					t.Fatalf("moving the code repository: %v", err)
+				}
+
+				code = moved
+			}
+
+			if m.inspect(code).Volume == "" && tc.moved != "" {
+				t.Skip("no volume id on this platform")
+			}
+
+			err = os.Remove(filepath.Join(code, ".git", home.PointerName))
+			if err != nil {
+				t.Fatalf("removing the pointer: %v", err)
+			}
+
+			if tc.recreated {
+				err = os.Rename(filepath.Join(code, ".git"), filepath.Join(code, ".git-old"))
+				if err != nil {
+					t.Fatalf("setting the git directory aside: %v", err)
+				}
+
+				test.WriteFile(t, filepath.Join(code, ".git", "HEAD"), "ref: refs/heads/main\n")
+			}
+
+			test.WriteFile(t, filepath.Join(m.roots.Data, "index.json"), `{"format": 1, "identifiers": {}, "unclaimed": {}}`)
+
+			if got := m.find(code); got.Store != id || got.Question != nil {
+				t.Errorf("a checkout the graph store admits should join it silently, got %+v", got)
 			}
 		})
 	}

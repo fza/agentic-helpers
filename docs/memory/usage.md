@@ -50,7 +50,8 @@ moved store is refused with `agentic-memory: writers.json cannot be read: ... is
 folder; no call lands until ... is mended`, until it restarts.
 
 Where two checkouts compete for a store (a second clone of a known repository, a path reused by
-another repository, a copied checkout, a split layout whose two sides keep two stores), the
+another repository, a copied checkout, a split layout whose two sides keep two stores or whose
+graph repository's store does not admit the code checkout yet), the
 mapping is the user's call. SessionStart then says so, always about the checkout the session
 runs in:
 
@@ -60,7 +61,10 @@ runs in:
 
 `<reason>` is one of `it is another checkout of a repository a store already holds`,
 `its path belonged to a checkout of another repository`,
-`it carries the pointer of a store that admits other checkouts` or
+`it carries the pointer of a store that admits other checkouts`,
+``its `.sdd/` names the graph repository <graph folder>, whose store does not admit it`` (the
+split-layout link is committed config a clone brings along, so it joins silently only once a bind
+or an earlier join admitted the checkout) or
 `its identifiers name more than one store`. Until it is answered, every subcommand and memory MCP
 tool is refused with the same text, every other hook stays silent, and the store is untouched;
 `help`, `who`, `holder` and `bind` answer anywhere. A split layout whose code side keeps a store of

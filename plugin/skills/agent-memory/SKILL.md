@@ -40,7 +40,9 @@ hook ask, always about this checkout:
   candidate lines `<store id>: <name>; checkouts <paths>` → ask the user (AskUserQuestion): each
   listed store, or a new one. Answer → `agentic-memory bind <store id>` or `agentic-memory bind
   --new`, from this checkout. Until then every memory call and tool library write is refused with
-  the same text.
+  the same text. Reason ``its `.sdd/` names the graph repository <folder>, whose store does not
+  admit it`` → a split layout's committed link: ask whether this checkout belongs with that graph
+  repository (`bind <graph store>`) or keeps a store of its own (`bind --new`).
 - **`agentic-memory: the checkout <dir> and its graph repository keep their memory in two stores.`**
   → ask keep apart (`agentic-memory bind <own store>`) or join (`agentic-memory merge <own> <graph>`).
 - **`moved <identifier> from the store <id> ...; agentic-memory merge <id> <new> joins the two

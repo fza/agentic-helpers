@@ -130,10 +130,7 @@ func release(identity *Identity, checkout Checkout) []string {
 	kept := identity.Checkouts[:0]
 
 	for _, admitted := range identity.Checkouts {
-		sameDir := pathKey(admitted.CommonDir, admitted.Path) == pathKey(checkout.CommonDir, checkout.Root)
-		sameInode := admitted.Volume != "" && admitted.Volume == checkout.Volume && admitted.Inode == checkout.Inode
-
-		if sameDir || sameInode {
+		if admitted.is(checkout) {
 			released = append(released, "checkout "+admitted.Path)
 
 			continue
