@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 

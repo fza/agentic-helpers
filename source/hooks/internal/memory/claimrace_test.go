@@ -196,7 +196,9 @@ func TestTwoReservationsOfOneSeatAtOnceNeverBothLand(t *testing.T) {
 
 		atOnce(
 			func() { first = h.run("", "claim", "impl", "--session", "f00dbabe-0000-4000-8000-000000000001").code },
-			func() { second = other.run("", "claim", "impl", "--session", "f00dbabe-0000-4000-8000-000000000002").code },
+			func() {
+				second = other.run("", "claim", "impl", "--session", "f00dbabe-0000-4000-8000-000000000002").code
+			},
 		)
 
 		if first == 0 && second == 0 {
