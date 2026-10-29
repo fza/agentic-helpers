@@ -188,7 +188,7 @@ func TestTheMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 		t.Error("every schema should take no key beyond its properties")
 	}
 
-	if !strings.Contains(answers[3], `find takes no key \"Limit\"; it takes json, limit, page, query, term`) {
+	if !strings.Contains(answers[3], `find takes no key \"Limit\"; it takes limit, page, query, term`) {
 		t.Errorf("a wrong-case key should be refused, got %s", answers[3])
 	}
 
