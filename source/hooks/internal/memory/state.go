@@ -69,6 +69,12 @@ type retirePayload struct {
 	Because string `json:"because,omitempty"`
 }
 
+// revivePayload is what a revive changes besides the status: the claim a
+// `session` end watches from then on, where the revive rebound it.
+type revivePayload struct {
+	UntilHold *hold `json:"until_hold,omitempty"`
+}
+
 type supersedePayload struct {
 	By      string `json:"by,omitempty"`
 	Because string `json:"because,omitempty"`
@@ -474,6 +480,19 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 		held.explicit = slices.DeleteFunc(held.explicit, func(link explicitLink) bool { return link.target == row.Target })
 		note("unlinked from " + row.Target)
 	case memorylog.KindRevive:
+		var revived revivePayload
+
+		if len(payload) > 0 {
+			err := json.Unmarshal(payload, &revived)
+			if err != nil {
+				return err
+			}
+		}
+
+		if revived.UntilHold != nil {
+			held.untilHold = revived.UntilHold
+		}
+
 		if len(held.transitions) > 0 {
 			held.transitions = held.transitions[:len(held.transitions)-1]
 		}
@@ -817,6 +836,7 @@ func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, reti
 		filed.Topics = run.held.topics
 		filed.Kind = run.held.kind
 		filed.Retention = run.held.override
+		filed.UntilHold = run.held.untilHold
 	}
 
 	// A link from the text holds as long as the text does.

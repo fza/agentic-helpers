@@ -412,6 +412,13 @@ superseded by the entry itself as ended. `link` to a graph id runs the check for
 `captured` condition alone; `release` and the SessionEnd close run it for the released seat's
 shelf, `session` conditions alone, after closing the claim.
 
+`revive` reads the condition back from a retire whose `because` opens with `end reached: `
+(`reachedEnd` in `ends.go`). For `session`, the `revive` row carries the reviving seat's current
+claim as `until_hold`, which the fold puts in place of the filed one, and a merge folding that row
+past the horizon writes it into the `new` row. For any other form, `revive` asks the end check's
+question once more and refuses while the condition is met. A `revive` row from an earlier release
+carries `{}` and changes the status alone.
+
 The tool hook finds graph gains without reading a capture's output: it keeps, per session, the
 graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a month through the
 graph resolver), that directory's modification time and size, and the entry files it held, in

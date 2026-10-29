@@ -44,8 +44,11 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
   `state (3h old, branch main): ...`.
 - `--until closed:` refused `closed: needs sdd export, which this sdd lacks` → pick another form.
 - `--until session` watches the seat's claim, not the session id: `/clear` and `/resume` keep it,
-  release, session end or another claim of the seat end it. Ended and still needed → file it again
-  under the current claim; a `revive` lasts only until the next brief retires it again.
+  release, session end or another claim of the seat end it. Ended and still needed → `revive`: it
+  binds the entry to the reviving seat's current claim, so it ends with that claim.
+- `revive` of any other reached end refused `<id>: its end <condition> still holds; file it again`
+  → the condition still stands (`at:` and `claim` always do): file a new entry. Once the condition
+  stops holding (the file changed back, the path is there again), `revive` works.
 
 ## Links to other repositories
 

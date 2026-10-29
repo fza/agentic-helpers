@@ -636,15 +636,23 @@ them once:
 the session id: a `/clear` starts a new session id in the same process, which keeps its seat and its
 claim. A fork taking over a gone parent's seat starts a new claim, so the parent's `session` entries
 have ended. A session resumed after its claim ended finds such an entry retired; `revive` brings it
-back, and the next brief retires it again, as for every end still reached, so one still needed is
-filed again under the current claim.
+back bound to the reviving seat's current claim, so it ends when that claim does.
 
 The check runs whenever a brief is built, at a claim, after a compaction and on `brief`, over the
 entries on the checking seat's shelf, never another shelf's; `release` and a session's end run it
 for `session` ends at once. A reached end retires the entry as any
-retire does, by the checking seat, with the reason `end reached: <condition>`; `revive` undoes it.
+retire does, by the checking seat, with the reason `end reached: <condition>`.
 The brief lists each such retire once, under `ended since last brief (revive to undo):`, as
 `<id> <title>: <condition>`.
+
+`revive` undoes a reached end only once its condition no longer holds; a revive the next brief would
+undo again is refused instead:
+
+    <id>: its end <condition> still holds; file it again
+
+A `changed:` file changed back or a `gone:` path there again revives; an `at:`, `claim` or
+`captured` end, once reached, holds for good, so such an entry is filed again. A `session` end never
+refuses, since the revive rebinds it. A retire or supersede by hand revives as before.
 
 The brief flags each live entry on the shelf, rules aside, whose end the tool infers but nobody
 declared, with why: `retire? every link ended` where every link target is closed, superseded,

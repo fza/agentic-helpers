@@ -141,10 +141,17 @@ func TestASessionEndIsListedAndRevives(t *testing.T) {
 		t.Errorf("revive should restore an entry a session end retired:\n%s", live)
 	}
 
+	h.clock.Advance(time.Minute)
 	h.must("", "brief")
 
-	if retired := h.must("", "search", "--status", "retired"); !strings.Contains(retired, id) {
-		t.Errorf("the next brief should retire a revived entry again while its claim stays ended:\n%s", retired)
+	if live := h.must("", "search", "--status", "live"); !strings.Contains(live, id) {
+		t.Errorf("a revive should bind the entry to the reviving claim, so the next brief keeps it:\n%s", live)
+	}
+
+	h.must("", "release")
+
+	if retired := h.must("", "search", "--status", "retired", "--seat", "main"); !strings.Contains(retired, id) {
+		t.Errorf("the revived entry should end with the claim that revived it:\n%s", retired)
 	}
 }
 

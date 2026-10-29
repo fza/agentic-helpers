@@ -169,7 +169,8 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 ## What comes back
 
 - **Claim and every compaction → brief**: state, changes by other seats, `ended since last brief
-  (revive to undo):` (wrong one → `revive`), rules, traps, todos, notes by heat (`retire? <why>`
+  (revive to undo):` (wrong one → `revive`; refused while its end still holds, see
+  [reference.md](reference.md)), rules, traps, todos, notes by heat (`retire? <why>`
   ending a line = looks ended, nothing retired: check each), `retire?` (only candidates printed
   nowhere above), topics, then the turns since the seat's newest write.
   `+<n> more notes: agentic-memory brief --kind note` → run it when a cold note is needed. Before
