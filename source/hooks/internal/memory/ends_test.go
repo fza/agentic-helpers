@@ -21,7 +21,7 @@ func TestUntilTakesEachForm(t *testing.T) {
 
 	for _, until := range []string{
 		"closed:" + closedDecision, "merged:feature", "merged:feature@release", "changed:README.md",
-		"gone:internal/gate/gate.go", "claim", "at:2026-11-01", "at:2026-11-01T10:00:00Z", "captured",
+		"gone:internal/gate/gate.go", "claim", "session", "at:2026-11-01", "at:2026-11-01T10:00:00Z", "captured",
 	} {
 		t.Run(until, func(t *testing.T) {
 			out := h.must("body", "new", "--title", "Gate todo ending on a condition", "--kind", "todo", "--until", until)
@@ -33,6 +33,7 @@ func TestUntilTakesEachForm(t *testing.T) {
 
 	for _, malformed := range []string{
 		"done", "closed:d-tac-427", "merged:", "merged:feature@", "at:tomorrow", "changed:", "gone:../outside", "claim:x",
+		"session:x",
 	} {
 		t.Run("refuses "+malformed, func(t *testing.T) {
 			got := h.run("body", "new", "--title", "Gate todo ending on nothing", "--until", malformed)
@@ -43,7 +44,7 @@ func TestUntilTakesEachForm(t *testing.T) {
 	}
 
 	if got := h.run("body", "new", "--title", "Gate todo ending on nothing", "--until", "done"); !strings.Contains(got.err,
-		"--until takes closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim, at:<time> or captured") {
+		"--until takes closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim, session, at:<time> or captured") {
 		t.Errorf("a malformed condition should name the forms, got %q", got.err)
 	}
 

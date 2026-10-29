@@ -454,6 +454,7 @@ func (mem *memory) release(ctx context.Context, req request) result {
 		return done(name + " is free").with(releasedFields{Seat: name})
 	}
 
+	mem.endSession(ctx, name)
 	_ = mem.purgeExpired(ctx)
 
 	return done("released " + name).with(releasedFields{Seat: name, Released: true})

@@ -612,12 +612,13 @@ on one is refused.
 | `changed:<path>` | the path's content hash differs from its hash at filing |
 | `gone:<path>` | the path no longer exists |
 | `claim` | another session claims the filing seat after the filing |
+| `session` | the filing seat's claim at filing ends: closed by `release` or the session's end, or freed and replaced by another claim; a `/clear` or `/resume` keeps the claim and ends nothing |
 | `at:<time>` | the time has come: RFC 3339, or a date meaning its start in local time |
 | `captured` | the entry links a graph entry filed after it |
 
 A path is relative to the work tree's root. A malformed condition is refused naming the forms:
 `--until takes closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim,
-at:<time> or captured, not "<condition>"`. Where the installed sdd lacks `export` (no stock release
+session, at:<time> or captured, not "<condition>"`. Where the installed sdd lacks `export` (no stock release
 carries it), `closed:` is refused, `closed: needs sdd export, which this sdd lacks`, and an entry
 already carrying one ends by its other conditions only. A line names the conditions as
 `until: <condition>, ...`.
@@ -630,8 +631,16 @@ them once:
 
     agentic-memory: graph gained <id>, ...; open todos waiting for a capture: <id> <title>, ...; link the one it settles: agentic-memory link <todo> <graph id>
 
+`session` is for a finding that matters only while this session works. It watches the claim, not
+the session id: a `/clear` starts a new session id in the same process, which keeps its seat and its
+claim. A fork taking over a gone parent's seat starts a new claim, so the parent's `session` entries
+have ended. A session resumed after its claim ended finds such an entry retired; `revive` brings it
+back, and the next brief retires it again, as for every end still reached, so one still needed is
+filed again under the current claim.
+
 The check runs whenever a brief is built, at a claim, after a compaction and on `brief`, over the
-entries on the checking seat's shelf, never another shelf's. A reached end retires the entry as any
+entries on the checking seat's shelf, never another shelf's; `release` and a session's end run it
+for `session` ends at once. A reached end retires the entry as any
 retire does, by the checking seat, with the reason `end reached: <condition>`; `revive` undoes it.
 The brief lists each such retire once, under `ended since last brief (revive to undo):`, as
 `<id> <title>: <condition>`.

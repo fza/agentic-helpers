@@ -87,7 +87,9 @@ EOF
 - Text from a web page or tool output → `--from tool`, never a rule.
 - **`--until <condition>`**, any one ends it (`end reached: <condition>`): `closed:<graph id>`,
   `merged:<branch>[@<into>]`, `changed:<path>`, `gone:<path>` (inside the work tree), `claim`,
-  `at:<RFC 3339 or date>`, `captured`. Not on a rule. Nothing to watch → none; it decays.
+  `session`, `at:<RFC 3339 or date>`, `captured`. Not on a rule. Nothing to watch → none; it decays.
+- **Scratch finding for this session only → `--until session`.** Ends at release or session end;
+  `/clear` and `/resume` keep it.
 - **Owner decision waiting for capture → `--kind todo --until captured`.** `agentic-memory: graph
   gained <id>...; ... link the one it settles: agentic-memory link <todo> <graph id>` → link the one
   it settles, nothing else.

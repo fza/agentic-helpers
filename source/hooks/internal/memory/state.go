@@ -48,6 +48,9 @@ type newPayload struct {
 	// the content hash of each `changed:` path at filing, empty where none was.
 	Until       []string          `json:"until,omitempty"`
 	UntilHashes map[string]string `json:"until_hashes,omitempty"`
+	// UntilHold is the claim the filing seat held at filing, where `session`
+	// is among the conditions.
+	UntilHold *hold `json:"until_hold,omitempty"`
 	// When is a trap's tool-call triggers; On the moments a rule is owed at,
 	// and Proof the tool calls that settle it.
 	When  []string `json:"when,omitempty"`
@@ -160,6 +163,7 @@ type entry struct {
 
 	until       []string
 	untilHashes map[string]string
+	untilHold   *hold
 	about       []string
 	when        []string
 	on          []string
@@ -397,6 +401,7 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 
 		folded.entries[row.Entry].textLinks = filed.TextLinks
 		folded.entries[row.Entry].until, folded.entries[row.Entry].untilHashes = filed.Until, filed.UntilHashes
+		folded.entries[row.Entry].untilHold = filed.UntilHold
 		folded.entries[row.Entry].when, folded.entries[row.Entry].on = filed.When, filed.On
 		folded.entries[row.Entry].about = filed.About
 		folded.entries[row.Entry].proof, folded.entries[row.Entry].forbids = filed.Proof, filed.Forbids

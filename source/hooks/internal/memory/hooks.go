@@ -936,6 +936,7 @@ func (mem *memory) closeAtEnd(ctx context.Context, seatName string, payload hook
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
 	_, _, _ = mem.closeSeat(ctx, seatName, mem.seatKey(seatName), owner)
+	mem.endSession(ctx, seatName)
 	_ = mem.purgeExpired(ctx)
 }
 

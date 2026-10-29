@@ -30,8 +30,8 @@ func (mem *memory) seated(ctx context.Context) (string, bool) {
 }
 
 func (mem *memory) newEntry(ctx context.Context, req request) result {
-	name, isSeated := mem.seated(ctx)
-	if !isSeated {
+	name, claim := mem.ownSeat(ctx)
+	if name == "" {
 		return refused("%s", ErrNoSeat)
 	}
 
@@ -66,6 +66,11 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	until, untilHashes, err := mem.untilFor(ctx, here, req.Until)
 	if err != nil {
 		return refused("%v", err)
+	}
+
+	var untilHold *hold
+	if slices.Contains(until, "session") {
+		untilHold = &hold{Seat: mem.seatKey(name), Claimed: claim.Claimed}
 	}
 
 	folded, err := mem.load(ctx)
@@ -135,7 +140,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
 		Kind: kind, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
 		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
-		TextLinks: textLinks, Links: links, Until: until, UntilHashes: untilHashes,
+		TextLinks: textLinks, Links: links, Until: until, UntilHashes: untilHashes, UntilHold: untilHold,
 		When: declaredLife.when, On: declaredLife.on, Proof: declaredLife.proof, Forbids: forbids,
 		About: declaredPaths(here.root, req.About),
 	}

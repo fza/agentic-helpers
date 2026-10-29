@@ -390,18 +390,24 @@ flags fall back to the file quietly.
 ## Declared ends
 
 A `new` row carries its `--until` conditions (`until`), each path relative to the work tree, and the
-content hash of each `changed:` path at filing (`until_hashes`, empty where no file was there). Every
+content hash of each `changed:` path at filing (`until_hashes`, empty where no file was there), and,
+for `session`, the claim the filing seat held (`until_hold`: the seat id and the claim's `claimed`
+stamp). Every
 brief runs the end check over the live entries on the checking seat's shelf, rules aside, before it
 counts them: `closed:` reads the graph statuses links read, cached the same way; `merged:` asks git
 `rev-parse --verify --quiet refs/heads/<branch>` and `merge-base --is-ancestor refs/heads/<branch>
 <into>`, `<into>` defaulting to `symbolic-ref --quiet refs/remotes/origin/HEAD`, else `main`, once
 per branch per check; `claim` reads the filing seat's claim and last claim for a session other than
-the filing one claimed after the filing; `captured` reads the stamp a linked graph id carries. A
+the filing one claimed after the filing; `session` reads the seat's claim file, ended where none is
+there (a close, which records `closed`, or a sweep moved it to the last claim) or where its
+`claimed` differs from `until_hold`'s, and stands through a `/clear`, which rewrites only the
+claim's session id; `captured` reads the stamp a linked graph id carries. A
 reached end takes the store lock, re-reads the log, and appends a `retire` row by the checking seat
 with `because` `end reached: <condition>` for every entry still live. `ended since last brief` lists
 the retires with that reason after the seat's previous brief mark; `retire?` is computed from the
 link flags, the anchors and the `merged:` branches, and writes nothing. `link` to a graph id runs the
-check for that entry's `captured` condition alone.
+check for that entry's `captured` condition alone; `release` and the SessionEnd close run it for the
+released seat's shelf, `session` conditions alone, after closing the claim.
 
 The tool hook finds graph gains without reading a capture's output: it keeps, per session, the
 graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a month through the

@@ -19,7 +19,7 @@ import (
 // condition.
 const endReached = "end reached: "
 
-const untilForms = "closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim, at:<time> or captured"
+const untilForms = "closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim, session, at:<time> or captured"
 
 var (
 	ErrBadUntil  = errors.New("--until takes " + untilForms)
@@ -47,7 +47,7 @@ func parseCondition(text string) (condition, error) {
 	form, value, named := strings.Cut(text, ":")
 
 	switch {
-	case !named && (form == "claim" || form == "captured"):
+	case !named && (form == "claim" || form == "session" || form == "captured"):
 		return condition{form: form}, nil
 	case !named || value == "":
 	case form == "closed" && (isGraphID(value) || wholeQualifiedID.MatchString(value)):
@@ -192,6 +192,8 @@ func (probe *endProbe) met(ctx context.Context, held *entry, end condition) bool
 		return errors.Is(err, os.ErrNotExist)
 	case "claim":
 		return probe.mem.claimedSince(held)
+	case "session":
+		return probe.mem.holdEnded(held)
 	case "at":
 		at, err := parseEndTime(end.value)
 
@@ -256,6 +258,39 @@ func (mem *memory) claimedSince(held *entry) bool {
 	}
 
 	return false
+}
+
+// hold is the claim a `session` end watches: the filing seat's key and the
+// claim's `claimed` stamp. A session id would not do: `/clear` starts a new
+// one while the process keeps its seat and its claim.
+type hold struct {
+	Seat    string `json:"seat"`
+	Claimed string `json:"claimed"`
+}
+
+// holdEnded is whether the claim held was filed under is over: closed or
+// freed, either of which moves it off the seat's claim file, or replaced by
+// another claim. A claim an earlier release wrote carries no `claimed` stamp,
+// so only its absence ends it.
+func (mem *memory) holdEnded(held *entry) bool {
+	if held.untilHold == nil {
+		return false
+	}
+
+	current, found := seat.Read(mem.seatsDir(), held.untilHold.Seat)
+
+	return !found || current.Claimed != held.untilHold.Claimed
+}
+
+// endSession retires the entries on seatName's shelf whose `session` end a
+// release or a session's end just reached.
+func (mem *memory) endSession(ctx context.Context, seatName string) {
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return
+	}
+
+	mem.reachEnds(ctx, folded, seatName, "", "session")
 }
 
 // capturedSince is whether held links a graph entry filed after it, which

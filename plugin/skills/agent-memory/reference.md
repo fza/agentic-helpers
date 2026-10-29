@@ -43,6 +43,9 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
 - The brief shows notes up to `brief_note_limit` (10). A state line reads
   `state (3h old, branch main): ...`.
 - `--until closed:` refused `closed: needs sdd export, which this sdd lacks` → pick another form.
+- `--until session` watches the seat's claim, not the session id: `/clear` and `/resume` keep it,
+  release, session end or another claim of the seat end it. Ended and still needed → file it again
+  under the current claim; a `revive` lasts only until the next brief retires it again.
 
 ## Links to other repositories
 
