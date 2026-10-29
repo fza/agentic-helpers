@@ -51,14 +51,25 @@ same over every store on the machine, passing over a store whose lock it cannot 
 and writes back any index it had to rebuild, so the next pass reads recorded sizes again. Index
 schema 3 carries the sizes; an index of an older schema is rebuilt once.
 
-A store's index is untrusted like the rest of it, and the limit is shared, so one store's claims
-must not make room by pruning another's valid versions, nor slip a write past the limit. A version
-counts, and may be pruned, only while its `v<n>/` folder is there (one `lstat` per version; a
-version an index names without a folder counts nothing). Its size counts at most the 1 MiB a tool
-may hold, a negative file size as nothing, and every total saturates rather than wraps. An index
-recording a file size that is negative or past the cap, or a version past it, is not read at all:
-it is rebuilt from the folders, which every read caps. A current version and a fork's origin are
-never pruned, whatever an index says of their age.
+A store's index and the ledger are untrusted like the rest of a store, and the limit is shared, so
+one store's claims must not make room by pruning another's valid versions, nor slip a write past
+the limit. Recorded sizes only decide whether a write or the pass looks further: once they put the
+machine past the limit, every version in reach is measured on disk (the `lstat` sizes of its
+folder's regular files, at most 1 MiB + 64 KiB a version, six folders deep), and the prune is
+decided on those sizes. A store a scoped caller cannot reach is measured the same way, by its
+`<tool>/v<n>/` folders, never its ledger record; a ledger key counts only in its one clean form
+below `~/.claude/agentic-tools/`, so it can name neither a folder elsewhere on the machine nor the
+own store a second time. A version counts, and may be pruned, only while its `v<n>/` folder is
+there (one `lstat` per version). A recorded size counts at most the 1 MiB a tool may hold, a
+negative one as nothing, and every total saturates rather than wraps. An index recording a file
+size that is negative or past the cap, or a version past it, is not read at all: it is rebuilt
+from the folders, which every read caps. A current version and a fork's origin are never pruned,
+whatever an index says of their age.
+
+The cost: an index or ledger claiming more than it holds makes every write measure the stores in
+reach, a walk bounded by the caps above. Rejected: capping each store's recorded figure at
+`tools_total_mb` (a figure that only decides whether to measure gains nothing from a cap), and
+checking that a ledger key's folder exists (a missing folder measures as nothing anyway).
 
 Rejected: refusing at the limit with no pruning (the library fills with history and refuses new
 tools); counting only current versions (the disk grows past the limit unbounded); a 5 MB per-tool
