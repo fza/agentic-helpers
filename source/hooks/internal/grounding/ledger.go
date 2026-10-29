@@ -29,6 +29,10 @@ type evidence struct {
 	Grounded []groundedDraft `json:"grounded"`
 	Graph    string          `json:"graph"`
 	Noted    string          `json:"noted"`
+	// Captures holds each running capture through sdd's engine by its
+	// instance handle. Neither a graph change nor a compaction clears it: it
+	// is the body and topics the engine holds, not a read.
+	Captures map[string]engineDraft `json:"captures"`
 
 	rest map[string]json.RawMessage
 }
@@ -41,7 +45,7 @@ type groundedDraft struct {
 }
 
 func freshEvidence() evidence {
-	return evidence{Listings: []string{}, Grounded: []groundedDraft{}}
+	return evidence{Listings: []string{}, Grounded: []groundedDraft{}, Captures: map[string]engineDraft{}}
 }
 
 // against holds the reads to the graph as it stands now: reads recorded while
@@ -111,7 +115,7 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("reading the ledger: %w", err)
 	}
 
-	for _, name := range []string{"search", "query", "term", "listings", "grounded", "graph", "noted"} {
+	for _, name := range []string{"search", "query", "term", "listings", "grounded", "graph", "noted", "captures"} {
 		delete(fields, name)
 	}
 
@@ -124,6 +128,10 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 
 	if held.Grounded == nil {
 		held.Grounded = []groundedDraft{}
+	}
+
+	if held.Captures == nil {
+		held.Captures = map[string]engineDraft{}
 	}
 
 	return nil
@@ -142,6 +150,7 @@ func (held evidence) MarshalJSON() ([]byte, error) {
 	fields["grounded"] = held.Grounded
 	fields["graph"] = held.Graph
 	fields["noted"] = held.Noted
+	fields["captures"] = held.Captures
 
 	data, err := json.Marshal(fields)
 	if err != nil {

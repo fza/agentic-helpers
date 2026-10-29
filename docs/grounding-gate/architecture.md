@@ -20,7 +20,7 @@ through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code 
 | Event | Mode | What it does |
 |---|---|---|
 | SessionStart | `start` | removes the ledgers of sessions that left a week ago without ending cleanly; with `source: compact`, forgets this session's reads and keeps its grounded drafts |
-| PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next` | `record` | credits the reads the call performed; after the session's own capture (`agentic-capture` printing `<id>.md`, or a `next` result carrying `produced.entryId`), moves the ledger to the new graph state when that entry is the only change, keeping the reads |
+| PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__start_procedure`, `mcp__sdd__next` | `record` | credits the reads the call performed; after the session's own capture (`agentic-capture` printing `<id>.md`, or a `next` result carrying `produced.entryId`), moves the ledger to the new graph state when that entry is the only change, keeping the reads; keeps the body and topics an engine capture's start or report left it with (`recordEngineCapture`) |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`, its first line saying the call went ahead and, for reads owed, that they are owed before the next question or draft (`letThrough`); for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
 | SessionEnd | `end` | removes the session's ledger |
@@ -40,6 +40,14 @@ written holds the reads nowhere, so the gate refuses, the safe side. A grounded 
 entry count and newest entry at the time it was saved; a capture of it passes only while the draft
 file is byte-identical and the graph still holds the same entries.
 
+`captures` holds each engine capture the session started, by its instance handle: the last whole
+body and the topics the engine holds for it, and whether the gate already asked for the whole body
+once. The serve a start answers with names the instance; the gate reads it whether the client hands
+on the serve itself, the MCP result's `structuredContent`, or JSON in a text block. Only a call that
+went through is recorded, a `bodyPatch` applied by sdd's own rule (`applyPatch`), and a serve
+reporting the capture `completed` or `abandoned` drops it. Neither a graph change nor a compaction
+clears `captures`: it mirrors the engine's state, not a read.
+
 `noted` holds the missing reads the last let-through note named (`firstNote`). A gated call whose
 missing reads match it gets no note. A different graph state clears it with the reads, a compaction
 clears it with them, and a different set of missing reads no longer matches, so each of the three
@@ -54,6 +62,20 @@ them. A read the ledger credits is never named, so an agent is not sent to repea
 tool `letThrough` swaps the first line for the let-through one: the call already ran, so the reads
 are owed before the next question or draft rather than before the call again. The note carrying
 reads owed fires once per cause (see [the ledger](#the-ledger)); a refusal fires on every call.
+
+## The engine capture checks
+
+`engineCaptureRefusal` holds a capture start, once its reads stand, and every `mcp__sdd__next` to an
+instance in `captures`, to the project's `listing_prefix` and `draft_lint`. It reads the start's
+`params` or the report, with a chooser answer's `fields` folded in. Topics lacking the prefix refuse
+(`refusals/engine-topics.txt`), and so does a `confirm` to the `playback` chooser while the held
+topics lack it (`engine-confirm.txt`). The body a call leaves, a whole `body` or a `bodyPatch`
+applied to the held body, goes through `internal/draftlint`, the runner `agentic-capture` shares:
+written to `.body-*.md` in the ledger directory, run from the project's root, each finding named with
+the file as `body` (`engine-lint.txt`); a run that fails silently refuses (`engine-lint-unread.txt`).
+A patch with no held body refuses once (`engine-body.txt`) and passes after. The capture procedure's
+field names, its `playback` step and sdd's edit rule are restated here, so a change to either in sdd
+needs one here.
 
 ## The engine refusal
 

@@ -265,6 +265,7 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 
 	keepAcrossOwnCapture(ctx, env, payload)
+	recordEngineCapture(ctx, env, payload)
 
 	if strings.HasPrefix(payload.ToolName, "mcp__sdd__") {
 		recordMCP(ctx, env, payload)
@@ -427,6 +428,17 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 		return mcpShowTooShallow(ctx, env, payload, config.ShowDepth)
 	}
 
+	// A config that does not parse already refuses every capture start; a
+	// report goes on, since the gate cannot tell a capture's from another
+	// procedure's without it.
+	if payload.ToolName == mcpNext {
+		if configErr != nil {
+			return ""
+		}
+
+		return engineCaptureRefusal(ctx, env, payload, config)
+	}
+
 	if payload.ToolName == "Bash" {
 		found := readsBadly(ctx, env, payload)
 		if found != "" || writing(env, payload.ToolInput.Command) == writesNothing {
@@ -457,6 +469,10 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 	held.against(env.graphState())
 
 	if held.complete() {
+		if gatesCapture(payload) {
+			return engineCaptureRefusal(ctx, env, payload, config)
+		}
+
 		return ""
 	}
 

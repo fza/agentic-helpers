@@ -1,0 +1,3 @@
+GROUNDING GATE: refused. The project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) did not read the body this call leaves: {error}
+
+Make the lint run, then run this call again.

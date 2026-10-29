@@ -1,0 +1,3 @@
+GROUNDING GATE: refused. These `topics` carry none opening with `{prefix}`, the `listing_prefix` `.sdd/grounding.yaml` sets: every entry here is filed under one, and the listing the gate owes reads it.
+
+Report `topics` again with at least one `{prefix}` topic.

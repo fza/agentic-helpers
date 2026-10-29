@@ -1,0 +1,5 @@
+GROUNDING GATE: refused. The project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) reports on the body this call leaves, lines counted from the body's first:
+
+{findings}
+
+Fix each finding, then report the change again.

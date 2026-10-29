@@ -1,0 +1,3 @@
+GROUNDING GATE: refused. This `bodyPatch` edits a body the gate holds no record of, so the project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) cannot read the result.
+
+Report `body` in full once; later changes may patch it again.
