@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 )
 
 var ErrLocked = errors.New("the store is locked")
@@ -27,21 +27,21 @@ func (lib *library) stores(ctx context.Context) []*store {
 
 	keys := []string{}
 	if !lib.scopeProject() {
-		keys = storeKeys(lib.root())
+		keys = storeIDs(lib.env.Roots)
 	}
 
 	if !slices.Contains(keys, lib.key) {
 		keys = append(keys, lib.key)
 	}
 
-	named := labels(keys)
+	named := labels(lib.storeNames(keys))
 
 	own := &store{key: lib.key, label: named[lib.key], path: lib.ownDir(), own: true}
 	reach := []*store{own}
 
 	for _, key := range keys {
 		if key != lib.key {
-			reach = append(reach, &store{key: key, label: named[key], path: projectkey.Dir(lib.root(), key)})
+			reach = append(reach, &store{key: key, label: named[key], path: lib.env.Roots.Store(key, home.Tools)})
 		}
 	}
 
@@ -134,6 +134,12 @@ func (lib *library) recording(ctx context.Context, write func() error) error {
 }
 
 func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) error, write func() error) error {
+	// The own store's folder is made only once the checkout is bound to it.
+	err := admit(ctx)
+	if err != nil {
+		return err
+	}
+
 	store, err := lib.ownStore()
 	if err != nil {
 		return fmt.Errorf("creating the store: %w", err)
@@ -152,11 +158,6 @@ func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) er
 	}
 
 	defer unlock()
-
-	err = admit(ctx)
-	if err != nil {
-		return err
-	}
 
 	return write()
 }

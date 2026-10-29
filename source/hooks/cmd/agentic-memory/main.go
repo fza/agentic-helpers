@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
@@ -38,14 +39,14 @@ func main() {
 		base = working
 	}
 
-	home, err := os.UserHomeDir()
+	userHome, err := os.UserHomeDir()
 	if err != nil {
 		os.Exit(0)
 	}
 
 	cacheRoot := os.Getenv("XDG_CACHE_HOME")
 	if cacheRoot == "" {
-		cacheRoot = filepath.Join(home, ".cache")
+		cacheRoot = filepath.Join(userHome, ".cache")
 	}
 
 	owner := os.Getenv("AGENTIC_MEMORY_PROCESS_NAME")
@@ -60,12 +61,13 @@ func main() {
 
 	env := memory.Env{
 		Base:          base,
-		Home:          home,
+		Home:          userHome,
+		Roots:         home.Locate(userHome, os.Getenv),
 		CacheRoot:     cacheRoot,
 		OwnerName:     owner,
 		SessionID:     os.Getenv("CLAUDE_CODE_SESSION_ID"),
 		CompactWindow: window,
-		Settings:      pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
+		Settings:      pluginconfig.Paths(userHome, runtime.GOOS, os.Getenv),
 		Getenv:        os.Getenv,
 		Now:           time.Now,
 		Processes:     process.Table{},

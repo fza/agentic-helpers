@@ -3,17 +3,14 @@ package memory
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
-	"github.com/fza/agentic-helpers/source/hooks/internal/writers"
 )
 
 // who lists the seats of the current project, held, reserved or free, with
@@ -32,7 +29,7 @@ func (mem *memory) who(ctx context.Context, req request) result {
 
 	here := ""
 
-	if mem.key != "" && mem.storeExists() {
+	if mem.storeExists() {
 		here = mem.key
 
 		rows := seatLines(mem.seatRecords(ctx, mem.mayFree(ctx)), req.Unused, self+" who --unused")
@@ -49,16 +46,12 @@ func (mem *memory) who(ctx context.Context, req request) result {
 		return done(blocks[0])
 	}
 
-	for _, key := range mem.storeKeys() {
-		if key == here {
-			continue
-		}
-
-		other := &memory{env: mem.env, streams: mem.streams, key: key}
+	for _, held := range mem.otherStores(here) {
+		other := mem.sibling(held.ID)
 
 		rows := seatLines(public(other.seatRecords(ctx, false)), req.Unused, self+" who --all --unused")
 		if len(rows) > 0 {
-			blocks = append(blocks, key+":\n"+indent(rows))
+			blocks = append(blocks, held.Name()+" ("+held.ID+"):\n"+indent(rows))
 		}
 	}
 
@@ -71,12 +64,12 @@ func (mem *memory) whoJSON(ctx context.Context, req request) result {
 	seats := []jsonSeat{}
 	here := ""
 
-	if mem.key != "" && mem.storeExists() {
+	if mem.storeExists() {
 		here = mem.key
 
 		project := ""
 		if req.All {
-			project = mem.key
+			project = mem.storeName()
 		}
 
 		for _, row := range mem.seatRecords(ctx, mem.mayFree(ctx)) {
@@ -85,14 +78,10 @@ func (mem *memory) whoJSON(ctx context.Context, req request) result {
 	}
 
 	if req.All {
-		for _, key := range mem.storeKeys() {
-			if key == here {
-				continue
-			}
-
-			other := &memory{env: mem.env, streams: mem.streams, key: key}
+		for _, held := range mem.otherStores(here) {
+			other := mem.sibling(held.ID)
 			for _, row := range public(other.seatRecords(ctx, false)) {
-				seats = append(seats, seatJSON(row, key))
+				seats = append(seats, seatJSON(row, held.Name()))
 			}
 		}
 	}
@@ -110,49 +99,59 @@ func indent(rows []string) string {
 }
 
 // mayFree is whether this call may free the project's dead claims: a write,
-// so only a checkout listed for the store, or one of a project nobody claimed
-// yet, frees any. Nothing claims a project for who.
-func (mem *memory) mayFree(ctx context.Context) bool {
-	if mem.outsideGit || mem.unreadable != "" {
-		return false
-	}
-
-	if !mem.gitKeyed {
-		return true
-	}
-
-	err := mem.writersList().Check(ctx, mem.env.Base)
-
-	return err == nil || errors.Is(err, writers.ErrUnclaimed)
+// so never on a store of a format this release cannot write.
+func (mem *memory) mayFree(_ context.Context) bool {
+	return !mem.outsideGit && mem.unreadable == ""
 }
 
-// storeKeys is the key of every store on the machine, a migration's backups
-// aside, sorted.
-func (mem *memory) storeKeys() []string {
-	root := mem.root()
+// otherStores is every store on the machine holding memory seats, but the
+// one named here, by id.
+func (mem *memory) otherStores(here string) []home.Identity {
+	var others []home.Identity
 
-	var keys []string
-
-	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err == nil && entry.IsDir() && entry.Name() == "backup" {
-			return filepath.SkipDir
+	for _, identity := range mem.env.Roots.Identities() {
+		if identity.ID == here || !mem.sibling(identity.ID).holdsSeats() {
+			continue
 		}
 
-		if err != nil || !entry.IsDir() || entry.Name() != "seats" {
-			return nil
+		others = append(others, identity)
+	}
+
+	slices.SortFunc(others, func(left, right home.Identity) int { return strings.Compare(left.ID, right.ID) })
+
+	return others
+}
+
+func (mem *memory) holdsSeats() bool {
+	info, err := os.Stat(mem.seatsDir())
+
+	return err == nil && info.IsDir()
+}
+
+// storeIDs is the id of every store on the machine keeping memory.
+func (mem *memory) storeIDs() []string {
+	var ids []string
+
+	for id := range mem.env.Roots.Identities() {
+		info, err := os.Stat(mem.sibling(id).store())
+		if err == nil && info.IsDir() {
+			ids = append(ids, id)
 		}
+	}
 
-		key, err := filepath.Rel(root, filepath.Dir(path))
-		if err == nil && key != "." {
-			keys = append(keys, filepath.ToSlash(key))
-		}
+	slices.Sort(ids)
 
-		return filepath.SkipDir
-	})
+	return ids
+}
 
-	slices.Sort(keys)
+// storeName is how the own store reads to a person.
+func (mem *memory) storeName() string {
+	identity, err := mem.env.Roots.Identity(mem.key)
+	if err != nil {
+		return mem.key
+	}
 
-	return keys
+	return identity.Name()
 }
 
 type seatRow struct {

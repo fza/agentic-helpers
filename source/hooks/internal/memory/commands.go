@@ -90,6 +90,7 @@ type request struct {
 	Add            []string `json:"add,omitempty"`
 	Order          string   `json:"order,omitempty"`
 	WithRemoved    bool     `json:"with_removed,omitempty"`
+	Fresh          bool     `json:"new,omitempty"`
 
 	given map[string]bool
 }
@@ -279,7 +280,7 @@ func (req *request) set(spec flagSpec, value string) error {
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
 		"private": &req.Private, "again": &req.Again, "undo": &req.Undo, "remove": &req.Remove,
-		"with-removed": &req.WithRemoved,
+		"with-removed": &req.WithRemoved, "new": &req.Fresh,
 	}
 
 	switch spec.kind {
@@ -638,9 +639,23 @@ func allCommands() []command {
 			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"the linked graph id or memory id"}},"required":["id","target"]}`,
 		},
 		{
-			name: "trust", cliOnly: true, usage: "trust <path>", description: "let the checkout at path write this project's memory and tool library",
-			positional: func(req *request) error { return exactly(1, &req.Path)(req) }, run: (*memory).trust,
-			schema: `{"type":"object","properties":{"path":{"type":"string","description":"a checkout of this project"}},"required":["path"]}`,
+			name: "bind", cliOnly: true, usage: "bind <store> | bind --new",
+			description: "bind this checkout to a store of the machine, or to a new one",
+			flags:       []flagSpec{{"new", flagSwitch}},
+			positional: func(req *request) error {
+				if len(req.Positional) > 1 {
+					return errors.New("at most one store expected")
+				}
+
+				if len(req.Positional) == 1 {
+					req.Target = req.Positional[0]
+				}
+
+				return nil
+			},
+			run: (*memory).bind,
+			schema: `{"type":"object","properties":{"target":{"type":"string","description":"a store id"},` +
+				`"new":{"type":"boolean","description":"bind to a new store"}}}`,
 		},
 		{
 			name: "who", usage: "who [--all] [--unused]",
@@ -659,9 +674,10 @@ func allCommands() []command {
 			schema: `{"type":"object","properties":{` + topicKey + `},"required":["topic"]}`,
 		},
 		{
-			name: "merge", cliOnly: true, usage: "merge <from> <into>", description: "merge one topic into another, every seat",
-			positional: func(req *request) error { return exactly(2, &req.FromTopic, &req.Into)(req) },
-			run:        (*memory).merge,
+			name: "merge", cliOnly: true, usage: "merge <from> <into>",
+			description: "merge one topic into another, every seat; given two store ids, join the first store into the second",
+			positional:  func(req *request) error { return exactly(2, &req.FromTopic, &req.Into)(req) },
+			run:         (*memory).merge,
 			schema: `{"type":"object","properties":{"from_topic":{"type":"string","description":"the topic merged away"},` +
 				`"into":{"type":"string","description":"the topic it merges into"}},"required":["from_topic","into"]}`,
 		},

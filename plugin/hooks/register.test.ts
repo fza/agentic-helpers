@@ -2,8 +2,9 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On, SessionMeasureInput } from 'claude-code'
 
 const HOME = '/home/dev'
-const MEMORY_ROOT = `${HOME}/.claude/agentic-memory`
+const DATA = `${HOME}/.local/share/agentic-helpers`
 const SESSION = 'f9a21b6a-730c-40af-8c51-b8269b705bb5'
+const READING = `${DATA}/sessions/claude/${SESSION}/context.json`
 
 type Write = { path: string; text: string }
 
@@ -11,12 +12,15 @@ type Write = { path: string; text: string }
 // records what the mod asked of it.
 type Usage = 'unanswered' | 'throws' | { rawMaxTokens?: number }
 
-function engine(on: On, options: { home?: string; hasMemoryStore: boolean; usage?: Usage }) {
+function engine(
+  on: On,
+  options: { home?: string; variables?: Record<string, string>; hasMemoryStore: boolean; usage?: Usage },
+) {
   const writes: Write[] = []
   const probed: string[] = []
   const measured: SessionMeasureInput[] = []
 
-  mock.env(on, options.home === undefined ? {} : { HOME: options.home })
+  mock.env(on, { ...(options.home === undefined ? {} : { HOME: options.home }), ...options.variables })
   mock.clock(on, { now: 1792893991250 })
   on('session.id', () => ({ value: SESSION }))
   on('fs.exists', (_, e) => {
@@ -71,10 +75,10 @@ describe('the context reading', () => {
 
     await $.session.measure(measurement(12))
 
-    expect(probed).toEqual([MEMORY_ROOT])
+    expect(probed).toEqual([`${DATA}/stores`])
     expect(writes).toEqual([
       {
-        path: `${MEMORY_ROOT}/sessions/${SESSION}.ctx`,
+        path: READING,
         text: '{"used_percentage":12,"size":1000000,"at":"2026-10-25T02:06:31.250Z"}\n',
       },
     ])
@@ -88,12 +92,28 @@ describe('the context reading', () => {
 
     expect(writes).toEqual([
       {
-        path: `${MEMORY_ROOT}/sessions/${SESSION}.ctx`,
+        path: READING,
         text: '{"used_percentage":12,"size":1000000,"compact_window":400000,"at":"2026-10-25T02:06:31.250Z"}\n',
       },
     ])
     expect(measured).toHaveLength(1)
   })
+
+  const roots: { name: string; variables: Record<string, string>; data: string }[] = [
+    { name: 'AGENTIC_HELPERS_HOME', variables: { AGENTIC_HELPERS_HOME: '/srv/agents', XDG_DATA_HOME: '/xdg' }, data: '/srv/agents' },
+    { name: 'XDG_DATA_HOME', variables: { XDG_DATA_HOME: '/xdg' }, data: '/xdg/agentic-helpers' },
+    { name: 'a relative XDG_DATA_HOME', variables: { XDG_DATA_HOME: 'xdg' }, data: DATA },
+  ]
+  for (const rootCase of roots) {
+    test(`follows ${rootCase.name} to the home`, async ($, on) => {
+      const { writes, probed } = engine(on, { home: HOME, variables: rootCase.variables, hasMemoryStore: true })
+
+      await $.session.measure(measurement(12))
+
+      expect(probed).toEqual([`${rootCase.data}/stores`])
+      expect(writes.map((write) => write.path)).toEqual([`${rootCase.data}/sessions/claude/${SESSION}/context.json`])
+    })
+  }
 
   const windowless: { name: string; usage: Usage }[] = [
     { name: 'the engine answers no usage call', usage: 'unanswered' },

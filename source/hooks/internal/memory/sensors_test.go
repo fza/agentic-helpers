@@ -11,7 +11,7 @@ import (
 )
 
 func (h *harness) sensorPath(session string) string {
-	return filepath.Join(h.home, ".claude", "agentic-memory", "sessions", session+".ctx")
+	return filepath.Join(h.roots().Sessions("claude"), session, "context.json")
 }
 
 func exists(path string) bool {
@@ -43,7 +43,7 @@ func TestASessionIDNamingAPathRemovesNoReading(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	outside := filepath.Join(h.home, ".claude", "agentic-memory", "outside.ctx")
+	outside := filepath.Join(h.roots().Data, "sessions", "outside", "context.json")
 	test.WriteFile(t, outside, "{}")
 
 	data, _ := json.Marshal(map[string]string{"session_id": "../outside", "reason": "logout"})

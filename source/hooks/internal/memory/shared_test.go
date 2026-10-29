@@ -175,8 +175,7 @@ func TestAToolCallWithNoLogChangeReadsNoLog(t *testing.T) {
 	h, other := twoSeats(t)
 	other.must("", "tool")
 
-	seen := filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(h.store()[len(filepath.Join(h.home, ".claude", "agentic-memory"))+1:]),
-		"briefs", seatID(t, h.store(), "idea")+".seen.json")
+	seen := filepath.Join(h.cacheDir(), "briefs", seatID(t, h.store(), "idea")+".seen.json")
 	past := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	err := os.Chtimes(seen, past, past)

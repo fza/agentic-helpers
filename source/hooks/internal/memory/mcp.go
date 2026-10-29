@@ -65,15 +65,17 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 
 	defer func() { mem.hashCache.save() }()
 
+	// A long-running server outlives a bind run from the command line.
+	if mem.unbound || mem.question != nil {
+		mem.resolve(ctx, false)
+	}
+
 	refusal := mem.storeRefusal()
 	if refusal != "" && held.name != "who" {
 		return mcpserver.Refusal(self + ": " + refusal)
 	}
 
-	admitted := mem.admission(ctx, held.name)
-	if admitted != nil {
-		return mcpserver.Refusal(self + ": " + admitted.Error())
-	}
+	mem.admission(ctx, held.name)
 
 	err := exactKeys(held, arguments)
 	if err != nil {

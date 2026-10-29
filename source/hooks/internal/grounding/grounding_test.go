@@ -48,7 +48,7 @@ func bare(t *testing.T) grounding.Env {
 	root := t.TempDir()
 	mkdir(t, filepath.Join(root, ".sdd"))
 
-	return grounding.Env{ProjectDir: root, WorkingDir: root, Home: t.TempDir(), Runner: &test.Runner{}}
+	return grounding.Env{ProjectDir: root, WorkingDir: root, Home: t.TempDir(), Roots: test.Roots(t.TempDir()), Runner: &test.Runner{}}
 }
 
 func mkdir(t *testing.T, path string) {

@@ -76,7 +76,7 @@ func TestAnExemptSeat(t *testing.T) {
 	env := configured(t, "show-depth-exempt.yaml")
 	processes := test.NewProcesses()
 	env.Processes, env.OwnerName = processes, "claude"
-	store := test.MemoryStore(env.ProjectDir, env.Home, env.Checkout)
+	store := test.MemoryStore(t, env.Roots, env.ProjectDir, env.Checkout)
 	test.ClaimSeat(t, store, "reviewer", test.Session)
 
 	t.Run("reads at any depth", func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestSeatsLiveInTheMainCheckout(t *testing.T) {
 	env.Checkout = test.CommonDir{Dir: filepath.Join(main, ".git")}
 	env.Processes, env.OwnerName = test.NewProcesses(), "claude"
 
-	test.ClaimSeat(t, test.MemoryStore(main, env.Home, env.Checkout), "reviewer", test.Session)
+	test.ClaimSeat(t, test.MemoryStore(t, env.Roots, main, env.Checkout), "reviewer", test.Session)
 
 	passes(t, run(t, env, "gate", as(test.Session, bash(shownEntry))))
 }

@@ -5,9 +5,9 @@ The binary is `source/hooks/cmd/agentic-tools`; every decision lives in
 
 ## Store
 
-One store per project, `~/.claude/agentic-tools/<project>/`, the project keyed as agentic-memory
-keys it (`.sdd/config.yaml` `repo_id`, the graph repository's where `project_dir` names one, else
-a hash of the main checkout), so worktrees share it.
+One library per project, `<data>/stores/<id>/tools/`, in the store the agent-neutral home maps the
+checkout to, as agentic-memory's store is ([plugin architecture](../plugin/architecture.md#the-home)),
+so every worktree and every agent of the project shares it.
 
 | Path | Holds |
 |---|---|
@@ -27,13 +27,15 @@ Every read (find, list, take, the duplicate checks, the offer, the notices) uses
 never lists tool folders; a term search reads the current version's files by the names the index
 gives. A missing, corrupt or other-schema index is rebuilt from the folders on read, and written
 back for the own store under the lock; `reindex` forces the rebuild. A tool folder that cannot be
-read is skipped and counted. A store is any folder under `~/.claude/agentic-tools/` holding an index, a lock
-or a tool folder with a `current`, found at most six folders deep, so a library renamed into place
-reads as is.
+read is skipped and counted. A store is any `<data>/stores/<id>/tools/` folder holding an index, a
+lock or a tool folder with a `current`, so a library renamed into place reads as is. A store is
+labelled by the last part of its name (its `repo_id`, else its origin), with leading parts added
+where two would share a label; a fork's origin is recorded by store id and named by the store's
+name.
 
 ## Space
 
-`~/.claude/agentic-tools/.space.json` is the machine's ledger: per store key, `stored` (the bytes
+`<data>/tools/.space.json` is the machine's ledger: per store id, `stored` (the bytes
 of every stored version) and `held` (those of versions that cannot be pruned), from the sizes the
 index recorded when it read each version, never from a stat of the files. A walk over every store
 is far too slow for a figure every write reply and the brief print. `add` and `update` rewrite it
@@ -57,7 +59,7 @@ the limit. Recorded sizes only decide whether a write or the pass looks further:
 machine past the limit, every version in reach is measured on disk (the `lstat` sizes of its
 folder's regular files, at most 1 MiB + 64 KiB a version, six folders deep), and the prune is
 decided on those sizes. A scoped caller measures every other store the same way, by its
-`<tool>/v<n>/` folders: the stores a walk of `~/.claude/agentic-tools/` finds, never the keys the
+`<tool>/v<n>/` folders: the stores a listing of `<data>/stores/` finds, never the keys the
 ledger names, so no folder elsewhere on the machine counts. The own store is told apart by its
 folder's identity (`os.SameFile`), not its key, since a case-insensitive file system resolves the
 own key and the key its folder was made under to one folder. A version counts, and may be pruned,
@@ -78,7 +80,7 @@ cap (a helper tool is a script, and 1 MiB holds any reasonable one).
 
 ## Vectors
 
-Vectors live outside every store, in `~/.cache/agentic-tools/vectors/<embedder>/`, one directory
+Vectors live outside every store, in `<cache>/tools/vectors/<embedder>/`, one directory
 per embedder fingerprint, as segments of `internal/vectorseg`, the store agentic-memory keeps its
 entry vectors in (`docs/memory/architecture.md`, "The vector store"). A row is one description's
 vector, keyed by the description's hash, so one vector serves every store naming that description
@@ -92,24 +94,17 @@ snapshot; the offer embeds the prompt only where an own tool not yet shown has a
 nothing, and is removed.
 
 Every write takes `.lock` with `flock`, waiting at most two seconds; the holder writes its pid into
-the file, and a refusal names it. Under the lock the writer is checked against the project's list,
-`~/.claude/agentic-helpers/<project>/writers.json`, which `internal/writers` keeps for agentic-tools
-and agentic-memory both: a project with no list is claimed by recording the writer's git common
-directory, a listed writer goes ahead, any other is refused, and a list that cannot be read (a link,
-a pipe, a hard link, past 64 KiB, not an array of clean absolute paths) refuses everyone rather than
-being claimed over. A library's own `writers.json` from an earlier release moves into the project's
-list under that list's lock and is removed; until then it binds every check, so neither piece claims
-past it. A take line and an index a read rebuilt are written under the lock with a check that claims
-nothing. The hooks check the list only where the library exists, so a project keeping none gets no
-list. A store's key is the declared
-`repo_id`, which any checkout can declare; the list ties the right to write to the checkout, which
-it cannot. A version's files, its `tool.json` and its history line land
+the file, and a refusal names it. Before the lock, the writer's checkout is bound to its store: a
+checkout matching none gets one through `home.Resolver.Ensure`, and one whose store is the user's
+call is refused with the question, so no folder is made for a store nothing holds. A take line, an
+index a read rebuilt and a hook's session file are written the same way; a read creates nothing.
+A version's files, its `tool.json` and its history line land
 before `current` names it, and the index is rewritten whole after every write; after a crash the
 index can trail the folders until the next write or `reindex`.
 
 ## Trust
 
-Every value in every store is untrusted: a sandboxed process may write `~/.claude`, and a foreign
+Every value in every store is untrusted: a sandboxed process may write the home, and a foreign
 store holds another project's agents' text.
 
 - **Reads follow no link and wait on no pipe.** A walk opens each folder relative to its parent's
@@ -136,7 +131,7 @@ Reads span every store found, the own one first; writes touch the own store only
 room ([Space](#space)) aside, so a take of a
 foreign tool records the session's holding and writes no take line into the other store.
 `AGENTIC_TOOLS_SCOPE=project` lists the own store alone. Labels are the last segment of each
-project key, grown by a leading segment while two keys share one.
+store's name, grown by a leading segment while two names share one.
 
 ## Hooks
 
@@ -150,12 +145,12 @@ project key, grown by a leading segment while two keys share one.
 
 The offer's embed is bounded at five seconds, as agentic-memory's recall is; a timeout adds
 nothing. A prompt's vector lives in a slot per session under
-`~/.cache/agentic-helpers/prompt-vectors/`, which agentic-memory's recall fills too: whichever hook
+`<cache>/prompt-vectors/`, which agentic-memory's recall fills too: whichever hook
 embeds the prompt first leaves its vector for the other. The hooks of one event run in parallel, so
 the slot mostly saves an embed where recall finished first.
 
 What the context already holds lives in a seen file,
-`~/.cache/agentic-tools/seen/<pid>-<start>.json`: `lines`, each tool version find
+`<cache>/tools/seen/<pid>-<start>.json`: `lines`, each tool version find
 or list printed as `<name> v<n>`, and `offered`, the own tools the offer named. It is keyed on the
 owning `claude` process (its pid and start time, found as agentic-memory finds a seat's owner)
 rather than the session id: the MCP server keeps the `CLAUDE_CODE_SESSION_ID` it started with across

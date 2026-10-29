@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
@@ -78,13 +79,21 @@ func (h *harness) elsewhere(repoID string) *harness {
 	return &other
 }
 
+// store is the tool library of the store the harness's checkout works on,
+// the store bound first where none is yet.
 func (h *harness) store() string {
-	return filepath.Join(h.home, ".claude", "agentic-tools", filepath.FromSlash(h.repoID))
+	h.t.Helper()
+
+	return h.roots().Store(test.StoreOf(h.t, h.roots(), h.repo, test.GitDirOf{Worktrees: h.worktrees}, nil), home.Tools)
+}
+
+func (h *harness) roots() home.Roots {
+	return test.Roots(filepath.Dir(h.home))
 }
 
 func (h *harness) env() tools.Env {
 	return tools.Env{
-		Base: h.repo, Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
+		Base: h.repo, Home: h.home, Roots: h.roots(), OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.config, h.settings}, Getenv: func(name string) string { return h.variables[name] },
 		Now: h.clock.Now, Processes: h.processes, Checkout: test.GitDirOf{Worktrees: h.worktrees},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test", LockWait: h.lockWait,

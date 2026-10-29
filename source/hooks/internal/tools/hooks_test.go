@@ -200,7 +200,7 @@ func TestAMachineWithoutALibraryHearsNothing(t *testing.T) {
 		}
 	}
 
-	if test.Exists(t, filepath.Join(h.home, ".claude", "agentic-tools")) {
+	if test.Exists(t, h.roots().Data) {
 		t.Error("no hook should create the library")
 	}
 }

@@ -364,7 +364,7 @@ func TestAViewWarmsNothingAndMovesNoMark(t *testing.T) {
 	h := goldenStore(t)
 	h.must(hookPayload("", "", ""), "tool")
 
-	cache := filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID))
+	cache := h.cacheDir()
 	heat, _ := os.ReadFile(filepath.Join(cache, "heat.json"))
 	marks, _ := filepath.Glob(filepath.Join(cache, "briefs", "*"))
 

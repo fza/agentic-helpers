@@ -65,7 +65,7 @@ func viewIDs(t *testing.T, h *harness, text string) []string {
 func TestInboxAgreesWithTheArrivalNotice(t *testing.T) {
 	h, other, addressed := inboxStore(t)
 
-	cache := filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID))
+	cache := h.cacheDir()
 	marks, _ := filepath.Glob(filepath.Join(cache, "briefs", "*.seen.json"))
 	heat, _ := os.ReadFile(filepath.Join(cache, "heat.json"))
 

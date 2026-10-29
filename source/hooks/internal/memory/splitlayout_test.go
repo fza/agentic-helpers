@@ -1,7 +1,6 @@
 package memory_test
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -30,10 +29,8 @@ func TestASplitLayoutLinksIntoTheGraphRepository(t *testing.T) {
 		t.Errorf("a graph id held by the graph repository should link, got:\n%s", shown)
 	}
 
-	store := filepath.Join(h.home, ".claude", "agentic-memory", "gitlab.com", "example", "mika-sdd")
-
-	_, err := os.Stat(store)
-	if err != nil {
-		t.Errorf("the store should be keyed by the graph repository's repo_id: %v", err)
+	identity, err := h.roots().Identity(filepath.Base(filepath.Dir(h.store())))
+	if err != nil || identity.Name() != "gitlab.com/example/mika-sdd" {
+		t.Errorf("the store should carry the graph repository's repo_id, got %q: %v", identity.Name(), err)
 	}
 }

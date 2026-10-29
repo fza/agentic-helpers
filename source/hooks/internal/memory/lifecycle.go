@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
 
@@ -474,6 +475,10 @@ func (mem *memory) untag(ctx context.Context, req request) result {
 }
 
 func (mem *memory) merge(ctx context.Context, req request) result {
+	if home.ValidID(req.FromTopic) && home.ValidID(req.Into) {
+		return mem.mergeStores(ctx, req.FromTopic, req.Into)
+	}
+
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
 		return refused("%s", ErrNoSeat)

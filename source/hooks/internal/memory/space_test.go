@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -28,8 +29,9 @@ func (h *harness) sizedFile(name string, first byte, size int) string {
 	return path
 }
 
-func (h *harness) toolsRoot() string {
-	return filepath.Join(h.home, ".claude", "agentic-tools")
+// toolsLedger is where the tool library's machine-wide ledger lives.
+func (h *harness) toolsLedger() string {
+	return filepath.Join(h.roots().Shared(home.Tools), ".space.json")
 }
 
 func lastLine(out string) string {
@@ -78,7 +80,7 @@ func TestALedgerCannotWrapTheTotalPastTheLimit(t *testing.T) {
 	h.must("", "claim", "main")
 	h.limitSpace(`"attachment_max_mb":1,"attachments_total_mb":1`)
 
-	test.WriteFile(t, filepath.Join(h.home, ".claude", "agentic-memory", "attachments", ".space.json"),
+	test.WriteFile(t, filepath.Join(h.roots().Shared("attachments"), ".space.json"),
 		fmt.Sprintf(`{"a":{"stored":%d,"held":0},"b":{"stored":%d,"held":0}}`, int64(math.MaxInt64), int64(math.MaxInt64)))
 
 	got := h.run("body", "new", "--title", "Finding past the limit", "--topic", "gate", "--attach",
@@ -180,14 +182,14 @@ func TestTheAttachmentSpaceComesFromRecordedSizes(t *testing.T) {
 
 	id := h.file("Gate finding with its logs", "body", "--attach", h.sizedFile("one.log", 'a', 1<<10))
 
-	planted := filepath.Join(h.home, ".claude", "agentic-memory", "attachments", strings.Repeat("d", 64))
+	planted := filepath.Join(h.roots().Shared("attachments"), strings.Repeat("d", 64))
 	test.WriteFile(t, planted, strings.Repeat("y", 512<<10))
 
 	if out := h.must("", "attach", id, h.sizedFile("two.log", 'b', 1<<10)); lastLine(out) != "space left: attachments 1022.0 KB of 1.0 MB" {
 		t.Errorf("a file in the store no attach recorded should not count, got %q", lastLine(out))
 	}
 
-	ledger := filepath.Join(h.home, ".claude", "agentic-memory", "attachments", ".space.json")
+	ledger := filepath.Join(h.roots().Shared("attachments"), ".space.json")
 
 	err := os.Remove(ledger)
 	if err != nil {
@@ -237,7 +239,7 @@ func TestTheBriefNamesOnlyAStoreRunningLow(t *testing.T) {
 			}
 
 			if tc.tools != "" {
-				test.WriteFile(t, filepath.Join(h.toolsRoot(), ".space.json"), test.Fixture(t, tc.tools))
+				test.WriteFile(t, h.toolsLedger(), test.Fixture(t, tc.tools))
 			}
 
 			if got := spaceLine(h.must("", "brief")); got != tc.want {
@@ -254,7 +256,7 @@ func TestSessionStartPrunesTheToolLibrary(t *testing.T) {
 			h.limitSpace(fmt.Sprintf(`"tools_enabled":%t`, toolsOn))
 			test.WriteFile(t, h.config, "tools_total_mb: 1\n")
 
-			store := filepath.Join(h.toolsRoot(), "github.com", "acme", "tools")
+			store := h.roots().Store(test.OtherStore(t, h.roots(), "github.com/acme/tools"), home.Tools)
 			test.FixtureTree(t, "tools/fdbox-library", store)
 			test.WriteFile(t, filepath.Join(store, "word-count", "v1", "data.txt"), strings.Repeat("a", 700<<10))
 			test.WriteFile(t, filepath.Join(store, "word-count", "v2", "data.txt"), strings.Repeat("b", 700<<10))

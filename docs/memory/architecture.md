@@ -3,7 +3,7 @@
 ## Where it keeps what
 
 ```
-~/.claude/agentic-memory/<project>/
+<data>/stores/<id>/memory/                              the project's store; <data> is the home's data root (plugin usage)
 ├── format.json                                         the store's one format version
 ├── seats.json                                          seat id → its current name, its shelf, its private mark
 ├── shelves.json                                        shelf id → its name, follows and lifetime
@@ -15,19 +15,20 @@
 ├── attachments.refs                                    the attachment hashes its entries still holding a body name
 ├── credentials-found.json                              what the migration scan found, until each seat's brief tells it
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
-~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes, with the compaction window
-~/.claude/agentic-memory/attachments/<sha256>[.gz]      every project's attached files, once each
-~/.claude/agentic-memory/attachments/.space.json        the ledger: each stored file's size by hash, as its attach recorded it
-~/.cache/agentic-memory/<project>/                      vectors, heat, the folded log, anchor hashes, per-session state: rebuilt at will
-~/.claude/agentic-helpers/<project>/writers.json        the checkouts that may use the store, shared with agentic-tools
+<data>/stores/<id>/identity.json                        the store's checkouts and identifiers (internal/home)
+<data>/sessions/claude/<session>/context.json           the context reading the plugin writes, with the compaction window
+<data>/attachments/<sha256>[.gz]                        every project's attached files, once each
+<data>/attachments/.space.json                          the ledger: each stored file's size by hash, as its attach recorded it
+<cache>/stores/<id>/memory/                             vectors, heat, the folded log, anchor hashes, per-session state: rebuilt at will
 ```
 
-Admission runs before anything else a call does, the format migration included: `internal/writers`
-reads the project's list through checked folder descriptors, or a library's own legacy list while
-the project's is missing, and a write claims an unlisted project for the calling checkout under the
-list's own `.lock`; a read claims nothing. A hook of a checkout not listed exits silently; the
-MCP server checks each call, and starts without migrating where its checkout is not listed. A call
-on a project with no store yet, other than `claim` and `trust`, makes no list.
+`internal/home` maps the checkout to its store before anything else a call does, the format
+migration included ([plugin architecture](../plugin/architecture.md#the-home)). A hook or a read on
+a checkout matching no store works on an id nothing holds yet and creates nothing; the first call
+that writes creates the store, through `home.Resolver.Ensure`. Where the mapping is the user's call,
+the store id is empty: a hook stays silent, SessionStart prints the question, every other call is
+refused with it, and the MCP server, which resolves again on each call while unbound, starts
+without migrating. `bind` and `merge` of two store ids run whatever the mapping says.
 
 Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
 `shelves.json`, a claim, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
@@ -104,13 +105,12 @@ the release knows is refused: `agentic-memory: this store has format <n>; this r
 that way. A store created by this release starts at the current format. The log's manifest no longer
 carries a format number; one that does still reads.
 
-`<project>` is the `repo_id` the project's `.sdd/config.yaml` declares (the graph repository's,
-where `project_dir` names one, so a code repository and its graph repository share one store), else `local/` and a hash of
-its git common directory, the key sdd gives its own search index, so every worktree of a repository
-shares one store. A directory counts as inside git when `git rev-parse --is-inside-work-tree` says
-`true`; a `.git` directory and a bare repository do not. Outside git there is no project key; with
-`memory_require_git` set to `false`, the store is keyed `local/` and a hash of the directory's
-absolute path.
+Which store a checkout works on is `internal/home`'s answer: the pointer in its git common
+directory, else the identifiers the stores' `identity.json` record, so every worktree of a
+repository shares one store, and a code repository shares its graph repository's. A directory counts
+as inside git when `git rev-parse --is-inside-work-tree` says `true`; a `.git` directory and a bare
+repository do not. Outside git, with `memory_require_git` set to `false`, the store is found by the
+directory's absolute path.
 
 ## What a call asks git
 
@@ -149,7 +149,7 @@ plus `n` entries in a bounded heap rather than sorting all it kept.
 ## The vector store
 
 `internal/vectorseg` keeps every entry's chunk vectors in immutable segment files under
-`~/.cache/agentic-memory/<project>/<sha256(fingerprint)[:12]>/segments/`, one store per embedder, so
+`<cache>/stores/<id>/memory/<sha256(fingerprint)[:12]>/segments/`, one store per embedder, so
 a changed embedder starts a fresh store instead of mixing two vector spaces. The layout follows sdd's
 search segments:
 
@@ -312,18 +312,19 @@ seats `expired` in `seats.json` while a remaining row names them and deletes the
 deletes the shelves from `shelves.json`. An expired seat's name is free: `IDOf` passes over it, and a
 line names it `<name> (expired)`.
 
-SessionStart runs the purge over every store at the current format under
-`~/.claude/agentic-memory/`, the caller's own included, before it looks at its own project; a
-`release` and a closing SessionEnd run it over their own store.
+SessionStart runs the purge over every store at the current format in the home, the caller's own
+included, before it looks at its own project; a `release` and a closing SessionEnd run it over their
+own store. The same pass deletes every unclaimed store whose `orphan_store_grace` has passed
+(`home.Resolver.SweepUnclaimed`).
 
 ## The context reading
 
-The nudge reads how full the context is from `~/.claude/agentic-memory/sessions/<session>.ctx`,
+The nudge reads how full the context is from `<data>/sessions/claude/<session>/context.json`,
 `{"used_percentage": <n>, "size": <window>, "compact_window": <tokens>, "at": "<RFC 3339 UTC>"}`; a
 numeric `at`, as a plugin of an earlier release writes it, still reads as Unix seconds. Claude Code
 hands that figure to a status line and to a mod, never to a command hook, so the plugin carries a
 hooks module, `plugin/hooks/register.ts`, which writes the file on `session.measure` after every turn
-wherever `~/.claude/agentic-memory` exists. A Claude Code too old to load mods writes no reading, and
+wherever `<data>/stores` exists, locating `<data>` as `internal/home` does. A Claude Code too old to load mods writes no reading, and
 the nudge falls back to transcript growth.
 
 `used_percentage` is a share of the model's whole window (`size`), while Claude Code compacts at a
@@ -345,9 +346,9 @@ Every hook exits at once in a project without a store.
 
 | Event | What memory does |
 |---|---|
-| SessionStart (`session-start`) | purges every store's due temporary shelves and the stale context readings; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats; a fork whose transcript is not written yet gets a marker and no notice |
+| SessionStart (`session-start`) | purges every store's due temporary shelves, the stale context readings and the unclaimed stores past their grace; prints the store question where one stands on the checkout; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats; a fork whose transcript is not written yet gets a marker and no notice |
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path |
-| UserPromptSubmit (`prompt`) | for a fork carrying a marker, once its transcript is written, removes the marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction, the shipped-work request once work shipped since the seat's last state write (spent without a line where the nudge fires), and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `~/.cache/agentic-helpers/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
+| UserPromptSubmit (`prompt`) | for a fork carrying a marker, once its transcript is written, removes the marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction, the shipped-work request once work shipped since the seat's last state write (spent without a line where the nudge fires), and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `<cache>/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once |
 | PostToolUse (`tool`) | for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
 | Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then, near compaction only, holds it once for a state write when work shipped since the seat's last one; then holds it with the backstop once the nudge has gone unanswered twice and the context crossed the line; every hold is Stop `additionalContext` with exit 0, which continues the turn as exit 2 would without the hook error exit 2 shows the user |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
@@ -496,7 +497,7 @@ cannot answer is `unchecked`.
 
 ## Attachments
 
-One attachment store serves every project on the machine: `~/.claude/agentic-memory/attachments/`,
+One attachment store serves every project on the machine: `<data>/attachments/`,
 each file named for the SHA-256 of its original bytes, gzip-compressed as `<sha256>.gz` where that
 shrinks it and raw otherwise, written through a temporary file renamed into place. A hash already
 stored is left as it is, so one file attached to entries of several projects is stored once. An
@@ -528,7 +529,7 @@ writes a negative size the log records; the ledger drops a negative record on re
 saturates rather than wraps. A forged figure can still refuse attaches, never let one past the limit.
 
 The brief's space line reads the same ledger, and the agentic-tools ledger beside the tool stores
-(`~/.claude/agentic-tools/.space.json`, [tools architecture](../tools/architecture.md)), and prints
+(`<data>/tools/.space.json`, [tools architecture](../tools/architecture.md)), and prints
 only a store with under a tenth of its limit left. The same SessionStart pass, the tools piece on,
 runs agentic-tools' pruning over every tool store on the machine (`tools.Prune`), so one pass visits
 every store of both. Rejected: a `du` or stat walk per figure (too slow per call); a PreToolUse hook

@@ -196,7 +196,7 @@ const briefParts = "brief, fixed: its first line, the state slot, changed by oth
 func (mem *memory) lowSpace() string {
 	figures := []space.Figure{mem.attachmentsSpace()}
 	if pieces.Tools.On(mem.options()) {
-		figures = append(figures, tools.Space(mem.env.Home, mem.options().ToolsTotalMB))
+		figures = append(figures, tools.Space(mem.env.Roots, mem.options().ToolsTotalMB))
 	}
 
 	return space.LowLine(figures...)

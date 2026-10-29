@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -19,7 +20,7 @@ import (
 func (h *harness) vectorDir() string {
 	digest := sha256.Sum256([]byte(h.embedder.Fingerprint()))
 
-	return filepath.Join(h.cache, "agentic-tools", "vectors", hex.EncodeToString(digest[:])[:32])
+	return filepath.Join(h.roots().SharedCache(home.Tools), "vectors", hex.EncodeToString(digest[:])[:32])
 }
 
 func (h *harness) segments() map[string][]byte {

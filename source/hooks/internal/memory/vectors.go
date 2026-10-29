@@ -228,7 +228,7 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 
 	defer func() { _ = snapshot.Close() }()
 
-	slots := promptvector.Dir(mem.env.CacheRoot)
+	slots := promptvector.Dir(mem.env.Roots.Cache)
 
 	cached, hit := promptvector.Load(slots, session, phrase, embedder.Fingerprint())
 

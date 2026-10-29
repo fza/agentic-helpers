@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
@@ -274,41 +275,27 @@ func (mem *memory) rewriteWithout(ctx context.Context, dropped map[string]bool, 
 // whichever project's session starts next. A store holding no temporary shelf
 // is only read; one this release cannot read is left as it is.
 func (mem *memory) purgeEverywhere(ctx context.Context) {
-	root := mem.root()
+	for _, id := range mem.storeIDs() {
+		other := mem.sibling(id)
 
-	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || !entry.IsDir() {
-			return nil
-		}
-
-		if entry.Name() == "backup" || entry.Name() == "log" || entry.Name() == "seats" || path == mem.sensorDir() ||
-			path == mem.attachmentsRoot() {
-			return filepath.SkipDir
-		}
-
-		version, err := readFormat(path)
-		_, statErr := os.Stat(filepath.Join(path, formatName))
+		version, err := readFormat(other.store())
+		_, statErr := os.Stat(filepath.Join(other.store(), formatName))
 
 		if statErr != nil || err != nil || version != storeFormat {
-			return nil
+			continue
 		}
 
-		key, err := filepath.Rel(root, path)
-		if err != nil {
-			return filepath.SkipDir
-		}
-
-		other := &memory{env: mem.env, streams: mem.streams, key: filepath.ToSlash(key)}
 		_ = other.purgeExpired(ctx)
-
-		return filepath.SkipDir
-	})
+	}
 
 	mem.sweepAttachments(ctx)
 
 	if pieces.Tools.On(mem.options()) {
-		tools.Prune(ctx, mem.env.Home, mem.options().ToolsTotalMB)
+		tools.Prune(ctx, mem.env.Roots, mem.options().ToolsTotalMB)
 	}
+
+	grace, _ := home.Grace(mem.options().OrphanStoreGrace)
+	_, _ = mem.resolver().SweepUnclaimed(ctx, grace)
 }
 
 // drop purges a temporary shelf no seat uses at once.

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
 )
@@ -19,7 +19,7 @@ import (
 // store, one row per description keyed by its hash, so one vector serves every
 // store naming a description and a rebuild never embeds an unchanged one.
 func (lib *library) vectorStore(fingerprint string) *vectorseg.Store {
-	store := vectorseg.Open(filepath.Join(lib.env.CacheRoot, self, "vectors", describedSum(fingerprint)))
+	store := vectorseg.Open(filepath.Join(lib.env.Roots.SharedCache(home.Tools), "vectors", describedSum(fingerprint)))
 	_ = lib.migrateVectors(store)
 
 	return store
@@ -70,7 +70,7 @@ func vectorRows(vectors map[string][]float32) []vectorseg.Row {
 // named says whether some store on the machine names a description, whatever
 // the read scope says: a vector no store names merges away.
 func (lib *library) named() vectorseg.Live {
-	keys := storeKeys(lib.root())
+	keys := storeIDs(lib.env.Roots)
 	if !slices.Contains(keys, lib.key) {
 		keys = append(keys, lib.key)
 	}
@@ -78,7 +78,7 @@ func (lib *library) named() vectorseg.Live {
 	described := map[string]bool{}
 
 	for _, key := range keys {
-		at := projectkey.Dir(lib.root(), key)
+		at := lib.env.Roots.Store(key, home.Tools)
 
 		held, found := loadIndex(at)
 		if !found {

@@ -84,7 +84,7 @@ func TestACacheThatDoesNotMatchIsRebuilt(t *testing.T) {
 		want   string
 	}{
 		{name: "a planted cache", want: "Small finding in the tail", change: func(t *testing.T, h *harness) {
-			test.WriteFile(t, filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "fold.gob"), "planted")
+			test.WriteFile(t, filepath.Join(h.cacheDir(), "fold.gob"), "planted")
 		}},
 		{name: "a rewritten tail", want: "Rewritten finding in the tail", change: func(t *testing.T, h *harness) {
 			tail := filepath.Join(h.store(), "log", "tail.jsonl")
@@ -179,7 +179,7 @@ func TestLinkStatesAreWorkedOutOnlyForWhatAReadShows(t *testing.T) {
 	h.file("Finding citing a closed decision", "see the decision", "--link", closedDecision)
 	h.file("Finding about something else", "unrelated")
 
-	cache := filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "graph-status.json")
+	cache := filepath.Join(h.cacheDir(), "graph-status.json")
 	_ = os.Remove(cache)
 	before := h.graph.Calls()
 

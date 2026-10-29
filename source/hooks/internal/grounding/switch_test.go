@@ -48,7 +48,7 @@ func TestTheGateOffOnTheMachine(t *testing.T) {
 func TestExemptSeatsRestOnMemory(t *testing.T) {
 	env := configured(t, "exempt-seats.yaml")
 	env.Processes, env.OwnerName = test.NewProcesses(), "claude"
-	test.ClaimSeat(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "reviewer", test.Session)
+	test.ClaimSeat(t, test.MemoryStore(t, env.Roots, env.ProjectDir, env.Checkout), "reviewer", test.Session)
 
 	passes(t, run(t, env, "gate", ask(test.Session)))
 

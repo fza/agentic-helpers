@@ -12,26 +12,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
-// ledgerName is the machine's ledger of every store's recorded size, beside
-// the stores: what the agentic-memory brief reads without opening an index.
+// ledgerName is the machine's ledger of every store's recorded size, in the
+// home's shared tools folder: what the agentic-memory brief reads without
+// opening an index.
 const ledgerName = ".space.json"
 
 // pruneLockWait bounds how long the SessionStart pass waits for a store's
 // lock: a store being written is passed over until the next session.
 const pruneLockWait = 200 * time.Millisecond
 
-// Root is the folder every project's tool library lies below.
-func Root(home string) string { return filepath.Join(home, ".claude", self) }
-
-func ledgerPath(root string) string { return filepath.Join(root, ledgerName) }
+func ledgerPath(roots home.Roots) string { return filepath.Join(roots.Shared(home.Tools), ledgerName) }
 
 // Space is the tool library's space as the machine's ledger records it.
-func Space(home string, limitMB int) space.Figure {
-	return figureOf(space.Read(ledgerPath(Root(home))), limitMB)
+func Space(roots home.Roots, limitMB int) space.Figure {
+	return figureOf(space.Read(ledgerPath(roots)), limitMB)
 }
 
 func figureOf(records map[string]space.Record, limitMB int) space.Figure {
@@ -388,7 +386,7 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	recorded := recordedBytes(stores, named)
 
 	if scoped {
-		for key, record := range space.Read(ledgerPath(lib.root())) {
+		for key, record := range space.Read(ledgerPath(lib.env.Roots)) {
 			if key != lib.key {
 				recorded = space.Add(recorded, record.Stored)
 			}
@@ -444,19 +442,16 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 
 // unreached is the folder of every store on the machine but the own one, each
 // once: what a project-scoped caller measures on disk instead of trusting the
-// ledger. A store is a folder storeKeys walks to, each once, never a key the
+// ledger. A store is a folder storeIDs lists, each once, never a key the
 // ledger names, so no folder elsewhere on the machine counts. The own store is
-// told apart by the folder's identity, not its key: a case-insensitive file
-// system resolves the own key and the key the folder was made under, differing
-// in case, to one folder.
+// told apart by the folder's identity, not its id.
 func (lib *library) unreached() []string {
-	root := lib.root()
-	own, ownErr := os.Lstat(projectkey.Dir(root, lib.key))
+	own, ownErr := os.Lstat(lib.ownDir())
 
 	var folders []string
 
-	for _, key := range storeKeys(root) {
-		at := projectkey.Dir(root, key)
+	for _, key := range storeIDs(lib.env.Roots) {
+		at := lib.env.Roots.Store(key, home.Tools)
 
 		info, err := os.Lstat(at)
 		if err != nil || (ownErr == nil && os.SameFile(own, info)) {
@@ -493,7 +488,7 @@ func (lib *library) recordSpace(ctx context.Context) space.Figure {
 
 	scoped := lib.scopeProject()
 
-	_ = space.Update(ledgerPath(lib.root()), func(ledger map[string]space.Record) {
+	_ = space.Update(ledgerPath(lib.env.Roots), func(ledger map[string]space.Record) {
 		if !scoped {
 			clear(ledger)
 		}
@@ -509,16 +504,16 @@ func (lib *library) recordSpace(ctx context.Context) space.Figure {
 // stores hold more than limitMB, it prunes their oldest prunable versions,
 // passing over a store another process is writing, then records every
 // store's figures in the ledger afresh.
-func Prune(ctx context.Context, home string, limitMB int) {
-	root := Root(home)
-	if !exists(root) {
+func Prune(ctx context.Context, roots home.Roots, limitMB int) {
+	ids := storeIDs(roots)
+	if len(ids) == 0 {
 		return
 	}
 
 	var stores []*store
 
-	for _, key := range storeKeys(root) {
-		held := &store{key: key, path: projectkey.Dir(root, key)}
+	for _, key := range ids {
+		held := &store{key: key, path: roots.Store(key, home.Tools)}
 
 		loaded, found := loadIndex(held.path)
 		if !found {
@@ -553,7 +548,7 @@ func Prune(ctx context.Context, home string, limitMB int) {
 		}
 	}
 
-	_ = space.Update(ledgerPath(root), func(ledger map[string]space.Record) {
+	_ = space.Update(ledgerPath(roots), func(ledger map[string]space.Record) {
 		clear(ledger)
 
 		for _, held := range stores {

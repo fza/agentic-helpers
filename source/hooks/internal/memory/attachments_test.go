@@ -15,7 +15,7 @@ import (
 func (h *harness) attachmentFiles() []string {
 	h.t.Helper()
 
-	entries, _ := os.ReadDir(filepath.Join(h.home, ".claude", "agentic-memory", "attachments"))
+	entries, _ := os.ReadDir(h.roots().Shared("attachments"))
 
 	var names []string
 
@@ -219,7 +219,7 @@ func TestAnAlteredAttachmentIsRefused(t *testing.T) {
 	test.WriteFile(t, file, "a")
 	id := h.file("Gate finding with a file", "body", "--attach", file)
 
-	stored := filepath.Join(h.home, ".claude", "agentic-memory", "attachments", h.attachmentFiles()[0])
+	stored := filepath.Join(h.roots().Shared("attachments"), h.attachmentFiles()[0])
 	test.WriteFile(t, stored, "b")
 
 	if got := h.run("", "read", id); got.code != 1 || !strings.Contains(got.err, "attachment x.txt changed since it was attached") {
@@ -319,7 +319,7 @@ func TestAFileStaysWhileAnyProjectNamesIt(t *testing.T) {
 		t.Fatal("a file another project's refs still name should stay")
 	}
 
-	otherStore := filepath.Join(h.home, ".claude", "agentic-memory", "github.com", "acme", "other")
+	otherStore := other.store()
 	if refs, _ := os.ReadFile(filepath.Join(otherStore, "attachments.refs")); !strings.Contains(string(refs), h.attachmentFiles()[0]) {
 		t.Errorf("the sweep should write each project's refs, got %s", refs)
 	}
@@ -341,7 +341,7 @@ func (h *harness) storedAttachment() string {
 		h.t.Fatalf("one stored attachment expected, got %v", files)
 	}
 
-	return filepath.Join(h.home, ".claude", "agentic-memory", "attachments", files[0])
+	return filepath.Join(h.roots().Shared("attachments"), files[0])
 }
 
 func TestAStoredFileIsNeverReadPastItsSize(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"os"
 	"path/filepath"
@@ -16,10 +17,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -55,6 +56,9 @@ type harness struct {
 	// checkout stands in for the common-directory lookup where a test counts
 	// it; nil takes one answering from the tree.
 	checkout project.CommonDirLookup
+	// draws stands in for the random source where a test needs ids apart from
+	// another harness's; nil takes the fixed stream every run starts afresh.
+	draws io.Reader
 }
 
 func newHarness(t *testing.T) *harness {
@@ -115,20 +119,38 @@ func (h *harness) seatFile(name string, suffix string) string {
 	return filepath.Join(h.store(), "seats", seatID(h.t, h.store(), name)+suffix)
 }
 
+// store is the memory folder of the store the harness's checkout works on,
+// the store bound first where none is yet.
 func (h *harness) store() string {
-	return filepath.Join(h.home, ".claude", "agentic-memory", filepath.FromSlash(repoID))
+	h.t.Helper()
+
+	return test.MemoryStore(h.t, h.roots(), cmp.Or(h.base, h.repo), h.lookup())
+}
+
+func (h *harness) roots() home.Roots {
+	return test.Roots(filepath.Dir(h.home))
+}
+
+func (h *harness) lookup() project.CommonDirLookup {
+	if h.checkout != nil {
+		return h.checkout
+	}
+
+	return test.GitDirOf{Worktrees: h.worktrees}
+}
+
+// cacheDir is the store's memory cache.
+func (h *harness) cacheDir() string {
+	h.t.Helper()
+
+	return h.roots().StoreCache(filepath.Base(filepath.Dir(h.store())), home.Memory)
 }
 
 func (h *harness) env() memory.Env {
-	checkout := project.CommonDirLookup(test.GitDirOf{Worktrees: h.worktrees})
-	if h.checkout != nil {
-		checkout = h.checkout
-	}
-
 	return memory.Env{
-		Base: cmp.Or(h.base, h.repo), Home: h.home, CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
+		Base: cmp.Or(h.base, h.repo), Home: h.home, Roots: h.roots(), CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.config, h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
-		Random: test.Random(), Processes: h.processes, Checkout: checkout,
+		Random: cmp.Or[io.Reader](h.draws, test.Random()), Processes: h.processes, Checkout: h.lookup(),
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
 		CompactWindow: h.compactWindow,
@@ -619,7 +641,7 @@ func TestReadsWithoutHeat(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	id := h.file("Gate finding a sweep keeps reading", "see .tmp/drafts")
-	heatFile := filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "heat.json")
+	heatFile := filepath.Join(h.cacheDir(), "heat.json")
 
 	h.must("", "show", id)
 
@@ -1078,7 +1100,7 @@ func TestKilledSessionTurnsReadFromTranscript(t *testing.T) {
 func (h *harness) sensor(percent float64) {
 	h.t.Helper()
 
-	test.WriteFile(h.t, filepath.Join(h.home, ".claude", "agentic-memory", "sessions", h.session+".ctx"),
+	test.WriteFile(h.t, h.sensorPath(h.session),
 		fmt.Sprintf(`{"used_percentage":%v,"size":200000,"at":%d}`, percent, time.Date(2026, 10, 25, 9, 0, 0, 0,
 			time.UTC).Unix()))
 }
@@ -1259,7 +1281,7 @@ func TestARetireFromAnEarlierReleaseReadsWithoutAReason(t *testing.T) {
 func (h *harness) heat() string {
 	h.t.Helper()
 
-	held, err := os.ReadFile(filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "heat.json"))
+	held, err := os.ReadFile(filepath.Join(h.cacheDir(), "heat.json"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		h.t.Fatalf("reading the heat: %v", err)
 	}
@@ -1452,7 +1474,7 @@ func TestOutsideAGitWorkTreeMemoryRefusesAndCreatesNothing(t *testing.T) {
 	h.file("A finding in the project", "the project's own store exists beside the root")
 	h.must("", "release")
 
-	root := filepath.Join(h.home, ".claude", "agentic-memory")
+	root := h.roots().Data
 	before := test.Tree(t, root)
 
 	outsideGit(h)
@@ -1503,9 +1525,10 @@ func TestTheGitLimitLiftsThroughTheOption(t *testing.T) {
 		t.Error("with the limit lifted, a session outside git should file and find")
 	}
 
-	store := filepath.Join(h.home, ".claude", "agentic-memory", filepath.FromSlash(projectkey.DirectoryKey(h.repo)))
+	directory := test.CommonDir{Err: errors.New("not a git repository")}
+	store := h.roots().Store(test.StoreOf(t, h.roots(), h.repo, directory, nil), home.Memory)
 	if !test.Exists(t, filepath.Join(store, "seats", seatID(t, store, "main")+".json")) {
-		t.Errorf("the store should be keyed by the directory's own hash, nothing under %s", store)
+		t.Errorf("the store should be found by the directory's own path, nothing under %s", store)
 	}
 }
 
@@ -1597,9 +1620,9 @@ func TestStoredTimesAreUTC(t *testing.T) {
 	for _, path := range []string{
 		h.seatFile("main", ".json"),
 		filepath.Join(h.store(), "log", "tail.jsonl"),
-		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "heat.json"),
-		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "briefs", seatID(t, h.store(), "main")+".json"),
-		filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "ladder", h.session+".json"),
+		filepath.Join(h.cacheDir(), "heat.json"),
+		filepath.Join(h.cacheDir(), "briefs", seatID(t, h.store(), "main")+".json"),
+		filepath.Join(h.cacheDir(), "ladder", h.session+".json"),
 	} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
@@ -1623,7 +1646,7 @@ func TestAContextReadingIsReadInEitherForm(t *testing.T) {
 			h := newHarness(t)
 			h.must("", "claim", "main")
 			h.file("Gate reads Bash only today", "finding")
-			test.WriteFile(t, filepath.Join(h.home, ".claude", "agentic-memory", "sessions", h.session+".ctx"),
+			test.WriteFile(t, h.sensorPath(h.session),
 				`{"used_percentage":70,"size":200000,"at":`+at+`}`)
 
 			if !strings.Contains(h.must(hookPayload("", "", ""), "prompt"), "Context near compaction") {
@@ -1652,7 +1675,7 @@ func TestTheReadingIsMeasuredAgainstTheWindowClaudeCodeCompactsAt(t *testing.T) 
 			h.compactWindow = tc.compactWindow
 			h.must("", "claim", "main")
 			h.file("Gate reads Bash only today", "finding")
-			test.WriteFile(t, filepath.Join(h.home, ".claude", "agentic-memory", "sessions", h.session+".ctx"),
+			test.WriteFile(t, h.sensorPath(h.session),
 				`{"used_percentage":30,"size":1000000`+tc.reading+`,"at":"2026-10-25T09:00:00Z"}`)
 
 			nudged := strings.Contains(h.must(hookPayload("", "", ""), "prompt"), "Context near compaction")
@@ -1711,21 +1734,21 @@ func TestRecallLeavesThePromptVectorForAgenticTools(t *testing.T) {
 	question := "how does the tail seal manifest rename work"
 	h.must(hookPayload("", "", question), "prompt")
 
-	_, held := promptvector.Load(promptvector.Dir(h.cache), h.session, question, h.embedder.Fingerprint())
+	_, held := promptvector.Load(promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
 	if !held {
 		t.Error("recall should leave the prompt's vector in the session's slot")
 	}
 
 	h.must(hookPayload("", "", ""), "session-end")
 
-	_, held = promptvector.Load(promptvector.Dir(h.cache), h.session, question, h.embedder.Fingerprint())
+	_, held = promptvector.Load(promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
 	if held {
 		t.Error("the session's end should empty its slot")
 	}
 }
 
 func (h *harness) ladderFile() string {
-	return filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "ladder", test.Session+".json")
+	return filepath.Join(h.cacheDir(), "ladder", test.Session+".json")
 }
 
 func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {

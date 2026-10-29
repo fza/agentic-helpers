@@ -10,12 +10,47 @@ nothing is asked, and a project carrying none of it never hears from any hook.
 | Memory | a seat claimed with `agentic-memory claim <seat>`; where a project has memory but this session holds no seat, one line names the seats | exits 0, silently |
 | Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
-| Tool library | a git work tree, on a machine whose library `~/.claude/agentic-tools/` the first `agentic-tools add` created | exits 0, silently |
+| Tool library | a git work tree, on a machine where the first `agentic-tools add` created a library in some store of the home | exits 0, silently |
 | Shell-guard | nothing: it judges every Bash call of every project | its `shell_guard_*` options turn each guard off |
 
 So opting a project in is one command, `mkdir .tmp`, `agentic-memory claim <seat>` or a first
 `agentic-tools add`, and opting out is removing the directory or releasing the seat. A project using none needs no configuration, no
 allowlist entry and no marker file.
+
+## The home
+
+Every component keeps its per-project data in one agent-neutral home, one store per project, which
+every agent and every worktree of the project shares:
+
+| Path | Holds |
+|---|---|
+| `$XDG_DATA_HOME/agentic-helpers` (`~/.local/share/agentic-helpers` where unset; `AGENTIC_HELPERS_HOME` overrides it) | the data root, `<data>` |
+| `$XDG_CACHE_HOME/agentic-helpers` (`~/.cache/agentic-helpers` where unset) | the cache root, `<cache>`: only what is rebuilt at will |
+| `<data>/format.json` | the home's layout version; a release meeting a newer one refuses every call and its hooks stay silent |
+| `<data>/stores/<id>/<component>/`, `<cache>/stores/<id>/<component>/` | a store's data and cache per component (`memory`, `tools`) |
+| `<data>/stores/<id>/identity.json` | the store's admitted checkouts and the identifiers a checkout is matched by |
+| `<data>/index.json` | a cache of every identity, rebuilt whenever it is missing or disagrees with one |
+| `<data>/unclaimed/<id>/` | data whose checkout cannot be found, kept under the key an earlier release used |
+| `<data>/sessions/claude/<session>/` | what one session leaves, as its context reading |
+| `<git common dir>/agentic-store` | the id of the checkout's store |
+
+A store id is a UUID v7 and a suffix fixed at creation: the last path part of the sdd `repo_id`, else
+of the origin, else the checkout directory's name. A checkout is matched, in this order, by its
+pointer, the volume UUID and inode of its git common dir, its path, the graph repository a split
+layout names, its `repo_id`, then its origin (with any user, password, query or fragment dropped);
+only the first four teach a store anything, and one identifier belongs to one store. A checkout
+matching nothing gets a store of its own, silently, at its first write; one whose legacy key (its
+`repo_id`, else `local/` and a hash of its git common dir) names an unclaimed store gets that store,
+silently. Where two checkouts compete for a store, the agent asks the user, and `agentic-memory bind`
+or `agentic-memory merge` answers ([memory usage](../memory/usage.md#which-store-a-checkout-uses)).
+
+A code repository whose graph lives in another repository, named by `project_dir` in
+`.sdd/config.yaml` (the sdd fork) or by a stock sdd `graph_dir` leaving the checkout, shares the
+graph repository's store, the pointer written into both git common dirs.
+
+An unclaimed store nobody promotes is deleted once `orphan_store_grace` (`config.yaml` only, `30d`
+unless set) has passed since it became unclaimed, unless one of the checkouts it last knew exists
+again. A store with a living checkout is never deleted, however long unused.
 
 ## sdd
 
@@ -23,8 +58,7 @@ The grounding gate and `agentic-capture` work with stock sdd
 ([github.com/networkteam/sdd](https://github.com/networkteam/sdd)) and use what the fork
 [github.com/fza/sdd](https://github.com/fza/sdd) adds wherever the installed `sdd` carries it. What a
 binary carries is read from its own `sdd --help`, `sdd new --help`, `sdd init --help` and `sdd info --help`, never from
-its version, and kept in `<cache>/agentic-helpers/sdd-caps.json` (`$XDG_CACHE_HOME`, else
-`~/.cache`) per binary path, modification time and size.
+its version, and kept in `<cache>/sdd-caps.json` per binary path, modification time and size.
 
 | Fork surface | Without it |
 |---|---|
@@ -61,7 +95,7 @@ a declared default to every hook as an answer and hide `config.yaml`, so each de
 default instead.
 
 **Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:
-`retired_body_days`, `temporary_seat_lifetime` and `tools_total_mb`. The dialog lacks them and a value
+`retired_body_days`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value
 in the user settings or the hook environment is ignored, since two agents set apart would leave the
 lowest value deciding for both. Managed settings still set them. A key deleting only what one session
 made for itself, `capture_remove_draft`, stays in the dialog. At session start `agentic-helpers check`

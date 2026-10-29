@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: 'agentic-memory: seats, filing entries and their kinds, the state slot, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, and when deciding what belongs in memory versus the graph versus docs.'
+description: 'agentic-memory: seats, filing entries and their kinds, the state slot, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, when a line says no store is bound to the checkout or that a checkout and its graph repository keep two stores, and when deciding what belongs in memory versus the graph versus docs.'
 ---
 
 # Memory
@@ -11,7 +11,7 @@ Context runs out → summarised → next session knows nothing. agentic-memory =
 
 **MCP server connected → its tools** (`mcp__plugin_agentic-helpers_memory__<subcommand>`, flags as
 JSON keys, `body` for the body). CLI only where it is not connected, no tool call can run, or for
-the CLI-only commands: `lifetime`, `drop`, `follow`, `unfollow`, `trust`, `holder`, `rename`,
+the CLI-only commands: `lifetime`, `drop`, `follow`, `unfollow`, `bind`, `holder`, `rename`,
 `private`, `rekind`, `retain`, `merge`, `unlink`, `revive`, `attach`, `read`. Two commands → two tool calls,
 never a Bash chain. Load the schema first; keys and values exactly as it
 lists them (`all_seats`, `"from": "user"`); `ids` is an array even for one.
@@ -28,10 +28,24 @@ Memory works in the background. The user hears of it only when something goes wr
   `merge`, `state`). Never ask, offer, list as owed, report done. "Check memory" → answer with what
   it holds; upkeep beside it, silently.
 - **Speak up only for**: a refusal or failure (seat held by a live session, no seat, embedder down,
-  write refused, `this memory belongs to other checkouts`: tell the owner, `agentic-memory trust
-  <this checkout>` from a listed checkout is theirs, never edit the list); a miss the user expected
-  found; an entry contradicting repo or graph where it matters; the user asking what memory holds.
+  a store question, below); a miss the user expected found; an entry contradicting repo or graph where it matters; the user asking what memory holds.
   One short line: the fact and what it changes.
+
+## Store question
+
+One store per project, every agent and worktree sharing it. Only where two checkouts compete does a
+hook ask, always about this checkout:
+
+- **`agentic-memory: no store is bound to the checkout <dir> yet: <reason>. Ask the user ...`** with
+  candidate lines `<store id>: <name>; checkouts <paths>` → ask the user (AskUserQuestion): each
+  listed store, or a new one. Answer → `agentic-memory bind <store id>` or `agentic-memory bind
+  --new`, from this checkout. Until then every memory call and tool library write is refused with
+  the same text.
+- **`agentic-memory: the checkout <dir> and its graph repository keep their memory in two stores.`**
+  → ask keep apart (`agentic-memory bind <own store>`) or join (`agentic-memory merge <own> <graph>`).
+- **`moved <identifier> from the store <id> ...; agentic-memory merge <id> <new> joins the two
+  stores`** after a bind → ask the user whether to join them; never merge unasked.
+- Never edit `agentic-store` in `.git/` or a store's `identity.json`: `bind` and `merge` do.
 
 ## Seat
 

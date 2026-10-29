@@ -1,10 +1,10 @@
 package tools_test
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -45,7 +45,7 @@ func TestTheSeatNameRestsOnMemory(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
-			test.ClaimSeatByID(t, filepath.Join(h.home, ".claude", "agentic-memory", filepath.FromSlash(h.repoID)),
+			test.ClaimSeatByID(t, h.roots().Store(test.StoreOf(t, h.roots(), h.repo, test.GitDirOf{}, nil), home.Memory),
 				"s-aaaaaa", "reviewer", h.session)
 			test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{`+tc.options+`}}}}`)
 

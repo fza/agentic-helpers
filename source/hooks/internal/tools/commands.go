@@ -157,20 +157,6 @@ func commands() []command {
 				`,"why":` + described(text, "why they are one tool") + `},"required":["survivor","members","from","why"]}`,
 		},
 		{
-			name: "trust", usage: "trust <path>", description: "let the checkout at path write this project's library",
-			positional: func(req *request, values []string) error {
-				if len(values) != 1 {
-					return errors.New("one checkout path expected")
-				}
-
-				req.Path = values[0]
-
-				return nil
-			},
-			run:    (*library).trust,
-			schema: `{"type":"object","properties":{"path":` + described(text, "a checkout of this project") + `},"required":["path"]}`,
-		},
-		{
 			name: "reindex", usage: "reindex", description: "rebuild the own project's index.json from its tool folders",
 			run: (*library).reindex, schema: `{"type":"object","properties":{}}`,
 		},

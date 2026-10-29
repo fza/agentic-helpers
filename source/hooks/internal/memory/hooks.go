@@ -144,6 +144,10 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	mem.purgeEverywhere(ctx)
 	mem.sweepSensors()
 
+	if mem.question != nil {
+		mem.say(self + ": " + mem.question.Text(self))
+	}
+
 	if !mem.storeExists() {
 		return 0
 	}
@@ -320,7 +324,7 @@ func (mem *memory) housekeep() {
 func (mem *memory) sweepSensors() {
 	cutoff := mem.now().Add(-sensorMaxAge)
 
-	paths, err := filepath.Glob(filepath.Join(mem.sensorDir(), "*.ctx"))
+	paths, err := filepath.Glob(filepath.Join(mem.sensorDir(), "*", sensorName))
 	if err != nil {
 		return
 	}
@@ -329,8 +333,17 @@ func (mem *memory) sweepSensors() {
 		info, err := os.Stat(path)
 		if err == nil && info.ModTime().Before(cutoff) {
 			removeIfThere(path)
+			_ = os.Remove(filepath.Dir(path))
 		}
 	}
+}
+
+// sensorName is the context reading register.ts writes into a session's
+// folder, `<data>/sessions/claude/<session>/`.
+const sensorName = "context.json"
+
+func (mem *memory) sensorPath(session string) string {
+	return filepath.Join(mem.sensorDir(), session, sensorName)
 }
 
 // forgetSensor removes the context reading of a session that ends. The id
@@ -340,7 +353,8 @@ func (mem *memory) forgetSensor(session string) {
 		return
 	}
 
-	removeIfThere(filepath.Join(mem.sensorDir(), session+".ctx"))
+	removeIfThere(mem.sensorPath(session))
+	_ = os.Remove(filepath.Dir(mem.sensorPath(session)))
 }
 
 func (mem *memory) recentTurns(ctx context.Context, seatName string, transcriptPath string) string {
@@ -523,7 +537,7 @@ func (mem *memory) resetWindow(session string) {
 // CLAUDE_CODE_AUTO_COMPACT_WINDOW, a reading of an earlier plugin carrying none.
 func (mem *memory) contextPercent(session string) (float64, bool) {
 	var reading sensor
-	if !readJSON(filepath.Join(mem.sensorDir(), session+".ctx"), &reading) || reading.UsedPercentage == nil ||
+	if !readJSON(mem.sensorPath(session), &reading) || reading.UsedPercentage == nil ||
 		reading.At.IsZero() {
 		return 0, false
 	}
@@ -928,7 +942,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	held = mem.track(ctx, name, held, payload)
 	mem.draftState(ctx, name, held, cmp.Or(held.SessionID, payload.SessionID))
 	removeIfThere(mem.shownPath(held.SessionID))
-	promptvector.Remove(promptvector.Dir(mem.env.CacheRoot), held.SessionID)
+	promptvector.Remove(promptvector.Dir(mem.env.Roots.Cache), held.SessionID)
 
 	text := mem.recentTurns(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath))
 	if text == "" {

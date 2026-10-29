@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -27,7 +26,7 @@ func TestEveryVersionWrittenIsScanned(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			home := t.TempDir()
-			lib := &library{env: Env{Home: home, Base: home}}
+			lib := &library{env: Env{Home: home, Base: home, Roots: test.Roots(home)}}
 
 			err := lib.writeVersion(context.Background(), tc.next)
 
@@ -35,7 +34,7 @@ func TestEveryVersionWrittenIsScanned(t *testing.T) {
 				t.Errorf("a version holding a credential should be refused before the store is touched, got %v", err)
 			}
 
-			if test.Exists(t, filepath.Join(home, ".claude")) {
+			if test.Exists(t, test.Roots(home).Data) {
 				t.Error("a refused version should leave no store behind")
 			}
 		})

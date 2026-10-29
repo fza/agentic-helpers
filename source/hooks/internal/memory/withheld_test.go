@@ -63,7 +63,7 @@ func TestAPromptHoldingACredentialIsRecalledByTermsWithoutAnEmbed(t *testing.T) 
 				t.Error("the notice must never repeat the credential")
 			}
 
-			_, held := promptvector.Load(promptvector.Dir(h.cache), h.session, tc.prompt, h.embedder.Fingerprint())
+			_, held := promptvector.Load(promptvector.Dir(h.roots().Cache), h.session, tc.prompt, h.embedder.Fingerprint())
 			if held {
 				t.Error("a withheld prompt should leave no vector for agentic-tools")
 			}

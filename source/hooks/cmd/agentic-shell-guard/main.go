@@ -10,33 +10,28 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"syscall"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/shellguard"
 )
 
 func main() {
-	home, err := os.UserHomeDir()
+	userHome, err := os.UserHomeDir()
 	if err != nil {
-		home = ""
-	}
-
-	cacheRoot := os.Getenv("XDG_CACHE_HOME")
-	if cacheRoot == "" && home != "" {
-		cacheRoot = filepath.Join(home, ".cache")
+		userHome = ""
 	}
 
 	stateDir := ""
-	if cacheRoot != "" {
-		stateDir = filepath.Join(cacheRoot, "agentic-helpers")
+	if userHome != "" || os.Getenv("XDG_CACHE_HOME") != "" {
+		stateDir = home.Locate(userHome, os.Getenv).Cache
 	}
 
 	env := shellguard.Env{
-		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"), Home: home, Tmp: "/tmp",
-		Settings: pluginconfig.Paths(home, runtime.GOOS, os.Getenv), Getenv: os.Getenv,
+		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"), Home: userHome, Tmp: "/tmp",
+		Settings: pluginconfig.Paths(userHome, runtime.GOOS, os.Getenv), Getenv: os.Getenv,
 		StateDir: stateDir, Clock: shellguard.SystemClock{},
 	}
 	streams := shellguard.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}

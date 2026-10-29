@@ -79,12 +79,6 @@ func ValidName(name string) bool {
 	return Normal(name) == name && namePattern.MatchString(name)
 }
 
-// StoreRoot holds every project's memory store on the machine, whatever
-// config directory a session runs under.
-func StoreRoot(home string) string {
-	return filepath.Join(home, ".claude", "agentic-memory")
-}
-
 func Dir(store string) string {
 	return filepath.Join(store, "seats")
 }

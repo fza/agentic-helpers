@@ -14,7 +14,7 @@ different things, and an entry belongs in exactly one:
 |---|---|---|
 | Holds | decisions, the signals behind them, why the project is the way it is | where work stands, a judgment call made without confirmation, an open question, a measured fact nothing else records, a trap that already cost time |
 | For | everyone working on the project, for as long as it stands | one job, the seat, across compactions and sessions |
-| Lives | in the repository, under version control, reviewed like code | on the machine, under `~/.claude/agentic-memory/`, outside the repository |
+| Lives | in the repository, under version control, reviewed like code | on the machine, in the project's store under `~/.local/share/agentic-helpers/stores/`, outside the repository |
 | Changes | never in place: a decision is superseded, a signal closed | retired or superseded, and fading at the rate its kind sets (`rule` never, `note` in two weeks) |
 | Found by | `sdd search`, `sdd show`, and the grounding gate making an agent read it | the brief, prompt recall, `search` |
 
@@ -30,29 +30,52 @@ Outside one, every subcommand and every tool of the `memory` MCP server refuses 
 `agentic-memory: <dir> is not inside a git work tree; memory works only in one`, every hook stays
 silent, and nothing is read or created. `help` answers anywhere. The plugin option
 `memory_require_git: false` lifts the limit for the whole machine: a directory outside git then
-keeps a store keyed by its own path.
+keeps a store found by its own path.
 
-## Who writes a project's memory
+## Which store a checkout uses
 
-A project's store is found by the `repo_id` its `.sdd/config.yaml` declares (the graph
-repository's, where `project_dir` names one), which any checkout can declare. The checkouts that may use it are listed, by their git common directory, in the project's
-one list `~/.claude/agentic-helpers/<project>/writers.json`, which agentic-tools reads too; every
-worktree of a listed checkout is listed with it. The first call that writes an unlisted
-project's store (a `claim`, a filing, any change) lists the calling checkout; a read (`search`,
-`show`, `brief`, `view`, `topics`) claims nothing. While the project's list is missing, a library's own
-`writers.json` from agentic-tools binds memory too, and moves into the project's list on the first
-write. Any other checkout is refused every subcommand and memory MCP tool, its hooks stay
-silent, and none of its calls migrates the store:
+A project's memory lives in its store in the agent-neutral home every agentic-helpers component
+shares ([plugin usage](../plugin/usage.md#the-home)): one store per project, which every agent and
+every worktree of the project reads. A checkout finds its store through the pointer
+`<git common dir>/agentic-store`, else by what the store's `identity.json` records of it. A checkout
+matching no store gets one of its own, silently, at its first call that writes (a `claim`, a
+filing, any change); a read (`search`, `show`, `brief`, `view`, `topics`) and every hook create
+none. A user with one checkout per repository is never asked anything.
 
-    agentic-memory: this memory belongs to other checkouts: <checkouts>; run `agentic-memory trust <this checkout>` from one of them to let this one write
+Where two checkouts compete for a store (a second clone of a known repository, a path reused by
+another repository, a copied checkout, a split layout whose two sides keep two stores), the
+mapping is the user's call. SessionStart then says so, always about the checkout the session
+runs in:
 
-`agentic-memory trust <path>` (CLI only), run from a listed checkout, adds the
-checkout at `<path>`, for agentic-memory and agentic-tools both; `agentic-tools trust <path>` does
-the same. `help`, `who` and `holder` answer anywhere, and claim no project; `who` frees dead claims
-only for a listed checkout. A list that cannot be read (a
-link, a pipe, a hard link, past 64 KiB, not an array of clean absolute paths) admits no one until it
-is mended. A store keyed by a directory outside git, under `memory_require_git: false`, has no
-declared key and is not listed.
+    agentic-memory: no store is bound to the checkout <checkout> yet: <reason>. Ask the user which store it belongs to, then run `agentic-memory bind <store>` or `agentic-memory bind --new` from this checkout.
+      <store id>: <name>; checkouts <paths>
+      remotes of this checkout: <remotes>
+
+`<reason>` is one of `it is another checkout of a repository a store already holds`,
+`its path belonged to a checkout of another repository`,
+`it carries the pointer of a store that admits other checkouts` or
+`its identifiers name more than one store`. Until it is answered, every subcommand and memory MCP
+tool is refused with the same text, every other hook stays silent, and the store is untouched;
+`help`, `who`, `holder` and `bind` answer anywhere. A split layout whose code side keeps a store of
+its own asks instead, while the code side keeps working on its own store:
+
+    agentic-memory: the checkout <checkout> and its graph repository keep their memory in two stores. Ask the user whether to keep them apart, `agentic-memory bind <own store>`, or join them, `agentic-memory merge <own store> <graph store>`; run either from this checkout.
+
+`agentic-memory bind <store>` (CLI only) binds the current checkout to that store and writes its
+pointer; `agentic-memory bind --new` binds it to a store created for it. Either moves every
+identifier of the checkout another store held (its path, its `repo_id`, its origin) and says so,
+offering the merge:
+
+    bound <checkout> to the store <id> (<name>)
+    moved repo_id <repo_id> from the store <other id> (<name>); `agentic-memory merge <other id> <id>` joins the two stores
+
+`agentic-memory merge <from> <into>`, given two store ids, joins the store `<from>` into `<into>`:
+memory's log, seats and shelves (a seat or shelf name both stores use gets `-2`, `-3`, ...), seat
+claims and attachment refs, the tool library's tools and session files, the checkouts and every
+identifier. Every entry, seat, shelf and tool keeps its id, and `<from>`'s id keeps resolving to
+the joined store. An entry id both stores hold, or a tool name both libraries hold, refuses the
+merge before anything changes. Given two topics, `merge` merges topics. `bind` and
+`merge` of stores run while memory is off too: the mapping serves every component.
 
 ## Seats
 
@@ -242,7 +265,7 @@ agentic-memory drop row-7ah            # purge a temporary shelf no seat uses, a
   without SessionEnd, a crash or a kill, closed at its transcript's last write. A seat in use, held
   by a running session, keeps the clock from starting.
 - **The purge runs** at every SessionStart, in any project, over every store at the current format
-  under `~/.claude/agentic-memory/`; a store holding no temporary shelf is only read. A retention of
+  in the home; a store holding no temporary shelf is only read. A retention of
   `0` purges inside the `release` or SessionEnd closing the last seat.
 - **What survives**: an entry filed `--for` a shelf outside the purge, or `--for all`. It stays in
   its recipients' brief and search, names its filer as `<seat> (expired)`, and every seat on a
@@ -1007,7 +1030,7 @@ A superseded body drops 14 days on.
 
 Every subcommand is also a tool of the plugin's `memory` MCP server,
 `mcp__plugin_agentic-helpers_memory__<subcommand>`, except the CLI-only ones: `lifetime`, `drop`,
-`follow`, `unfollow`, `trust`, `holder`, `rename`, `private`, `rekind`, `retain`, `merge`, `unlink`,
+`follow`, `unfollow`, `bind`, `holder`, `rename`, `private`, `rekind`, `retain`, `merge`, `unlink`,
 `revive`, `attach` and `read`. Those run through Bash; they stay off `tools/list`, since the
 listing loads into every session's context and an agent seldom runs them, and a call naming one is
 refused with its command line:
@@ -1082,9 +1105,9 @@ A held or reserved seat is always listed, as is a seat this call freed. `who --j
 `who` tool list every seat.
 
 It frees the project's claims whose holder is gone and its reservations nobody took over in 10
-minutes, saying `freed` on their row; from a checkout not listed for the project it frees nothing.
+minutes, saying `freed` on their row; from a checkout bound to no store it frees nothing.
 `who --all` (MCP key `all`) adds every other project's seats on the machine, a migration's backups
-aside, under a line naming the project key, a [private](#private-seats) seat left out, each
+aside, under a line naming the project and its store id, `<name> (<id>):`, a [private](#private-seats) seat left out, each
 project's block closing with its own count line,
 `+<n> unused seats: agentic-memory who --all --unused`; it never writes to another project's store.
 `who` migrates no store and runs anywhere: outside a project it says `no seat in this project`
@@ -1151,6 +1174,7 @@ Set once per machine in `config.yaml` or the plugin's configuration dialog, as
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |
 | `temporary_seat_lifetime` | `config.yaml` only: how long a closed temporary shelf keeps its entries, a span as `lifetime` takes one (`12h`, `1d`, `0`); `1d` unless set, and `1d`, with a note in the reply, where it holds no span |
+| `orphan_store_grace` | `config.yaml` only: how long an unclaimed store waits for a checkout to promote it before SessionStart deletes it, a span as `lifetime` takes one; `30d` unless set or where it holds no span ([plugin usage](../plugin/usage.md#the-home)) |
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.

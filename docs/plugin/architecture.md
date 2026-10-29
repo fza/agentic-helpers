@@ -31,6 +31,39 @@ files goes into `plugin/`.
 | Stop | `agentic-memory stop`, `agentic-tools stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
 | SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end` |
 
+## The home
+
+`internal/home` maps a checkout to its store ([usage](usage.md#the-home)). `home.Locate` settles the
+two roots from `AGENTIC_HELPERS_HOME`, `XDG_DATA_HOME` and `XDG_CACHE_HOME`; `home.Inspect` reads
+what a checkout is matched by: its git common dir, the pointer there, the volume UUID and inode of
+that directory, its declared `repo_id`, its legacy key and, through `graphconfig.Link`, the graph
+repository a split layout names. The remotes come from one `git config --get-regexp` call made only
+once the pointer alone does not settle the store, since every hook would pay the spawn.
+
+The volume UUID comes from `getattrlist(2)` with `ATTR_VOL_UUID` on darwin (x/sys carries the
+constants but no wrapper, so the call goes through `syscall.Syscall6`) and from the
+`/dev/disk/by-uuid` link whose device is the volume's on linux; elsewhere a checkout is matched by
+pointer and path alone. Rejected: `st_dev`, which a remount changes.
+
+`home.Resolver` answers `Find` (never creating a store), `Ensure` (creating one where nothing
+matches and no question stands), `Bind`, `BindNew`, `Merge`, `Adopt`, `Unclaim` and
+`SweepUnclaimed`. A pointer naming a store that admits the checkout exactly as it stands answers
+without a lock; everything else runs under `<data>/.lock`, reads the index, checks every hit
+against the identity it names and rebuilds the index from every `identity.json` where one
+disagrees, before a store is created, or where the file is missing. A pointer is confirmed by the
+store admitting the checkout's git common dir, or its volume and inode, or no admitted checkout
+still existing (a move across volumes); a pointer copied with a checkout confirms nothing and asks.
+Every write to an identity, a pointer or the index happens under the lock, and the index is
+rewritten whole from the identities after each.
+
+Where the code side of a split layout has no store, it joins the graph repository's store silently
+in one place, `mapping.joinGraph` in `internal/home/resolve.go`; asking there instead is one change
+to that function.
+
+The home is bookkeeping, not a boundary: any process able to write it can edit a pointer or an
+identity, which decides which store a call works on, never whether it may. `<data>/format.json`
+versions the layout; each component keeps its own format beside its data.
+
 ## Where the binaries come from
 
 The plugin holds no binaries. Every hook runs through `plugin/hooks/run`, which runs the binary of
