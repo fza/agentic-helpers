@@ -628,10 +628,21 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	}
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
-	if mem.crossed(session, payload.TranscriptPath, steps) {
+	nudged := mem.crossed(session, payload.TranscriptPath, steps)
+	if nudged {
 		steps.Nudges++
 		steps.NudgedAt = mem.now()
 		out = append(out, nudgeText)
+	}
+
+	// Stop context always shows in the transcript, prompt context never does,
+	// so the shipped-work request rides here; the nudge asks for the same
+	// state write.
+	if mem.shippedDue(ctx, name, &steps) {
+		steps.Held = true
+		if !nudged {
+			out = append(out, shippedPromptText)
+		}
 	}
 
 	replay := mem.replayNudge(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath), &steps)
@@ -867,8 +878,11 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 		return mem.hold(pending)
 	}
 
+	// Only near compaction does the shipped-work request hold the turn: the
+	// next prompt, which carries it otherwise, may come after the compaction.
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
-	shipped := mem.shippedHold(ctx, name, &steps)
+	shipped := mem.shippedDue(ctx, name, &steps) && mem.crossed(session, payload.TranscriptPath, steps)
+	steps.Held = steps.Held || shipped
 	_ = writeJSON(mem.ladderPath(session), steps)
 
 	if shipped {

@@ -101,20 +101,20 @@ func TestTheAgentsStateWriteReplacesADraft(t *testing.T) {
 }
 
 func TestADraftCountsForNoStateWrite(t *testing.T) {
-	t.Run("the shipped-work hold", func(t *testing.T) {
+	t.Run("the shipped-work request", func(t *testing.T) {
 		h := newHarness(t)
 		h.must("", "claim", "main")
 		h.must(h.promptSaying("rework the gate"), "prompt")
 		h.writeFiles(4)
 
-		if h.stopHeld() {
-			t.Fatal("four writes should not hold")
+		if h.asked() {
+			t.Fatal("four writes should not ask")
 		}
 
 		h.writeFiles(1)
 
-		if !h.stopHeld() {
-			t.Error("the draft written at the last Stop should not reset the writes counted toward the hold")
+		if !h.asked() {
+			t.Error("the draft written at the last Stop should not reset the writes counted toward the request")
 		}
 	})
 

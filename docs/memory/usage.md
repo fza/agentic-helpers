@@ -319,17 +319,28 @@ replaces a state the agent wrote in the same session, not even one written while
 draft counts as no state write: it answers no compaction nudge, re-arms no replay nudge, and clears
 no hold for shipped work. A prompt that looks like it holds a credential never reaches a draft.
 
-A seated session that shipped work since its seat's last state write is held at Stop once:
+A seated session that shipped work since its seat's last state write is asked for one at its next
+prompt, as `UserPromptSubmit` context:
+
+    Work shipped since your last state write. Write where work stands first: agentic-memory state < body.
+
+Where the context is near compaction at the turn's end, the request holds `Stop` instead, since the
+next prompt may arrive after the compaction:
 
     Work shipped since your last state write. Write where work stands: agentic-memory state < body. Then end the turn without commentary.
 
+A `Stop` hold shows in Claude Code's transcript and prompt context does not, which is why the
+request waits for the prompt wherever it can. A prompt that carries the compaction nudge carries no
+request beside it: the nudge asks for the same state write, and spends the request.
+
 Shipped work is any of: HEAD moved off the commit the last state write stamps (or off HEAD at the
 session's first tool call, where it wrote none); the graph gained an entry; or the session's Edit,
-Write and NotebookEdit calls reached `state_stale_after_writes`, 5 unless set. The hold fires once,
-then stays spent until the seat's next state write, so an ignored hold never repeats. A seatless
-session, one that only reads and talks, and one whose state is newer than its work are never held.
-It runs after the hold for pending do-now items and before the compaction backstop, and leaves the
-nudge count alone. A compaction starts the measure afresh with the window.
+Write and NotebookEdit calls reached `state_stale_after_writes`, 5 unless set. The request goes out
+once, by whichever path, then stays spent until the seat's next state write, so an ignored request
+never repeats. A seatless session, one that only reads and talks, and one whose state is newer than
+its work are never asked. At `Stop` it runs after the hold for pending do-now items and before the
+compaction backstop, and leaves the nudge count alone. A compaction starts the measure afresh with
+the window.
 
 Words are counted for the body against `entry_max_words` and for the title against 3-10, and the
 similar-entry hint compares entries by their words. In scripts written without spaces (Han,
@@ -489,7 +500,7 @@ this session refuses the whole call, `agentic-memory: nothing acked:` then
 `show` lists `done by proof <trigger>`, `done by ack` or `declined: <why>`, with the seat.
 `ack --done` warms each rule it settles by 0.5; a decline warms nothing.
 
-Every `Stop` hold (do-now items, shipped work, the filing backstop) reaches the agent as Stop
+Every `Stop` hold (do-now items, shipped work near compaction, the filing backstop) reaches the agent as Stop
 context, `hookSpecificOutput.additionalContext` with exit 0: the turn goes on as it would after exit 2,
 under the same loop guards, and the user sees no hook error. The text shows only in Claude Code's
 transcript view.

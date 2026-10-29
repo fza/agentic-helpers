@@ -2,13 +2,17 @@ package memory_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-const shippedHold = "Work shipped since your last state write. Write where work stands: agentic-memory state < body. " +
-	"Then end the turn without commentary."
+const (
+	shippedHold = "Work shipped since your last state write. Write where work stands: agentic-memory state < body. " +
+		"Then end the turn without commentary."
+	shippedAsk = "Work shipped since your last state write. Write where work stands first: agentic-memory state < body."
+)
 
 func (h *harness) stopHeld() bool {
 	h.t.Helper()
@@ -29,6 +33,18 @@ func (h *harness) stopHeld() bool {
 	return false
 }
 
+// asked runs a turn's end and the next prompt, and tells whether that prompt
+// carried the shipped-work request.
+func (h *harness) asked() bool {
+	h.t.Helper()
+
+	if h.stopHeld() {
+		h.t.Fatal("shipped work away from compaction should never hold Stop")
+	}
+
+	return strings.Contains(h.must(h.promptSaying("go on"), "prompt"), shippedAsk)
+}
+
 func (h *harness) writeFiles(count int) {
 	h.t.Helper()
 
@@ -37,7 +53,7 @@ func (h *harness) writeFiles(count int) {
 	}
 }
 
-func TestShippedWorkHoldsStopOnce(t *testing.T) {
+func TestShippedWorkAsksAtTheNextPromptOnce(t *testing.T) {
 	cases := []struct {
 		name string
 		ship func(h *harness)
@@ -57,40 +73,39 @@ func TestShippedWorkHoldsStopOnce(t *testing.T) {
 			h.must("", "claim", "main")
 			h.callTool("Bash", map[string]string{"command": "agentic-memory claim main"})
 
-			if h.stopHeld() {
-				t.Fatal("a session that shipped nothing should not be held")
+			if h.asked() {
+				t.Fatal("a session that shipped nothing should not be asked")
 			}
 
 			tc.ship(h)
 
-			if !h.stopHeld() {
-				t.Error("shipped work should hold Stop for a state write")
+			if !h.asked() {
+				t.Error("shipped work should ask for a state write at the next prompt")
 			}
 
-			if h.stopHeld() {
-				t.Error("an ignored hold should never repeat before a state write")
+			if h.asked() {
+				t.Error("an ignored request should never repeat before a state write")
 			}
 		})
 	}
 }
 
-func TestFewerWritesThanTheThresholdNeverHold(t *testing.T) {
+func TestShippedWorkNearCompactionHoldsStopOnce(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	h.writeFiles(4)
-
-	if h.stopHeld() {
-		t.Error("writes short of state_stale_after_writes should not hold")
-	}
-}
-
-func TestAStateWriteClearsTheHold(t *testing.T) {
-	h := newHarness(t)
-	h.must("", "claim", "main")
+	h.sensor(70)
 	h.writeFiles(5)
 
 	if !h.stopHeld() {
-		t.Fatal("five writes should hold Stop")
+		t.Fatal("shipped work near compaction should hold Stop, since the next prompt may come after the compaction")
+	}
+
+	if h.stopHeld() {
+		t.Error("an ignored hold should never repeat before a state write")
+	}
+
+	if strings.Contains(h.must(h.promptSaying("go on"), "prompt"), shippedAsk) {
+		t.Error("a request Stop already delivered should not repeat at the next prompt")
 	}
 
 	h.must("the gate reads Bash only; the MCP half is next", "state")
@@ -99,16 +114,65 @@ func TestAStateWriteClearsTheHold(t *testing.T) {
 		t.Error("a state write should answer the hold")
 	}
 
-	h.writeFiles(4)
+	h.writeFiles(5)
+	h.sensor(95)
+
+	if !h.stopHeld() {
+		t.Error("work shipped after a state write should hold again once the context climbs past the rearmed rung")
+	}
+}
+
+func TestTheCompactionNudgeStandsInForTheShippedRequest(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.writeFiles(5)
+	h.sensor(70)
+
+	out := h.must(h.promptSaying("go on"), "prompt")
+	if !strings.Contains(out, "Context near compaction") || strings.Contains(out, shippedAsk) {
+		t.Errorf("a prompt carrying the nudge should not ask for the same state write twice, got:\n%s", out)
+	}
 
 	if h.stopHeld() {
+		t.Error("the nudge should spend the shipped-work request, so Stop holds nothing")
+	}
+}
+
+func TestFewerWritesThanTheThresholdNeverAsk(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.writeFiles(4)
+
+	if h.asked() {
+		t.Error("writes short of state_stale_after_writes should not ask")
+	}
+}
+
+func TestAStateWriteClearsTheRequest(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.writeFiles(5)
+
+	if !h.asked() {
+		t.Fatal("five writes should ask for a state write")
+	}
+
+	h.must("the gate reads Bash only; the MCP half is next", "state")
+
+	if h.asked() {
+		t.Error("a state write should answer the request")
+	}
+
+	h.writeFiles(4)
+
+	if h.asked() {
 		t.Error("writes before a state write should no longer count after it")
 	}
 
 	h.writeFiles(1)
 
-	if !h.stopHeld() {
-		t.Error("work shipped after a state write should hold again")
+	if !h.asked() {
+		t.Error("work shipped after a state write should ask again")
 	}
 }
 
@@ -119,15 +183,15 @@ func TestAStateWriteCountsFromTheCommitItStamps(t *testing.T) {
 	h.git.Commit = "9c0ffee1"
 	h.must("where it stands at 9c0ffee1", "state")
 
-	if h.stopHeld() {
-		t.Error("a commit the state write already stamps should not hold")
+	if h.asked() {
+		t.Error("a commit the state write already stamps should not ask")
 	}
 
 	h.must("where it stands, again", "state")
 	h.git.Commit = "d00dfeed"
 
-	if !h.stopHeld() {
-		t.Error("a commit made after the state write should hold, though no hook ran between them")
+	if !h.asked() {
+		t.Error("a commit made after the state write should ask, though no hook ran between them")
 	}
 }
 
@@ -137,20 +201,20 @@ func TestTheWriteThresholdIsAnOption(t *testing.T) {
 	h.must("", "claim", "main")
 	h.writeFiles(2)
 
-	if !h.stopHeld() {
-		t.Error("state_stale_after_writes should set how many writes hold Stop")
+	if !h.asked() {
+		t.Error("state_stale_after_writes should set how many writes ask")
 	}
 }
 
-func TestSessionsThatShipNothingOrHoldNoSeatAreNeverHeld(t *testing.T) {
+func TestSessionsThatShipNothingOrHoldNoSeatAreNeverAsked(t *testing.T) {
 	t.Run("a chat-only session", func(t *testing.T) {
 		h := newHarness(t)
 		h.must("", "claim", "main")
 		h.callTool("Read", map[string]string{"file_path": filepath.Join(h.repo, "README.md")})
 		h.callTool("Grep", map[string]string{"pattern": "gate"})
 
-		if h.stopHeld() || h.stopHeld() {
-			t.Error("a session reading and talking only should never be held")
+		if h.asked() || h.asked() {
+			t.Error("a session reading and talking only should never be asked")
 		}
 	})
 
@@ -162,19 +226,19 @@ func TestSessionsThatShipNothingOrHoldNoSeatAreNeverHeld(t *testing.T) {
 		seatless.writeFiles(6)
 		seatless.git.Commit = "9c0ffee1"
 
-		if seatless.stopHeld() {
-			t.Error("a session holding no seat should never be held")
+		if seatless.asked() {
+			t.Error("a session holding no seat should never be asked")
 		}
 	})
 }
 
-func TestACommitBeforeTheFirstStopCounts(t *testing.T) {
+func TestACommitBeforeTheFirstPromptCounts(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.callTool("Bash", map[string]string{"command": "agentic-memory claim main"})
 	h.git.Commit = "9c0ffee1"
 
-	if !h.stopHeld() {
-		t.Error("work is measured from the session's first tool call, so a commit in its first turn should hold")
+	if !h.asked() {
+		t.Error("work is measured from the session's first tool call, so a commit in its first turn should ask")
 	}
 }

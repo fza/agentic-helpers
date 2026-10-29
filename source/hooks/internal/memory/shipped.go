@@ -9,6 +9,9 @@ import (
 const shippedText = "Work shipped since your last state write. Write where work stands: " + self +
 	" state < body. Then end the turn without commentary."
 
+const shippedPromptText = "Work shipped since your last state write. Write where work stands first: " + self +
+	" state < body."
+
 var fileWriters = []string{"Edit", "Write", "NotebookEdit"}
 
 // countShipped counts a tool call's file write and the graph entries it
@@ -42,11 +45,13 @@ func (mem *memory) startShipping(ctx context.Context, held *ladder) {
 	held.ShipSince, held.StateSeen, held.ShipBase = now, now, mem.checkout(ctx).commit
 }
 
-// shippedHold is whether Stop holds the turn's end for a state write: HEAD
-// moved, the graph gained an entry, or file writes reached
-// state_stale_after_writes since the seat's last state write, once until the
-// next one, since hidden messages to the agent stay as scarce as possible.
-func (mem *memory) shippedHold(ctx context.Context, seatName string, held *ladder) bool {
+// shippedDue is whether the seat owes a state write: HEAD moved, the graph
+// gained an entry, or file writes reached state_stale_after_writes since the
+// seat's last state write, and no request went out since. The caller that
+// delivers the request marks it held, since hidden messages to the agent stay
+// as scarce as possible. Every Stop and prompt calls it, so a state write
+// resets the counts before later work adds to them.
+func (mem *memory) shippedDue(ctx context.Context, seatName string, held *ladder) bool {
 	folded, err := mem.load(ctx)
 	if err != nil {
 		return false
@@ -67,11 +72,6 @@ func (mem *memory) shippedHold(ctx context.Context, seatName string, held *ladde
 	}
 
 	moved := held.ShipBase != "" && commit != "" && commit != held.ShipBase
-	if !moved && held.Captured == 0 && held.Writes < mem.options().StateStaleAfterWrites {
-		return false
-	}
 
-	held.Held = true
-
-	return true
+	return moved || held.Captured > 0 || held.Writes >= mem.options().StateStaleAfterWrites
 }

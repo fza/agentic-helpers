@@ -22,8 +22,9 @@ agentic-memory ack <id>... --done | --decline '<why>'   # settle what no tool ca
   after a filing → the entry landed against the rule: run the `retire ... --because 'forbidden by
   <rule id>'` it names, unless the match is a false hit.
 - **`agentic-memory: do-now items pending:`** at `Stop` → the turn is held for them; settle them.
-- The `Work shipped since your last state write` hold at `Stop` comes once per state write: HEAD
-  moved, a graph capture, or `state_stale_after_writes` (5) file writes. Twice per moment at most;
+- The `Work shipped since your last state write` request comes once per state write, at the next
+  prompt, or as a `Stop` hold where the context is near compaction: HEAD moved, a graph capture, or
+  `state_stale_after_writes` (5) file writes. Twice per moment at most;
   what stays pending opens the next list as `skipped last session:`.
 - Rules are capped at a third of the brief. `rules exceed a third of the brief: <n>; retire or
   rekind some` → do it.
