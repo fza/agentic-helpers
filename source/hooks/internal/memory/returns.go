@@ -169,33 +169,33 @@ func (scope *viewScope) anchorReasons(held *entry) (bool, []returnReason) {
 	return len(held.anchors) > 0 && gone == len(held.anchors), reasons
 }
 
-// linkReasons is a reason per link whose target closed, was superseded,
-// retired or went, or whose state cannot be known, and whether every link
-// ended.
+// linkReasons is a reason per link whose target closed, was superseded by
+// another entry, retired or went, or whose state cannot be known, and whether
+// every link that can infer the entry's end ended.
 func (scope *viewScope) linkReasons(held *entry) (bool, []returnReason) {
 	var reasons []returnReason
 
-	targets := held.links()
+	inferring := held.inferringLinks()
 	ended := 0
 
-	for _, target := range targets {
+	for _, target := range held.links() {
 		state, checked := scope.linkState(target)
+		if slices.Contains(inferring, target) && held.linkEnded(state) {
+			ended++
+		}
 
 		switch {
 		case !checked:
 			reasons = append(reasons, returnReason{kind: returnLink, detail: target + ": the graph status cache is cold",
 				unchecked: true})
 		case state == "gone":
-			ended++
 			reasons = append(reasons, returnReason{kind: returnLink, detail: target + " gone", verbs: []string{"unlink"},
 				answer: "unlink"})
 		case state == "retired":
-			ended++
 			reasons = append(reasons, returnReason{kind: returnLink, detail: target + " retired",
 				verbs: []string{"supersede", "retire"}, answer: "supersede or retire"})
+		case !held.linkEnded(state):
 		case strings.HasPrefix(state, "closed") || strings.HasPrefix(state, "superseded"):
-			ended++
-
 			successor := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(state, "closed by"), "superseded by"))
 			reasons = append(reasons, returnReason{kind: returnLink, detail: target + " " + state,
 				verbs:  []string{"supersede", "retire"},
@@ -203,7 +203,7 @@ func (scope *viewScope) linkReasons(held *entry) (bool, []returnReason) {
 		}
 	}
 
-	return len(targets) > 0 && ended == len(targets), reasons
+	return len(inferring) > 0 && ended == len(inferring), reasons
 }
 
 // linkState is what became of a link target, and whether that can be known:

@@ -422,16 +422,13 @@ func (mem *memory) endedSince(folded *state, seatName string, since time.Time) [
 // link it holds ended, every anchor is gone, or a `merged:` branch is gone.
 // Empty where nothing says so.
 func (probe *endProbe) inferredEnd(ctx context.Context, held *entry) string {
-	if links := held.links(); len(links) > 0 {
-		ended := 0
-
-		for _, flag := range held.flags() {
-			if !strings.HasSuffix(flag, " settled") {
-				ended++
-			}
+	if links := held.inferringLinks(); len(links) > 0 {
+		states := map[string]string{}
+		for _, link := range held.linkStates() {
+			states[link.Target] = link.State
 		}
 
-		if ended == len(links) {
+		if !slices.ContainsFunc(links, func(target string) bool { return !held.linkEnded(states[target]) }) {
 			return "every link ended"
 		}
 	}
@@ -451,6 +448,39 @@ func (probe *endProbe) inferredEnd(ctx context.Context, held *entry) string {
 	}
 
 	return ""
+}
+
+// inferringLinks is the links whose end can infer held's: a todo's graph links
+// alone, since a todo ends by its own work, never by the predecessor or the
+// finding it links back to; every link of any other kind, so a trap linked to
+// its fix todo is flagged once that todo ends.
+func (held *entry) inferringLinks() []string {
+	if held.kind != kindTodo {
+		return held.links()
+	}
+
+	var graph []string
+
+	for _, target := range held.links() {
+		_, _, qualified := splitQualified(target)
+		if isGraphID(target) || qualified {
+			graph = append(graph, target)
+		}
+	}
+
+	return graph
+}
+
+// linkEnded is whether a link target in state counts as ended for held: a
+// settled decision is in force, and a memory target held itself superseded is
+// replaced by held, not ended.
+func (held *entry) linkEnded(state string) bool {
+	switch state {
+	case "", "ok", "settled", "superseded by " + held.id:
+		return false
+	}
+
+	return true
 }
 
 // retireCandidate is a live entry whose end the tool infers, with why.

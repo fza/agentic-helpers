@@ -653,6 +653,13 @@ that no longer exists, merged or abandoned. The flag ends the entry's own line u
 `retire?` section lists only candidates no section printed, notes past `brief_note_limit` among
 them, as `<id> <title>  retire? <why>`. Nothing is retired from either.
 
+`every link ended` leaves two links out of the count. A memory entry the entry itself superseded is
+its predecessor, replaced rather than ended, so it never counts as ended, and `returns` gives no
+reason for it. A todo's links to memory entries never infer its end, only its graph links do: a todo
+ends by its own work, not by the request or finding it links back to. A trap or a note still infers
+from memory links, so a trap linked to its fix todo is flagged once that todo ends. `returns`
+infers `until end inferred: every link ended` the same way.
+
 ## Search
 
 Search is sdd's: `--term` is a case-insensitive regex, every term required, matched against the

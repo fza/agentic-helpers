@@ -137,14 +137,16 @@ func TestALineSaysWhatBecameOfItsLinks(t *testing.T) {
 	}
 }
 
-func TestTheShortLineFoldsEndedLinks(t *testing.T) {
-	const (
-		settledDecision    = "20261024-110000-d-tac-set"
-		supersededDecision = "20261024-120000-d-tac-sup"
-		itsSuccessor       = "20261027-090000-d-tac-new"
-	)
+const (
+	settledDecision    = "20261024-110000-d-tac-set"
+	supersededDecision = "20261024-120000-d-tac-sup"
+	itsSuccessor       = "20261027-090000-d-tac-new"
+)
 
-	h := newHarness(t)
+// withEndedGraph is withGraph plus a settled decision and a superseded one
+// with its successor.
+func withEndedGraph(t *testing.T, h *harness) {
+	t.Helper()
 	withGraph(t, h)
 
 	for _, path := range []string{"2026/10/24-110000-d-tac-set.md", "2026/10/24-120000-d-tac-sup.md", "2026/10/27-090000-d-tac-new.md"} {
@@ -152,6 +154,11 @@ func TestTheShortLineFoldsEndedLinks(t *testing.T) {
 	}
 
 	h.graph.Out = test.Fixture(t, "memory/sdd-export-fold.json")
+}
+
+func TestTheShortLineFoldsEndedLinks(t *testing.T) {
+	h := newHarness(t)
+	withEndedGraph(t, h)
 	h.must("", "claim", "main")
 
 	retired := h.file("A finding that ended", "body")

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -423,12 +424,17 @@ func TestRetireQuestionReadsAConnectedRepo(t *testing.T) {
 	h.must("", "claim", "main")
 
 	ended := h.file("Gate finding citing a closed fdbox decision", "body", "--link", fdbox+":"+foreignClosed)
+	endedTodo := h.file("Gate todo waiting on a closed fdbox decision", "body", "--kind", "todo", "--link", fdbox+":"+foreignClosed)
 	kept := h.file("Gate finding citing an active fdbox decision", "body", "--link", fdbox+":"+foreignActive)
 
 	brief := h.must("", "brief")
 
 	if !strings.HasSuffix(briefLine(brief, ended), "retire? every link ended") {
 		t.Errorf("an entry whose only link is a closed entry of a connected repo should be flagged retire?:\n%s", brief)
+	}
+
+	if !strings.HasSuffix(briefLine(brief, endedTodo), "retire? every link ended") {
+		t.Errorf("a todo whose only link is a closed entry of a connected repo should be flagged retire?:\n%s", brief)
 	}
 
 	if strings.Contains(briefLine(brief, kept), "retire?") {
@@ -464,6 +470,113 @@ func TestRetireQuestionFlagsInPlaceAndListsOnlyTheRest(t *testing.T) {
 
 	if !strings.HasPrefix(section, "  "+overCap+" Cold finding citing a closed decision  retire? every link ended\n") {
 		t.Errorf("a candidate past the note limit should be named under retire? with its title and why alone:\n%s", brief)
+	}
+}
+
+func TestEveryLinkEndedSkipsOwnPredecessorsAndATodosMemoryLinks(t *testing.T) {
+	cases := []struct {
+		name      string
+		file      func(h *harness) string
+		candidate bool
+		// quiet is where returns lists no reason for the entry: a predecessor
+		// it superseded is no link to answer.
+		quiet bool
+	}{
+		{name: "a todo linking only a retired memory entry", file: func(h *harness) string {
+			finding := h.file("Finding the todo acts on", "body")
+			h.must("", "retire", finding)
+
+			return h.file("Todo acting on the finding", "body", "--kind", "todo", "--link", finding)
+		}},
+		{name: "a todo linking the predecessor it superseded", quiet: true, file: func(h *harness) string {
+			request := h.file("First take on the request", "body", "--kind", "todo")
+			todo := h.file("Second take on the request", "body", "--kind", "todo", "--link", request)
+			h.must("", "supersede", request, "--by", todo)
+
+			return todo
+		}},
+		{name: "a todo with a closed graph link", candidate: true, file: func(h *harness) string {
+			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--link", closedDecision)
+		}},
+		{name: "a todo with a closed graph link and a live memory link", candidate: true, file: func(h *harness) string {
+			finding := h.file("Finding still in force", "body")
+
+			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--link", closedDecision,
+				"--link", finding)
+		}},
+		{name: "a todo with a closed graph link and a retired memory link", candidate: true, file: func(h *harness) string {
+			finding := h.file("Finding the todo acts on", "body")
+			h.must("", "retire", finding)
+
+			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--link", closedDecision,
+				"--link", finding)
+		}},
+		{name: "a trap linking its retired fix todo", candidate: true, file: func(h *harness) string {
+			fix := h.file("Todo fixing the gate", "body", "--kind", "todo")
+			h.must("", "retire", fix)
+
+			return h.file("Gate trap until the fix lands", "body", "--kind", "trap", "--link", fix)
+		}},
+		{name: "a note linking only the predecessor it superseded", quiet: true, file: func(h *harness) string {
+			old := h.file("First take on the waiter", "body")
+			note := h.file("Second take on the waiter", "body", "--link", old)
+			h.must("", "supersede", old, "--by", note)
+
+			return note
+		}},
+		{name: "a note linking its predecessor and a closed decision", file: func(h *harness) string {
+			old := h.file("First take on the waiter", "body")
+			note := h.file("Second take on the waiter", "body", "--link", old, "--link", closedDecision)
+			h.must("", "supersede", old, "--by", note)
+
+			return note
+		}},
+		{name: "a note linking a settled decision and a closed one", file: func(h *harness) string {
+			return h.file("Note citing two decisions", "body", "--link", settledDecision, "--link", closedDecision)
+		}},
+		{name: "a note linking a superseded decision", candidate: true, file: func(h *harness) string {
+			return h.file("Note citing a superseded decision", "body", "--link", supersededDecision)
+		}},
+		{name: "a note linking a predecessor another entry superseded", candidate: true, file: func(h *harness) string {
+			old := h.file("First take on the waiter", "body")
+			successor := h.file("Second take on the waiter", "body")
+			h.must("", "supersede", old, "--by", successor)
+
+			return h.file("Note citing the first take", "body", "--link", old)
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			withEndedGraph(t, h)
+			h.must("", "claim", "main")
+
+			id := tc.file(h)
+
+			flagged := strings.HasSuffix(briefLine(h.must("", "brief"), id), "retire? every link ended")
+			if flagged != tc.candidate {
+				t.Errorf("the brief should flag retire? only where every link that can end the entry ended, flagged: %t", flagged)
+			}
+
+			title, _, found := strings.Cut(strings.TrimPrefix(briefLine(h.must("", "brief"), id), id+" "), "  [")
+			if !found {
+				t.Fatalf("the brief should list the entry")
+			}
+
+			reasons, listed := returnsByTitle(t, h, "returns:as-list")[title]
+
+			inferred := slices.ContainsFunc(reasons, func(reason returned) bool {
+				return reason.Detail == "end inferred: every link ended"
+			})
+			if inferred != tc.candidate {
+				t.Errorf("returns should infer the end only where every link that can end the entry ended, inferred: %t", inferred)
+			}
+
+			if tc.quiet && listed {
+				t.Errorf("returns should give no reason for a predecessor the entry superseded, got %+v", reasons)
+			}
+		})
 	}
 }
 

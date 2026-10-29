@@ -405,9 +405,12 @@ claim's session id; `captured` reads the stamp a linked graph id carries. A
 reached end takes the store lock, re-reads the log, and appends a `retire` row by the checking seat
 with `because` `end reached: <condition>` for every entry still live. `ended since last brief` lists
 the retires with that reason after the seat's previous brief mark; `retire?` is computed from the
-link flags, the anchors and the `merged:` branches, and writes nothing. `link` to a graph id runs the
-check for that entry's `captured` condition alone; `release` and the SessionEnd close run it for the
-released seat's shelf, `session` conditions alone, after closing the claim.
+link flags, the anchors and the `merged:` branches, and writes nothing. Its link count
+(`inferringLinks` and `linkEnded` in `ends.go`, shared with `returns`) takes a todo's graph links
+alone and every link of any other kind, and counts neither a `settled` target nor a memory target
+superseded by the entry itself as ended. `link` to a graph id runs the check for that entry's
+`captured` condition alone; `release` and the SessionEnd close run it for the released seat's
+shelf, `session` conditions alone, after closing the claim.
 
 The tool hook finds graph gains without reading a capture's output: it keeps, per session, the
 graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a month through the
