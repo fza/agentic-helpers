@@ -466,6 +466,12 @@ func loadIndex(at string) (*index, bool) {
 			continue
 		}
 
+		// A size no version could have makes the whole index suspect: it is
+		// rebuilt from the folders rather than trusted for space or pruning.
+		if !validSizes(row) {
+			return nil, false
+		}
+
 		row.Summary, row.Usage = clean(row.Summary, false), clean(row.Usage, true)
 		row.Inputs, row.Outputs = clean(row.Inputs, true), clean(row.Outputs, true)
 	}

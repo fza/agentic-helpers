@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -50,13 +51,46 @@ func (version storedVersion) String() string {
 	return fmt.Sprintf("%s v%d of %s", version.tool, version.v, version.store.key)
 }
 
+// hashedBytes is a version's size as its index recorded it, never more than
+// a tool may hold: an index anything sandboxed can write must not inflate the
+// total into pruning valid versions elsewhere.
 func hashedBytes(hashes []fileHash) int64 {
 	var total int64
 	for _, hash := range hashes {
-		total += hash.Size
+		total = space.Add(total, min(max(hash.Size, 0), toolLimit))
 	}
 
-	return total
+	return min(total, toolLimit)
+}
+
+// validSizes says whether every size an index row records could be a real
+// version's: none negative, none past what a tool may hold.
+func validSizes(row *indexed) bool {
+	for _, hashes := range row.Hashes {
+		var total int64
+
+		for _, hash := range hashes {
+			if hash.Size < 0 || hash.Size > toolLimit {
+				return false
+			}
+
+			total += hash.Size
+		}
+
+		if total > toolLimit {
+			return false
+		}
+	}
+
+	return true
+}
+
+// versionStored says whether a version's folder is there: a version an index
+// names without one neither counts nor is pruned.
+func versionStored(at string, tool string, folder string) bool {
+	info, err := os.Lstat(filepath.Join(at, tool, folder))
+
+	return err == nil && info.IsDir()
 }
 
 func walkedBytes(files ...[]walked) int64 {
@@ -96,7 +130,7 @@ func versionsOf(held *store, named map[forkOrigin]bool) ([]storedVersion, []stor
 
 		for folder, hashes := range tool.Hashes {
 			v, err := strconv.Atoi(strings.TrimPrefix(folder, "v"))
-			if err != nil {
+			if err != nil || folder != versionDir(v) || !versionStored(held.path, name, folder) {
 				continue
 			}
 
@@ -117,14 +151,17 @@ func usageOf(held *store, named map[forkOrigin]bool) space.Record {
 
 	var record space.Record
 
-	for _, version := range every {
-		record.Stored += version.bytes
+	may := map[storedVersion]bool{}
+	for _, version := range prunable {
+		may[version] = true
 	}
 
-	record.Held = record.Stored
+	for _, version := range every {
+		record.Stored = space.Add(record.Stored, version.bytes)
 
-	for _, version := range prunable {
-		record.Held -= version.bytes
+		if !may[version] {
+			record.Held = space.Add(record.Held, version.bytes)
+		}
 	}
 
 	return record
@@ -208,18 +245,18 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	var stored int64
 
 	for _, held := range stores {
-		stored += usageOf(held, named).Stored
+		stored = space.Add(stored, usageOf(held, named).Stored)
 	}
 
 	if lib.scopeProject() {
 		for key, record := range space.Read(ledgerPath(lib.root())) {
 			if key != lib.key {
-				stored += record.Stored
+				stored = space.Add(stored, record.Stored)
 			}
 		}
 	}
 
-	over := stored + incoming - int64(lib.options.ToolsTotalMB)<<20
+	over := space.Add(stored, incoming) - int64(lib.options.ToolsTotalMB)<<20
 	if over <= 0 {
 		return nil
 	}
@@ -235,12 +272,12 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 		}
 
 		picked = append(picked, version)
-		freed += version.bytes
+		freed = space.Add(freed, version.bytes)
 	}
 
 	if freed < over {
 		return fmt.Errorf("the tool library would hold %s on this machine, past the %d MB limit (tools_total_mb), "+
-			"and no version is left to prune: merge tools, or raise tools_total_mb", space.Size(stored+incoming),
+			"and no version is left to prune: merge tools, or raise tools_total_mb", space.Size(space.Add(stored, incoming)),
 			lib.options.ToolsTotalMB)
 	}
 
@@ -325,7 +362,7 @@ func Prune(ctx context.Context, home string, limitMB int) {
 	var stored int64
 
 	for _, held := range stores {
-		stored += usageOf(held, named).Stored
+		stored = space.Add(stored, usageOf(held, named).Stored)
 	}
 
 	over := stored - int64(limitMB)<<20

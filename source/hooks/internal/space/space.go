@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,13 +93,23 @@ func Size(bytes int64) string {
 	return fmt.Sprintf("%d B", bytes)
 }
 
+// Add sums two sizes, saturating instead of wrapping: a figure read from a
+// store anything sandboxed can write must not overflow into a small one.
+func Add(a, b int64) int64 {
+	if b > 0 && a > math.MaxInt64-b {
+		return math.MaxInt64
+	}
+
+	return a + b
+}
+
 // Total sums a ledger's records.
 func Total(records map[string]Record) Record {
 	var total Record
 
 	for _, record := range records {
-		total.Stored += record.Stored
-		total.Held += record.Held
+		total.Stored = Add(total.Stored, record.Stored)
+		total.Held = Add(total.Held, record.Held)
 	}
 
 	return total

@@ -1,6 +1,7 @@
 package space_test
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,6 +37,16 @@ func TestLowLineNamesOnlyAStoreUnderATenthLeft(t *testing.T) {
 				t.Errorf("the line should name the stores under a tenth of their limit, got %q", got)
 			}
 		})
+	}
+}
+
+func TestAddSaturatesInsteadOfWrapping(t *testing.T) {
+	if got := space.Add(math.MaxInt64-1, 5); got != math.MaxInt64 {
+		t.Errorf("a sum past the largest size should stay at it, got %d", got)
+	}
+
+	if got := space.Total(map[string]space.Record{"a": {Stored: math.MaxInt64}, "b": {Stored: 1}}); got.Stored != math.MaxInt64 {
+		t.Errorf("a ledger's total should saturate, got %d", got.Stored)
 	}
 }
 
