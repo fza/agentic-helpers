@@ -27,7 +27,10 @@ agentic-memory view --explain brief                 # the brief's fixed sections
   `branch filed on <b>` → nothing until it merges. `unchecked` = could not tell: check by hand. A
   view reads only cached graph statuses; `link unchecked: ... cache is cold` → `show <id>` asks sdd,
   then view again.
-- Shape: `rank(heat|in-degree|by(date))` (`in-degree` = most linked to), `n(N)`, `skip(N)`,
+- `attached` keeps entries holding attachments; `rank(size)` puts the most attachment bytes first.
+  Either one lists each file's name and size and the total under the entry:
+  `active:attached:rank(size):as-list`.
+- Shape: `rank(heat|in-degree|size|by(date))` (`in-degree` = most linked to), `n(N)`, `skip(N)`,
   `name("...")`, `brief` (short lines), macro `top(N)`. `topic(t)` opening a section = hottest
   first, as in sdd; later in a section it only filters.
 - `group(by(kind|seat|shelf|from))` + `as-grouped` → blocks per value: who on a shelf filed what.

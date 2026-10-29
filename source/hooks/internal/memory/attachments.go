@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -23,6 +24,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
 // readPage is the most a paged read of an attachment answers at once.
@@ -132,8 +134,8 @@ func (mem *memory) prepareFile(ctx context.Context, path string) (preparedFile, 
 }
 
 // prepareFiles reads every path to attach to held, refusing a name the entry
-// or another path already carries, and the lot where the project's
-// attachments would outgrow attachment_budget_mb.
+// or another path already carries, and the lot where the attachments of every
+// project on the machine would outgrow attachments_total_mb.
 func (mem *memory) prepareFiles(ctx context.Context, folded *state, held *entry, paths []string) ([]preparedFile, error) {
 	var prepared []preparedFile
 
@@ -158,7 +160,7 @@ func (mem *memory) prepareFiles(ctx context.Context, folded *state, held *entry,
 		prepared = append(prepared, file)
 	}
 
-	return prepared, mem.withinBudget(folded, prepared)
+	return prepared, mem.withinLimit(folded, prepared)
 }
 
 func entryID(held *entry) string {
@@ -170,7 +172,7 @@ func entryID(held *entry) string {
 }
 
 // heldAttachments is every attachment an entry still holding its body names,
-// by hash: what the project's budget counts and its refs keep.
+// by hash: what its refs keep, and what the machine-wide limit counts for it.
 func (mem *memory) heldAttachments(folded *state) map[string]int64 {
 	held := map[string]int64{}
 
@@ -187,8 +189,51 @@ func (mem *memory) heldAttachments(folded *state) map[string]int64 {
 	return held
 }
 
-func (mem *memory) withinBudget(folded *state, prepared []preparedFile) error {
-	held := mem.heldAttachments(folded)
+// ledgerPath is the attachment store's ledger: every stored file's size by
+// hash, as the attach that stored it recorded it.
+func (mem *memory) ledgerPath() string {
+	return filepath.Join(mem.attachmentsRoot(), ".space.json")
+}
+
+// attachmentsSpace is the attachment store's space, from the ledger's
+// recorded sizes, never from the files.
+func (mem *memory) attachmentsSpace() space.Figure {
+	return mem.attachmentsFigure(space.Read(mem.ledgerPath()))
+}
+
+func (mem *memory) attachmentsFigure(records map[string]space.Record) space.Figure {
+	return space.Figure{Kind: space.Attachments, Used: space.Total(records).Stored,
+		Limit: int64(mem.options().AttachmentsTotalMB) << 20}
+}
+
+// recordAttached enters each attached file's size in the ledger and answers
+// the store's space after it.
+func (mem *memory) recordAttached(prepared []preparedFile) space.Figure {
+	records := space.Read(mem.ledgerPath())
+
+	_ = space.Update(mem.ledgerPath(), func(ledger map[string]space.Record) {
+		for _, file := range prepared {
+			ledger[file.SHA256] = space.Record{Stored: file.Size, Held: file.Size}
+		}
+
+		records = maps.Clone(ledger)
+	})
+
+	return mem.attachmentsFigure(records)
+}
+
+// withinLimit refuses files that would take every project's attachments on
+// the machine past attachments_total_mb, each stored file counted once.
+func (mem *memory) withinLimit(folded *state, prepared []preparedFile) error {
+	held := map[string]int64{}
+	for hash, record := range space.Read(mem.ledgerPath()) {
+		held[hash] = record.Stored
+	}
+
+	// The project's own files count even where the ledger lacks them: a file
+	// stored before the ledger was kept.
+	maps.Copy(held, mem.heldAttachments(folded))
+
 	before := len(held)
 
 	for _, file := range prepared {
@@ -204,8 +249,8 @@ func (mem *memory) withinBudget(folded *state, prepared []preparedFile) error {
 		total += bytes
 	}
 
-	budget := int64(mem.options().AttachmentBudgetMB) << 20
-	if total <= budget {
+	limit := int64(mem.options().AttachmentsTotalMB) << 20
+	if total <= limit {
 		return nil
 	}
 
@@ -241,8 +286,8 @@ func (mem *memory) withinBudget(folded *state, prepared []preparedFile) error {
 		most = "; most held by " + strings.Join(named, ", ")
 	}
 
-	return fmt.Errorf("attachments would hold %s in this project, past the %d MB budget (attachment_budget_mb)%s",
-		size(total), mem.options().AttachmentBudgetMB, most)
+	return fmt.Errorf("attachments would hold %s on this machine, past the %d MB limit (attachments_total_mb)%s",
+		size(total), mem.options().AttachmentsTotalMB, most)
 }
 
 // storeFile keeps a prepared file in the attachment store, gzip-compressed
@@ -356,6 +401,8 @@ func (mem *memory) attach(ctx context.Context, req request) result {
 		lines = append(lines, attachedLine(held.id, file.attachPayload))
 		names = append(names, file.Name)
 	}
+
+	lines = append(lines, space.Line(mem.recordAttached(prepared)))
 
 	return done(strings.Join(lines, "\n")).with(attachedFields{ID: held.id, Attachments: names})
 }
@@ -592,6 +639,7 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 	}
 
 	keep := map[string]bool{}
+	sizes := map[string]int64{}
 
 	for _, key := range mem.storeKeys() {
 		other := &memory{env: mem.env, streams: mem.streams, key: key}
@@ -604,6 +652,7 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 			}
 
 			other.writeRefs(folded)
+			maps.Copy(sizes, other.heldAttachments(folded))
 		}
 
 		var hashes []string
@@ -628,12 +677,38 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 
 	defer func() { _ = filelock.Unlock(lock) }()
 
+	stored := map[string]bool{}
+
 	for _, file := range entries {
 		hash := strings.TrimSuffix(file.Name(), ".gz")
-		if file.IsDir() || strings.HasPrefix(file.Name(), ".") || keep[hash] {
+		if file.IsDir() || strings.HasPrefix(file.Name(), ".") {
+			continue
+		}
+
+		if keep[hash] {
+			stored[hash] = true
+
 			continue
 		}
 
 		removeIfThere(filepath.Join(mem.attachmentsRoot(), file.Name()))
 	}
+
+	// The ledger is recomputed from what every log recorded, so a total that
+	// drifted, a crash between a store and its record, is set right here. A
+	// file only a store this release cannot read names keeps its recorded size.
+	_ = space.Update(mem.ledgerPath(), func(ledger map[string]space.Record) {
+		for hash := range ledger {
+			if !stored[hash] {
+				delete(ledger, hash)
+			}
+		}
+
+		for hash := range stored {
+			size, known := sizes[hash]
+			if known {
+				ledger[hash] = space.Record{Stored: size, Held: size}
+			}
+		}
+	})
 }

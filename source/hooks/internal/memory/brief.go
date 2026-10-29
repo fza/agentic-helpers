@@ -8,6 +8,10 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
+	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
 
 // briefBudget keeps the brief inside one hook output: Claude Code swaps a
@@ -184,6 +188,18 @@ func briefLayout(noteLimit int) string {
 const briefParts = "brief, fixed: its first line, the state slot, changed by other seats and ended since last " +
 	"brief; then these sections; then retire?, new from other seats and the topics. Nothing configures it."
 
+// lowSpace is the brief's space line: only a store with under a tenth of its
+// limit left is named, since with room to spare the figure changes nothing the
+// agent does, and every write reply carries it anyway.
+func (mem *memory) lowSpace() string {
+	figures := []space.Figure{mem.attachmentsSpace()}
+	if pieces.Tools.On(mem.options()) {
+		figures = append(figures, tools.Space(mem.env.Home, mem.options().ToolsTotalMB))
+	}
+
+	return space.LowLine(figures...)
+}
+
 // brief is what a fresh context gets: the seat's state slot, what other seats
 // changed since its last brief, its live rules, traps, todos and notes, each by
 // heat, what other seats filed, then the topics. Claim and compaction share it.
@@ -210,6 +226,10 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	}
 
 	out.add(fmt.Sprintf("%s: %s, %d live, %d retired, entries in %s", self, seated, len(live), retired, mem.language(ctx)))
+
+	if low := mem.lowSpace(); low != "" {
+		out.add(low)
+	}
 
 	if slot := mem.stateLine(folded, seatName); slot != "" {
 		out.add(slot)

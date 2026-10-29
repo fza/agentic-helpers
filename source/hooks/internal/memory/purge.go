@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
 
 // reservationKeep is how long a claim made for another session holds its seat
@@ -303,6 +305,10 @@ func (mem *memory) purgeEverywhere(ctx context.Context) {
 	})
 
 	mem.sweepAttachments(ctx)
+
+	if pieces.Tools.On(mem.options()) {
+		tools.Prune(ctx, mem.env.Home, mem.options().ToolsTotalMB)
+	}
 }
 
 // drop purges a temporary shelf no seat uses at once.

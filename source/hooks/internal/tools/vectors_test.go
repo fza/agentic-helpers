@@ -90,8 +90,8 @@ func TestAToolAddedFilesItsVectorWithoutRewritingAnother(t *testing.T) {
 	}
 
 	index := h.read("index.json")
-	if strings.Contains(index, `"vector"`) || strings.Contains(index, `"fingerprint"`) || !strings.Contains(index, `"schema":2`) {
-		t.Error("index.json should carry no vector and no fingerprint, under schema 2")
+	if strings.Contains(index, `"vector"`) || strings.Contains(index, `"fingerprint"`) || !strings.Contains(index, `"schema":3`) {
+		t.Error("index.json should carry no vector and no fingerprint, under the current schema")
 	}
 }
 

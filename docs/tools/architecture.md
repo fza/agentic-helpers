@@ -17,7 +17,8 @@ a hash of the main checkout), so worktrees share it.
 | `<tool>/v<n>/tool.json` | `name`, `summary`, `usage`, `inputs`, `outputs`, `files`, and on a fork `forked_from: {project, tool, v}` |
 | `<tool>/v<n>/...` | the version's files |
 | `<tool>/merged` | a tombstone naming the survivor |
-| `index.json` | per tool its current version and fields, the hash of its description, takers, roles and the file hashes of every version; the merged names |
+| `<tool>/pruned.jsonl` | one line per version pruned to make room: `{v, at, hashes}`, its files' hashes and sizes |
+| `index.json` | per tool its current version and fields, the hash of its description, takers, roles, the file hashes and sizes of every stored version, when each was written, and the hashes of every pruned one; the merged names |
 | `.lock` | the write lock |
 | `sessions/<session>.json` | what a session holds and has been told |
 | `copies/` | copies taken where the checkout has no `.tmp/` |
@@ -29,6 +30,30 @@ back for the own store under the lock; `reindex` forces the rebuild. A tool fold
 read is skipped and counted. A store is any folder under `~/.claude/agentic-tools/` holding an index, a lock
 or a tool folder with a `current`, found at most six folders deep, so a library renamed into place
 reads as is.
+
+## Space
+
+`~/.claude/agentic-tools/.space.json` is the machine's ledger: per store key, `stored` (the bytes
+of every stored version) and `held` (those of versions that cannot be pruned), from the sizes the
+index recorded when it read each version, never from a stat of the files. A walk over every store
+is far too slow for a figure every write reply and the brief print. `add` and `update` rewrite it
+after writing, the own store's figures, or every store's where the caller reaches every store; the
+SessionStart pass rewrites it whole. Writes to it hold `.space.json.lock` (`internal/space`).
+
+A write needing room sums the stored bytes of every store in reach (with `AGENTIC_TOOLS_SCOPE=project`,
+the own store plus the ledger's figures for the rest), and, holding the own store's lock, prunes the
+oldest prunable versions until the write fits, each foreign store under its own lock. Pruning is the
+one change a write makes to another project's store: the limit is one per machine, so the room may
+lie anywhere. Pruning appends the version's hashes to `<tool>/pruned.jsonl` first, so a crash before
+the folder goes leaves the duplicate check whole, then removes `v<n>/` through `os.Root` and reads
+the tool's index row again. `tools.Prune`, run from agentic-memory's SessionStart pass, does the
+same over every store on the machine, passing over a store whose lock it cannot take within 200 ms,
+and writes back any index it had to rebuild, so the next pass reads recorded sizes again. Index
+schema 3 carries the sizes; an index of an older schema is rebuilt once.
+
+Rejected: refusing at the limit with no pruning (the library fills with history and refuses new
+tools); counting only current versions (the disk grows past the limit unbounded); a 5 MB per-tool
+cap (a helper tool is a script, and 1 MiB holds any reasonable one).
 
 ## Vectors
 
@@ -86,7 +111,8 @@ store holds another project's agents' text.
 
 ## Reach and names
 
-Reads span every store found, the own one first; writes touch the own store only, so a take of a
+Reads span every store found, the own one first; writes touch the own store only, pruning to make
+room ([Space](#space)) aside, so a take of a
 foreign tool records the session's holding and writes no take line into the other store.
 `AGENTIC_TOOLS_SCOPE=project` lists the own store alone. Labels are the last segment of each
 project key, grown by a leading segment while two keys share one.

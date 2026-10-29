@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
 var longOption = regexp.MustCompile(`--[a-z][a-z0-9-]*`)
@@ -109,6 +111,11 @@ func (lib *library) update(ctx context.Context, req request) result {
 		number := old.Version + 1
 
 		err = lib.locked(ctx, func() error {
+			err := lib.makeRoom(ctx, walkedBytes(files))
+			if err != nil {
+				return err
+			}
+
 			return lib.writeVersion(ctx, version{name: old.Name, number: number, files: files, spec: next, why: req.Why,
 				vector: vector})
 		})
@@ -117,9 +124,8 @@ func (lib *library) update(ctx context.Context, req request) result {
 		}
 
 		lib.moveHolding(req.From, hit, old.Name, number)
-		lib.forget()
 
-		return done(fmt.Sprintf("updated %s to v%d, now current", old.Name, number)).
+		return done(fmt.Sprintf("updated %s to v%d, now current\n%s", old.Name, number, space.Line(lib.recordSpace(ctx)))).
 			with(updatedFields{Name: old.Name, Version: number})
 	}
 
@@ -148,7 +154,12 @@ func (lib *library) fork(ctx context.Context, req request, hit found, previous [
 	next.ForkedFrom = origin
 
 	err := lib.locked(ctx, func() error {
-		err := lib.writeVersion(ctx, version{name: old.Name, number: 1, files: previous, spec: first,
+		err := lib.makeRoom(ctx, walkedBytes(previous, files))
+		if err != nil {
+			return err
+		}
+
+		err = lib.writeVersion(ctx, version{name: old.Name, number: 1, files: previous, spec: first,
 			why: fmt.Sprintf("forked from %s %s v%d", hit.store.key, old.Name, old.Version)})
 		if err != nil {
 			return err
@@ -162,9 +173,9 @@ func (lib *library) fork(ctx context.Context, req request, hit found, previous [
 	}
 
 	lib.moveHolding(req.From, hit, old.Name, 2)
-	lib.forget()
 
-	return done(fmt.Sprintf("forked %s from %s into this project; updated it, now current", old.Name, hit.store.key)).
+	return done(fmt.Sprintf("forked %s from %s into this project; updated it, now current\n%s", old.Name,
+		hit.store.key, space.Line(lib.recordSpace(ctx)))).
 		with(updatedFields{Name: old.Name, Version: 2, ForkedFrom: hit.store.key})
 }
 

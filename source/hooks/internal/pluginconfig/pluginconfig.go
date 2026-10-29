@@ -77,11 +77,19 @@ const (
 // DefaultBriefNoteLimit is how many notes the brief prints, hottest first.
 const DefaultBriefNoteLimit = 10
 
-// DefaultAttachmentMaxMB / DefaultAttachmentBudgetMB bound a memory attachment,
-// per file and per project, in megabytes of the original bytes.
+// DefaultAttachmentMaxMB / DefaultAttachmentsTotalMB bound memory's
+// attachments, per file and across every project on the machine, in megabytes
+// of the original bytes.
 const (
 	DefaultAttachmentMaxMB    = 10
-	DefaultAttachmentBudgetMB = 500
+	DefaultAttachmentsTotalMB = 2048
+)
+
+// ToolMaxMB is the fixed size of one tool version; DefaultToolsTotalMB bounds
+// every version of every tool library on the machine.
+const (
+	ToolMaxMB           = 1
+	DefaultToolsTotalMB = 500
 )
 
 type Options struct {
@@ -98,7 +106,8 @@ type Options struct {
 	EntryIDLength         int
 	BriefNoteLimit        int
 	AttachmentMaxMB       int
-	AttachmentBudgetMB    int
+	AttachmentsTotalMB    int
+	ToolsTotalMB          int
 	MemoryLanguage        string
 	MemoryRequireGit      bool
 	// MemoryTurnsOffAuto has a seat claim turn Claude Code's own auto memory
@@ -142,7 +151,7 @@ type Options struct {
 // and the hook environment spell it.
 var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
-	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachment_budget_mb", "memory_require_git", "memory_language",
+	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -290,15 +299,18 @@ func (options *Options) clamp() {
 	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
 	options.StateStaleAfterWrites = max(options.StateStaleAfterWrites, 1)
 	options.AttachmentMaxMB = max(options.AttachmentMaxMB, 1)
-	options.AttachmentBudgetMB = max(options.AttachmentBudgetMB, 1)
+	// An overall limit below its per-item limit is raised to it: one item
+	// must always fit.
+	options.AttachmentsTotalMB = max(options.AttachmentsTotalMB, options.AttachmentMaxMB)
+	options.ToolsTotalMB = max(options.ToolsTotalMB, ToolMaxMB)
 	options.ShellGuardAskTimeout = min(max(options.ShellGuardAskTimeout, 0), MaxShellGuardAskTimeout)
 }
 
 func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
-		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentBudgetMB: DefaultAttachmentBudgetMB,
-		MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
+		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
+		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
@@ -339,7 +351,8 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		"entry_id_length":          &options.EntryIDLength,
 		"brief_note_limit":         &options.BriefNoteLimit,
 		"attachment_max_mb":        &options.AttachmentMaxMB,
-		"attachment_budget_mb":     &options.AttachmentBudgetMB,
+		"attachments_total_mb":     &options.AttachmentsTotalMB,
+		"tools_total_mb":           &options.ToolsTotalMB,
 		"shell_guard_ask_timeout":  &options.ShellGuardAskTimeout,
 	}
 

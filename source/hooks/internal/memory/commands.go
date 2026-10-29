@@ -173,7 +173,10 @@ func helpText() string {
 
 	lines = append(lines, "",
 		"  mcp                                                         the stdio MCP server",
-		"  dump <segment>|--tail                                       a log segment or the tail, one event per line")
+		"  dump <segment>|--tail                                       a log segment or the tail, one event per line",
+		"",
+		"An attached file holds at most attachment_max_mb; every attachment on the machine together at most "+
+			"attachments_total_mb, each file counted once.")
 
 	return strings.Join(lines, "\n")
 }
@@ -409,7 +412,7 @@ func allCommands() []command {
 				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"when a rule is owed"},` +
 				`"proof":{"type":"array","items":{"type":"string"},"description":"calls settling an owed rule: ` + triggerForms + `"},` +
 				`"forbids":{"type":"array","items":{"type":"string"},"description":"RE2 patterns later entries must not match"},` +
-				`"attach":{"type":"array","items":{"type":"string"},"description":"file paths to keep with it, never content"}},` +
+				`"attach":{"type":"array","items":{"type":"string"},"description":"file paths to keep with it, never content; each within attachment_max_mb"}},` +
 				`"required":["title","body"]}`,
 			run: (*memory).newEntry,
 		},
@@ -483,7 +486,7 @@ func allCommands() []command {
 		},
 		{
 			name: "attach", cliOnly: true, usage: "attach <id> <path>...",
-			description: "keep files with an entry, read from disk by path, ending when its body ends",
+			description: "keep files with an entry, read from disk by path, each within attachment_max_mb, ending when its body ends",
 			positional: func(req *request) error {
 				if len(req.Positional) < 2 {
 					return errors.New("an entry id and at least one path expected")

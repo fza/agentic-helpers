@@ -10,7 +10,7 @@ import (
 // order is a section's ranking as a comparison of two kept entries by their
 // place among the kept, the earlier first among equals, as a stable sort
 // keeps them: hottest first, the newest first among equals, for rank(heat);
-// newest first otherwise. Each entry's heat is worked out once.
+// the most attachment bytes first for rank(size); newest first otherwise. Each entry's heat is worked out once.
 func (scope *viewScope) order(kept []*entry, rank string) func(a, b int) int {
 	if rank == rankInDegree {
 		linked := make([]int, len(kept))
@@ -20,6 +20,13 @@ func (scope *viewScope) order(kept []*entry, rank string) func(a, b int) int {
 
 		return func(a, b int) int {
 			return cmp.Or(cmp.Compare(linked[b], linked[a]), kept[b].filed.Compare(kept[a].filed), cmp.Compare(a, b))
+		}
+	}
+
+	if rank == rankSize {
+		return func(a, b int) int {
+			return cmp.Or(cmp.Compare(attachedBytes(kept[b]), attachedBytes(kept[a])), kept[b].filed.Compare(kept[a].filed),
+				cmp.Compare(a, b))
 		}
 	}
 

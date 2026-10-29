@@ -38,7 +38,15 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
 - **Name** `[a-z][a-z0-9]*(-[a-z0-9]+)*`, at most 40. **Summary** one line, at most 200. **Usage**
   required.
 - **--from** inside the work tree (never a `.git` folder), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. No link, no
-  hard link, no pipe, at most 1 MiB.
+  hard link, no pipe, at most 1 MB (1 MiB) a tool, every file together: past it `add` and
+  `update` refuse.
+- **Every `add` and `update` reply ends with `space left: tools <left> of <limit>`**: every
+  library on the machine together holds at most `tools_total_mb` (500 MB unless set). A write
+  needing room prunes the oldest versions that are neither current nor a fork's origin, and is
+  refused (`no version is left to prune`) only when that would not do: merge tools, or ask the
+  user to raise the limit. A pruned version's copy in `.tmp/tools/` stays; its files still refuse
+  as `byte for byte`. The agentic-memory brief names the tools space (`space left: ... tools <left>
+  of <limit>`) only while under a tenth of the limit is left.
 - **Refused as a duplicate** → it already exists. `byte for byte` → take it. `close to <tool>` →
   `update <tool>` instead. Truly different → `--distinct '<how it differs>'`, kept in its history.
 - **update of another project's tool forks it** into this project (v1 = the origin, v2 = yours).

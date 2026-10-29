@@ -25,6 +25,7 @@ const (
 	rankDate     = "by(date)"
 	rankHeat     = "heat"
 	rankInDegree = "in-degree"
+	rankSize     = "size"
 
 	renderList    = "as-list"
 	renderCounts  = "as-counts"
@@ -34,7 +35,7 @@ const (
 
 var (
 	renderWords = []string{renderList, renderCounts, renderBodies, renderGrouped}
-	rankWords   = []string{rankHeat, rankInDegree, rankDate}
+	rankWords   = []string{rankHeat, rankInDegree, rankSize, rankDate}
 )
 
 // shapeWords rank, page, group, widen, name and render a section's entries
@@ -88,6 +89,9 @@ type viewSection struct {
 	// returns is the reasons a returns filter shows under each entry, none
 	// where the section has none.
 	returns []string
+	// sized lists each entry's attachments, their sizes and their total under
+	// it, where the section filters by attached or ranks by size.
+	sized bool
 }
 
 func viewWords() []string {
@@ -169,6 +173,10 @@ func (scope *viewScope) compileSection(section layout.Section) (viewSection, err
 			// hottest first; anywhere else it only filters.
 			if call.Name == "topic" && index == 0 {
 				held.rank = rankHeat
+			}
+
+			if call.Name == "attached" {
+				held.sized = true
 			}
 
 			if call.Name == "returns" {
@@ -259,6 +267,7 @@ func (held *viewSection) shape(call layout.Call) error {
 	switch call.Name {
 	case "rank":
 		held.rank, err = rankArgument(call)
+		held.sized = held.sized || held.rank == rankSize
 	case "n":
 		held.limit, err = countArgument(call, 0)
 		held.limited = true
@@ -300,7 +309,7 @@ func rankArgument(call layout.Call) (string, error) {
 		arg := call.Args[0]
 
 		word, isWord := arg.Word()
-		if isWord && !arg.Quoted && (word == rankHeat || word == rankInDegree) {
+		if isWord && !arg.Quoted && (word == rankHeat || word == rankInDegree || word == rankSize) {
 			return word, nil
 		}
 
@@ -313,11 +322,11 @@ func rankArgument(call layout.Call) (string, error) {
 			token = callText(*arg.Call)
 		}
 
-		return "", &layoutRefusal{problem: "rank takes heat, in-degree or by(date)", token: token, position: arg.Position,
+		return "", &layoutRefusal{problem: "rank takes heat, in-degree, size or by(date)", token: token, position: arg.Position,
 			nearest: nearestWord(token, rankWords)}
 	}
 
-	return "", &layoutRefusal{problem: "rank takes heat, in-degree or by(date)", token: callText(call),
+	return "", &layoutRefusal{problem: "rank takes heat, in-degree, size or by(date)", token: callText(call),
 		position: call.Position, nearest: "rank(heat)"}
 }
 
@@ -540,6 +549,10 @@ func (scope *viewScope) entryLines(section viewSection, held *entry, indent stri
 
 	for _, reason := range scope.returnsOf(held, section.returns) {
 		lines = append(lines, indent+"  "+reason.text())
+	}
+
+	if section.sized && len(held.attachments) > 0 {
+		lines = append(lines, indent+"  "+attachedSizes(held))
 	}
 
 	return append(lines, scope.expandedLines(section, held, indent)...)
@@ -776,4 +789,23 @@ func moreAfter(section viewSection, page []*entry, kept []*entry) *jsonMore {
 	}
 
 	return nil
+}
+
+// attachedSizes is an entry's attachments with their sizes, and their total.
+func attachedSizes(held *entry) string {
+	files := make([]string, 0, len(held.attachments))
+	for _, attached := range held.attachments {
+		files = append(files, fmt.Sprintf("%s (%s)", attached.Name, size(attached.Size)))
+	}
+
+	return fmt.Sprintf("attached: %s; total %s", strings.Join(files, ", "), size(attachedBytes(held)))
+}
+
+func attachedBytes(held *entry) int64 {
+	var total int64
+	for _, attached := range held.attachments {
+		total += attached.Size
+	}
+
+	return total
 }

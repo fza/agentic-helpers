@@ -17,6 +17,7 @@
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
 ~/.claude/agentic-memory/sessions/<session>.ctx         the context reading the plugin writes
 ~/.claude/agentic-memory/attachments/<sha256>[.gz]      every project's attached files, once each
+~/.claude/agentic-memory/attachments/.space.json        the ledger: each stored file's size by hash, as its attach recorded it
 ~/.cache/agentic-memory/<project>/                      vectors, heat, the folded log, anchor hashes, per-session state: rebuilt at will
 ~/.claude/agentic-helpers/<project>/writers.json        the checkouts that may use the store, shared with agentic-tools
 ```
@@ -476,6 +477,27 @@ cannot read keeps the refs it last wrote; then, under `attachments/.lock`, every
 list names is removed. A `drop` sweeps the same way. A body counts as held until its drop is due by
 time, so a file outlives a retire by `retired_body_days` and a supersede by 14 days whether or not a
 merge has run.
+
+### Space
+
+`attachments_total_mb` counts every stored file once, across every project, on the size of its
+original bytes. The figure comes from `attachments/.space.json`, a ledger of each stored file's
+size by hash, never from a stat of the store: the brief and every attach reply print it, and a walk
+over thousands of files is far too slow for either. An attach enters its files' sizes under
+`attachments/.space.json.lock` (`internal/space`) and checks the ledger's total, plus the
+project's own held files a ledger written before them may lack, against the limit. The SessionStart
+sweep rewrites the ledger from what every log at the current format records, dropping the files it
+removed, so a total that drifted through a crash between a store and its record is right again by the
+next session; a file only an unreadable store names keeps its recorded size.
+
+The brief's space line reads the same ledger, and the agentic-tools ledger beside the tool stores
+(`~/.claude/agentic-tools/.space.json`, [tools architecture](../tools/architecture.md)), and prints
+only a store with under a tenth of its limit left. The same SessionStart pass, the tools piece on,
+runs agentic-tools' pruning over every tool store on the machine (`tools.Prune`), so one pass visits
+every store of both. Rejected: a `du` or stat walk per figure (too slow per call); a PreToolUse hook
+announcing space before every write, or a read command for it (a hook message per write, or a call
+the agent must think to make); the line in every brief (about 60 characters at every claim and
+compaction that change nothing while space is plentiful).
 
 ## Tool-call triggers
 

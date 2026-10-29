@@ -94,8 +94,21 @@ func sortedKeys[V any](held map[string]V) []string {
 	return keys
 }
 
-// writeIndex replaces the own store's index; only the own store is written.
+// writeIndex replaces the own store's index.
 func (lib *library) writeIndex(held *index) error {
+	store, err := lib.ownStore()
+	if err != nil {
+		return err
+	}
+
+	defer store.close()
+
+	return writeIndexInto(store, held)
+}
+
+// writeIndexInto replaces a store's index. Only a write to the own store and
+// a prune to make room write one.
+func writeIndexInto(store *dir, held *index) error {
 	data, err := json.Marshal(held)
 	if err != nil {
 		return fmt.Errorf("encoding the index: %w", err)
@@ -104,13 +117,6 @@ func (lib *library) writeIndex(held *index) error {
 	if len(data) > indexLimit {
 		return fmt.Errorf("the index would pass %d bytes; merge tools before adding more", indexLimit)
 	}
-
-	store, err := lib.ownStore()
-	if err != nil {
-		return err
-	}
-
-	defer store.close()
 
 	return store.replace("index.json", data)
 }
@@ -135,16 +141,32 @@ func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) er
 
 	defer store.close()
 
-	file, err := store.appendTo(".lock")
-	if err != nil {
-		return fmt.Errorf("opening the store lock: %w", err)
-	}
-
-	defer func() { _ = file.Close() }()
-
 	wait := lib.env.LockWait
 	if wait == 0 {
 		wait = 2 * time.Second
+	}
+
+	unlock, err := lockStore(ctx, store, wait)
+	if err != nil {
+		return err
+	}
+
+	defer unlock()
+
+	err = admit(ctx)
+	if err != nil {
+		return err
+	}
+
+	return write()
+}
+
+// lockStore takes a store's lock, waiting at most wait, and answers how to let
+// it go.
+func lockStore(ctx context.Context, store *dir, wait time.Duration) (func(), error) {
+	file, err := store.appendTo(".lock")
+	if err != nil {
+		return nil, fmt.Errorf("opening the store lock: %w", err)
 	}
 
 	deadline := time.Now().Add(wait)
@@ -156,23 +178,21 @@ func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) er
 		}
 
 		if !errors.Is(err, syscall.EWOULDBLOCK) || time.Now().After(deadline) || ctx.Err() != nil {
-			return lockRefusal(store)
+			_ = file.Close()
+
+			return nil, lockRefusal(store)
 		}
 
 		time.Sleep(25 * time.Millisecond)
 	}
 
-	defer func() { _ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN) }()
-
 	_ = file.Truncate(0)
 	_, _ = file.Write([]byte(strconv.Itoa(os.Getpid()) + "\n"))
 
-	err = admit(ctx)
-	if err != nil {
-		return err
-	}
-
-	return write()
+	return func() {
+		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		_ = file.Close()
+	}, nil
 }
 
 func lockRefusal(store *dir) error {
