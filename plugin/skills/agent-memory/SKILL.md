@@ -178,12 +178,16 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   ([view.md](view.md)).
 - **Every prompt → up to three related entries.**
 - **`Context near compaction. Write where work stands first: ...`** → write the state, file what
-  outlives the moment. Measured against the window Claude Code compacts at, however set. Ignored twice → `Stop` holds with `Memory overdue, two nudges
-  unanswered: write where work stands with agentic-memory state now...`.
+  outlives the moment. Measured against the window Claude Code compacts at, however set. Ignored
+  twice → `Stop` holds with `Memory overdue, two nudges unanswered: write where work stands with
+  agentic-memory state now...`.
 - **`Turns since your newest entry or state write no longer fit the post-compaction replay. ...`**
   → write the state now.
+- **`Work shipped since your last state write. Write where work stands first: agentic-memory state <
+  body.`** at a prompt → write the state, then answer the prompt.
 - **`Work shipped since your last state write. Write where work stands: agentic-memory state < body.
-  Then end the turn without commentary.`** at `Stop` → write the state, end the turn silently.
+  Then end the turn without commentary.`** at `Stop`, near compaction only → write the state, end
+  the turn silently.
 - Replay cut → its first piece names `<k> older pieces cut, the full transcript at <path>`; read it
   only when needed.
 - `agentic-memory: this prompt looks like it holds a credential (...)` → never copy that token
