@@ -226,8 +226,10 @@ func TestAnInterruptDuringTheScanIsNoCredential(t *testing.T) {
 		prepare func(t *testing.T, env grounding.Env) map[string]any
 	}{
 		{
-			name:    "a clean sdd new",
-			prepare: func(*testing.T, grounding.Env) map[string]any { return bash(newWithBody("A body with nothing secret in it.")) },
+			name: "a clean sdd new",
+			prepare: func(*testing.T, grounding.Env) map[string]any {
+				return bash(newWithBody("A body with nothing secret in it."))
+			},
 		},
 		{
 			name:    "an sdd new holding a credential",
