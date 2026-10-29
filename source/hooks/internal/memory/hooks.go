@@ -161,6 +161,12 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 			mem.rewriteClaim(ctx, mem.seatKey(name), sameHolder(held), func(claim *seat.Claim) { claim.ForkUUID = "" })
 		}
 
+		// A resumed session's context holds what its transcript brings back,
+		// not what reads showed it before: its reads start afresh too.
+		if payload.Source == "resume" {
+			removeIfThere(mem.shownPath(held.SessionID))
+		}
+
 		if payload.Source == "compact" || payload.Source == "clear" {
 			mem.resetWindow(held.SessionID)
 
@@ -957,10 +963,13 @@ func (mem *memory) closeAtEnd(ctx context.Context, seatName string, payload hook
 	_ = mem.purgeExpired(ctx)
 }
 
-// shownSet is what a session was shown since its last compaction: recalled
-// entries, and the traps a tool call told it of.
+// shownSet is what a session was shown since its last compaction, `/clear` or
+// resume: the entries whose line a read or recall printed (IDs), those whose
+// body a read printed (Bodies), each as presentedKey names it, and the traps
+// a tool call told it of.
 type shownSet struct {
 	IDs      []string `json:"ids"`
+	Bodies   []string `json:"bodies,omitempty"`
 	Notified bool     `json:"notified"`
 	Traps    []string `json:"traps,omitempty"`
 	Notes    []string `json:"notes,omitempty"`
@@ -999,6 +1008,8 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	var shown shownSet
 	readJSON(mem.shownPath(session), &shown)
 
+	here := mem.checkout(ctx)
+
 	bounded, cancel := context.WithTimeout(ctx, recallLimit)
 	defer cancel()
 
@@ -1024,7 +1035,8 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	var hits []*entry
 
 	for _, held := range live {
-		if slices.Contains(shown.IDs, held.id) {
+		key := presentedKey(here, held)
+		if slices.Contains(shown.IDs, key) || slices.Contains(shown.Bodies, key) {
 			continue
 		}
 
@@ -1045,7 +1057,6 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	slices.SortStableFunc(hits, func(a, b *entry) int { return cmp.Compare(scores[b.id], scores[a.id]) })
 	hits = hits[:min(recallHits, len(hits))]
 
-	here := mem.checkout(ctx)
 	lines := []string{self + ": related"}
 
 	var ids []string
@@ -1058,7 +1069,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	for _, held := range hits {
 		lines = append(lines, "  "+shortLine(here, held, seatName, mem.now()))
 		lines = append(lines, citingLines(held, listed, "    ")...)
-		ids = append(ids, held.id)
+		ids = append(ids, presentedKey(here, held))
 	}
 
 	shown.IDs = append(shown.IDs, ids...)

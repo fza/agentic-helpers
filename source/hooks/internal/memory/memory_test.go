@@ -549,7 +549,7 @@ func TestARetiredBodyDroppedByAMerge(t *testing.T) {
 
 	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120}}}}`)
 
-	if !strings.Contains(h.must("", "show", "m-r3t1"), "(body dropped 120 days after the retire)") {
+	if !strings.Contains(h.must("", "show", "m-r3t1", "--again"), "(body dropped 120 days after the retire)") {
 		t.Error("show should name the days the setting gives")
 	}
 

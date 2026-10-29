@@ -152,7 +152,7 @@ func TestViewRendersEachTerminator(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.layout, func(t *testing.T) {
-			got := h.must("", "view", "--layout", tc.layout)
+			got := h.must("", "view", "--layout", tc.layout, "--again")
 
 			for _, want := range tc.want {
 				if !strings.Contains(got, want) {

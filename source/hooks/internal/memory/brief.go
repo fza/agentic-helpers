@@ -59,6 +59,8 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 		return refused("%s", ErrNoSeat)
 	}
 
+	defer mem.presenting(ctx, req.Again)()
+
 	folded, err := mem.load(ctx)
 	if err != nil {
 		return refused("%v", err)
@@ -91,7 +93,7 @@ func (mem *memory) kindBrief(here tree, folded *state, seatName string, kind str
 	var lines []string
 
 	for _, held := range mem.ownLive(folded, seatName, "kind", kind) {
-		lines = append(lines, shortLine(here, held, seatName, mem.now()))
+		lines = append(lines, mem.lineOf(held, shortLine(here, held, seatName, mem.now())))
 	}
 
 	if len(lines) == 0 {
@@ -110,7 +112,7 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 	held := &budget{limit: briefBudget}
 
 	for _, entry := range mem.ownLive(folded, seatName, "topic", topics...) {
-		held.add(shortLine(here, entry, seatName, mem.now()))
+		mem.addLine(held, "", entry, shortLine(here, entry, seatName, mem.now()))
 	}
 
 	if len(held.lines) == 0 {
@@ -204,6 +206,8 @@ func (mem *memory) lowSpace() string {
 // changed since its last brief, its live rules, traps, todos and notes, each by
 // heat, what other seats filed, then the topics. Claim and compaction share it.
 func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName string) string {
+	defer mem.presenting(ctx, false)()
+
 	since := mem.previousBrief(seatName)
 	mem.reachEnds(ctx, folded, seatName, "", "")
 	now := mem.now()
@@ -313,7 +317,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		if section.name == rulesHeading {
 			third := &budget{limit: briefBudget / 3}
 			for _, held := range page {
-				third.add("  " + shortLine(here, held, seatName, now))
+				mem.addLine(third, "  ", held, shortLine(here, held, seatName, now))
 			}
 
 			for _, text := range third.lines {
@@ -328,7 +332,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 
 		for _, one := range page {
-			if !out.add("  " + shortLine(here, one, seatName, now, flagged[one.id]...)) {
+			if !mem.addLine(out, "  ", one, shortLine(here, one, seatName, now, flagged[one.id]...)) {
 				missing++
 
 				continue
@@ -376,7 +380,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add("new from other seats:")
 
 		for _, held := range news {
-			out.add("  " + shortLine(here, held, seatName, now))
+			mem.addLine(out, "  ", held, shortLine(here, held, seatName, now))
 		}
 	}
 

@@ -177,7 +177,7 @@ func TestTheShortLineFoldsEndedLinks(t *testing.T) {
 		t.Errorf("the brief line should list settled links and fold the ended ones keeping each successor, got:\n%s", got)
 	}
 
-	for _, full := range []string{h.must("", "show", hub), h.must("", "search", "--term", "flaky")} {
+	for _, full := range []string{h.must("", "show", hub), h.must("", "search", "--term", "flaky", "--again")} {
 		first := strings.SplitN(full, "\n", 2)[0]
 
 		for _, flag := range []string{"→ " + closedDecision + " closed by " + itsCloser, "→ " + retired + " retired",

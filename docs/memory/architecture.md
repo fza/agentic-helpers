@@ -528,7 +528,12 @@ each trap's id, anchored paths and triggers, and each note or todo declaring `--
 log changed, and removed where the seat holds neither. The seat's seen mark records how many it held
 then (`traps`), so a seat holding none reads nothing more on a tool call than it did before. A trap or
 note told is added to the session's shown set (`shown/<session>.json`, `traps` and `notes`), which a
-compaction empties. The index lists notes hottest first when built, but a `show` warms without a log
+compaction, `/clear` and a resume empty. The same file holds what reads printed: `ids`, each entry
+whose line a brief, recall or read printed, and `bodies`, each whose body `show` or a view printed,
+both as `<id>@<digest>`, the digest over the entry's full line and its event count, so an entry that
+changed since never matches. A read opens the set once for the seated session it runs in and writes
+it back only where it marked something; a read inside another (the brief a claim prints) shares the
+outer one's. `--again` bypasses the lookup and still marks. The index lists notes hottest first when built, but a `show` warms without a log
 event, so the hook ranks the matching notes by the heat read at the call.
 
 A `state` row the Stop or SessionEnd hook writes carries `draft: true`, the files the session

@@ -816,6 +816,23 @@ A layout that does not parse names the token, where it stands, and what was expe
 expanded and its rank named, in place of reading; `view --explain brief` prints the brief's fixed
 layout (see [What comes back](#what-comes-back)).
 
+## Each entry once per context
+
+A brief, recall, search, view or show prints an entry's line, or `show` and a view's `as-bodies`
+its body, once per context. A later read of the same entry, unchanged since, prints a pointer in
+its place, keeping its rank:
+
+    m-1oqsjs Gate reads Bash only (seen)
+
+Over MCP and `--json` such an entry is `{"id", "title", "seen": true}`. A read asking for more than
+was printed prints in full: `show` after a search line prints the body. An entry that changed since
+(a retire, a new link, a drifted anchor) prints in full again, and so does a view section adding
+return reasons, expanded links or sizes. Recall names no entry a read printed. A compaction, `/clear`
+and a resume start afresh. `--again` (MCP `"again": true`) on `search`, `view`, `show` and `brief`
+prints every entry in full. A freshly spawned subagent shares its parent's session and the memory
+tools see no agent, so it passes `again`; a forked one inherits the context and needs none. Only a
+seated session keeps the set; heat counts as before.
+
 ## What comes back
 
 A brief at every claim and compaction, the turns since the seat's newest entry or state write, and up

@@ -57,7 +57,7 @@ func TestASecondReadOfAnUnchangedStoreReadsNoSegment(t *testing.T) {
 		}
 	})
 
-	got := h.run("", "search", "--status", "live", "--all-seats", "--limit", "50")
+	got := h.run("", "search", "--status", "live", "--all-seats", "--limit", "50", "--again")
 	if got.code != 0 || got.out != first+"\n" && got.out != first {
 		t.Errorf("a read of an unchanged store should come from the cached fold, reading no segment, got %d %q", got.code, got.err)
 	}
@@ -105,7 +105,7 @@ func TestACacheThatDoesNotMatchIsRebuilt(t *testing.T) {
 			liveListing(t, h)
 			tc.change(t, h)
 
-			out := h.must("", "search", "--term", "tail", "--all-seats")
+			out := h.must("", "search", "--term", "tail", "--all-seats", "--again")
 			if !strings.Contains(out, tc.want) {
 				t.Errorf("a fold whose key no longer matches the store should be folded again, got:\n%s", out)
 			}
@@ -167,7 +167,7 @@ func TestAnchorHashesAreKeptBySizeAndModificationTime(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out := h.must("", "show", id, "--no-heat"); !strings.Contains(out, "drifted: internal/gate/gate.go") {
+	if out := h.must("", "show", id, "--no-heat", "--again"); !strings.Contains(out, "drifted: internal/gate/gate.go") {
 		t.Errorf("a file whose modification time moved should be hashed again, got:\n%s", out)
 	}
 }

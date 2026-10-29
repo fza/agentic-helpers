@@ -29,6 +29,13 @@ func SchemaOf(value any) json.RawMessage {
 
 type schemaNode = map[string]any
 
+// Alternative is a struct type whose own MarshalJSON may write another shape
+// than its fields: SchemaAlternative returns a value of that shape's type, and
+// the type's schema admits either.
+type Alternative interface {
+	SchemaAlternative() any
+}
+
 func schemaOf(kind reflect.Type, seen map[reflect.Type]bool) schemaNode {
 	if kind == nil || kind == rawType || kind.Kind() == reflect.Interface {
 		return schemaNode{}
@@ -76,6 +83,11 @@ func schemaOf(kind reflect.Type, seen map[reflect.Type]bool) schemaNode {
 		node := schemaNode{"type": "object", "properties": properties}
 		if len(required) > 0 {
 			node["required"] = required
+		}
+
+		alternative, writesAnother := reflect.Zero(kind).Interface().(Alternative)
+		if writesAnother {
+			return schemaNode{"anyOf": []any{node, schemaOf(reflect.TypeOf(alternative.SchemaAlternative()), seen)}}
 		}
 
 		return node

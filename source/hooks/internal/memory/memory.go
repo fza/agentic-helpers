@@ -83,6 +83,9 @@ type memory struct {
 	env     Env
 	streams hookio.Streams
 	key     string
+	// seen is what the calling session's context already holds of each entry,
+	// for the read running now; nil where no seated session calls.
+	seen *presented
 	// outsideGit is set where the session works outside a git work tree and
 	// the plugin keeps memory to git: nothing is read and nothing is created.
 	outsideGit bool

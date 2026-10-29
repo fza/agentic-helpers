@@ -80,6 +80,7 @@ type request struct {
 	Private        bool     `json:"private,omitempty"`
 	JSON           bool     `json:"json,omitempty"`
 	NoHeat         bool     `json:"no_heat,omitempty"`
+	Again          bool     `json:"again,omitempty"`
 	Layout         string   `json:"layout,omitempty"`
 	Explain        string   `json:"explain,omitempty"`
 
@@ -269,7 +270,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	switches := map[string]*bool{
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
-		"private": &req.Private,
+		"private": &req.Private, "again": &req.Again,
 	}
 
 	switch spec.kind {
@@ -358,6 +359,7 @@ const (
 	idKey    = `"id":{"type":"string","pattern":"^m-[a-z0-9]{4,16}$","description":"entry id, one string"}`
 	idsKey   = `"ids":{"type":"array","items":` + idSchema + `,"description":"entry ids, array even for one"}`
 	noHeat   = `"no_heat":{"type":"boolean","description":"add no heat"}`
+	againKey = `"again":{"type":"boolean","description":"print entries already seen in full"}`
 	topicKey = `"topic":{"type":"array","items":{"type":"string"},"description":"topics, array even for one"}`
 	seatName = `"name":{"type":"string","description":"seat name"}`
 )
@@ -423,7 +425,7 @@ func allCommands() []command {
 			flags: []flagSpec{
 				{"term", flagList}, {"query", flagText}, {"topic", flagList}, {"seat", flagList},
 				{"all-seats", flagSwitch}, {"with-superseded", flagSwitch}, {"limit", flagNumber},
-				{"no-heat", flagSwitch}, {"status", flagList}, {"skip", flagCount},
+				{"no-heat", flagSwitch}, {"status", flagList}, {"skip", flagCount}, {"again", flagSwitch},
 			},
 			schema: `{"type":"object","properties":{` +
 				`"term":{"type":"array","items":{"type":"string"},"description":"RE2 patterns, case-insensitive, all must match"},` +
@@ -435,30 +437,30 @@ func allCommands() []command {
 				`"limit":{"type":"integer","minimum":1,"description":"hits per page"},` +
 				`"status":{"type":"array","items":{"type":"string","enum":["live","retired","superseded"]},"description":"only these statuses"},` +
 				`"skip":{"type":"integer","minimum":0,"description":"hits to skip, for paging"},` +
-				noHeat + `}}`,
+				noHeat + `,` + againKey + `}}`,
 			run: (*memory).search,
 		},
 		{
-			name: "show", usage: "show <id>... [--no-heat] [--with-superseded]",
+			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--again]",
 			description: "entries in full: stamps, anchors, flags, events",
-			flags:       []flagSpec{{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}}, positional: someIDs, run: (*memory).show,
-			schema: `{"type":"object","properties":{` + idsKey + `,` + noHeat + `,` +
+			flags:       []flagSpec{{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"again", flagSwitch}}, positional: someIDs, run: (*memory).show,
+			schema: `{"type":"object","properties":{` + idsKey + `,` + noHeat + `,` + againKey + `,` +
 				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"}},"required":["ids"]}`,
 		},
 		{
-			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note]",
+			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--again]",
 			description: "the brief, or one topic's or kind's entries",
-			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}}, run: (*memory).briefCommand,
+			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}, {"again", flagSwitch}}, run: (*memory).briefCommand,
 			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"},"description":"one topic's entries"},` +
-				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"one kind's live entries whole"}}}`,
+				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"one kind's live entries whole"},` + againKey + `}}`,
 		},
 		{
-			name: "view", usage: "view --layout '<layout>' | view --explain '<layout>'|brief",
+			name: "view", usage: "view --layout '<layout>' [--again] | view --explain '<layout>'|brief",
 			description: "read through an sdd view layout; takes layout or explain; warms nothing",
-			flags:       []flagSpec{{"layout", flagText}, {"explain", flagText}}, run: (*memory).view,
+			flags:       []flagSpec{{"layout", flagText}, {"explain", flagText}, {"again", flagSwitch}}, run: (*memory).view,
 			schema: `{"type":"object","properties":{` +
 				`"layout":{"type":"string","description":"colon-chained filters, rank, paging, ending in ` + orList(renderWords) + `; commas split sections"},` +
-				`"explain":{"type":"string","description":"layout, or brief, to spell out instead of reading"}}}`,
+				`"explain":{"type":"string","description":"layout, or brief, to spell out instead of reading"},` + againKey + `}}`,
 		},
 		{
 			name: "topics", usage: "topics", description: "topics with live counts per seat",
