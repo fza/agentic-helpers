@@ -18,6 +18,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
+	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
@@ -59,6 +60,9 @@ func main() {
 		window = 0
 	}
 
+	machine := migration.Machine(userHome, os.Getenv)
+	migration.Prepare(ctx, machine, os.Stderr)
+
 	env := memory.Env{
 		Base:          base,
 		Home:          userHome,
@@ -80,6 +84,7 @@ func main() {
 		},
 		Version: version,
 		Tmp:     "/tmp",
+		Idle:    migration.Idle(machine),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

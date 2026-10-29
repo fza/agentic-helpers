@@ -14,6 +14,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
@@ -45,6 +46,9 @@ func main() {
 		owner = "claude"
 	}
 
+	machine := migration.Machine(userHome, os.Getenv)
+	migration.Prepare(ctx, machine, os.Stderr)
+
 	env := tools.Env{
 		Base:      base,
 		Home:      userHome,
@@ -61,6 +65,7 @@ func main() {
 			return embed.New(config, &http.Client{Timeout: 30 * time.Second})
 		},
 		Version: version,
+		Idle:    migration.Idle(machine),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

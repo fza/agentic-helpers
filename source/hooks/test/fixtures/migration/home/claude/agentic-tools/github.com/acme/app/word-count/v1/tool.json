@@ -1,0 +1,6 @@
+{
+  "name": "word-count",
+  "summary": "Count the words of a markdown file",
+  "usage": "python3 word_count.py <file>",
+  "files": ["word_count.py"]
+}

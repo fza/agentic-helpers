@@ -686,6 +686,15 @@ func TestStoresLeftByAMigrationResolveWithoutAQuestion(t *testing.T) {
 		t.Fatalf("leaving an unclaimed store: %v", err)
 	}
 
+	if test.Exists(t, m.roots.FormatFile()) {
+		t.Error("adopting and unclaiming should leave the home's format to the migration, which writes it last")
+	}
+
+	err = m.roots.WriteFormat()
+	if err != nil || !test.Exists(t, m.roots.FormatFile()) {
+		t.Errorf("writing the home's format should place format.json, got %v", err)
+	}
+
 	for _, dir := range []string{app, worktreeOfApp} {
 		if pointer := strings.TrimSpace(test.ReadFile(t, filepath.Join(dir, ".git", home.PointerName))); pointer != adopted {
 			t.Errorf("adopting should write the pointer into every checkout, got %q in %s", pointer, dir)

@@ -12,6 +12,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
@@ -39,6 +40,9 @@ func main() {
 		owner = "claude"
 	}
 
+	ctx := context.Background()
+	migration.Prepare(ctx, migration.Machine(userHome, os.Getenv), os.Stderr)
+
 	env := grounding.Env{
 		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"),
 		WorkingDir: working,
@@ -55,5 +59,5 @@ func main() {
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
-	os.Exit(grounding.Main(context.Background(), os.Args[1:], env, streams))
+	os.Exit(grounding.Main(ctx, os.Args[1:], env, streams))
 }

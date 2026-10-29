@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 )
 
@@ -13,23 +14,30 @@ const self = "agentic-helpers"
 
 // Env says where the plugin's options are read, and whether the call is the
 // SessionStart hook rather than a command an agent or the user runs.
+// Migration is the machine `sweep` and the SessionEnd hook `end` work on.
 type Env struct {
-	Settings []string
-	Getenv   func(string) string
-	Hook     bool
+	Settings  []string
+	Getenv    func(string) string
+	Hook      bool
+	Migration migration.Env
 }
 
-const usage = "usage: " + self + " check | config [get <key> | set <key> <value>]"
+const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end"
 
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into
 // `config.yaml`. As the SessionStart hook it then prints one line per broken
 // tie and per `config.yaml` problem, nothing where none is; run as a command
 // it lists every piece on or off and, under each, its features off through a
-// tie.
-func Main(_ context.Context, args []string, env Env, streams hookio.Streams) int {
+// tie. sweep and end run and start the sweep of the old layout
+// (internal/migration).
+func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
 	if len(args) > 0 && args[0] == "config" {
 		return configure(args[1:], env, streams)
+	}
+
+	if len(args) == 1 && (args[0] == "sweep" || args[0] == "end") {
+		return sweep(ctx, args[0], env, streams)
 	}
 
 	if len(args) != 1 || args[0] != "check" {
@@ -63,6 +71,27 @@ func Main(_ context.Context, args []string, env Env, streams hookio.Streams) int
 
 	for _, problem := range resolution.Problems {
 		_, _ = fmt.Fprintln(streams.Out, "problem: "+problem)
+	}
+
+	return 0
+}
+
+// sweep removes what the migration left for older releases once none runs;
+// as the SessionEnd hook, end, it starts that in a process of its own and
+// says nothing.
+func sweep(ctx context.Context, name string, env Env, streams hookio.Streams) int {
+	var err error
+
+	if name == "end" {
+		err = migration.StartSweep(ctx, env.Migration)
+	} else {
+		_, err = migration.Sweep(ctx, env.Migration)
+	}
+
+	if err != nil && name == "sweep" {
+		_, _ = fmt.Fprintln(streams.Err, self+": "+err.Error())
+
+		return 1
 	}
 
 	return 0

@@ -68,6 +68,9 @@ type Env struct {
 	Git       Git
 	Embedders EmbedderFactory
 	Version   string
+	// Idle is the work the MCP server runs while its client is quiet: the
+	// sweep of the old layout.
+	Idle mcpserver.Idle
 	// LockWait bounds how long a write waits for the store lock; zero takes
 	// two seconds.
 	LockWait time.Duration

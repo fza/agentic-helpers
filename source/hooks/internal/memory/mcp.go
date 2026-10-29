@@ -48,7 +48,7 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 		})
 	}
 
-	err := mcpserver.Serve(ctx, mem.streams.In, mem.streams.Out, "memory", mem.env.Version, tools)
+	err := mcpserver.ServeIdle(ctx, mem.streams.In, mem.streams.Out, "memory", mem.env.Version, tools, mem.env.Idle)
 	if err != nil {
 		return mem.refuse(err)
 	}

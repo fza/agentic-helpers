@@ -39,6 +39,15 @@ func Fixture(t *testing.T, name string) string {
 func FixtureTree(t *testing.T, name string, dest string) {
 	t.Helper()
 
+	FixtureTreeReplacing(t, name, dest, strings.NewReplacer())
+}
+
+// FixtureTreeReplacing copies the fixture directory name to dest as
+// FixtureTree does, each file's content passed through replacer, so a fixture
+// can name a path only the test knows.
+func FixtureTreeReplacing(t *testing.T, name string, dest string, replacer *strings.Replacer) {
+	t.Helper()
+
 	root := "fixtures/" + name
 
 	err := fs.WalkDir(fixtures, root, func(path string, entry fs.DirEntry, err error) error {
@@ -51,7 +60,8 @@ func FixtureTree(t *testing.T, name string, dest string) {
 			return err
 		}
 
-		WriteFile(t, filepath.Join(dest, filepath.FromSlash(strings.TrimPrefix(path, root+"/"))), string(content))
+		WriteFile(t, filepath.Join(dest, filepath.FromSlash(strings.TrimPrefix(path, root+"/"))),
+			replacer.Replace(string(content)))
 
 		return nil
 	})

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"time"
 )
 
 type Tool struct {
@@ -150,17 +151,32 @@ type line struct {
 }
 
 func Serve(ctx context.Context, in io.Reader, out io.Writer, name string, version string, tools []Tool) error {
-	return serve(ctx, in, out, name, version, "", tools)
+	return serve(ctx, in, out, name, version, "", tools, Idle{})
+}
+
+// Idle is work a server runs between messages: once none has arrived for
+// After, and again after every further After without one. A message arriving
+// meanwhile waits for Run to return.
+type Idle struct {
+	After time.Duration
+	Run   func(ctx context.Context)
+}
+
+// ServeIdle serves as Serve does, running idle whenever the client is quiet.
+func ServeIdle(ctx context.Context, in io.Reader, out io.Writer, name string, version string, tools []Tool,
+	idle Idle,
+) error {
+	return serve(ctx, in, out, name, version, "", tools, idle)
 }
 
 // ServeNone answers the handshake with instructions and lists no tools, for a
 // server whose piece is off: its tools would only invite calls.
 func ServeNone(ctx context.Context, in io.Reader, out io.Writer, name string, version string, instructions string) error {
-	return serve(ctx, in, out, name, version, instructions, nil)
+	return serve(ctx, in, out, name, version, instructions, nil, Idle{})
 }
 
 func serve(ctx context.Context, in io.Reader, out io.Writer, name string, version string, instructions string,
-	tools []Tool,
+	tools []Tool, idle Idle,
 ) error {
 	served, err := newServer(out, name, version, tools)
 	if err != nil {
@@ -177,10 +193,27 @@ func serve(ctx context.Context, in io.Reader, out io.Writer, name string, versio
 	// cancelled context returns at once; the reader exits on its next line or when the input closes.
 	go readLines(readerCtx, in, lines)
 
+	if idle.Run == nil || idle.After <= 0 {
+		return loop(ctx, served, lines, nil, nil, func() {})
+	}
+
+	timer := time.NewTimer(idle.After)
+	defer timer.Stop()
+
+	rearm := func() { timer.Reset(idle.After) }
+
+	return loop(ctx, served, lines, timer.C, func() { idle.Run(ctx); rearm() }, rearm)
+}
+
+func loop(ctx context.Context, served *server, lines <-chan line, quiet <-chan time.Time, onQuiet func(),
+	onMessage func(),
+) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-quiet:
+			onQuiet()
 		case next, open := <-lines:
 			// A select with both cases ready picks at random, so a line queued behind a cancellation
 			// would otherwise still be handled.
@@ -199,6 +232,8 @@ func serve(ctx context.Context, in io.Reader, out io.Writer, name string, versio
 			if handleErr != nil {
 				return handleErr
 			}
+
+			onMessage()
 		}
 	}
 }

@@ -33,6 +33,10 @@ labelled by the last part of its name (its `repo_id`, else its origin), with lea
 where two would share a label; a fork's origin is recorded by store id and named by the store's
 name.
 
+A library of a release before the home is renamed into its store's `tools` folder whole by
+`internal/migration`, the same markers telling it a library
+([plugin architecture](../plugin/architecture.md#the-migration)).
+
 ## Space
 
 `<data>/tools/.space.json` is the machine's ledger: per store id, `stored` (the bytes
@@ -164,6 +168,9 @@ The `tools` server answers JSON as the `memory` server does, through the same
 `internal/mcpserver`: `find` and `list` their `--json` listing (`listing`, whose type gives their
 `outputSchema`), every other verb `message` beside a fields struct (`mcpanswers.go`), a refusal
 `{"error": "refused: <why>"}` as an error result.
+
+While its client sends nothing for two minutes, the server sweeps what the migration left for older
+releases (`mcpserver.ServeIdle` with `migration.Idle`), silently; `memory` does the same.
 
 ## Tests
 

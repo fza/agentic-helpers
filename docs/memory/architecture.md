@@ -30,6 +30,12 @@ the store id is empty: a hook stays silent, SessionStart prints the question, ev
 refused with it, and the MCP server, which resolves again on each call while unbound, starts
 without migrating. `bind` and `merge` of two store ids run whatever the mapping says.
 
+Before that, every call lets `internal/migration` move the layout of the releases before the home
+into it, once for the machine ([plugin architecture](../plugin/architecture.md#the-migration)): an
+old store under `~/.claude/agentic-memory/<key>/` moves whole into its store's `memory` folder and
+leaves a stub holding only `{"format":999}`, which every release before the home refuses as a newer
+store.
+
 Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
 `shelves.json`, a claim, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
 a temporary file named for that one writer, `.<name>.<random>.tmp` beside it, then renamed over it

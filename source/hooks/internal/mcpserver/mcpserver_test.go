@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -549,5 +550,96 @@ func TestServeNoneListsNoToolsAndCarriesItsInstructions(t *testing.T) {
 	served, _ := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`+"\n")
 	if len(served) != 1 || strings.Contains(string(served[0].Result), "instructions") {
 		t.Errorf("a server of an on piece should carry no instructions, got %+v", served)
+	}
+}
+
+func TestServeIdleRunsWhileTheClientIsQuietAndNeverDuringAMessage(t *testing.T) {
+	reader, writer := io.Pipe()
+	runs := make(chan struct{}, 8)
+	handling := make(chan struct{})
+	release := make(chan struct{})
+
+	slow := mcpserver.Tool{
+		Name:        "slow",
+		Description: "Waits to be released.",
+		Handle: func(context.Context, json.RawMessage) mcpserver.Result {
+			close(handling)
+			<-release
+
+			return mcpserver.Result{Text: "done"}
+		},
+	}
+
+	done := make(chan error, 1)
+
+	go func() {
+		done <- mcpserver.ServeIdle(context.Background(), reader, io.Discard, serverName, serverVersion,
+			[]mcpserver.Tool{slow}, mcpserver.Idle{After: 20 * time.Millisecond, Run: func(context.Context) {
+				runs <- struct{}{}
+			}})
+	}()
+
+	for range 2 {
+		select {
+		case <-runs:
+		case <-time.After(5 * time.Second):
+			t.Fatal("idle work should run, and run again, while no message arrives")
+		}
+	}
+
+	go func() {
+		_, _ = io.WriteString(writer, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"slow"}}`+"\n")
+	}()
+
+	<-handling
+
+	for len(runs) > 0 {
+		<-runs
+	}
+
+	select {
+	case <-runs:
+		t.Error("idle work should wait while a message is being handled")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	_ = writer.Close()
+
+	err := <-done
+	if err != nil {
+		t.Errorf("the server should end cleanly at the end of its input, got %v", err)
+	}
+}
+
+func TestServeIdleWaitsForQuietAfterTheLastMessage(t *testing.T) {
+	reader, writer := io.Pipe()
+	var runs atomic.Int32
+
+	done := make(chan error, 1)
+
+	go func() {
+		done <- mcpserver.ServeIdle(context.Background(), reader, io.Discard, serverName, serverVersion, tools(),
+			mcpserver.Idle{After: 80 * time.Millisecond, Run: func(context.Context) { runs.Add(1) }})
+	}()
+
+	for range 20 {
+		_, err := io.WriteString(writer, `{"jsonrpc":"2.0","id":1,"method":"ping"}`+"\n")
+		if err != nil {
+			t.Fatalf("sending a ping: %v", err)
+		}
+
+		time.Sleep(15 * time.Millisecond)
+	}
+
+	if runs.Load() != 0 {
+		t.Error("idle work should wait for quiet measured from the last message")
+	}
+
+	_ = writer.Close()
+
+	err := <-done
+	if err != nil {
+		t.Errorf("the server should end cleanly at the end of its input, got %v", err)
 	}
 }

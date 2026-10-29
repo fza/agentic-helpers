@@ -1,0 +1,8 @@
+{
+  "name": "word-count",
+  "summary": "Count the words of a markdown file, code blocks left out",
+  "usage": "python3 word_count.py <file>",
+  "inputs": "a markdown file",
+  "outputs": "the word count on stdout",
+  "files": ["word_count.py"]
+}

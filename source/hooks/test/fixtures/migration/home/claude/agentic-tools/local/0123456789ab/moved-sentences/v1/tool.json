@@ -1,0 +1,6 @@
+{
+  "name": "moved-sentences",
+  "summary": "List sentences that moved between two revisions of a text",
+  "usage": "python3 moved.py <old> <new>",
+  "files": ["moved.py"]
+}

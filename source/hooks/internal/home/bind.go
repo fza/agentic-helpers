@@ -293,6 +293,8 @@ func absorb(target *Identity, source Identity) {
 // Adopt creates a store admitting every checkout given and writes the
 // pointer into each git common directory: the way old data whose checkouts
 // still exist becomes a store. legacyKeys are the keys it was kept under.
+// It writes no `format.json`: a migration writes that last, once every store
+// is in place (WriteFormat).
 func (resolver Resolver) Adopt(ctx context.Context, checkouts []Checkout, legacyKeys []string) (string, error) {
 	if len(checkouts) == 0 {
 		return "", errors.New("adopting a store takes at least one checkout")
@@ -331,15 +333,16 @@ func (resolver Resolver) Adopt(ctx context.Context, checkouts []Checkout, legacy
 
 		id = created
 
-		return errors.Join(held.roots.ensureFormat(), held.roots.RebuildIndex())
+		return held.roots.RebuildIndex()
 	})
 
 	return id, err
 }
 
 // Unclaim creates a store under `<data>/unclaimed/` for data whose checkout
-// is gone: kept under legacyKey, last seen at lastKnown (their git common directories), unclaimed since.
-// The data itself goes into UnclaimedStore.
+// is gone: kept under legacyKey, last seen at lastKnown (their git common
+// directories), unclaimed since. The data itself goes into UnclaimedStore.
+// Like Adopt, it writes no `format.json`.
 func (resolver Resolver) Unclaim(ctx context.Context, legacyKey string, lastKnown []string, since time.Time) (string, error) {
 	var id string
 
@@ -363,7 +366,7 @@ func (resolver Resolver) Unclaim(ctx context.Context, legacyKey string, lastKnow
 
 		id = created
 
-		return errors.Join(resolver.Roots.ensureFormat(), resolver.Roots.RebuildIndex())
+		return resolver.Roots.RebuildIndex()
 	})
 
 	return id, err
