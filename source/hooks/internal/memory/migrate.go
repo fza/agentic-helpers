@@ -70,7 +70,26 @@ func (mem *memory) migrate(ctx context.Context) error {
 		}
 	}
 
-	return mem.migrateFormat3(ctx)
+	if version <= 3 {
+		return mem.migrateFormat3(ctx)
+	}
+
+	return mem.migrateFormat4()
+}
+
+// migrateFormat4 moves a format-4 store to format 5, whose log may hold
+// `item` rows: nothing in the log changes, so the log is copied to
+// backup/format-4-<UTC stamp>/ and format.json is written, which keeps a
+// format-4 binary from reading a store it would misread.
+func (mem *memory) migrateFormat4() error {
+	backup := filepath.Join(mem.store(), "backup", "format-4-"+mem.now().Format("20060102T150405.000000000Z"))
+
+	err := copyTree(mem.logDir(), filepath.Join(backup, "log"))
+	if err != nil {
+		return fmt.Errorf("backing up the store's log: %w", err)
+	}
+
+	return writeFormat(mem.store(), storeFormat)
 }
 
 // migrateFormat1 turns a format-1 store, keyed by seat name, into format 2,

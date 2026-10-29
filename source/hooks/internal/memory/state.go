@@ -176,6 +176,12 @@ type entry struct {
 	proof       []string
 	forbids     []string
 	attachments []attachPayload
+	// items is the todo's todolist, in its current order, removed items
+	// included; itemsChanged is when an item last changed, revived when a
+	// revive last brought the entry back.
+	items        []todoItem
+	itemsChanged time.Time
+	revived      time.Time
 }
 
 type explicitLink struct {
@@ -236,6 +242,9 @@ type state struct {
 	order   []string
 	merges  []topicMerge
 	states  map[string]stateSlot
+	// itemLinks is what became of a linked item's target: ended, and its flag;
+	// nil where nothing annotated.
+	itemLinks func(link string) (bool, string)
 	// flagger works out an entry's link flags; nil where nothing annotated
 	// the fold, which then flags no link.
 	flagger func(held *entry) []string
@@ -493,6 +502,8 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 			held.untilHold = revived.UntilHold
 		}
 
+		held.revived = row.Time
+
 		if len(held.transitions) > 0 {
 			held.transitions = held.transitions[:len(held.transitions)-1]
 		}
@@ -540,6 +551,20 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 
 		held.attachments = append(held.attachments, attached)
 		note("attached " + attached.Name)
+	case memorylog.KindItem:
+		var changed itemPayload
+
+		err := json.Unmarshal(payload, &changed)
+		if err != nil {
+			return err
+		}
+
+		held.itemsChanged = row.Time
+
+		described := held.applyItem(changed)
+		if described != "" {
+			note(described)
+		}
 	case memorylog.KindSettle:
 		var settled settlePayload
 

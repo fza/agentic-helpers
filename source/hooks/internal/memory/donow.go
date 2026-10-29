@@ -220,6 +220,11 @@ func (mem *memory) proveDoNow(ctx context.Context, seatName string, session stri
 }
 
 func (mem *memory) ack(ctx context.Context, req request) result {
+	if req.Undo || req.Remove || len(req.Add) > 0 || req.Order != "" ||
+		slices.ContainsFunc(req.IDs, func(id string) bool { return strings.Contains(id, "#") }) {
+		return mem.ackItems(ctx, req)
+	}
+
 	name, held := mem.ownSeat(ctx)
 	if name == "" {
 		return refused("%s", ErrNoSeat)

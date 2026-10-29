@@ -48,12 +48,14 @@ const (
 	KindSettle Kind = "settle"
 	// KindAttach keeps a file with an entry: its name, hash, size and form.
 	KindAttach Kind = "attach"
+	// KindItem changes one item of a todo's todolist, or their order.
+	KindItem Kind = "item"
 )
 
 // kinds is the segment encoding of a kind: its index here. Only ever append.
 var kinds = []Kind{
 	KindNew, KindRetire, KindSupersede, KindMerge, KindConfirm, KindRetain, KindRevive, KindRetitle, KindTag,
-	KindLink, KindUnlink, KindUntag, KindState, KindRekind, KindSettle, KindAttach,
+	KindLink, KindUnlink, KindUntag, KindState, KindRekind, KindSettle, KindAttach, KindItem,
 }
 
 const (

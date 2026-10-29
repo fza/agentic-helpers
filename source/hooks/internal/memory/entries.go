@@ -53,6 +53,15 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("%v", ErrRuleUntil)
 	}
 
+	if len(req.Items) > 0 && kind != kindTodo {
+		return refused("%v", ErrItemKind)
+	}
+
+	modeRefusal := itemsModeRefusal(req.ItemsMode)
+	if modeRefusal != "" {
+		return refused("%s", modeRefusal)
+	}
+
 	declaredLife, err := lifeFor(kind, req)
 	if err != nil {
 		return refused("%v", err)
@@ -127,6 +136,13 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		if err != nil {
 			failures = append(failures, err.Error())
 		}
+
+		switch {
+		case holdsItems(held) && req.ItemsMode == "":
+			failures = append(failures, absorbed+" "+ErrItemsUnnamed.Error())
+		case holdsItems(held) && req.ItemsMode == itemsCarry && kind != kindTodo:
+			failures = append(failures, absorbed+": --items carry moves a todolist onto a todo; file this as --kind todo")
+		}
 	}
 
 	if len(failures) > 0 {
@@ -166,6 +182,37 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 			Kind: memorylog.KindSupersede, Entry: absorbed, Time: at, Seat: name, Target: id, Payload: absorbing,
 		})
 	}
+
+	var moved []itemPayload
+
+	renamed := []string{}
+
+	if req.ItemsMode == itemsCarry {
+		for _, absorbed := range slices.Compact(slices.Clone(req.Absorbs)) {
+			taken := func(id string) bool {
+				return slices.ContainsFunc(moved, func(one itemPayload) bool { return one.ID == id })
+			}
+
+			more, names, err := carried(folded.entries[absorbed], taken)
+			if err != nil {
+				return refused("%v", err)
+			}
+
+			moved, renamed = append(moved, more...), append(renamed, names...)
+		}
+	}
+
+	ownItems, err := addItems(&entry{items: itemsOf(moved)}, req.Items)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	listed, err := itemEvents(id, name, at, append(moved, ownItems...))
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	events = append(events, listed...)
 
 	attached, err := mem.attachEvents(id, name, at, prepared)
 	if err != nil {
@@ -207,6 +254,23 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	if len(unlinked) > 0 {
 		lines = append(lines, "not linked (no such entry): "+strings.Join(unlinked, ", "))
+	}
+
+	listedItems := len(moved) + len(ownItems)
+	if listedItems > 0 {
+		ids := make([]string, 0, listedItems)
+		for _, one := range append(slices.Clone(moved), ownItems...) {
+			ids = append(ids, "#"+one.ID)
+		}
+
+		lines = append(lines, fmt.Sprintf("items %s: %s", id, strings.Join(ids, " ")))
+	}
+
+	lines = append(lines, renamed...)
+
+	counted := listLines(req.Body)
+	if kind == kindTodo && counted > 0 {
+		lines = append(lines, fmt.Sprintf("%d list lines in the text; steps go into --item", counted))
 	}
 
 	notes, near, similar := mem.filingNotes(ctx, folded, held, existing, req.Absorbs)
@@ -495,7 +559,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		}
 
 		mem.seen.markBody(held)
-		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays, req.WithSuperseded))
+		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays, req.WithSuperseded, req.WithRemoved))
 	}
 
 	if !req.NoHeat {
@@ -540,7 +604,7 @@ func droppedNote(held *entry, retiredBodyDays int) string {
 	return ""
 }
 
-func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withSuperseded bool) string {
+func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withSuperseded bool, withRemoved bool) string {
 	lines := []string{line(here, held)}
 
 	topics := folded.topicsOf(held)
@@ -612,6 +676,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withS
 	}
 
 	lines = append(lines, "---")
+	lines = append(lines, folded.showItems(held, withRemoved)...)
 
 	if len(held.history) > 0 {
 		lines = append(lines, "events:")

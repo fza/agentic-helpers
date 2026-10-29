@@ -61,9 +61,9 @@ into place, and a seat and a shelf minted together are minted under one hold of 
 
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 4}`; a store without one is format 1, where
-events and seat files name the seat, format 2 keeps seats by id without shelves, and format 3 files
-entries with a retention level and no kind. The first call
+`format.json` holds the store's format, `{"format": 5}`; a store without one is format 1, where
+events and seat files name the seat, format 2 keeps seats by id without shelves, format 3 files
+entries with a retention level and no kind, and format 4 holds no `item` rows. The first call
 that meets an older store migrates it a step at a time, holding the store lock from the first step
 to the last, so another call waits and then reads the migrated store. From format 1:
 
@@ -92,11 +92,15 @@ From format 3:
    in, write `format.json`, and remove `log.format-3`. A log no pass changed stays as it is, and only
    `format.json` is written.
 
+From format 4, the log untouched: copy `log/` to `backup/format-4-<UTC stamp>/`, then write
+`format.json`. Format 5 adds the `item` event kind a todolist is kept in, which a format-4 binary
+cannot decode, so the format keeps such a binary off the store.
+
 A failure before `format.json` undoes every step, says
 `agentic-memory: migrating the store failed: <cause>; the store is unchanged and the next call tries again`
 once per session, and the call runs on the store at the format it had. A store of a newer format than
 the release knows is refused: `agentic-memory: this store has format <n>; this release reads up to
-<m>`, with hooks silent and nothing written; a binary of an earlier release refuses a format-4 store
+<m>`, with hooks silent and nothing written; a binary of an earlier release refuses a format-5 store
 that way. A store created by this release starts at the current format. The log's manifest no longer
 carries a format number; one that does still reads.
 
@@ -437,6 +441,22 @@ graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a
 graph resolver), that directory's modification time and size, and the entry files it held, in
 `graph-seen/<session>.json` in the cache. A call `stat`s the directory; only a changed stamp lists
 it, and an entry file not listed before is a gain. A session's first look records and says nothing.
+
+## Todolists
+
+An item is an `item` event on its todo, payload `{op, id, text, link, state, reason, from, order}`,
+`op` one of add, check, uncheck, drop, remove and order. The fold keeps the todo's items in order,
+removed ones included, each with the state an ack gave it and whether one did (an ack's state wins
+over a linked target's). Ids are drawn from `crypto/rand` and checked against every item the todo
+ever held. A carried item's add brings its state, reason and `from`, the `<old>#<id>` it came from,
+which is how an old address resolves through a supersede.
+
+A linked item's state is worked out at read, as a link flag is: the fold's `itemLinks`, installed
+with the link flagger, follows a memory target's supersede chain through the log and a graph
+target's through the export's statuses, at most 16 hops against a cycle. The end check counts a
+todo's items like a declared end; a revive after the last item change keeps the todo live, since the
+fold records when an item last changed and when the entry was last revived. The fold cache carries
+both and the items, its layout moved up with them.
 
 ## Views
 

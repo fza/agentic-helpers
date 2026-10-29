@@ -203,14 +203,84 @@ func (mem *memory) supersede(ctx context.Context, req request) result {
 		return refused("supersede needs --by <id>, --because '<why>' or both")
 	}
 
-	_, ids, failure, ok := mem.batch(ctx, "superseded", req.IDs, false, mem.supersedable(req.By),
+	modeRefusal := itemsModeRefusal(req.ItemsMode)
+	if modeRefusal != "" {
+		return refused("%s", modeRefusal)
+	}
+
+	check := func(folded *state, held *entry) error {
+		err := mem.supersedable(req.By)(folded, held)
+		if err != nil || !holdsItems(held) {
+			return err
+		}
+
+		switch {
+		case req.ItemsMode == "":
+			return fmt.Errorf("%s %w", held.id, ErrItemsUnnamed)
+		case req.ItemsMode == itemsCarry && (req.By == "" || folded.entries[req.By].kind != kindTodo):
+			return fmt.Errorf("%s: --items carry moves a todolist onto a todo named by --by", held.id)
+		}
+
+		return nil
+	}
+
+	folded, ids, failure, ok := mem.batch(ctx, "superseded", req.IDs, false, check,
 		mem.simpleEvent(memorylog.KindSupersede, req.By, supersedePayload{By: req.By, Because: req.Because}))
 	if !ok {
 		return failure
 	}
 
-	return done("superseded " + strings.Join(ids, ", ") + supersession(req.By, req.Because)).
-		with(supersededFields{IDs: ids, By: req.By, Because: req.Because})
+	lines := []string{"superseded " + strings.Join(ids, ", ") + supersession(req.By, req.Because)}
+
+	if req.ItemsMode == itemsCarry {
+		moved, err := mem.carryOnto(ctx, folded, ids, req.By)
+		if err != nil {
+			return refused("superseded %s, but carrying the items failed: %v", strings.Join(ids, ", "), err)
+		}
+
+		lines = append(lines, moved...)
+	}
+
+	return done(strings.Join(lines, "\n")).with(supersededFields{IDs: ids, By: req.By, Because: req.Because})
+}
+
+// carryOnto moves every item of the todos ids onto successor, keeping ids
+// free of the successor's own, and says where each list went.
+func (mem *memory) carryOnto(ctx context.Context, folded *state, ids []string, successor string) ([]string, error) {
+	name, _ := mem.seated(ctx)
+	target := folded.entries[successor]
+
+	var (
+		moved []itemPayload
+		lines []string
+	)
+
+	for _, id := range ids {
+		held := folded.entries[id]
+		if !holdsItems(held) {
+			continue
+		}
+
+		taken := func(candidate string) bool {
+			return target.item(candidate) != nil || slices.ContainsFunc(moved, func(one itemPayload) bool { return one.ID == candidate })
+		}
+
+		more, renamed, err := carried(held, taken)
+		if err != nil {
+			return nil, err
+		}
+
+		moved = append(moved, more...)
+		lines = append(lines, fmt.Sprintf("items of %s carried to %s", id, successor))
+		lines = append(lines, renamed...)
+	}
+
+	events, err := itemEvents(successor, name, mem.now(), moved)
+	if err != nil || len(events) == 0 {
+		return lines, err
+	}
+
+	return lines, mem.appendEvents(ctx, events...)
 }
 
 // supersession is what follows "superseded <ids>" on a line: the successor,
