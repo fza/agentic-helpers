@@ -76,7 +76,8 @@ agentic-tools update <name> --from <copy> --why '<what changed>'   # edited a ta
 - **`this checkout is bound to no store yet: no store is bound to the checkout ...`** → the store
   question agentic-memory's SessionStart asked: ask the user, then `agentic-memory bind <store>` or
   `agentic-memory bind --new` (agent-memory skill). Finding and taking still work, into `.tmp/`
-  only.
+  only. **`agentic-memory: <store> is not offered for this checkout; run the bind in a terminal`**
+  → only a store the question lists is reachable; the user runs any other bind at a shell.
 - **`refused: creating the store: ... ~/.claude/agentic-tools: not a directory`** or **`refused:
   writers.json cannot be read: ...`** → the session began before the update moved the library into
   the home, so it runs the older release, which finds no library. Tell the user a restart brings it

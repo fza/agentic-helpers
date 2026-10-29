@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 )
 
@@ -29,7 +30,12 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 			tools = append(tools, mcpserver.Tool{
 				Name:     held.name,
 				Unlisted: true,
-				Handle: func(context.Context, json.RawMessage) mcpserver.Result {
+				Handle: func(_ context.Context, arguments json.RawMessage) mcpserver.Result {
+					refusal := mem.unofferedByMCP(held.name, arguments)
+					if refusal != "" {
+						return mcpserver.Refusal(self + ": " + refusal)
+					}
+
 					return mcpserver.Refusal(fmt.Sprintf("%s: %s is no MCP tool; run it through Bash: %s %s",
 						self, held.name, self, held.usage))
 				},
@@ -54,6 +60,25 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 	}
 
 	return 0
+}
+
+// unofferedByMCP refuses a bind or merge of stores the open question does not
+// offer, as the command line refuses an agent's: an MCP call never comes from
+// a terminal. Any other call naming them is answered by the command line, as
+// is one whose arguments do not decode, since it names no store.
+func (mem *memory) unofferedByMCP(name string, arguments json.RawMessage) string {
+	var req request
+
+	_ = json.Unmarshal(arguments, &req)
+
+	switch {
+	case name == "bind" && req.Target != "":
+		return mem.bindRefusal(req.Target)
+	case name == "merge" && home.ValidID(req.FromTopic) && home.ValidID(req.Into):
+		return mem.mergeRefusal(req.FromTopic, req.Into)
+	}
+
+	return ""
 }
 
 func (mem *memory) callTool(ctx context.Context, held command, arguments json.RawMessage) mcpserver.Result {

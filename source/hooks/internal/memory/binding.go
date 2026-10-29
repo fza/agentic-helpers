@@ -31,6 +31,59 @@ var (
 
 var ErrUnbound = errors.New("this checkout is bound to no store")
 
+// Terminal says whether the call's standard input is a terminal. An agent's
+// Bash tool and MCP calls hand over none, but an agent can open one (`script`,
+// a pty), so a terminal counts only outside Claude Code.
+type Terminal interface {
+	Interactive() bool
+}
+
+// An agent's `bind <store>` and `merge <a> <b>` reach only the stores the
+// open question for the calling checkout offers, so a committed id or a
+// prompt cannot attach a checkout to another project's data; the user at a
+// terminal runs any. `bind --new` reaches no data and always runs.
+
+// interactive says the user runs the call at a shell: a terminal on standard
+// input, and no Claude Code process (the owner the seats match) among the
+// caller's ancestors, so a pty an agent opens, and a `!` command, count as
+// the agent's. It is a guardrail against a bind made by accident or by an
+// injected instruction, not a security boundary: an agent running as the
+// user can still detach from its process tree, or write the store pointer
+// itself.
+func (mem *memory) interactive(ctx context.Context) bool {
+	return mem.env.Terminal != nil && mem.env.Terminal.Interactive() &&
+		!seat.UnderOwner(ctx, mem.env.Processes, mem.env.OwnerName)
+}
+
+// bindRefusal is why an agent may not bind the checkout to target, empty
+// where the open question offers it.
+func (mem *memory) bindRefusal(target string) string {
+	if mem.question.Offers(target) {
+		return ""
+	}
+
+	return notOffered(target, "bind")
+}
+
+// mergeRefusal is why an agent may not join from and into, empty where one
+// is the checkout's own store and the open question offers the other. It
+// names the side that is neither.
+func (mem *memory) mergeRefusal(from string, into string) string {
+	if from == mem.key && mem.question.Offers(into) || into == mem.key && mem.question.Offers(from) {
+		return ""
+	}
+
+	if from == mem.key || mem.question.Offers(from) {
+		return notOffered(into, "merge")
+	}
+
+	return notOffered(from, "merge")
+}
+
+func notOffered(store string, verb string) string {
+	return fmt.Sprintf("%s is not offered for this checkout; run the %s in a terminal", store, verb)
+}
+
 // admission creates the checkout's store where none matched it yet and call
 // is one that writes.
 func (mem *memory) admission(ctx context.Context, call string) {
@@ -70,6 +123,8 @@ func (mem *memory) bind(ctx context.Context, req request) result {
 		bound, err = mem.resolver().BindNew(ctx, mem.facts)
 	case req.Target == "":
 		return refused("bind needs a store id, or --new for a store of its own")
+	case !mem.interactive(ctx) && mem.bindRefusal(req.Target) != "":
+		return refused("%s", mem.bindRefusal(req.Target))
 	default:
 		bound, err = mem.resolver().Bind(ctx, mem.facts, req.Target)
 	}
@@ -95,6 +150,10 @@ type boundFields struct {
 // mergeStores joins the store from into the store into: memory's entries,
 // seats and shelves, the tool library, the checkouts, every id kept.
 func (mem *memory) mergeStores(ctx context.Context, from string, into string) result {
+	if !mem.interactive(ctx) && mem.mergeRefusal(from, into) != "" {
+		return refused("%s", mem.mergeRefusal(from, into))
+	}
+
 	joined, err := mem.resolver().Merge(ctx, from, into, map[string]home.Joiner{
 		home.Memory: mem.joinMemory,
 		home.Tools:  tools.Join,

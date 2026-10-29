@@ -70,6 +70,11 @@ type Env struct {
 	Git           Git
 	Embedders     EmbedderFactory
 	Version       string
+	// Terminal is the call's standard input, which lets `bind` and `merge`
+	// reach a store no question offers where it is a terminal and no owner
+	// process runs among the caller's ancestors (Processes); nil counts every
+	// call as an agent's.
+	Terminal Terminal
 	// Idle is the work the MCP server runs while its client is quiet: the
 	// sweep of the old layout.
 	Idle mcpserver.Idle

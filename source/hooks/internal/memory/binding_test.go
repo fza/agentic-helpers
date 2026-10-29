@@ -210,9 +210,9 @@ func TestMergeJoinsTwoStores(t *testing.T) {
 	from := other.storeID()
 	test.WriteFile(t, filepath.Join(h.roots().Store(from, home.Tools), "word-count", "current"), "1\n")
 
-	joined := h.must("", "merge", from, into)
-	if !strings.Contains(joined, "joined the store "+from+" into "+into) {
-		t.Errorf("merge should say which store joined which, got %q", joined)
+	joined := h.atUserShell("merge", from, into)
+	if joined.code != 0 || !strings.Contains(joined.out, "joined the store "+from+" into "+into) {
+		t.Errorf("merge should say which store joined which, got %d %q %q", joined.code, joined.out, joined.err)
 	}
 
 	for _, id := range []string{mine, theirs} {
@@ -248,7 +248,7 @@ func TestMergeRefusesEntryIDsBothStoresHold(t *testing.T) {
 
 	before := test.Tree(t, h.roots().Stores())
 
-	if got := h.run("", "merge", from, into); got.code != 1 || !strings.Contains(got.err, "both stores hold the entry ids m-") {
+	if got := h.atUserShell("merge", from, into); got.code != 1 || !strings.Contains(got.err, "both stores hold the entry ids m-") {
 		t.Errorf("a merge of stores sharing an entry id should be refused naming it, got %d %q", got.code, got.err)
 	}
 

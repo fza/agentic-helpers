@@ -12,6 +12,7 @@ const (
 	HookPID  = 100
 	ShellPID = 150
 	OwnerPID = 200
+	LoginPID = 250
 	DeadPID  = 999_999
 
 	OtherHookPID  = 110
@@ -37,6 +38,16 @@ func NewProcesses() *Processes {
 		HookPID:  {Parent: ShellPID, Name: "agentic-memory"},
 		ShellPID: {Parent: OwnerPID, Name: "zsh"},
 		OwnerPID: {Parent: 1, Name: "claude", Started: OwnerStart},
+	}}
+}
+
+// NewProcessesOutsideClaude is the user's own shell: the hook runs under a
+// shell no claude process started.
+func NewProcessesOutsideClaude() *Processes {
+	return &Processes{self: HookPID, guard: &sync.RWMutex{}, Table: map[int]Process{
+		HookPID:  {Parent: ShellPID, Name: "agentic-memory"},
+		ShellPID: {Parent: LoginPID, Name: "zsh"},
+		LoginPID: {Parent: 1, Name: "login"},
 	}}
 }
 
