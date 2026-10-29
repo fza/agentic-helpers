@@ -388,3 +388,26 @@ func TestAFormatFourStoreMovesUpWithABackup(t *testing.T) {
 		t.Errorf("a store of a later format should be refused, got %d %s%s", failed.code, failed.out, failed.err)
 	}
 }
+
+func TestItemsNeverChangeATodoOfAnotherShelf(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	other := newHarnessSharing(h)
+	other.must("", "claim", "idea")
+
+	theirs, items := other.todo("Their waiter port", "one")
+	mine, _ := h.todo("My waiter port", "two")
+
+	failed := other.run("", "supersede", theirs, "--by", mine, "--items", "carry")
+	if failed.code != 1 || !strings.Contains(failed.out+failed.err, mine+" is on shelf main") {
+		t.Errorf("carrying onto another shelf's todo should be refused, got %d %s%s", failed.code, failed.out, failed.err)
+	}
+
+	h.must("", "new", "--title", "My port absorbing theirs", "--topic", "gate", "--kind", "todo", "--absorbs", theirs, "--items", "carry")
+
+	failed = other.run("", "ack", theirs+"#"+items[0], "--done")
+	if failed.code != 1 || !strings.Contains(failed.out+failed.err, "is on shelf main") {
+		t.Errorf("an old address resolving onto another shelf's todo should be refused, got %d %s%s", failed.code, failed.out, failed.err)
+	}
+}
