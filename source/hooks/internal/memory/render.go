@@ -148,7 +148,7 @@ func (held *entry) linkedFrom(withSuperseded bool) []*entry {
 
 // declared is what the filer declared about the entry's life, as a full line
 // names it: the conditions that end it, a trap's triggers, the moments a rule
-// is owed at and the calls proving it.
+// is owed at and the calls proving it, and when it comes due.
 func declared(held *entry) []string {
 	var flags []string
 
@@ -159,6 +159,10 @@ func declared(held *entry) []string {
 		if len(part.values) > 0 {
 			flags = append(flags, part.name+": "+strings.Join(part.values, ", "))
 		}
+	}
+
+	if !held.due.IsZero() {
+		flags = append(flags, "due: "+stamp(held.due))
 	}
 
 	return flags

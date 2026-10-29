@@ -81,7 +81,32 @@ func (mem *memory) migrate(ctx context.Context) error {
 		return err
 	}
 
-	return mem.migrateFormat5(ctx)
+	if version <= 5 {
+		err = mem.migrateFormat5(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return mem.migrateFormat6(ctx)
+}
+
+// migrateFormat6 moves a format-6 store to format 7, whose log may hold `due`
+// rows: nothing in the log changes, so the log is copied to
+// backup/format-6-<UTC stamp>/ and format.json is written, which keeps a
+// format-6 binary from reading a store it would misread. The size ledger is
+// rebuilt after the copy, so it counts the backup's files too.
+func (mem *memory) migrateFormat6(ctx context.Context) error {
+	backup := filepath.Join(mem.store(), "backup", "format-6-"+mem.now().UTC().Format("20060102T150405.000000000Z"))
+
+	err := copyTree(mem.logDir(), filepath.Join(backup, "log"))
+	if err != nil {
+		return fmt.Errorf("backing up the store's log: %w", err)
+	}
+
+	mem.recordStore(ctx)
+
+	return writeFormat(mem.store(), storeFormat)
 }
 
 // migrateFormat4 moves a format-4 store to format 5, whose log may hold

@@ -138,7 +138,7 @@ type entryState struct {
 	title, body, retention, status, commit, branch string
 	topics                                         []string
 	anchors                                        []anchor
-	verified                                       time.Time
+	verified, due                                  time.Time
 	dropped                                        bool
 	transitions                                    []transition
 }
@@ -146,7 +146,7 @@ type entryState struct {
 func stateOf(held *entry) entryState {
 	return entryState{
 		title: held.title, body: held.body, retention: held.retention, status: held.status, commit: held.commit,
-		branch: held.branch, topics: held.topics, anchors: held.anchors, verified: held.verified,
+		branch: held.branch, topics: held.topics, anchors: held.anchors, verified: held.verified, due: held.due,
 		dropped: held.dropped, transitions: held.transitions,
 	}
 }
@@ -240,6 +240,28 @@ func TestMergePolicyFoldsEventsPastTheHorizon(t *testing.T) {
 				{memorylog.Row{Kind: memorylog.KindRetain, Entry: "m-aaaa", Time: at(2), Seat: "main"}, retainPayload{Level: "long"}},
 			},
 			wantKinds: []memorylog.Kind{memorylog.KindNew, memorylog.KindMerge},
+			wantBody:  true,
+		},
+		{
+			name: "due rows past the horizon fold into the new row, the last one standing",
+			now:  at(30 * 24),
+			events: []logged{
+				{memorylog.Row{Kind: memorylog.KindNew, Entry: "m-aaaa", Time: filed, Seat: "main"}, filedPayload},
+				{memorylog.Row{Kind: memorylog.KindDue, Entry: "m-aaaa", Time: at(1), Seat: "main"}, duePayload{Due: at(48)}},
+				{memorylog.Row{Kind: memorylog.KindDue, Entry: "m-aaaa", Time: at(2), Seat: "drive"}, duePayload{Due: at(72)}},
+			},
+			wantKinds: []memorylog.Kind{memorylog.KindNew},
+			wantBody:  true,
+		},
+		{
+			name: "a due row clearing the time folds into a new row carrying none",
+			now:  at(30 * 24),
+			events: []logged{
+				{memorylog.Row{Kind: memorylog.KindNew, Entry: "m-aaaa", Time: filed, Seat: "main"}, filedPayload},
+				{memorylog.Row{Kind: memorylog.KindDue, Entry: "m-aaaa", Time: at(1), Seat: "main"}, duePayload{Due: at(48)}},
+				{memorylog.Row{Kind: memorylog.KindDue, Entry: "m-aaaa", Time: at(2), Seat: "main"}, duePayload{}},
+			},
+			wantKinds: []memorylog.Kind{memorylog.KindNew},
 			wantBody:  true,
 		},
 		{

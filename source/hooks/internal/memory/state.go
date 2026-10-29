@@ -61,6 +61,8 @@ type newPayload struct {
 	About []string `json:"about,omitempty"`
 	// Forbids is a rule's RE2 patterns no later entry should match.
 	Forbids []string `json:"forbids,omitempty"`
+	// Due is the time a todo or a note comes due.
+	Due time.Time `json:"due,omitzero"`
 }
 
 // retirePayload is why an entry ended. A retire from an earlier release
@@ -97,6 +99,11 @@ type retainPayload struct {
 
 type retitlePayload struct {
 	Title string `json:"title"`
+}
+
+// duePayload moves an entry's due time, or clears it where Due is zero.
+type duePayload struct {
+	Due time.Time `json:"due,omitzero"`
 }
 
 type tagPayload struct {
@@ -140,6 +147,8 @@ type entry struct {
 	anchors   []anchor
 	verified  time.Time
 	dropped   bool
+	// due is when a todo or a note comes due; zero where it carries none.
+	due time.Time
 
 	status      string
 	transitions []transition
@@ -417,6 +426,7 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 		folded.entries[row.Entry].textLinks = filed.TextLinks
 		folded.entries[row.Entry].until, folded.entries[row.Entry].untilHashes = filed.Until, filed.UntilHashes
 		folded.entries[row.Entry].untilHold = filed.UntilHold
+		folded.entries[row.Entry].due = filed.Due
 		folded.entries[row.Entry].when, folded.entries[row.Entry].on = filed.When, filed.On
 		folded.entries[row.Entry].about = filed.About
 		folded.entries[row.Entry].proof, folded.entries[row.Entry].forbids = filed.Proof, filed.Forbids
@@ -585,6 +595,20 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 		held.kind = rekinded.Kind
 		held.retention = cmp.Or(held.override, levelOf(held.kind))
 		note("rekinded to " + rekinded.Kind)
+	case memorylog.KindDue:
+		var moved duePayload
+
+		err := json.Unmarshal(payload, &moved)
+		if err != nil {
+			return err
+		}
+
+		held.due = moved.Due
+		if moved.Due.IsZero() {
+			note("due cleared")
+		} else {
+			note("due " + stamp(moved.Due))
+		}
 	case memorylog.KindRetitle:
 		var retitled retitlePayload
 
@@ -841,8 +865,8 @@ func (run *horizonRun) recordLink(kind memorylog.Kind, target string, index int)
 }
 
 // filedAtMerge is the payload a merge keeps for an entry's new row: the title,
-// topics, kind and retain override its folded run left, and no body once that
-// is due to go.
+// topics, kind, retain override and due time its folded run left, and no body
+// once that is due to go.
 func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, retiredKeep time.Duration) ([]byte, error) {
 	drop := bodyDue(final, now, retiredKeep)
 	if run == nil && !drop {
@@ -862,6 +886,7 @@ func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, reti
 		filed.Kind = run.held.kind
 		filed.Retention = run.held.override
 		filed.UntilHold = run.held.untilHold
+		filed.Due = run.held.due
 	}
 
 	// A link from the text holds as long as the text does.

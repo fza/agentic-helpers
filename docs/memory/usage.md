@@ -258,11 +258,11 @@ agentic-memory claim --shelf row-7ah            # a new seat row-7ah-<n>, the lo
   prompt recall treat every entry on the shelf as the seat's own; `search --seat <s>` narrows to one
   filer. The brief of a seat on a shelf of another name opens `agentic-memory: seat rev on shelf
   row-7ah, ...`.
-- **Every seat on the shelf may retire, retain, rekind, retitle, tag and untag its entries.** A seat
-  on another shelf is refused: `<id> is on shelf <name>`.
+- **Every seat on the shelf may retire, retain, rekind, retitle, tag and untag its entries, and move
+  their due time.** A seat on another shelf is refused: `<id> is on shelf <name>`.
 - **The seats on a shelf are its subscribers.** A shelf mate's new entry arrives as
-  `agentic-memory: new for <seat> (<n>):`, and a retire, retain, rekind, retitle, tag or untag a shelf
-  mate made
+  `agentic-memory: new for <seat> (<n>):`, and a retire, retain, rekind, retitle, tag, untag or due
+  time a shelf mate changed
   arrives as `agentic-memory: changed on shelf <name> (<n>):`, one line per change,
   `<id> <title>: <what> by <seat>`, both through the paths shared entries arrive by.
 
@@ -419,6 +419,39 @@ only topic is a `tag`, then an `untag`.
 
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
+
+### Due times
+
+A todo or a note may carry one due time, the moment it starts to matter: check a migration tomorrow,
+rerun a measurement next week. Until it nears, the brief spends one counting line on it; once it
+nears, it stands in a due section of its own; when it comes due in a running session, the session is
+told once. It ranks nothing else: heat, search, recall and `view` order as they do without it, and
+it wakes nothing on its own.
+
+- `new --due <time>` (MCP `new` key `due`) files it, on a `todo` or a `note` only; a rule or a trap
+  is refused with `--due takes a todo or a note`. The time is RFC 3339 or a date, its start in local
+  time, the forms of `--until at:`; anything else is refused naming them:
+  `--due takes RFC 3339 or a date (YYYY-MM-DD, its start in local time), not "<text>"`.
+- `due <id> <time>` moves it and `due <id> --clear` drops it (MCP `due`, keys `id`, `due` and
+  `clear`), for any seat on the entry's shelf, as `retitle` is; the reply is `<id> due <time>` or
+  `<id> due cleared`, and the change stands in `show`'s events.
+- `show` and `search` print it as `due: <time>` on the entry's line, and the JSON entry object
+  carries it as `due`. `view`'s filter word `due` selects the entries carrying one.
+
+The brief's due section follows the state slot. It holds the entries already due and those due
+within a day, earliest first, each short line ending `due <age> ago` or `due in <age>`, under
+`due (<shown> of <total>):`, at most five, then `+<n> more due: agentic-memory brief --due`. An
+entry due later stands in one line, `<n> due later (next <time>)`. An entry carrying a due time
+stands in no kind section, so it is never listed twice and never pushes out another entry.
+`brief --due` (MCP `brief` key `due`) lists every live entry of the seat carrying a due time,
+earliest first.
+
+When an entry on the seat's shelf comes due, the next prompt, tool call or idle wake prints
+`agentic-memory: due for <seat> (<n>):` and its short lines, with the same cap and footer, once per
+entry and due time: a moved time is told again, and an entry the brief already listed as due is not.
+The idle waiter looks every poll within its 30 minutes; an entry coming due while no session runs
+shows in the next brief. An entry still live a week past its due time is flagged
+`retire? due <age> ago` (see [Declared ends](#declared-ends)).
 
 ### Attachments
 
@@ -787,7 +820,8 @@ refuses, since the revive rebinds it. A retire or supersede by hand revives as b
 The brief flags each live entry on the shelf, rules aside, whose end the tool infers but nobody
 declared, with why: `retire? every link ended` where every link target is closed, superseded,
 retired or gone, `retire? every anchor gone`, `retire? branch <b> is gone` for a `merged:` branch
-that no longer exists, merged or abandoned. The flag ends the entry's own line under its kind; the
+that no longer exists, merged or abandoned, and `retire? due <age> ago` for a todo or note a week or
+more past its due time. The flag ends the entry's own line under its kind; the
 `retire?` section lists only candidates no section printed, notes past `brief_note_limit` among
 them, as `<id> <title>  retire? <why>`. Nothing is retired from either.
 
@@ -872,6 +906,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 |---|---|
 | `active` | live entries |
 | `attached` | entries holding attachments, their body not dropped; a list section using it shows under each entry its files' names and sizes and their total |
+| `due` | entries carrying a due time |
 | `status(live\|retired\|superseded,...)` | entries in any of the statuses |
 | `kind(rule\|trap\|todo\|note,...)` | entries of any of the kinds |
 | `topic(<topic>,...)` | entries under a topic: the topic or one below it, component by component, read through merges |
@@ -966,9 +1001,10 @@ to three entries a prompt touches that stand out from the rest. A session's last
 end for the next claim. There is no handoff to write.
 
 The brief runs, in order: its first line, the space line where a store runs low, the state slot,
-`changed by other seats:`,
+the due section ([Due times](#due-times)), `changed by other seats:`,
 `ended since last brief (revive to undo):`, `rules (from the user, verify before relying):`,
-`traps:`, `todos:`, `notes:`, each kind's live entries by heat, `retire?`, `new from other seats:`,
+`traps:`, `todos:`, `notes:`, each kind's live entries carrying no due time by heat, `retire?`,
+`new from other seats:`,
 and the topics. It stays within 9,000 characters; rules
 take at most a third of that, and past it the brief says
 `rules exceed a third of the brief: <n>; retire or rekind some`. Notes print the hottest up to the
@@ -987,10 +1023,10 @@ The kind sections are a fixed layout of the view language, and nothing configure
 a contract skills quote, and one seat's layout could crowd rules out of another's digest.
 `view --explain brief` prints it, the note limit the option's:
 
-    active:mine:kind(rule):rank(heat):name("rules (from the user, verify before relying)"):brief:as-list,
-    active:mine:kind(trap):rank(heat):name("traps"):brief:as-list,
-    active:mine:kind(todo):rank(heat):name("todos"):brief:as-list,
-    active:mine:kind(note):rank(heat):n(10):name("notes"):brief:as-list
+    active:mine:kind(rule):not(due):rank(heat):name("rules (from the user, verify before relying)"):brief:as-list,
+    active:mine:kind(trap):not(due):rank(heat):name("traps"):brief:as-list,
+    active:mine:kind(todo):not(due):rank(heat):name("todos"):brief:as-list,
+    active:mine:kind(note):not(due):rank(heat):n(10):name("notes"):brief:as-list
 
 `view --layout brief` is refused, `brief is the brief's own layout: agentic-memory brief prints it,
 agentic-memory view --explain brief shows it`: the brief retires reached ends and moves its mark, and
@@ -1122,6 +1158,7 @@ answer carries are the ones below. The command line keeps its text and its `--js
 | `confirm`, `retire` | `ids` |
 | `supersede` | `ids`, and `by` or `because` |
 | `retitle` | `id`, `title` |
+| `due` | `id`, `due` (RFC 3339, empty once cleared) |
 | `tag`, `untag` | `id`, `topics` |
 | `ack` | `ids`, `declined` where declined |
 | `link` | `id`, `target` |

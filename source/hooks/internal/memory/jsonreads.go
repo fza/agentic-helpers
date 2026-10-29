@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -26,6 +27,7 @@ type jsonEntry struct {
 	Topics       []string          `json:"topics,omitempty"`
 	Kind         string            `json:"kind,omitempty"`
 	Until        []string          `json:"until,omitempty"`
+	Due          time.Time         `json:"due,omitzero"`
 	When         []string          `json:"when,omitempty"`
 	On           []string          `json:"on,omitempty"`
 	Proof        []string          `json:"proof,omitempty"`
@@ -99,7 +101,7 @@ type jsonAttachment struct {
 func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody bool) jsonEntry {
 	object := jsonEntry{
 		ID: held.id, Title: held.title, Seat: held.seat, Shelf: mem.shelfName(mem.entryShelf(held)),
-		Topics: folded.topicsOf(held), Kind: held.kind, Until: held.until, When: held.when, On: held.on, Proof: held.proof,
+		Topics: folded.topicsOf(held), Kind: held.kind, Until: held.until, Due: held.due.UTC(), When: held.when, On: held.on, Proof: held.proof,
 		Forbids: held.forbids, Retention: held.retention, From: held.from, Filed: held.filed.UTC(), Branch: held.branch,
 		Commit: held.commit, Status: held.status, Links: held.linkStates(),
 		OtherBranch: held.branch != "" && here.branch != "" && held.branch != here.branch,
@@ -293,6 +295,9 @@ type jsonBrief struct {
 func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seatName string, narrowed []string) result {
 	since := mem.previousBrief(seatName)
 	live := mem.ownLive(folded, seatName, narrowed[0], narrowed[1:]...)
+	if narrowed[0] == dueHeading {
+		slices.SortStableFunc(live, func(a, b *entry) int { return a.due.Compare(b.due) })
+	}
 
 	answer := jsonBrief{
 		Notice: filedNotice, Seat: seatName, Shelf: mem.shelfName(mem.shelfOf(seatName)), Language: mem.language(ctx), Live: len(live),

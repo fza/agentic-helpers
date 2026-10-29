@@ -20,9 +20,11 @@ import (
 // 1, keyed by seat name; format 2 has no shelves; format 3 files entries with
 // a retention level and no kind; format 4 holds no `item` rows, which a
 // format-4 binary cannot read; format 5 keeps its tail as `tail.jsonl` and a
-// JSON file per session and purpose in the cache.
+// JSON file per session and purpose in the cache; format 6 holds no `due` rows,
+// which a format-6 binary cannot read.
 const (
-	storeFormat = 6
+	storeFormat = 7
+	slotsFormat = 6
 	itemsFormat = 5
 	formatName  = "format.json"
 )

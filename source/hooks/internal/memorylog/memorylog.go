@@ -51,12 +51,14 @@ const (
 	KindAttach Kind = "attach"
 	// KindItem changes one item of a todo's todolist, or their order.
 	KindItem Kind = "item"
+	// KindDue sets or clears the time an entry comes due.
+	KindDue Kind = "due"
 )
 
 // kinds is the segment encoding of a kind: its index here. Only ever append.
 var kinds = []Kind{
 	KindNew, KindRetire, KindSupersede, KindMerge, KindConfirm, KindRetain, KindRevive, KindRetitle, KindTag,
-	KindLink, KindUnlink, KindUntag, KindState, KindRekind, KindSettle, KindAttach, KindItem,
+	KindLink, KindUnlink, KindUntag, KindState, KindRekind, KindSettle, KindAttach, KindItem, KindDue,
 }
 
 const (

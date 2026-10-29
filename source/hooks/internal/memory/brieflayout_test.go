@@ -28,12 +28,13 @@ func TestViewExplainsTheBriefsFixedLayout(t *testing.T) {
 				test.WriteFile(t, h.settings, tc.settings)
 			}
 
-			want := "brief, fixed: its first line, the state slot, changed by other seats and ended since last brief; " +
-				"then these sections; then retire?, new from other seats and the topics. Nothing configures it.\n" +
-				`active:mine:kind(rule):rank(heat):name("rules (from the user, verify before relying)"):brief:as-list,` + "\n" +
-				`active:mine:kind(trap):rank(heat):name("traps"):brief:as-list,` + "\n" +
-				`active:mine:kind(todo):rank(heat):name("todos"):brief:as-list,` + "\n" +
-				`active:mine:kind(note):rank(heat):` + tc.notes + `:name("notes"):brief:as-list`
+			want := "brief, fixed: its first line, the state slot, the due section, changed by other seats and ended " +
+				"since last brief; then these sections; then retire?, new from other seats and the topics. Nothing " +
+				"configures it.\n" +
+				`active:mine:kind(rule):not(due):rank(heat):name("rules (from the user, verify before relying)"):brief:as-list,` + "\n" +
+				`active:mine:kind(trap):not(due):rank(heat):name("traps"):brief:as-list,` + "\n" +
+				`active:mine:kind(todo):not(due):rank(heat):name("todos"):brief:as-list,` + "\n" +
+				`active:mine:kind(note):not(due):rank(heat):` + tc.notes + `:name("notes"):brief:as-list`
 
 			if got := strings.TrimSpace(h.must("", "view", "--explain", "brief")); got != want {
 				t.Errorf("--explain brief should print the brief's fixed layout, its note limit the option's, got:\n%s", got)

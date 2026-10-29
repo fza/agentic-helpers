@@ -529,6 +529,10 @@ func (mem *memory) retireCandidates(ctx context.Context, folded *state, seatName
 		}
 
 		why := probe.inferredEnd(ctx, held)
+		if why == "" && !held.due.IsZero() && mem.now().Sub(held.due) >= dueStale {
+			why = "due " + age(mem.now().Sub(held.due)) + " ago"
+		}
+
 		if why != "" {
 			candidates = append(candidates, retireCandidate{held: held, why: why})
 		}

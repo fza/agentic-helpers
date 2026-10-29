@@ -102,7 +102,7 @@ and per-seat file of the cache (`shown/`, `ladder/`, `traps/`, `briefs/`) into `
 refreshes the ledger, then removes those folders and the per-process markers (`forks/`, `waiters/`,
 `migration-failed/`, `graph-seen/`); a mark lost there costs a session one capture notice. Prompt
 vectors and the attachments' ledger move at the next SessionStart pass. A release reading up to
-format 5 refuses a format-6 store as newer, and this release refuses one past 6. Rejected: a
+format 5 refuses a format-6 store as newer. Rejected: a
 database (a dependency, and a server or a CGO build for what a fixed-width file does); one file per
 session in a binary codec (the file count and the directory walks stay); keeping JSON-lines files
 (a torn line reads as garbage with no checksum to tell).
@@ -131,9 +131,10 @@ into place, and a seat and a shelf minted together are minted under one hold of 
 
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 5}`; a store without one is format 1, where
+`format.json` holds the store's format, `{"format": 7}`; a store without one is format 1, where
 events and seat files name the seat, format 2 keeps seats by id without shelves, format 3 files
-entries with a retention level and no kind, and format 4 holds no `item` rows. The first call
+entries with a retention level and no kind, format 4 holds no `item` rows, and format 6 holds no
+`due` rows. The first call
 that meets an older store migrates it a step at a time, holding the store lock from the first step
 to the last, so another call waits and then reads the migrated store. From format 1:
 
@@ -166,11 +167,21 @@ From format 4, the log untouched: copy `log/` to `backup/format-4-<UTC stamp>/`,
 `format.json`. Format 5 adds the `item` event kind a todolist is kept in, which a format-4 binary
 cannot decode, so the format keeps such a binary off the store.
 
+From format 6, the log untouched: copy `log/` to `backup/format-6-<UTC stamp>/`, refresh the size
+ledger so it counts the copy, then write `format.json`. Format 7 adds the `due` event kind moving or
+clearing an entry's due time, which a format-6 binary cannot decode: once one session runs a format-7
+release, every session on an earlier one refuses memory calls as on a newer store until its plugin
+reloads, as each format step before cost. A due time set at filing rides in the `new` row's payload;
+a merge folds an entry's `due` rows past the horizon into that payload, the last one standing.
+Rejected: a due time at filing only, which an older binary would ignore with no format step, but
+which could never move or clear; riding an existing event kind, each of which changes state in an
+older binary (`retain` resets the decay, `confirm` re-anchors, `settle` feeds the do-now items).
+
 A failure before `format.json` undoes every step, says
 `agentic-memory: migrating the store failed: <cause>; the store is unchanged and the next call tries again`
 once per session, and the call runs on the store at the format it had. A store of a newer format than
 the release knows is refused: `agentic-memory: this store has format <n>; this release reads up to
-<m>`, with hooks silent and nothing written; a binary of an earlier release refuses a format-5 store
+<m>`, with hooks silent and nothing written; a binary of an earlier release refuses a newer store
 that way. A store created by this release starts at the current format. The log's manifest no longer
 carries a format number; one that does still reads.
 

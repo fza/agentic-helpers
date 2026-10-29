@@ -91,6 +91,8 @@ type request struct {
 	Order          string   `json:"order,omitempty"`
 	WithRemoved    bool     `json:"with_removed,omitempty"`
 	Fresh          bool     `json:"new,omitempty"`
+	Due            dueArg   `json:"due"`
+	Clear          bool     `json:"clear,omitempty"`
 
 	given map[string]bool
 }
@@ -268,6 +270,7 @@ func (req *request) set(spec flagSpec, value string) error {
 		"by": &req.By, "because": &req.Because, "session": &req.Session, "shelf": &req.Shelf,
 		"lifetime": &req.Lifetime, "decline": &req.Decline, "to": &req.To,
 		"layout": &req.Layout, "explain": &req.Explain, "items": &req.ItemsMode, "order": &req.Order,
+		"due": &req.Due.text,
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
@@ -280,7 +283,7 @@ func (req *request) set(spec flagSpec, value string) error {
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
 		"private": &req.Private, "again": &req.Again, "undo": &req.Undo, "remove": &req.Remove,
-		"with-removed": &req.WithRemoved, "new": &req.Fresh,
+		"with-removed": &req.WithRemoved, "new": &req.Fresh, "due": &req.Due.listed, "clear": &req.Clear,
 	}
 
 	switch spec.kind {
@@ -400,13 +403,13 @@ func allCommands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [--item '<step>']... [--items carry|leave] [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [--item '<step>']... [--items carry|leave] [--due <time>] [options]",
 			description: "file an entry, in the language and style the brief names; kind sets its decay, note unless given",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
 				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList}, {"attach", flagList},
 				{"when", flagList}, {"on", flagList}, {"proof", flagList}, {"forbids", flagList},
-				{"item", flagList}, {"items", flagText},
+				{"item", flagList}, {"items", flagText}, {"due", flagText},
 			},
 			readsBody: true,
 			replaced:  map[string]string{"retention": retentionReplaced},
@@ -423,6 +426,7 @@ func allCommands() []command {
 				`"item":{"type":"array","items":{"type":"string"},"description":"todo only: the steps of one piece of work, each text or a memory or graph id; ticked later through ack <todo>#<item>, never a supersede"},` +
 				`"items":{"type":"string","enum":["carry","leave"],"description":"an absorbed todo's items move here, or stay"},` +
 				`"until":{"type":"array","items":{"type":"string"},"description":"ending conditions: ` + untilForms + `"},` +
+				`"due":{"type":"string","description":"todo or note only: when it comes due, ` + dueForms + `"},` +
 				`"when":{"type":"array","items":{"type":"string"},"description":"trap triggers: ` + triggerForms + `"},` +
 				`"on":{"type":"array","items":{"type":"string","enum":["claim","compact"]},"description":"when a rule is owed"},` +
 				`"proof":{"type":"array","items":{"type":"string"},"description":"calls settling an owed rule: ` + triggerForms + `"},` +
@@ -465,11 +469,12 @@ func allCommands() []command {
 				`"with_removed":{"type":"boolean","description":"also a todo's removed items"}},"required":["ids"]}`,
 		},
 		{
-			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--again]",
-			description: "the brief, or one topic's or kind's entries",
-			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}, {"again", flagSwitch}}, run: (*memory).briefCommand,
+			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--due] [--again]",
+			description: "the brief, or one topic's, kind's or the due entries",
+			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}, {"due", flagSwitch}, {"again", flagSwitch}}, run: (*memory).briefCommand,
 			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"},"description":"one topic's entries"},` +
-				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"one kind's live entries whole"},` + againKey + `}}`,
+				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"one kind's live entries whole"},` +
+				`"due":{"type":"boolean","description":"every live entry carrying a due time, earliest first"},` + againKey + `}}`,
 		},
 		{
 			name: "view", usage: "view --layout '<layout>' [--again] | view --explain '<layout>'|brief",
@@ -596,6 +601,15 @@ func allCommands() []command {
 			run:        (*memory).retitle,
 			schema: `{"type":"object","properties":{` + idKey +
 				`,"title":{"type":"string","description":"new title, 3-10 words"}},"required":["id","title"]}`,
+		},
+		{
+			name: "due", usage: "due <id> <time> | due <id> --clear", description: "move or clear a todo's or note's due time",
+			flags:      []flagSpec{{"clear", flagSwitch}},
+			positional: duePositional,
+			run:        (*memory).dueCommand,
+			schema: `{"type":"object","properties":{` + idKey +
+				`,"due":{"type":"string","description":"when it comes due, ` + dueForms + `"}` +
+				`,"clear":{"type":"boolean","description":"drop the due time"}},"required":["id"]}`,
 		},
 		{
 			name: "tag", usage: "tag <id> <topic>...", description: "add topics to an entry",

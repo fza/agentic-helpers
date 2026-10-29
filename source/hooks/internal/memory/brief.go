@@ -71,6 +71,10 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 		return mem.briefJSON(ctx, here, folded, name, briefFilter(req))
 	}
 
+	if req.Due.listed {
+		return done(mem.dueBrief(here, folded, name))
+	}
+
 	if req.Kind != "" {
 		return done(mem.kindBrief(here, folded, name, req.Kind))
 	}
@@ -125,6 +129,10 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 // briefFilter is the one filter a narrowed brief names: its kind, else its
 // topics, else none.
 func briefFilter(req request) []string {
+	if req.Due.listed {
+		return []string{dueHeading}
+	}
+
 	if req.Kind != "" {
 		return []string{"kind", req.Kind}
 	}
@@ -165,11 +173,12 @@ const rulesHeading = "rules (from the user, verify before relying)"
 
 // briefLayout is the brief's kind sections as a fixed layout, which
 // `view --explain brief` prints and nothing configures: each the seat's live
-// entries of one kind, hottest first, in the short line, notes cut at the
-// brief_note_limit.
+// entries of one kind carrying no due time, hottest first, in the short line,
+// notes cut at the brief_note_limit. An entry carrying a due time stands in the
+// due section instead.
 func briefLayout(noteLimit int) string {
 	section := func(kind string, heading string, cut string) string {
-		return fmt.Sprintf(`active:mine:kind(%s):rank(heat):%sname(%q):brief:as-list`, kind, cut, heading)
+		return fmt.Sprintf(`active:mine:kind(%s):not(due):rank(heat):%sname(%q):brief:as-list`, kind, cut, heading)
 	}
 
 	return strings.Join([]string{
@@ -182,8 +191,9 @@ func briefLayout(noteLimit int) string {
 
 // briefParts is what `view --explain brief` says stands around the layout:
 // the parts of the brief that are not lists of entries.
-const briefParts = "brief, fixed: its first line, the state slot, changed by other seats and ended since last " +
-	"brief; then these sections; then retire?, new from other seats and the topics. Nothing configures it."
+const briefParts = "brief, fixed: its first line, the state slot, the due section, changed by other seats and " +
+	"ended since last brief; then these sections; then retire?, new from other seats and the topics. Nothing " +
+	"configures it."
 
 // lowSpace is the brief's space line: only a store with under a tenth of its
 // limit left is named, since with room to spare the figure changes nothing the
@@ -234,6 +244,13 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	if slot := mem.stateLine(folded, seatName); slot != "" {
 		out.add(slot)
 	}
+
+	dueLines, told := mem.dueSection(here, folded, seatName, now)
+	for _, text := range dueLines {
+		out.add(text)
+	}
+
+	mem.markDue(folded, seatName, told)
 
 	for _, text := range mem.credentialLines(ctx, seatName) {
 		out.add(text)

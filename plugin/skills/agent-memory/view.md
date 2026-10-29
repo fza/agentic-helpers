@@ -30,6 +30,7 @@ agentic-memory view --explain brief                 # the brief's fixed sections
 - `attached` keeps entries holding attachments; `rank(size)` puts the most attachment bytes first.
   Either one lists each file's name and size and the total under the entry:
   `active:attached:rank(size):as-list`.
+- `due` keeps entries carrying a due time: `active:mine:due:as-list`.
 - Shape: `rank(heat|in-degree|size|by(date))` (`in-degree` = most linked to), `n(N)`, `skip(N)`,
   `name("...")`, `brief` (short lines), macro `top(N)`. `topic(t)` opening a section = hottest
   first, as in sdd; later in a section it only filters.

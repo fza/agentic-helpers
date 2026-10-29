@@ -372,7 +372,7 @@ func TestAFormatFourStoreMovesUpWithABackup(t *testing.T) {
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
 	written, _ := os.ReadFile(formatPath)
-	if !strings.Contains(string(written), "6") {
+	if !strings.Contains(string(written), "7") {
 		t.Errorf("a format-4 store should move through format 5 to the current one: %s", written)
 	}
 
@@ -381,10 +381,10 @@ func TestAFormatFourStoreMovesUpWithABackup(t *testing.T) {
 		t.Errorf("the move should back the log up first, got %v", backups)
 	}
 
-	test.WriteFile(t, formatPath, `{"format":7}`+"\n")
+	test.WriteFile(t, formatPath, `{"format":8}`+"\n")
 
 	failed := h.run("", "search", "--term", "Gate", "--no-heat")
-	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 6") {
+	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 7") {
 		t.Errorf("a store of a later format should be refused, got %d %s%s", failed.code, failed.out, failed.err)
 	}
 }

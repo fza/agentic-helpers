@@ -247,6 +247,11 @@ type seenMark struct {
 	Log     string    `json:"log,omitempty"`
 	// Traps is how many traps the seat held when the log stood at Log.
 	Traps int `json:"traps,omitempty"`
+	// Due is the entries the seat was told came due, each at the due time it
+	// was told of; NextDue the earliest due time still ahead when the log
+	// stood at Log.
+	Due     []string  `json:"due,omitempty"`
+	NextDue time.Time `json:"next_due,omitzero"`
 }
 
 // arrives is whether the entry is news for seatName: filed by a shelf mate, or
@@ -286,7 +291,7 @@ func (mem *memory) arrivals(folded *state, seatName string) []*entry {
 // entries, and so the ones its shelf mates are told of.
 var shelfEdits = []memorylog.Kind{
 	memorylog.KindRetire, memorylog.KindRetain, memorylog.KindRetitle, memorylog.KindTag, memorylog.KindUntag,
-	memorylog.KindRekind, memorylog.KindAttach,
+	memorylog.KindRekind, memorylog.KindAttach, memorylog.KindDue,
 }
 
 type shelfChange struct {
@@ -339,10 +344,10 @@ func (mem *memory) markChanged(seatName string, at time.Time) {
 	_ = mem.writeSlot(mem.seenKey(seatName), mark)
 }
 
-func (mem *memory) noteLog(seatName string, signature string, traps int) {
+func (mem *memory) noteLog(seatName string, signature string, traps int, nextDue time.Time) {
 	var mark seenMark
 	mem.readSlot(mem.seenKey(seatName), &mark)
-	mark.Log, mark.Traps = signature, traps
+	mark.Log, mark.Traps, mark.NextDue = signature, traps, nextDue
 	_ = mem.writeSlot(mem.seenKey(seatName), mark)
 }
 
@@ -351,9 +356,10 @@ func (mem *memory) noteLog(seatName string, signature string, traps int) {
 func (mem *memory) announce(ctx context.Context, folded *state, seatName string) string {
 	arrived := mem.arrivals(folded, seatName)
 	changed := mem.shelfChanges(folded, seatName)
+	due := mem.comeDue(ctx, folded, seatName)
 
 	if len(arrived) == 0 && len(changed) == 0 {
-		return ""
+		return due
 	}
 
 	here := mem.checkout(ctx)
@@ -379,6 +385,10 @@ func (mem *memory) announce(ctx context.Context, folded *state, seatName string)
 		}
 
 		mem.markChanged(seatName, changed[len(changed)-1].at)
+	}
+
+	if due != "" {
+		lines = append(lines, due)
 	}
 
 	return strings.Join(lines, "\n")
