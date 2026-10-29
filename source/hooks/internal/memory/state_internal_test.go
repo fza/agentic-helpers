@@ -364,3 +364,40 @@ func TestAMergeKeepsNetExplicitLinks(t *testing.T) {
 			after.entries["m-aaaa"].explicit, before.entries["m-aaaa"].explicit)
 	}
 }
+
+func TestAMergeKeepsTheHoldARevivePastTheHorizonRebound(t *testing.T) {
+	filed := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
+	rebound := hold{Seat: "s-main01", Claimed: "2026-09-01T12:00:00Z"}
+
+	rows, read := rowsOf(t, []logged{
+		{
+			row: memorylog.Row{Kind: memorylog.KindNew, Entry: "m-aaaa", Time: filed, Seat: "main"},
+			payload: newPayload{
+				Title: "Gate scratch for this session", Until: []string{"session"},
+				UntilHold: &hold{Seat: "s-main01", Claimed: "2026-09-01T08:00:00Z"},
+			},
+		},
+		{
+			row:     memorylog.Row{Kind: memorylog.KindRetire, Entry: "m-aaaa", Time: filed.Add(time.Hour), Seat: "main"},
+			payload: retirePayload{Because: endReached + "session"},
+		},
+		{
+			row:     memorylog.Row{Kind: memorylog.KindRevive, Entry: "m-aaaa", Time: filed.Add(3 * time.Hour), Seat: "main"},
+			payload: revivePayload{UntilHold: &rebound},
+		},
+	})
+
+	if held := foldRows(t, rows, read).entries["m-aaaa"]; held.untilHold == nil || *held.untilHold != rebound {
+		t.Fatalf("folding a revive should move the session end's hold to the claim it names, got %+v", held.untilHold)
+	}
+
+	kept, err := mergePolicy(filed.Add(30*24*time.Hour), 90*24*time.Hour)(rows, read)
+	if err != nil {
+		t.Fatalf("the policy should fold the rows: %v", err)
+	}
+
+	merged := foldEvents(t, kept).entries["m-aaaa"]
+	if len(kept) != 1 || merged.untilHold == nil || *merged.untilHold != rebound {
+		t.Errorf("a revive past the horizon should leave its hold in the new row, got %d rows, %+v", len(kept), merged.untilHold)
+	}
+}

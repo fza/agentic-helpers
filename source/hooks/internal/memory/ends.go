@@ -282,6 +282,22 @@ func (mem *memory) holdEnded(held *entry) bool {
 	return !found || current.Claimed != held.untilHold.Claimed
 }
 
+// reachedEnd is the condition a reached end retired an entry with, where
+// last is such a retire.
+func reachedEnd(last transition) (condition, bool) {
+	text, ended := strings.CutPrefix(last.because, endReached)
+	if !ended {
+		return condition{}, false
+	}
+
+	end, err := parseCondition(text)
+	if err != nil {
+		return condition{}, false
+	}
+
+	return end, true
+}
+
 // endSession retires the entries on seatName's shelf whose `session` end a
 // release or a session's end just reached.
 func (mem *memory) endSession(ctx context.Context, seatName string) {

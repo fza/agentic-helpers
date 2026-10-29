@@ -254,7 +254,9 @@ func (mem *memory) supersedable(successor string) func(folded *state, held *entr
 }
 
 func (mem *memory) revive(ctx context.Context, req request) result {
-	name, _ := mem.seated(ctx)
+	name, claim := mem.ownSeat(ctx)
+	// change marshals the payload after the check, which fills it.
+	revived := &revivePayload{}
 
 	_, _, failure, ok := mem.change(ctx, req.ID, false, func(folded *state, held *entry) error {
 		last, found := held.latest()
@@ -270,8 +272,17 @@ func (mem *memory) revive(ctx context.Context, req request) result {
 			return fmt.Errorf("%s body dropped; file it again", held.id)
 		}
 
+		end, reached := reachedEnd(last)
+
+		switch {
+		case reached && end.form == "session":
+			revived.UntilHold = &hold{Seat: mem.seatKey(name), Claimed: claim.Claimed}
+		case reached && mem.probe(ctx).met(ctx, held, end):
+			return fmt.Errorf("%s: its end %s still holds; file it again", held.id, end)
+		}
+
 		return nil
-	}, memorylog.KindRevive, "", nil)
+	}, memorylog.KindRevive, "", revived)
 	if !ok {
 		return failure
 	}

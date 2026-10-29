@@ -234,7 +234,7 @@ func TestClosedReadsAConnectedRepo(t *testing.T) {
 	}
 }
 
-func TestAReachedEndIsListedOnceAndRevives(t *testing.T) {
+func TestAReachedEndIsListedOnce(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	id := h.file("Gate todo ending at noon", "body", "--kind", "todo", "--until", "at:2026-10-25T12:00:00Z")
@@ -254,11 +254,80 @@ func TestAReachedEndIsListedOnceAndRevives(t *testing.T) {
 	if second := h.must("", "brief"); strings.Contains(second, "ended since last brief") {
 		t.Errorf("a reached end should be listed once:\n%s", second)
 	}
+}
 
-	h.must("", "revive", id)
+func TestAReviveRefusesAnEndThatStillHolds(t *testing.T) {
+	const gone = "internal/gate/gate.go"
 
-	if out := h.must("", "search", "--status", "live"); !strings.Contains(out, id) {
-		t.Errorf("revive should restore an entry a reached end retired:\n%s", out)
+	change := func(h *harness) { test.WriteFile(h.t, filepath.Join(h.repo, "README.md"), "# app, changed\n") }
+	changeBack := func(h *harness) { test.WriteFile(h.t, filepath.Join(h.repo, "README.md"), "# app\n") }
+	remove := func(h *harness) {
+		err := os.Remove(filepath.Join(h.repo, filepath.FromSlash(gone)))
+		if err != nil {
+			h.t.Fatal(err)
+		}
+	}
+	restore := func(h *harness) {
+		test.WriteFile(h.t, filepath.Join(h.repo, filepath.FromSlash(gone)), "package gate\n")
+	}
+	brief := func(h *harness, _ string) { h.must("", "brief") }
+
+	for _, tc := range []struct {
+		name  string
+		until string
+		reach func(h *harness)
+		// retire retires the entry once its end is reached.
+		retire func(h *harness, id string)
+		undo   func(h *harness)
+		holds  bool
+	}{
+		{name: "a file still changed", until: "changed:README.md", reach: change, retire: brief, holds: true},
+		{name: "a file changed back", until: "changed:README.md", reach: change, retire: brief, undo: changeBack},
+		{name: "a file still gone", until: "gone:" + gone, reach: remove, retire: brief, holds: true},
+		{name: "a file back again", until: "gone:" + gone, reach: remove, retire: brief, undo: restore},
+		{name: "a time passed", until: "at:2026-10-25T10:00:00Z", retire: brief, holds: true, reach: func(h *harness) {
+			h.clock.Advance(2 * time.Hour)
+		}},
+		{name: "a retire by hand naming the end", until: "gone:" + gone, reach: remove, retire: func(h *harness, id string) {
+			h.must("", "retire", id, "--because", "gone:"+gone)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+			id := h.file("Gate todo ending on a condition", "body", "--kind", "todo", "--until", tc.until)
+
+			tc.reach(h)
+			tc.retire(h, id)
+
+			if tc.undo != nil {
+				tc.undo(h)
+			}
+
+			got := h.run("", "revive", id)
+
+			if tc.holds {
+				if got.code != 1 || !strings.Contains(got.err, id+": its end "+tc.until+" still holds; file it again") {
+					t.Errorf("a revive should be refused while the end that retired the entry still holds, got %d %q", got.code, got.err)
+				}
+
+				return
+			}
+
+			if got.code != 0 {
+				t.Fatalf("a revive should restore an entry no reached end still holds retired, got %d %q", got.code, got.err)
+			}
+
+			if tc.undo == nil {
+				return
+			}
+
+			h.must("", "brief")
+
+			if live := h.must("", "search", "--status", "live"); !strings.Contains(live, id) {
+				t.Errorf("the revived entry should survive the next brief:\n%s", live)
+			}
+		})
 	}
 }
 
