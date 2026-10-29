@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func seenPointer(id string, title string) string {
@@ -160,5 +161,24 @@ func TestRecallSkipsAnEntryAReadPrinted(t *testing.T) {
 				t.Errorf("recall should name the entry only where no read printed it before:\n%s", out)
 			}
 		})
+	}
+}
+
+func TestAPointerHitWarmsAsAFullHitDid(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	id := h.file("Gate reads Bash only", "the gate reads Bash calls and nothing else")
+	h.must("", "show", id)
+
+	h.clock.Advance(time.Hour)
+
+	before := h.heatOf(id)
+	if out := strings.TrimSpace(h.must("", "show", id)); out != seenPointer(id, "Gate reads Bash only") {
+		t.Fatalf("a second show should print the pointer, got:\n%s", out)
+	}
+
+	if after := h.heatOf(id); !after.Used.After(before.Used) {
+		t.Error("a show answered by a pointer should warm the entry as a full show does")
 	}
 }
