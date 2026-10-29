@@ -914,9 +914,9 @@ refused with its command line:
 `agentic-memory help` lists every subcommand. A tool
 takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_SEATS`), and its
 schema says so with `additionalProperties: false`; any other key refuses the call with
-`agentic-memory: <tool> takes no key "<key>"; it takes <keys>`. The one exception is `json` on a
-read: no schema lists it, since a read answers JSON whatever it says, and a call still sending it
-is answered as without it.
+`agentic-memory: <tool> takes no key "<key>"; it takes <keys>`. The one exception is the key a
+read's command line takes as its JSON switch: no schema lists it, since a read answers JSON
+whatever it says, and a call still sending it is answered as without it.
 
 A tool's description says what it does in the words of its keys, never in command-line form: a
 flag or a `<placeholder>` there would name a shape the call does not take (`<id>...` where the key

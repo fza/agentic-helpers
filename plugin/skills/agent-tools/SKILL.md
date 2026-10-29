@@ -78,7 +78,7 @@ launcher, never by hand.
 
 Every verb is `mcp__plugin_agentic-helpers_tools__<verb>`: `find`, `list`, `take` (`names`), `add`,
 `update`, `merge` (`survivor`, `members`), `trust` (`path`), `reindex`. Keys exactly as the schema lists them.
-Every answer is JSON: `find` and `list` → their `--json` listing, whatever `json` says; any other
+Every answer is JSON: `find` and `list` → their `--json` listing; any other
 verb → `message` (the CLI text) beside what it did (`take` → `into`, `tools`); refused → error
 result, `{"error": "refused: ..."}`.
 

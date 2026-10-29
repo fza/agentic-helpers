@@ -105,7 +105,15 @@ func exactKeys(held command, arguments json.RawMessage) error {
 
 	var unknown []string
 
+	_, takesJSON := flagOf(held, "json")
+
 	for key := range given {
+		// A read answers JSON over MCP whatever json says, so the schema
+		// leaves the key out, and a call still sending it is let through.
+		if key == "json" && takesJSON {
+			continue
+		}
+
 		_, listed := schema.Properties[key]
 		if !listed {
 			unknown = append(unknown, fmt.Sprintf("%q", key))

@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -149,4 +153,43 @@ func UndescribedInputs(line string) ([]string, error) {
 	slices.Sort(gaps)
 
 	return gaps, nil
+}
+
+// mcpJSONKey matches prose naming an MCP json key: the bare key in backticks
+// or quotes. The command line's --json and the JSON keys of an answer do not
+// match.
+var mcpJSONKey = regexp.MustCompile("`json`|\"json\"")
+
+// MCPJSONKeyMentions lists every line of a Markdown file under root naming an
+// MCP json key, as file:line: text.
+func MCPJSONKeyMentions(root string) ([]string, error) {
+	var hits []string
+
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() || filepath.Ext(path) != ".md" {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", path, err)
+		}
+
+		for number, line := range strings.Split(string(content), "\n") {
+			if mcpJSONKey.MatchString(line) {
+				hits = append(hits, fmt.Sprintf("%s:%d: %s", path, number+1, line))
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walking %s: %w", root, err)
+	}
+
+	return hits, nil
 }

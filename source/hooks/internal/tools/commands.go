@@ -62,8 +62,6 @@ const (
 	number = `{"type":"integer","minimum":1}`
 )
 
-const jsonKey = `"json":{"type":"boolean","description":"no effect: every answer is JSON"}`
-
 // described is a key's schema with what the key is for.
 func described(schema, description string) string {
 	quoted, _ := json.Marshal(description)
@@ -88,13 +86,12 @@ func commands() []command {
 			run: (*library).find,
 			schema: `{"type":"object","properties":{"query":` + described(text, "a need, matched by meaning") +
 				`,"term":` + described(names, "literals, every one required") +
-				`,"limit":` + described(number, "tools per page") + `,"page":` + described(number, "the page to answer, from 1") +
-				`,` + jsonKey + `}}`,
+				`,"limit":` + described(number, "tools per page") + `,"page":` + described(number, "the page to answer, from 1") + `}}`,
 		},
 		{
 			name: "list", usage: "list [--json]", description: "list the own project's tools and how many each other project holds",
 			flags: []flagSpec{{"json", flagSwitch}}, run: (*library).list,
-			schema: `{"type":"object","properties":{` + jsonKey + `}}`,
+			schema: `{"type":"object","properties":{}}`,
 		},
 		{
 			name: "take", usage: "take <name>...", description: "copy the current version of each named tool into the checkout, all or none",
