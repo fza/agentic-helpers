@@ -18,8 +18,9 @@ them.
   built; without it, the session runs the release the plugin names.
 - **Never delete a binary a hook still runs.** A missing one leaves its hook doing nothing, and the
   grounding gate refusing every call it guards.
-- **Setting `AGENTIC_HELPERS_BIN_DIR` edits `~/.claude/settings.json`, which also holds
-  credentials.** Ask before writing to it.
+- **`AGENTIC_HELPERS_BIN_DIR` lives in this checkout's gitignored `.claude/settings.local.json`,
+  never in `~/.claude/settings.json`.** There it would hold every project on the machine to the last
+  `go install` build, so a release would reach no other session until installed by hand.
 
 ## The decision graph
 
