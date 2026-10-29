@@ -135,18 +135,51 @@ func TestPruningTakesTheOldestVersionFirst(t *testing.T) {
 	h := newHarness(t)
 	h.limitTools("1")
 
-	h.must("add", "word-count", "--from", h.sized("words-one", 200), "--summary", "Count the words of standard input",
+	h.must("add", "row-count", "--from", h.sized("rows-one", 150), "--summary", "Count the rows of a table",
 		"--usage", "python3 the script < file")
-	h.must("add", "line-count", "--from", h.sized("lines-one", 200), "--summary", "Count the lines of a file",
+	h.must("add", "word-count", "--from", h.sized("words-one", 150), "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file", "--distinct", "words, not rows")
+	h.must("add", "line-count", "--from", h.sized("lines-one", 150), "--summary", "Count the lines of a file",
 		"--usage", "python3 the script < file", "--distinct", "lines, not words")
-	h.must("update", "line-count", "--from", h.sized("lines-two", 200), "--why", "faster")
-	h.must("update", "word-count", "--from", h.sized("words-two", 200), "--why", "faster")
+	h.must("update", "line-count", "--from", h.sized("lines-two", 150), "--why", "faster")
+	h.must("update", "word-count", "--from", h.sized("words-two", 150), "--why", "faster")
 
-	h.must("add", "row-tally", "--from", h.sized("rows", 250), "--summary", "Tally the rows of a table",
-		"--usage", "python3 the script < file", "--distinct", "rows, not words")
+	added := h.run("", "add", "row-tally", "--from", h.sized("rows", 300), "--summary", "Tally the rows of a table",
+		"--usage", "python3 the script < file", "--distinct", "tally, not count")
 
-	if h.stored("word-count/v1") || !h.stored("line-count/v1") {
-		t.Error("a write needing room for one version should prune the oldest prunable one, and only it")
+	switch {
+	case !h.stored("row-count/v1"):
+		t.Fatal("a current version should never be pruned, the oldest one included")
+	case added.code != 0:
+		t.Fatalf("an add needing room should make it, got %d %q", added.code, added.err)
+	case h.stored("word-count/v1") || !h.stored("line-count/v1"):
+		t.Error("an add needing room for one version should prune the oldest prunable one, and only it")
+	}
+
+	h.must("update", "line-count", "--from", h.sized("lines-three", 200), "--why", "faster still")
+
+	if h.stored("line-count/v1") || !h.stored("line-count/v2") {
+		t.Error("an update needing room should prune the oldest prunable version, its own tool's current one never")
+	}
+}
+
+func TestAForkMakesRoomForBothItsVersions(t *testing.T) {
+	h := newHarness(t)
+	h.limitTools("1")
+
+	other := h.elsewhere(otherRepo)
+	other.limitTools("1")
+	other.must("add", "row-tally", "--from", other.sized("tally", 300), "--summary", "Tally the rows of a table",
+		"--usage", "python3 the script < file")
+
+	h.must("add", "word-count", "--from", h.sized("words-one", 300), "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file", "--distinct", "words, not rows")
+	h.must("update", "word-count", "--from", h.sized("words-two", 300), "--why", "faster")
+
+	h.must("update", "row-tally", "--from", h.sized("tally-fork", 100), "--why", "forked to count blank rows")
+
+	if h.stored("word-count/v1") || !h.stored("row-tally/v2") {
+		t.Error("a fork should make room for the copy it takes and its own version, pruning the oldest prunable one")
 	}
 }
 
@@ -248,4 +281,92 @@ func TestTheSpaceFigureIsTheIndexsRecordedSizes(t *testing.T) {
 	if got := tools.Space(h.home, 500).Used; got != want {
 		t.Errorf("space should come from the sizes the index recorded, never from the files on disk, got %d", got)
 	}
+}
+
+// tamperIndex rewrites the store's index.json the way a sandboxed process
+// writing the store could.
+func (h *harness) tamperIndex(change func(tools map[string]map[string]any)) {
+	h.t.Helper()
+
+	var held map[string]any
+
+	err := json.Unmarshal([]byte(h.read("index.json")), &held)
+	if err != nil {
+		h.t.Fatalf("index.json should decode: %v", err)
+	}
+
+	listed := map[string]map[string]any{}
+	for name, row := range held["tools"].(map[string]any) {
+		listed[name] = row.(map[string]any)
+	}
+
+	change(listed)
+	held["tools"] = listed
+
+	data, err := json.Marshal(held)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+
+	test.WriteFile(h.t, filepath.Join(h.store(), "index.json"), string(data))
+}
+
+func sizeEvery(row map[string]any, size float64) {
+	for _, hashes := range row["hashes"].(map[string]any) {
+		for _, hash := range hashes.([]any) {
+			hash.(map[string]any)["size"] = size
+		}
+	}
+}
+
+func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
+	cases := map[string]func(tools map[string]map[string]any){
+		"a size past the cap": func(tools map[string]map[string]any) { sizeEvery(tools["row-tally"], 1<<40) },
+		"a version with no folder": func(tools map[string]map[string]any) {
+			tools["ghost"] = map[string]any{
+				"version": 9, "name": "ghost", "summary": "s", "usage": "u", "files": []string{"g.py"},
+				"described": "x", "takers": []string{}, "roles": []string{}, "written": map[string]string{},
+				"hashes": map[string]any{"v9": []map[string]any{{"name": "g.py", "sum": "00", "size": 1 << 20}}},
+			}
+		},
+	}
+
+	for name, tamper := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.limitTools("1")
+
+			h.must("add", "word-count", "--from", h.sized("words-one", 200), "--summary", "Count the words of standard input",
+				"--usage", "python3 the script < file")
+			h.must("update", "word-count", "--from", h.sized("words-two", 200), "--why", "faster")
+
+			other := h.elsewhere(otherRepo)
+			other.must("add", "row-tally", "--from", other.sized("tally", 200), "--summary", "Tally the rows of a table",
+				"--usage", "python3 the script < file", "--distinct", "rows, not words")
+			other.tamperIndex(tamper)
+
+			got := h.run("", "add", "line-count", "--from", h.sized("lines", 100), "--summary", "Count the lines of a file",
+				"--usage", "python3 the script < file", "--distinct", "lines, not words")
+			if got.code != 0 || !h.stored("word-count/v1") {
+				t.Errorf("a write with room on disk should prune nothing, whatever another store's index claims, got %d %q",
+					got.code, got.err)
+			}
+		})
+	}
+}
+
+func TestANegativeSizeCannotDefeatTheLimit(t *testing.T) {
+	h := newHarness(t)
+	h.limitTools("1")
+
+	other := h.elsewhere(otherRepo)
+	other.must("add", "row-tally", "--from", other.sized("tally", 300), "--summary", "Tally the rows of a table",
+		"--usage", "python3 the script < file")
+	other.tamperIndex(func(tools map[string]map[string]any) { sizeEvery(tools["row-tally"], -(1 << 40)) })
+
+	h.must("add", "word-count", "--from", h.sized("words", 300), "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file", "--distinct", "words, not rows")
+
+	h.refused("no version is left to prune", "add", "line-count", "--from", h.sized("lines", 500), "--summary",
+		"Count the lines of a file", "--usage", "python3 the script < file", "--distinct", "lines, not words")
 }
