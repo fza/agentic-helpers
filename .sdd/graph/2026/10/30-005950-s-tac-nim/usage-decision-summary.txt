@@ -1,0 +1,207 @@
+thinking {'thinking_blocks': 52101, 'thinking_with_text': 3195}
+scope all finds/lists with hits 37 Counter({'find': 23, 'list': 14})
+dev sessions 10
+followed by take 20 by kind Counter({'find': 15, 'list': 5})
+rank of first matched take Counter({1: 10, 2: 4, 4: 2, 16: 1, 17: 1, 11: 1, 6: 1})
+hits per lookup when taken Counter({1: 8, 2: 3, 38: 1, 3: 1, 18: 1, 6: 1, 4: 1, 32: 1, 33: 1, 12: 1, 10: 1})
+same-call take 1
+untaken 17 superseded by another lookup 4 own script after 6
+reasoning blocks present (lookups with any text/thinking before take or window end) 19 with thinking 1
+citations {('summary-only', 'no-take'): 8, ('neither', 'no-take'): 5, ('neither', 'take'): 15, ('both', 'no-take'): 3, ('summary-only', 'take'): 5, ('usage-only', 'no-take'): 1}
+
+794c9630-a0a2 list NOTAKE sup dev=False hits=34 usage=0 rb={'text': 7}
+   hits ['above-below-links', 'bare-section-links', 'bare-section-mark-links', 'citation-rewrite', 'concept-citation-fit', 'doc-citation-retarget']
+   summary-cited {'above-below-links': ['another', 'links', 'moved', 'reference', 'section', 'split'], 'bare-section-links': ['citations', 'links', 'moved', 'section'], 'bare-section-mark-links': ['links', 'moved', 'section'], 'citation-rewrite': ['citations', 'moved', 'section', 'taken'], 'concept-citation-fit': ['checks', 'citations', 'words'], 'doc-citation-retarget': ['autopilot', 'listed', 'moved', 'taken'], 'doc-diff-citations-masked': ['changes', 'citations'], 'doc-move-recite': ['across', 'links', 'moved', 'recite', 'taken'], 'doc-move-spec': ['links', 'taken'], 'doc-move-spec-blocks': ['blocks', 'section', 'split'], 'doc-move-spec-coverage': ['coverage', 'report'], 'doc-move-spec-split': ['blocks', 'section', 'split'], 'doc-range-words': ['count', 'range', 'words'], 'doc-range-words-refs': ['count', 'counts', 'exactly', 'range', 'words'], 'doc-section-move': ['commit', 'links', 'moved', 'section', 'taken'], 'doc-section-words': ['counts', 'section', 'words'], 'doc-words-ignoring-citations': ['breaks', 'citations', 'links', 'section', 'words'], 'docs-folder-page-coverage': ['count', 'coverage', 'named'], 'exact-replace': ['exact', 'exactly', 'found', 'listed'], 'fenced-links-to-paths': ['blocks', 'links', 'write'], 'ledger-section-rows': ['moved', 'section', 'taken'], 'markdown-fence-links': ['links'], 'moved-doc-sentence-diff': ['another', 'autopilot', 'moved', 'taken'], 'moved-sentences': ['branch', 'links', 'moved', 'removed', 'sentences', 'still'], 'paragraph-split': ['keeping', 'paragraph', 'paragraphs', 'parts', 'split'], 'paragraph-split-report': ['paragraph', 'report', 'split'], 'quoted-phrase-check': ['citations'], 'section-word-count': ['count', 'range', 'section'], 'setless-citations': ['citations', 'rules', 'section', 'setless'], 'spec-line-coverage': ['coverage', 'report'], 'split-long-paragraphs': ['order', 'paragraphs', 'sentences', 'split', 'whole'], 'worktree-word-diff-review': ['citations', 'review', 'worktree']}
+   reason-words ['instead', 'wrong']
+794c9630-a0a2 list NOTAKE own dev=False hits=5 usage=0 rb={'text': 10}
+   hits ['bare-section-links', 'doc-move-spec-split', 'paragraph-split', 'section-word-count', 'spec-line-coverage']
+   summary-cited {'bare-section-links': ['links', 'moved', 'section'], 'doc-move-spec-split': ['split'], 'paragraph-split': ['named', 'paragraph', 'paragraphs', 'split'], 'section-word-count': ['count', 'heading', 'range', 'section', 'words'], 'spec-line-coverage': ['coverage', 'report', 'source']}
+   reason-words ['arguments', 'expects', 'instead', 'my own', 'usage']
+794c9630-a0a2 list NOTAKE own dev=False hits=38 usage=0 rb={'text': 7}
+   hits ['above-below-links', 'bare-section-links', 'citation-rewrite', 'concept-citation-fit', 'doc-citation-retarget', 'doc-citation-scan']
+   summary-cited {'above-below-links': ['moved', 'section', 'split'], 'bare-section-links': ['citations', 'moved', 'rewrite', 'section', 'taken'], 'citation-rewrite': ['citation', 'citations', 'moved', 'rewrite', 'section', 'taken'], 'concept-citation-fit': ['citation', 'citations', 'sentence', 'words'], 'doc-citation-retarget': ['citation', 'moved', 'retarget', 'rewrite', 'taken'], 'doc-citation-scan': ['citation'], 'doc-citation-weak-repick': ['citation', 'heading', 'moved', 'recite', 'repick'], 'doc-diff-citations-masked': ['citations', 'compare', 'masked'], 'doc-heading-subtree-words': ['heading', 'subtree', 'words'], 'doc-lead-in-outline': ['heading', 'outline', 'paragraph', 'split', 'start', 'until'], 'doc-move-coverage': ['coverage', 'moved', 'section', 'taken'], 'doc-move-recite': ['citation', 'moved', 'pages', 'recite', 'rewrite', 'taken'], 'doc-move-spec': ['headings', 'taken'], 'doc-move-spec-split': ['section', 'split', 'taken'], 'doc-section-move': ['headings', 'moved', 'section', 'taken'], 'doc-section-words': ['count', 'section', 'split', 'words'], 'doc-words-ignoring-citations': ['citations', 'ignoring', 'section', 'words'], 'docs-citation-rewrite': ['citation', 'moved', 'rewrite'], 'docs-folder-page-coverage': ['count', 'coverage', 'neither'], 'docs-set-split': ['adding', 'headings', 'split'], 'fenced-links-to-paths': ['inside'], 'folder-index-check': ['check'], 'ledger-rehome-moved-doc': ['heading', 'ledger', 'moved', 'rehome', 'rewrite'], 'ledger-section-rows': ['citation', 'heading', 'ledger', 'moved', 'section', 'taken'], 'markdown-fence-links': ['inside'], 'moved-doc-headings': ['check', 'heading', 'headings', 'moved', 'taken'], 'moved-doc-sentence-diff': ['headings', 'moved', 'sentence', 'taken'], 'moved-sentence-check': ['check', 'moved', 'sentence'], 'moved-sentences': ['branch', 'moved', 'sentences', 'still', 'taken'], 'paragraph-split': ['limit', 'paragraph', 'sentence', 'split', 'taken'], 'quoted-phrase-check': ['check', 'citations'], 'section-word-count': ['check', 'count', 'counted', 'counts', 'heading', 'section'], 'spec-line-coverage': ['coverage', 'taken'], 'vale-paragraph-split': ['paragraph', 'sentence', 'split'], 'worktree-word-diff-review': ['citations']}
+794c9630-a0a2 list NOTAKE sup dev=False hits=2 usage=0 rb={'text': 3}
+   hits ['above-below-links', 'bare-section-links']
+   summary-cited {'above-below-links': ['moved'], 'bare-section-links': ['moved']}
+   reason-words ['different']
+agent-a1d1796 list NOTAKE dev=False hits=38 usage=0 rb={}
+   hits ['above-below-links', 'bare-section-links', 'citation-relink', 'citation-rewrite', 'concept-citation-fit', 'doc-citation-scan']
+agent-ac56609 list NOTAKE sup own dev=False hits=5 usage=0 rb={'text': 2}
+   hits ['bare-section-links', 'doc-move-spec-split', 'paragraph-split', 'section-word-count', 'spec-line-coverage']
+   summary-cited {'bare-section-links': ['rewrite']}
+agent-ac56609 list TAKE r16 dev=False hits=38 usage=0 rb={}
+   hits ['above-below-links', 'bare-section-links', 'citation-rewrite', 'concept-citation-fit', 'doc-citation-retarget', 'doc-citation-scan']
+   take {'names': ['doc-section-words', 'doc-heading-subtree-words', 'doc-lead-in-outline', 'vale-paragraph-split', 'doc-move-recite', 'docs-citation-rewrite', 'citation-rewrite', 'doc-citation-retarget', 'doc-citation-weak-repick', 'moved-sentences', 'moved-sentence-check', 'moved-doc-sentence-diff', 'doc-diff-citations-masked', 'doc-words-ignoring-citations', 'doc-move-coverage', 'moved-doc-headings', 'ledger-section-rows', 'ledger-rehome-moved-doc', 'doc-move-spec', 'docs-set-split'], 'matched': ['doc-section-words', 'doc-heading-subtree-words', 'doc-lead-in-outline', 'vale-paragraph-split', 'doc-move-recite', 'docs-citation-rewrite', 'citation-rewrite', 'doc-citation-retarget', 'doc-citation-weak-repick', 'moved-sentences', 'moved-sentence-check', 'moved-doc-sentence-diff', 'doc-diff-citations-masked', 'doc-words-ignoring-citations', 'doc-move-coverage', 'moved-doc-headings', 'ledger-section-rows', 'ledger-rehome-moved-doc', 'doc-move-spec', 'docs-set-split'], 'rank': 16, 'ranks': [16, 9, 10, 37, 12, 18, 3, 5, 7, 32, 31, 30, 8, 17, 11, 29, 27, 26, 13, 20], 'distance': 1}
+   run {'tool': 'doc-section-words', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'doc-heading-subtree-words', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'doc-lead-in-outline', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'vale-paragraph-split', 'read_first': True, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'doc-move-recite', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'recite_all.py', 'usage_required_positionals': 2, 'usage_variadic': False, 'run_positionals': 0, 'shape': 'fewer-positionals'}
+   run {'tool': 'docs-citation-rewrite', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': False, 'flags_outside_usage': ['--apply'], 'flags_used': [], 'script': None, 'usage_required_positionals': 0, 'usage_variadic': False, 'run_positionals': 0, 'shape': 'no-script-in-usage'}
+   run {'tool': 'citation-rewrite', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'recite.py', 'usage_required_positionals': 2, 'usage_variadic': True, 'run_positionals': 2, 'shape': 'conforms'}
+   run {'tool': 'doc-citation-retarget', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'doc-citation-weak-repick', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'moved-sentences', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'moved-sentence-check', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'moved-doc-sentence-diff', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'doc-diff-citations-masked', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'doc-words-ignoring-citations', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'doc-move-coverage', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'moved-doc-headings', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'ledger-section-rows', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'ledger-rehome-moved-doc', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+   run {'tool': 'doc-move-spec', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'docs-set-split', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+agent-ac56609 list NOTAKE sup dev=False hits=9 usage=0 rb={}
+   hits ['citation-rewrite', 'doc-diff-citations-masked', 'doc-move-coverage', 'doc-move-recite', 'doc-move-spec', 'ledger-section-rows']
+0dbf3a14-ed16 find NOTAKE dev=True hits=10 usage=10 rb={'text': 4}
+   hits ['above-below-links', 'bare-section-links', 'citation-relink', 'concept-citation-fit', 'doc-move-coverage', 'doc-move-recite']
+   usage-cited {'above-below-links': ['fdbox'], 'bare-section-links': ['fdbox'], 'doc-move-coverage': ['instead', 'near', 'search'], 'doc-move-recite': ['missed', 'token'], 'doc-move-spec': ['source', 'write', 'writes'], 'doc-section-move': ['first']}
+   summary-cited {'above-below-links': ['another', 'whose'], 'citation-relink': ['another'], 'concept-citation-fit': ['noisy', 'tokens', 'whose'], 'doc-move-coverage': ['check'], 'doc-section-move': ['whose'], 'exact-replace-spec': ['exact', 'replace'], 'exact-replace': ['exact', 'replace']}
+   reason-words ['flags', 'instead', 'usage', 'wrong']
+39914652-754a find NOTAKE dev=True hits=1 usage=0 rb={'text': 3}
+   hits ['citation-relink']
+5c154347-e3a0 find TAKE r1 dev=True hits=1 usage=1 rb={}
+   hits ['guard-break']
+   take {'names': ['guard-break'], 'matched': ['guard-break'], 'rank': 1, 'ranks': [1], 'distance': 1}
+   run {'tool': 'guard-break', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--root', '--timeout'], 'interpreter_same': True, 'script': 'guard_break.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+7acb7025-2543 list NOTAKE dev=True hits=2 usage=0 rb={}
+   hits ['guard-break', 'release-after-ci']
+8109b4dc-59f4 list TAKE r1 dev=True hits=1 usage=0 rb={'text': 1}
+   hits ['guard-break']
+   take {'names': ['guard-break'], 'matched': ['guard-break'], 'rank': 1, 'ranks': [1], 'distance': 1}
+   run {'tool': 'guard-break', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--root'], 'interpreter_same': True, 'script': 'guard_break.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+8109b4dc-59f4 find NOTAKE own dev=True hits=1 usage=1 rb={'thinking': 1, 'text': 9}
+   hits ['guard-break']
+   usage-cited {'guard-break': ['breaks', 'guard_break', 'guard_break.py']}
+   summary-cited {'guard-break': ['break', 'guard', 'restore', 'tests']}
+8109b4dc-59f4 find NOTAKE dev=True hits=1 usage=1 rb={'text': 2}
+   hits ['guard-break']
+   summary-cited {'guard-break': ['break', 'guard']}
+884e79ee-b285 find TAKE r1 dev=True hits=1 usage=1 rb={}
+   hits ['guard-break']
+   take {'names': ['guard-break'], 'matched': ['guard-break'], 'rank': 1, 'ranks': [1], 'distance': 1}
+   run {'tool': 'guard-break', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--root', '--timeout'], 'interpreter_same': True, 'script': 'guard_break.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+a8f6c276-f5fa find TAKE r1 dev=True hits=2 usage=2 rb={}
+   hits ['release-after-ci', 'tag-pipeline-jobs']
+   take {'names': ['release-after-ci'], 'matched': ['release-after-ci'], 'rank': 1, 'ranks': [1], 'distance': 1}
+   run {'tool': 'release-after-ci', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'release_after_ci.sh', 'usage_required_positionals': 0, 'usage_variadic': False, 'run_positionals': 4, 'shape': 'conforms'}
+ddb0272b-7626 find TAKE r1 dev=True hits=1 usage=1 rb={}
+   hits ['guard-break']
+   take {'names': ['guard-break'], 'matched': ['guard-break'], 'rank': 1, 'ranks': [1], 'distance': 1}
+   run {'tool': 'guard-break', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--root', '--timeout'], 'interpreter_same': True, 'script': 'guard_break.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+0a2e8a6d-8d50 find TAKE r2 dev=False hits=3 usage=3 rb={}
+   hits ['section-word-count', 'doc-range-words-refs', 'doc-range-words']
+   take {'names': ['doc-range-words-refs'], 'matched': ['doc-range-words-refs'], 'rank': 2, 'ranks': [2], 'distance': 1}
+   run {'tool': 'doc-range-words-refs', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'words.py', 'usage_required_positionals': 2, 'usage_variadic': True, 'run_positionals': 14, 'shape': 'conforms'}
+1093f3a0-faf6 find TAKE r1 dev=False hits=1 usage=1 rb={}
+   hits ['doc-section-move']
+   take {'names': ['doc-section-move'], 'matched': ['doc-section-move'], 'rank': 1, 'ranks': [1], 'distance': 1}
+   run {'tool': 'doc-section-move', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--map'], 'interpreter_same': True, 'script': 'docmove.py', 'usage_required_positionals': 3, 'usage_variadic': False, 'run_positionals': 4, 'shape': 'conforms'}
+14138507-1aae list TAKE r17 dev=False hits=18 usage=0 rb={'text': 1}
+   hits ['bare-section-links', 'citation-rewrite', 'doc-citation-retarget', 'doc-citation-scan', 'doc-move-recite', 'doc-move-spec']
+   summary-cited {'doc-range-words': ['moving'], 'setless-citations': ['rules']}
+   take {'names': ['section-word-count', 'doc-section-move', 'doc-move-spec-split', 'doc-move-recite', 'doc-citation-scan', 'citation-rewrite', 'doc-move-spec'], 'matched': ['section-word-count', 'doc-section-move', 'doc-move-spec-split', 'doc-move-recite', 'doc-citation-scan', 'citation-rewrite', 'doc-move-spec'], 'rank': 17, 'ranks': [17, 10, 8, 5, 4, 2, 6], 'distance': 5}
+   run {'tool': 'section-word-count', 'read_first': True, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'doc-section-move', 'read_first': True, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--map'], 'interpreter_same': True, 'script': 'docmove.py', 'usage_required_positionals': 3, 'usage_variadic': False, 'run_positionals': 4, 'shape': 'conforms'}
+   run {'tool': 'doc-move-spec-split', 'read_first': True, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'split_spec.py', 'usage_required_positionals': 2, 'usage_variadic': False, 'run_positionals': 2, 'shape': 'conforms'}
+   run {'tool': 'doc-move-recite', 'read_first': True, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'doc-citation-scan', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'citation-rewrite', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'doc-move-spec', 'read_first': True, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': ['--map'], 'flags_used': [], 'interpreter_same': True, 'script': 'docmove.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 4, 'shape': 'flag-outside-usage'}
+15b593e6-467a find TAKE r4 dev=False hits=6 usage=6 rb={}
+   hits ['citation-rewrite', 'doc-move-recite', 'citation-relink', 'retarget-index-citation', 'index-citation-context', 'section-mark-out-of-link']
+   take {'names': ['retarget-index-citation', 'index-citation-context'], 'matched': ['retarget-index-citation', 'index-citation-context'], 'rank': 4, 'ranks': [4, 5], 'distance': 1}
+   run {'tool': 'retarget-index-citation', 'read_first': False, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'retarget.py', 'usage_required_positionals': 2, 'usage_variadic': False, 'run_positionals': 2, 'shape': 'conforms'}
+   run {'tool': 'index-citation-context', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'ctx.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 3, 'shape': 'conforms'}
+2e0c0438-4384 find TAKE r1 dev=False hits=4 usage=4 rb={}
+   hits ['retarget-index-citation', 'index-citation-context', 'folder-index-check', 'citation-relink']
+   take {'names': ['retarget-index-citation', 'index-citation-context'], 'matched': ['retarget-index-citation', 'index-citation-context'], 'rank': 1, 'ranks': [1, 2], 'distance': 1}
+   run {'tool': 'retarget-index-citation', 'read_first': False, 'ran': False, 'usage_in_lookup': True, 'usage_known': True}
+   run {'tool': 'index-citation-context', 'read_first': False, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'ctx.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 3, 'shape': 'conforms'}
+32d06fa4-bcc7 list TAKE r11 dev=False hits=32 usage=0 rb={'text': 1}
+   hits ['above-below-links', 'bare-section-links', 'citation-rewrite', 'concept-citation-fit', 'doc-citation-retarget', 'doc-citation-scan']
+   summary-cited {'doc-words-ignoring-citations': ['fdbox'], 'ledger-section-rows': ['moves']}
+   take {'names': ['doc-move-spec-split', 'doc-section-move', 'doc-move-recite', 'section-word-count', 'spec-line-coverage', 'folder-index-check', 'ledger-section-rows'], 'matched': ['doc-move-spec-split', 'doc-section-move', 'doc-move-recite', 'section-word-count', 'spec-line-coverage', 'folder-index-check', 'ledger-section-rows'], 'rank': 11, 'ranks': [11, 12, 9, 29, 30, 21, 22], 'distance': 7}
+   run {'tool': 'doc-move-spec-split', 'read_first': True, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'split_spec.py', 'usage_required_positionals': 2, 'usage_variadic': False, 'run_positionals': 2, 'shape': 'conforms'}
+   run {'tool': 'doc-section-move', 'read_first': True, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--map'], 'interpreter_same': True, 'script': 'docmove.py', 'usage_required_positionals': 3, 'usage_variadic': False, 'run_positionals': 4, 'shape': 'conforms'}
+   run {'tool': 'doc-move-recite', 'read_first': True, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'section-word-count', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': ['--level'], 'flags_used': [], 'interpreter_same': True, 'script': 'secwc.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 2, 'shape': 'flag-outside-usage'}
+   run {'tool': 'spec-line-coverage', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': ['--lines'], 'flags_used': [], 'interpreter_same': True, 'script': 'coverage.py', 'usage_required_positionals': 8, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'flag-outside-usage'}
+   run {'tool': 'folder-index-check', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'ledger-section-rows', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+39f2fd6d-c94b find NOTAKE dev=False hits=1 usage=1 rb={'text': 5}
+   hits ['guard-break']
+   usage-cited {'guard-break': ['breaks']}
+   summary-cited {'guard-break': ['guard']}
+453d65c2-6076 find TAKE r2 dev=False hits=33 usage=5 rb={}
+   hits ['doc-section-move', 'doc-move-spec', 'doc-move-spec-split', 'section-word-count', 'doc-move-spec-blocks', 'above-below-links']
+   take {'names': ['doc-move-spec', 'doc-move-recite', 'section-word-count', 'doc-citation-scan', 'ledger-section-rows', 'folder-index-check', 'spec-line-coverage'], 'matched': ['doc-move-spec', 'doc-move-recite', 'section-word-count', 'doc-citation-scan', 'ledger-section-rows', 'folder-index-check', 'spec-line-coverage'], 'rank': 2, 'ranks': [2, 14, 4, 12, 24, 23, 33], 'distance': 1}
+   run {'tool': 'doc-move-spec', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'docmove.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+   run {'tool': 'doc-move-recite', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--dry'], 'interpreter_same': True, 'script': 'recite_all.py', 'usage_required_positionals': 2, 'usage_variadic': False, 'run_positionals': 0, 'shape': 'fewer-positionals'}
+   run {'tool': 'section-word-count', 'read_first': False, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'secwc.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+   run {'tool': 'doc-citation-scan', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'ledger-section-rows', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'folder-index-check', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'indexcheck.py', 'usage_required_positionals': 1, 'usage_variadic': True, 'run_positionals': 1, 'shape': 'conforms'}
+   run {'tool': 'spec-line-coverage', 'read_first': False, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'coverage.py', 'usage_required_positionals': 8, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'fewer-positionals'}
+474ccb96-7532 find TAKE r2 dev=False hits=2 usage=2 rb={'text': 1}
+   hits ['moved-doc-sentence-diff', 'moved-sentences']
+   summary-cited {'moved-doc-sentence-diff': ['moved'], 'moved-sentences': ['sentences']}
+   take {'names': ['moved-sentences', 'moved-doc-sentence-diff'], 'matched': ['moved-sentences', 'moved-doc-sentence-diff'], 'rank': 2, 'ranks': [2, 1], 'distance': 1}
+   run {'tool': 'moved-sentences', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'moved.py', 'usage_required_positionals': 5, 'usage_variadic': True, 'run_positionals': 5, 'shape': 'conforms'}
+   run {'tool': 'moved-doc-sentence-diff', 'read_first': False, 'ran': False, 'usage_in_lookup': True, 'usage_known': True}
+49366b8b-d96f find NOTAKE own dev=False hits=5 usage=5 rb={'text': 2}
+   hits ['doc-diff-citations-masked', 'doc-move-coverage', 'section-word-count', 'moved-sentences', 'doc-move-recite']
+   usage-cited {'doc-diff-citations-masked': ['reading'], 'doc-move-coverage': ['base'], 'moved-sentences': ['base']}
+53b9f133-d2d4 list NOTAKE own dev=False hits=2 usage=0 rb={'text': 3}
+   hits ['markdown-fence-links', 'setless-citations']
+   summary-cited {'setless-citations': ['fdbox']}
+635a0965-9555 find TAKE r1 dev=False hits=1 usage=1 rb={}
+   hits ['moved-sentences']
+   take {'names': ['moved-sentences'], 'matched': ['moved-sentences'], 'rank': 1, 'ranks': [1], 'distance': 1}
+   run {'tool': 'moved-sentences', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'moved.py', 'usage_required_positionals': 5, 'usage_variadic': True, 'run_positionals': 5, 'shape': 'conforms'}
+6e893fef-12cc find TAKE r1 dev=False hits=1 usage=1 rb={}
+   hits ['paragraph-split']
+   take {'names': ['paragraph-split'], 'matched': ['paragraph-split'], 'rank': 1, 'ranks': [1], 'distance': 2}
+   run {'tool': 'paragraph-split', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--even', '--limit', '--report', '--wrap'], 'interpreter_same': True, 'script': 'splitpara.py', 'usage_required_positionals': 2, 'usage_variadic': True, 'run_positionals': 3, 'shape': 'conforms'}
+7deffea2-a263 find TAKE r2 dev=False hits=2 usage=2 rb={}
+   hits ['markdown-empty-headings', 'docs-empty-headings']
+   take {'names': ['docs-empty-headings'], 'matched': ['docs-empty-headings'], 'rank': 2, 'ranks': [2], 'distance': 1}
+   run {'tool': 'docs-empty-headings', 'read_first': False, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'headings.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+93a7834f-d59f find TAKE r1 dev=False hits=1 usage=1 rb={'text': 1}
+   hits ['moved-doc-sentence-diff']
+   summary-cited {'moved-doc-sentence-diff': ['moved', 'sentence']}
+   take {'names': ['moved-doc-sentence-diff'], 'matched': ['moved-doc-sentence-diff'], 'rank': 1, 'ranks': [1], 'distance': 3}
+   run {'tool': 'moved-doc-sentence-diff', 'read_first': False, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--new', '--old'], 'interpreter_same': True, 'script': 'movediff.py', 'usage_required_positionals': 5, 'usage_variadic': True, 'run_positionals': 19, 'shape': 'conforms'}
+a3adc5e9-738d list TAKE r6 dev=False hits=12 usage=0 rb={}
+   hits ['citation-rewrite', 'doc-citation-retarget', 'doc-move-spec', 'doc-move-spec-split', 'doc-range-words', 'doc-section-move']
+   take {'names': ['doc-section-move', 'doc-move-spec-split', 'section-word-count', 'citation-rewrite', 'doc-citation-retarget'], 'matched': ['doc-section-move', 'doc-move-spec-split', 'section-word-count', 'citation-rewrite', 'doc-citation-retarget'], 'rank': 6, 'ranks': [6, 4, 11, 1, 2], 'distance': 1}
+   run {'tool': 'doc-section-move', 'read_first': True, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': ['--map'], 'interpreter_same': True, 'script': 'docmove.py', 'usage_required_positionals': 3, 'usage_variadic': False, 'run_positionals': 4, 'shape': 'conforms'}
+   run {'tool': 'doc-move-spec-split', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'section-word-count', 'read_first': True, 'ran': True, 'usage_in_lookup': False, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'secwc.py', 'usage_required_positionals': 1, 'usage_variadic': False, 'run_positionals': 1, 'shape': 'conforms'}
+   run {'tool': 'citation-rewrite', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': True}
+   run {'tool': 'doc-citation-retarget', 'read_first': False, 'ran': False, 'usage_in_lookup': False, 'usage_known': False}
+c048f2b1-d25b find NOTAKE dev=False hits=4 usage=4 rb={'text': 2}
+   hits ['doc-move-recite', 'citation-rewrite', 'doc-move-spec', 'doc-move-coverage']
+   summary-cited {'doc-move-recite': ['moved'], 'citation-rewrite': ['moved']}
+f8aabd85-178d find TAKE r4 dev=False hits=10 usage=10 rb={'text': 1}
+   hits ['moved-doc-sentence-diff', 'doc-section-move', 'doc-move-spec', 'doc-move-coverage', 'moved-doc-headings', 'doc-diff-citations-masked']
+   summary-cited {'doc-move-coverage': ['coverage']}
+   take {'names': ['doc-move-coverage', 'moved-doc-headings'], 'matched': ['doc-move-coverage', 'moved-doc-headings'], 'rank': 4, 'ranks': [4, 5], 'distance': 2}
+   run {'tool': 'doc-move-coverage', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'movecheck.py', 'usage_required_positionals': 5, 'usage_variadic': True, 'run_positionals': 28, 'shape': 'conforms'}
+   run {'tool': 'moved-doc-headings', 'read_first': True, 'ran': True, 'usage_in_lookup': True, 'usage_known': True, 'flags_outside_usage': [], 'flags_used': [], 'interpreter_same': True, 'script': 'headings.py', 'usage_required_positionals': 3, 'usage_variadic': False, 'run_positionals': 3, 'shape': 'conforms'}
+fa2adf54-17a6 find NOTAKE dev=False hits=1 usage=1 rb={}
+   hits ['doc-section-move']
+
+== run analysis (excluding agent-ac56609 tool-merge maintenance and dev sessions)
+usage-shown-at-choice/single {'taken': 14, 'ran': 12, 'read-source-first': 8, 'never-ran-in-40': 2}
+no-usage-at-choice/bulk {'taken': 24, 'never-ran-in-40': 12, 'read-source-first': 10, 'ran': 12}
+usage-shown-at-choice/bulk {'taken': 2, 'ran': 2, 'read-source-first': 1}
+run shapes {'conforms': 21, 'flag-outside-usage': 3, 'fewer-positionals': 2}
+   agent-ac56609 doc-move-recite fewer-positionals req 2 got 0 []
+   agent-ac56609 docs-citation-rewrite no-script-in-usage req 0 got 0 ['--apply']
+   14138507-1aae doc-move-spec flag-outside-usage req 1 got 4 ['--map']
+   32d06fa4-bcc7 section-word-count flag-outside-usage req 1 got 2 ['--level']
+   32d06fa4-bcc7 spec-line-coverage flag-outside-usage req 8 got 1 ['--lines']
+   453d65c2-6076 doc-move-recite fewer-positionals req 2 got 0 []
+   453d65c2-6076 spec-line-coverage fewer-positionals req 8 got 1 []
