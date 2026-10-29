@@ -42,6 +42,9 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
   <topic>`; `<id> carries no topic <topic>`.
 - The brief shows notes up to `brief_note_limit` (10). A state line reads
   `state (3h old, branch main): ...`.
+- `space left: attachments <left> of <limit>, tools <left> of <limit>` in the brief → that store
+  has under a tenth of its limit (`attachments_total_mb`, `tools_total_mb`) left; only the low
+  store is named. No line → room in both.
 - `--until closed:` refused `closed: needs sdd export, which this sdd lacks` → pick another form.
 - `--until session` watches the seat's claim, not the session id: `/clear` and `/resume` keep it,
   release, session end or another claim of the seat end it. Ended and still needed → `revive`: it

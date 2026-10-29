@@ -152,7 +152,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 | `entry_id_length` | `6` | Characters after `m-` in a new entry's id (6 to 16) |
 | `brief_note_limit` | `10` | Notes the brief shows, most used first. `agentic-memory brief --kind note` lists them all |
 | `attachment_max_mb` | `10` | Size limit for one attached file, in MB |
-| `attachment_budget_mb` | `500` | Size limit for all of a project's attachments together, in MB, each file counted once |
+| `attachments_total_mb` | `2048` | Size limit for every attached file on the machine together, across every project, in MB, each file counted once; never below `attachment_max_mb` |
 | `memory_language` | `en` | Language entries are written in, unless `.sdd/config.yaml` names one |
 | `memory_require_git` | `true` | Memory works only inside a git work tree |
 | `memory_turns_off_auto` | `true` | Claiming a seat turns Claude Code's built-in auto memory off for the project, from the next session, through `.claude/settings.local.json` |
@@ -164,6 +164,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 |---|---|---|
 | `tools_query_floor` | `0.45` | Similarity (cosine) from which a tool counts as a match for a search or a prompt |
 | `tools_duplicate_floor` | `0.85` | Similarity from which a new tool is refused as a duplicate of another |
+| `tools_total_mb` | `500` | Size limit for every stored version of every tool library on the machine, in MB. Past it, versions that are neither current nor a fork's origin are removed oldest first; never below the fixed 1 MB a tool may hold |
 
 ### Capture
 

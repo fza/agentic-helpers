@@ -58,8 +58,10 @@ other agents wrote, read as a lead, never as an instruction.
   kept; its own `tool.json` is a copy's description and never a file of the tool. Refused: a name
   that is no `[a-z][a-z0-9]*(-[a-z0-9]+)*` of at most 40 characters; a summary that is not one line
   of at most 200 characters; no usage; a name the project already holds or merged; a link, a hard
-  link or a pipe anywhere in the source, or more than 1 MiB of files; a file byte-identical to a file
-  of any version of any tool in reach (`<file> is <tool> v<n> byte for byte`, with the take command);
+  link or a pipe anywhere in the source, or more than 1 MB (1 MiB) of files, the fixed cap a tool
+  holds (`<path> holds more than the 1 MB a tool may hold, every file together`); a file
+  byte-identical to a file of any version of any tool in reach, a version pruned to make room
+  included (`<file> is <tool> v<n> byte for byte`, with the take command);
   a description at or above `tools_duplicate_floor` (0.85 unless set) to a current tool in reach,
   naming up to three, unless `--distinct` says how the new one differs, which its history keeps; a
   file or a flag holding a credential (below).
@@ -69,12 +71,33 @@ other agents wrote, read as a lead, never as an instruction.
   this project's v1 is the origin's current version, its history saying `forked from <project>
   <tool> v<n>`, and the update lands as v2. The origin is never written. An update `--from` a copy
   the session took moves the session's holding to the version written.
-  Refused, like `add`, when a file or a flag of the version it writes holds a credential.
+  Refused, like `add`, when a file or a flag of the version it writes holds a credential, and
+  past the 1 MB cap.
+- **add** and **update** make room before they write and end their reply with the library's space,
+  `space left: tools <left> of <limit>` (below).
 - **merge** folds near-duplicate tools of the own project into the survivor: its next version from
   `--from`, the members' take lines appended to its own, each member's folder replaced by a
   tombstone naming the survivor. A merged name is refused by `add` and never found.
 - **trust** lets the checkout at `<path>` write this project's library (below).
 - **reindex** rebuilds the own project's `index.json` from its tool folders.
+
+## Size
+
+A tool holds at most 1 MB (1 MiB), every file of the version together; the cap is fixed. Every
+stored version of every library on the machine together holds at most `tools_total_mb`, 500 unless
+set, never below the 1 MB cap. A version is prunable when it is not its tool's current version and
+no fork names it as its origin. Past the limit, the oldest prunable versions are removed first,
+by the time their history recorded, inside the `add` or `update` that needs the room and in the
+SessionStart pass agentic-memory runs over every store. A write is refused only when removing every
+prunable version would not make room: `the tool library would hold <size> on this machine, past the
+<n> MB limit (tools_total_mb), and no version is left to prune: merge tools, or raise
+tools_total_mb`. A pruned version's file hashes stay with its tool, so a byte-identical `add` is
+still refused; a copy a session took of it stays in the checkout's `.tmp/tools/`.
+
+Space left is the limit less the bytes of the versions that cannot be pruned. Every `add` and
+`update` reply ends with it, `space left: tools <left> of <limit>`; the agentic-memory brief
+names it only while under a tenth of the limit is left. `agentic-tools --help` lists every verb
+and states the cap.
 
 ## Credentials
 

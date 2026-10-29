@@ -80,10 +80,17 @@
       "default": 10,
       "required": false
     },
-    "attachment_budget_mb": {
+    "attachments_total_mb": {
       "type": "number",
-      "title": "Attachment budget per project",
-      "description": "Megabytes the files attached to a project's memory entries may hold together, each file counted once",
+      "title": "Attachment limit for the machine",
+      "description": "Megabytes every file attached to memory entries may hold together, across every project on the machine, each file counted once; never below attachment_max_mb",
+      "default": 2048,
+      "required": false
+    },
+    "tools_total_mb": {
+      "type": "number",
+      "title": "Tool library limit for the machine",
+      "description": "Megabytes every stored version of every agentic-tools library on the machine may hold; past it, versions neither current nor a fork's origin are pruned oldest first; never below the 1 MB a tool may hold",
       "default": 500,
       "required": false
     },

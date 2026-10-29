@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
 // source is what --from named, read: its files, and whether it is a taken copy.
@@ -15,12 +18,23 @@ type source struct {
 	copy  string
 }
 
-// readSource reads --from: a file or a folder inside the checkout (outside
+// readSource reads --from, refusing it past the size a tool may hold.
+func (lib *library) readSource(ctx context.Context, given string) (source, error) {
+	from, err := lib.readFrom(ctx, given)
+	if errors.Is(err, ErrTooLarge) {
+		return source{}, fmt.Errorf("%s holds more than the %d MB a tool may hold, every file together",
+			given, pluginconfig.ToolMaxMB)
+	}
+
+	return from, err
+}
+
+// readFrom reads --from: a file or a folder inside the checkout (outside
 // `.git`), AGENTIC_TOOLS_SCRATCH or the own store's `copies/`, every component
 // checked, no link, no hard link, no pipe, at most a tool's size in all. A
 // folder's files land at the top of the version; its own `tool.json` is the
 // description a take wrote beside the files, never a file of the tool.
-func (lib *library) readSource(ctx context.Context, given string) (source, error) {
+func (lib *library) readFrom(ctx context.Context, given string) (source, error) {
 	if strings.TrimSpace(given) == "" {
 		return source{}, errors.New("--from names no file or folder")
 	}
@@ -227,6 +241,11 @@ func (lib *library) add(ctx context.Context, req request) result {
 	}
 
 	err = lib.locked(ctx, func() error {
+		err := lib.makeRoom(ctx, walkedBytes(from.files))
+		if err != nil {
+			return err
+		}
+
 		return lib.writeVersion(ctx, version{name: req.Name, number: 1, files: from.files, spec: described, why: why,
 			vector: vector})
 	})
@@ -234,9 +253,8 @@ func (lib *library) add(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
-	lib.forget()
-
-	return done(fmt.Sprintf("added %s: `%s take %s` copies it", req.Name, self, req.Name)).with(nameFields{Name: req.Name})
+	return done(fmt.Sprintf("added %s: `%s take %s` copies it\n%s", req.Name, self, req.Name,
+		space.Line(lib.recordSpace(ctx)))).with(nameFields{Name: req.Name})
 }
 
 // identical names the first file byte-identical to a file of any version of
@@ -250,18 +268,19 @@ func (lib *library) identical(ctx context.Context, files []walked) string {
 	for _, held := range lib.stores(ctx) {
 		for _, name := range held.names() {
 			tool := held.index.Tools[name]
+			hit := found{store: held, tool: tool}
 
-			for _, v := range sortedKeys(tool.Hashes) {
-				for _, hash := range tool.Hashes[v] {
-					file, match := sums[hash.Sum]
-					if !match {
-						continue
+			// A pruned version's files still count: pruning makes room, it does
+			// not make a version's files new again.
+			for _, versions := range []map[string][]fileHash{tool.Hashes, tool.Pruned} {
+				for _, v := range sortedKeys(versions) {
+					for _, hash := range versions[v] {
+						file, match := sums[hash.Sum]
+						if match {
+							return fmt.Sprintf("%s is %s %s byte for byte: `%s take %s` copies it", file, hit.shown(), v,
+								self, hit.shown())
+						}
 					}
-
-					hit := found{store: held, tool: tool}
-
-					return fmt.Sprintf("%s is %s %s byte for byte: `%s take %s` copies it", file, hit.shown(), v,
-						self, hit.shown())
 				}
 			}
 		}

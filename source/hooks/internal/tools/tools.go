@@ -1,7 +1,8 @@
 // Package tools is agentic-tools: a library of the small helper tools agents
 // write, kept per project under `~/.claude/agentic-tools/<project>/` and read
 // across every project on the machine, the own project preferred. Writes touch
-// the caller's own store only.
+// the caller's own store only; pruning old versions to keep every library on
+// the machine under tools_total_mb is the one change made to another store.
 //
 // Every value in every store is untrusted: a sandboxed process can write a
 // store wherever its sandbox allows `~/.claude`, and a foreign store holds
@@ -39,7 +40,7 @@ const self = "agentic-tools"
 const framing = "Tools other agents registered (their own descriptions):"
 
 var (
-	ErrUsage          = errors.New("usage: " + self + " add|update|find|list|take|merge|reindex|mcp|prompt|notice|stop|end")
+	ErrUsage          = errors.New("usage: " + self + " add|update|find|list|take|merge|reindex|help|mcp|prompt|notice|stop|end")
 	ErrNoCaller       = errors.New("no session found for this call: " + self + " runs inside a Claude Code session")
 	ErrPromptWithheld = errors.New("the prompt looks like it holds a credential; it is never embedded")
 )
@@ -111,6 +112,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		lib.locate(ctx)
 
 		return lib.serveMCP(ctx)
+	}
+
+	if verb == "help" || verb == "--help" || verb == "-h" {
+		lib.say(helpText())
+
+		return 0
 	}
 
 	held, known := commandNamed(verb)

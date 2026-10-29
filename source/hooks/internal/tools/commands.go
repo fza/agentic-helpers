@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 )
 
 // request is one call's arguments, from the CLI or from MCP. A pointer field
@@ -110,7 +112,7 @@ func commands() []command {
 		{
 			name:        "add",
 			usage:       "add <name> --from <path> --summary '<one line>' --usage '<how to run it>' [--inputs '<...>'] [--outputs '<...>'] [--distinct '<how it differs>']",
-			description: "register a new tool in the own project's library from a file or a folder",
+			description: "register a new tool in the own project's library from a file or a folder, at most 1 MB in all",
 			flags:       append([]flagSpec{{"from", flagText}, {"distinct", flagText}}, describing...),
 			positional:  oneName,
 			run:         (*library).add,
@@ -122,7 +124,7 @@ func commands() []command {
 		{
 			name:        "update",
 			usage:       "update <name> [--from <path>] [--summary ...] [--usage ...] [--inputs ...] [--outputs ...] --why '<what changed>'",
-			description: "write a tool's next version; a tool of another project is forked into this one first",
+			description: "write a tool's next version, at most 1 MB in all; a tool of another project is forked into this one first",
 			flags:       append([]flagSpec{{"from", flagText}, {"why", flagText}}, describing...),
 			positional:  oneName,
 			run:         (*library).update,
@@ -180,6 +182,19 @@ func oneName(req *request, values []string) error {
 	req.Name = values[0]
 
 	return nil
+}
+
+func helpText() string {
+	lines := []string{"usage: " + self + " <subcommand>", ""}
+	for _, held := range commands() {
+		lines = append(lines, fmt.Sprintf("  %s\n      %s", held.usage, held.description))
+	}
+
+	lines = append(lines, "", fmt.Sprintf("A tool holds at most %d MB, every file together; every version of every "+
+		"library on the machine at most tools_total_mb, the oldest versions neither current nor a fork's origin "+
+		"pruned to make room.", pluginconfig.ToolMaxMB))
+
+	return strings.Join(lines, "\n")
 }
 
 func commandNamed(name string) (command, bool) {

@@ -112,6 +112,25 @@ func TestRead(t *testing.T) {
 			want: defaultsWith(func(options *pluginconfig.Options) { options.RetiredBodyDays = pluginconfig.MinRetiredBodyDays }),
 		},
 		{
+			name: "the machine-wide size limits take the megabytes set",
+			user: own + `{"attachments_total_mb":4096,"tools_total_mb":"250"}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) {
+				options.AttachmentsTotalMB, options.ToolsTotalMB = 4096, 250
+			}),
+		},
+		{
+			name: "an overall limit below its per-item limit resolves to the per-item limit",
+			user: own + `{"attachment_max_mb":20,"attachments_total_mb":5,"tools_total_mb":0}}}}`,
+			want: defaultsWith(func(options *pluginconfig.Options) {
+				options.AttachmentMaxMB, options.AttachmentsTotalMB, options.ToolsTotalMB = 20, 20, pluginconfig.ToolMaxMB
+			}),
+		},
+		{
+			name: "the retired per-project attachment budget is no longer read",
+			user: own + `{"attachment_budget_mb":1}}}}`,
+			want: pluginconfig.Defaults(),
+		},
+		{
 			name: "an entry id takes the length set",
 			user: own + `{"entry_id_length":8}}}}`,
 			want: defaultsWith(func(options *pluginconfig.Options) { options.EntryIDLength = 8 }),

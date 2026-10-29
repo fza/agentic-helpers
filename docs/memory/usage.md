@@ -370,13 +370,18 @@ attach to it.
   `attachment <name> looks like a credential (<rule ids>, line <n>); memory never holds one`.
 - **Within the size limits**, on the original bytes: `attachment_max_mb` (10) per file,
   `attachment <name> is <size>, past the <n> MB a file may be (attachment_max_mb)`, and
-  `attachment_budget_mb` (500) per project, counting once each file an entry still holding its body
-  names: `attachments would hold <size> in this project, past the <n> MB budget
-  (attachment_budget_mb); most held by <id> (<seat>, <size>), ...`.
+  `attachments_total_mb` (2048) for every attachment of every project on the machine, each stored
+  file counted once: `attachments would hold <size> on this machine, past the <n> MB limit
+  (attachments_total_mb); most held by <id> (<seat>, <size>), ...`, the holders being this
+  project's. A total set below `attachment_max_mb` is raised to it. Attachments are never removed
+  to make room.
 - **One name per entry**: `<id> already has an attachment named <name>`. No detach: a wrong
   attachment ends with its entry.
 
-The reply names each file: `attached <name> (<size>, <sha256 prefix>) to <id>`. `show` lists
+The reply names each file: `attached <name> (<size>, <sha256 prefix>) to <id>`, and ends with the
+store's space, `space left: attachments <left> of <limit>`; a `new` that attaches ends the same
+way. The brief prints that figure only while the store has under a tenth of its limit left (see
+[What comes back](#what-comes-back)). `show` lists
 `attachments: <name> (<size>, <sha256 prefix>), ...`. The brief, prompt recall, trap notices and
 the search index never carry an attachment's bytes or its name, so content planted in a file has no
 path into an agent's context unasked.
@@ -721,6 +726,7 @@ agentic-memory view --layout 'status(retired):since("7d"):rank(by(date)):brief:a
 agentic-memory view --layout 'active:inbox(review):unread:as-list'   # what review has yet to hear of
 agentic-memory view --layout 'topic(gate):n(5):as-list'              # the gate's five hottest entries
 agentic-memory view --layout 'active:rank(in-degree):n(5):as-list'   # the entries most linked to
+agentic-memory view --layout 'active:attached:rank(size):as-list'    # what holds the most attachment bytes
 agentic-memory view --layout 'active:shelf(row-7ah):group(by(seat)):as-grouped'   # who on the shelf filed what
 agentic-memory view --layout 'id(m-7q2k4f):expand(refs):as-list'     # an entry and what it links to
 agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(heat):n(5):as-list
@@ -729,6 +735,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | Word | Keeps or does |
 |---|---|
 | `active` | live entries |
+| `attached` | entries holding attachments, their body not dropped; a list section using it shows under each entry its files' names and sizes and their total |
 | `status(live\|retired\|superseded,...)` | entries in any of the statuses |
 | `kind(rule\|trap\|todo\|note,...)` | entries of any of the kinds |
 | `topic(<topic>,...)` | entries under a topic: the topic or one below it, component by component, read through merges |
@@ -746,7 +753,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `branch(<branch>)` | entries filed on the branch |
 | `linked(<id>)` | entries linking to the memory or graph id |
 | `anchored("<path>")` | entries anchored to the path, or to a file under it |
-| `rank(heat)`, `rank(in-degree)`, `rank(by(date))` | hottest first, most linked to first (the links `← n` counts, superseded entries aside), or newest first; ties newest first; newest first unless set |
+| `rank(heat)`, `rank(in-degree)`, `rank(size)`, `rank(by(date))` | hottest first, most linked to first (the links `← n` counts, superseded entries aside), most attachment bytes first (the list then shows each file's size and the total, as `attached` does), or newest first; ties newest first; newest first unless set |
 | `n(<n>)`, `skip(<n>)` | the first `n`, after dropping the first `skip`; both 0 or more |
 | `name("<title>")` | the section's heading and JSON key; the section's own text unless set |
 | `brief` | the brief's short line in place of the full one |
@@ -804,7 +811,8 @@ A brief at every claim and compaction, the turns since the seat's newest entry o
 to three entries a prompt touches that stand out from the rest. A session's last turns survive its
 end for the next claim. There is no handoff to write.
 
-The brief runs, in order: its first line, the state slot, `changed by other seats:`,
+The brief runs, in order: its first line, the space line where a store runs low, the state slot,
+`changed by other seats:`,
 `ended since last brief (revive to undo):`, `rules (from the user, verify before relying):`,
 `traps:`, `todos:`, `notes:`, each kind's live entries by heat, `retire?`, `new from other seats:`,
 and the topics. It stays within 9,000 characters; rules
@@ -814,6 +822,12 @@ plugin option `brief_note_limit`, 10 unless set, then
 `+<n> more notes: agentic-memory brief --kind note`; traps and todos print whole.
 `brief --kind rule|trap|todo|note` (MCP key `kind`) lists one kind's live entries whole, as
 `brief --topic <name>` lists one topic's and those below it, as `topic(<name>)` reads it.
+
+The space line, `space left: attachments <left> of <limit>, tools <left> of <limit>`, prints only
+while a store has under a tenth of its limit left, and names only that store: the attachment store
+against `attachments_total_mb`, the agentic-tools library against `tools_total_mb`, its prunable
+versions left out. With room in both, the brief has no space line; every `attach`, and the
+agentic-tools `add` and `update`, end their reply with their own store's figure instead.
 
 The kind sections are a fixed layout of the view language, and nothing configures it: its wording is
 a contract skills quote, and one seat's layout could crowd rules out of another's digest.
@@ -1039,7 +1053,8 @@ Set once per machine in the plugin's configuration dialog; no project overrides 
 | `entry_id_length` | the characters after `m-` in a new entry id |
 | `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note` |
 | `attachment_max_mb` | the megabytes one attached file may hold, 10 unless set |
-| `attachment_budget_mb` | the megabytes a project's attachments may hold together, each file counted once, 500 unless set |
+| `attachments_total_mb` | the megabytes every attachment of every project on the machine may hold together, each file counted once, 2048 unless set, never below `attachment_max_mb` |
+| `tools_total_mb` | the megabytes every agentic-tools library on the machine may hold, 500 unless set; read by the SessionStart pass that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |

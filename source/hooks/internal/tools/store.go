@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const indexSchema = 2
+const indexSchema = 3
 
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
@@ -59,6 +59,15 @@ type takeLine struct {
 type fileHash struct {
 	Name string `json:"name"`
 	Sum  string `json:"sum"`
+	Size int64  `json:"size"`
+}
+
+// prunedLine is a `pruned.jsonl` line: a version removed to make room, its
+// files' hashes kept so a byte-identical add is still refused.
+type prunedLine struct {
+	V      int        `json:"v"`
+	At     string     `json:"at"`
+	Hashes []fileHash `json:"hashes"`
 }
 
 // indexed is one tool as `index.json` keeps it: enough for every read without
@@ -79,6 +88,12 @@ type indexed struct {
 	RegisteredBy string                `json:"registered_by,omitempty"`
 	ForkedFrom   *forkOrigin           `json:"forked_from,omitempty"`
 	Hashes       map[string][]fileHash `json:"hashes"`
+	// Written is when each stored version was written, by its folder name:
+	// what orders versions for pruning.
+	Written map[string]string `json:"written"`
+	// Pruned is the files of every version pruned to make room, by its folder
+	// name.
+	Pruned map[string][]fileHash `json:"pruned,omitempty"`
 }
 
 type index struct {
@@ -188,7 +203,8 @@ func readTool(folder *dir, name string) (*indexed, error) {
 		return nil, fmt.Errorf("%s/current names no version", folder.path)
 	}
 
-	row := &indexed{Version: current, Name: name, Hashes: map[string][]fileHash{}, Takers: []string{}, Roles: []string{}}
+	row := &indexed{Version: current, Name: name, Hashes: map[string][]fileHash{}, Written: map[string]string{},
+		Takers: []string{}, Roles: []string{}}
 
 	listed, err := folder.entries()
 	if err != nil {
@@ -230,6 +246,11 @@ func readTool(folder *dir, name string) (*indexed, error) {
 		return nil, err
 	}
 
+	err = row.readPruned(folder)
+	if err != nil {
+		return nil, err
+	}
+
 	row.Described = describedSum(describe(row.spec()))
 
 	return row, nil
@@ -252,6 +273,11 @@ func (row *indexed) readLines(folder *dir) error {
 			row.RegisteredBy = line.By
 		}
 
+		_, stored := row.Hashes[versionDir(line.V)]
+		if stored {
+			row.Written[versionDir(line.V)] = line.At
+		}
+
 		row.addRole(line.Role)
 	}
 
@@ -269,6 +295,29 @@ func (row *indexed) readLines(folder *dir) error {
 		if line.By != "" && line.By != row.RegisteredBy && !slices.Contains(row.Takers, line.By) {
 			row.Takers = append(row.Takers, line.By)
 		}
+	}
+
+	return nil
+}
+
+func (row *indexed) readPruned(folder *dir) error {
+	data, err := folder.readOptional("pruned.jsonl", lineFileLimit)
+	if err != nil {
+		return err
+	}
+
+	lines, _ := jsonLines[prunedLine](data)
+	for _, line := range lines {
+		_, stored := row.Hashes[versionDir(line.V)]
+		if line.V <= 0 || stored {
+			continue
+		}
+
+		if row.Pruned == nil {
+			row.Pruned = map[string][]fileHash{}
+		}
+
+		row.Pruned[versionDir(line.V)] = line.Hashes
 	}
 
 	return nil
@@ -308,7 +357,7 @@ func readVersion(folder *dir, v int) ([]fileHash, spec, error) {
 			continue
 		}
 
-		hashes = append(hashes, fileHash{Name: file.name, Sum: sum(file.data)})
+		hashes = append(hashes, fileHash{Name: file.name, Sum: sum(file.data), Size: int64(len(file.data))})
 	}
 
 	if !found {

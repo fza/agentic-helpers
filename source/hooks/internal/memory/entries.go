@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
 const (
@@ -212,6 +213,10 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	lines = append(lines, notes...)
 	lines = append(lines, mem.forbidden(folded, held, name)...)
+
+	if len(prepared) > 0 {
+		lines = append(lines, space.Line(mem.recordAttached(prepared)))
+	}
 
 	return done(strings.Join(lines, "\n")).with(fields)
 }

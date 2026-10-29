@@ -113,7 +113,7 @@ func TestAttachTakesRegularFilesOnly(t *testing.T) {
 func TestAttachHoldsToItsLimits(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"attachment_max_mb":1,"attachment_budget_mb":1}}}}`)
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"attachment_max_mb":1,"attachments_total_mb":1}}}}`)
 
 	id := h.file("Gate finding with big files", "body")
 	dir := t.TempDir()
@@ -134,8 +134,8 @@ func TestAttachHoldsToItsLimits(t *testing.T) {
 	test.WriteFile(t, second, string(bytes.Repeat([]byte{3}, 600<<10)))
 
 	got := h.run("", "attach", id, second)
-	if got.code != 1 || !strings.Contains(got.err, "attachments would hold 1.2 MB in this project, past the 1 MB budget (attachment_budget_mb); most held by "+id+" (main, 600.0 KB)") {
-		t.Errorf("a project past attachment_budget_mb should be refused naming the holders, got %d %q", got.code, got.err)
+	if got.code != 1 || !strings.Contains(got.err, "attachments would hold 1.2 MB on this machine, past the 1 MB limit (attachments_total_mb); most held by "+id+" (main, 600.0 KB)") {
+		t.Errorf("attachments past attachments_total_mb should be refused naming the size and the holders, got %d %q", got.code, got.err)
 	}
 
 	again := h.file("Another finding with the same file", "body")
@@ -145,17 +145,15 @@ func TestAttachHoldsToItsLimits(t *testing.T) {
 func TestAFileTheProjectHoldsCountsOnce(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"attachment_max_mb":2,"attachment_budget_mb":2}}}}`)
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"attachment_max_mb":2,"attachments_total_mb":2}}}}`)
 
 	held := filepath.Join(t.TempDir(), "held.bin")
 	test.WriteFile(t, held, string(bytes.Repeat([]byte{4}, 1536<<10)))
 	h.file("Gate finding holding a big file", "body", "--attach", held)
 
-	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"attachment_max_mb":2,"attachment_budget_mb":1}}}}`)
-
 	again := h.file("Another finding naming the same file", "body")
 	if got := h.run("", "attach", again, held); got.code != 0 {
-		t.Errorf("a file the project already holds should add nothing to its budget, got %d %q", got.code, got.err)
+		t.Errorf("a file the machine already holds should add nothing to its limit, got %d %q", got.code, got.err)
 	}
 }
 

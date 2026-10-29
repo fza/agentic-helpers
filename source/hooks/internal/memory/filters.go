@@ -132,6 +132,12 @@ var filterWords = []filterWord{
 		},
 	},
 	{
+		name: "attached", arity: takesNone, describe: "entries holding attachments, their body not dropped",
+		build: func(*viewScope, []string) (predicate, error) {
+			return func(_ *viewScope, held *entry) bool { return len(held.attachments) > 0 && !held.dropped }, nil
+		},
+	},
+	{
 		name: "status", arity: takesSome, values: searchStatuses, describe: "entries in any of the statuses",
 		build: func(_ *viewScope, values []string) (predicate, error) {
 			return func(_ *viewScope, held *entry) bool { return slices.Contains(values, held.status) }, nil

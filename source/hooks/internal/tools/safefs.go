@@ -9,6 +9,8 @@ import (
 	"path"
 	"strings"
 	"syscall"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 )
 
 var (
@@ -22,7 +24,7 @@ var (
 
 // Read limits. Every store is untrusted text, so no read is unbounded.
 const (
-	toolLimit     = 1 << 20
+	toolLimit     = pluginconfig.ToolMaxMB << 20
 	versionLimit  = toolLimit + 64<<10
 	indexLimit    = 4 << 20
 	lineFileLimit = 4 << 20
