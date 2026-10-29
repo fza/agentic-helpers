@@ -1,10 +1,10 @@
-m-g6cqa7 Note about the lima finding  [main, note, from agent, <stamp>, 15af1a8c]
-m-adr7gq Note about the kilo finding  [main, note, from agent, <stamp>, 15af1a8c]
-m-iy625a Note about the india finding  [main, note, from agent, <stamp>, 15af1a8c]
-m-qja513 Note about the hotel finding  [main, note, from agent, <stamp>, 15af1a8c]
-m-z5jz1j Note about the golf finding  [main, note, from agent, <stamp>, 15af1a8c]
-m-n0a745 Note about the foxtrot finding  [main, note, from agent, <stamp>, 15af1a8c]
-m-ie9zc7 Note about the delta finding  [main, note, from agent, <stamp>, 15af1a8c]  retired <stamp>: done with it
-m-ub7z38 Note about the charlie finding  [main, note, from agent, <stamp>, 15af1a8c]  ← 1
-m-me1alo Note about the bravo finding  [main, note, from agent, <stamp>, 15af1a8c]
-m-wxggpm Note about the alpha finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-g6cqa7 100% Note about the lima finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-adr7gq 100% Note about the kilo finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-iy625a 100% Note about the india finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-qja513 100% Note about the hotel finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-z5jz1j 100% Note about the golf finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-n0a745 100% Note about the foxtrot finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-ie9zc7 100% Note about the delta finding  [main, note, from agent, <stamp>, 15af1a8c]  retired <stamp>: done with it
+m-ub7z38 100% Note about the charlie finding  [main, note, from agent, <stamp>, 15af1a8c]  ← 1
+m-me1alo 100% Note about the bravo finding  [main, note, from agent, <stamp>, 15af1a8c]
+m-wxggpm 100% Note about the alpha finding  [main, note, from agent, <stamp>, 15af1a8c]

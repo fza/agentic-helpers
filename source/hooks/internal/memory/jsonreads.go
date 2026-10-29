@@ -9,36 +9,40 @@ import (
 	"time"
 )
 
-// The JSON answers of the read commands. Keys are only ever added: renaming
-// or removing one breaks every program reading them, and ships as a break.
+// The JSON answers of the read commands. A key appears only while it holds a
+// value: an empty list or map, null, an empty string and false leave the
+// object, and a reader takes an absent key as empty. Every other value stays,
+// a default as much as any, a zero count among them. Keys are never renamed.
 // Times are RFC 3339 in UTC, as the store keeps them.
 
 type jsonEntry struct {
-	ID           string            `json:"id"`
-	Title        string            `json:"title"`
-	Seat         string            `json:"seat"`
-	Shelf        string            `json:"shelf"`
-	For          []string          `json:"for"`
-	Topics       []string          `json:"topics"`
-	Kind         string            `json:"kind"`
-	Until        []string          `json:"until"`
-	When         []string          `json:"when"`
-	On           []string          `json:"on"`
-	Proof        []string          `json:"proof"`
-	Forbids      []string          `json:"forbids"`
-	Retention    string            `json:"retention"`
-	From         string            `json:"from"`
+	ID string `json:"id"`
+	// Score is a ranked search hit's match in percent of the result's best.
+	Score        *int              `json:"score,omitempty"`
+	Title        string            `json:"title,omitempty"`
+	Seat         string            `json:"seat,omitempty"`
+	Shelf        string            `json:"shelf,omitempty"`
+	For          []string          `json:"for,omitempty"`
+	Topics       []string          `json:"topics,omitempty"`
+	Kind         string            `json:"kind,omitempty"`
+	Until        []string          `json:"until,omitempty"`
+	When         []string          `json:"when,omitempty"`
+	On           []string          `json:"on,omitempty"`
+	Proof        []string          `json:"proof,omitempty"`
+	Forbids      []string          `json:"forbids,omitempty"`
+	Retention    string            `json:"retention,omitempty"`
+	From         string            `json:"from,omitempty"`
 	Filed        time.Time         `json:"filed"`
-	Branch       string            `json:"branch"`
-	OtherBranch  bool              `json:"other_branch"`
-	Commit       string            `json:"commit"`
-	Status       string            `json:"status"`
-	StatusChange *jsonStatusChange `json:"status_change"`
-	Anchors      []jsonAnchor      `json:"anchors"`
-	Links        []jsonLink        `json:"links"`
-	LinkedFrom   []string          `json:"linked_from"`
-	Attachments  []jsonAttachment  `json:"attachments"`
-	// Body is null where a merge dropped it, BodyDropped then saying when.
+	Branch       string            `json:"branch,omitempty"`
+	OtherBranch  bool              `json:"other_branch,omitempty"`
+	Commit       string            `json:"commit,omitempty"`
+	Status       string            `json:"status,omitempty"`
+	StatusChange *jsonStatusChange `json:"status_change,omitempty"`
+	Anchors      []jsonAnchor      `json:"anchors,omitempty"`
+	Links        []jsonLink        `json:"links,omitempty"`
+	LinkedFrom   []string          `json:"linked_from,omitempty"`
+	Attachments  []jsonAttachment  `json:"attachments,omitempty"`
+	// Body is absent where a merge dropped it, BodyDropped then saying when.
 	Body        *json.RawMessage `json:"body,omitempty"`
 	BodyDropped string           `json:"body_dropped,omitempty"`
 	// Returns is why the entry needs attention, in a view's returns section.
@@ -59,55 +63,46 @@ type jsonEntry struct {
 type jsonItem struct {
 	ID       string `json:"id"`
 	Position int    `json:"position"`
-	Text     string `json:"text"`
+	Text     string `json:"text,omitempty"`
 	Link     string `json:"link,omitempty"`
-	State    string `json:"state"`
+	State    string `json:"state,omitempty"`
 	Reason   string `json:"reason,omitempty"`
 }
 
 type jsonStatusChange struct {
 	At           time.Time `json:"at"`
-	By           string    `json:"by"`
+	By           string    `json:"by,omitempty"`
 	Because      string    `json:"because,omitempty"`
 	SupersededBy string    `json:"superseded_by,omitempty"`
 }
 
 type jsonAnchor struct {
-	Path  string `json:"path"`
-	State string `json:"state"`
+	Path  string `json:"path,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
 type jsonLink struct {
-	Target string `json:"target"`
-	State  string `json:"state"`
-	By     string `json:"by"`
+	Target string `json:"target,omitempty"`
+	State  string `json:"state,omitempty"`
+	By     string `json:"by,omitempty"`
 }
 
 type jsonAttachment struct {
-	Name   string `json:"name"`
-	SHA256 string `json:"sha256"`
+	Name   string `json:"name,omitempty"`
+	SHA256 string `json:"sha256,omitempty"`
 	Size   int64  `json:"size"`
-	Stored bool   `json:"stored"`
-}
-
-func orEmpty(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-
-	return values
+	Stored bool   `json:"stored,omitempty"`
 }
 
 // entryJSON is the entry object every read answers with, body included where
 // withBody is set.
 func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody bool) jsonEntry {
 	object := jsonEntry{
-		ID: held.id, Title: held.title, Seat: held.seat, Shelf: mem.shelfName(mem.entryShelf(held)), For: []string{},
-		Topics: orEmpty(folded.topicsOf(held)), Kind: held.kind, Until: orEmpty(held.until), When: orEmpty(held.when),
-		On: orEmpty(held.on), Proof: orEmpty(held.proof), Forbids: orEmpty(held.forbids), Retention: held.retention,
-		From: held.from, Filed: held.filed.UTC(), Branch: held.branch, Commit: held.commit, Status: held.status,
+		ID: held.id, Title: held.title, Seat: held.seat, Shelf: mem.shelfName(mem.entryShelf(held)),
+		Topics: folded.topicsOf(held), Kind: held.kind, Until: held.until, When: held.when, On: held.on, Proof: held.proof,
+		Forbids: held.forbids, Retention: held.retention, From: held.from, Filed: held.filed.UTC(), Branch: held.branch,
+		Commit: held.commit, Status: held.status, Links: held.linkStates(),
 		OtherBranch: held.branch != "" && here.branch != "" && held.branch != here.branch,
-		Anchors:     []jsonAnchor{}, Links: []jsonLink{}, LinkedFrom: []string{}, Attachments: []jsonAttachment{},
 	}
 
 	views, settled, total := folded.itemViews(held, false)
@@ -149,8 +144,6 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 		object.Anchors = append(object.Anchors, jsonAnchor{Path: anchored.Path, State: state})
 	}
 
-	object.Links = append(object.Links, held.linkStates()...)
-
 	for _, other := range held.linkedFrom(false) {
 		object.LinkedFrom = append(object.LinkedFrom, other.id)
 	}
@@ -165,12 +158,11 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 	if withBody {
 		object.BodyDropped = droppedNote(held, mem.options().RetiredBodyDays)
 
-		body := json.RawMessage("null")
-		if object.BodyDropped == "" {
-			body, _ = json.Marshal(held.body)
+		if object.BodyDropped == "" && held.body != "" {
+			body, _ := json.Marshal(held.body)
+			raw := json.RawMessage(body)
+			object.Body = &raw
 		}
-
-		object.Body = &body
 	}
 
 	return object
@@ -198,7 +190,7 @@ func (mem *memory) showJSON(here tree, folded *state, req request) result {
 
 		object := mem.entryJSON(here, folded, held, true)
 		if req.WithSuperseded {
-			object.LinkedFrom = []string{}
+			object.LinkedFrom = nil
 			for _, other := range held.linkedFrom(true) {
 				object.LinkedFrom = append(object.LinkedFrom, other.id)
 			}
@@ -220,7 +212,20 @@ func (mem *memory) showJSON(here tree, folded *state, req request) result {
 		mem.warm(folded, heatShow, ids...)
 	}
 
-	return jsonAnswer(map[string]any{"notice": filedNotice, "entries": entries})
+	return jsonAnswer(jsonShow{Notice: filedNotice, Entries: entries})
+}
+
+type jsonShow struct {
+	Notice  string      `json:"notice"`
+	Entries []jsonEntry `json:"entries,omitempty"`
+}
+
+type jsonWho struct {
+	Seats []jsonSeat `json:"seats,omitempty"`
+}
+
+type jsonTopics struct {
+	Topics map[string]map[string]int `json:"topics,omitempty"`
 }
 
 func jsonAnswer(value any) result {
@@ -234,7 +239,7 @@ func jsonAnswer(value any) result {
 
 type jsonSearch struct {
 	Notice  string      `json:"notice"`
-	Entries []jsonEntry `json:"entries"`
+	Entries []jsonEntry `json:"entries,omitempty"`
 	More    *jsonMore   `json:"more,omitempty"`
 }
 
@@ -243,43 +248,43 @@ type jsonMore struct {
 }
 
 type jsonState struct {
-	Body   string    `json:"body"`
+	Body   string    `json:"body,omitempty"`
 	At     time.Time `json:"at"`
-	Branch string    `json:"branch"`
-	Commit string    `json:"commit"`
+	Branch string    `json:"branch,omitempty"`
+	Commit string    `json:"commit,omitempty"`
 	Draft  bool      `json:"draft,omitempty"`
 }
 
 type jsonChange struct {
 	ID     string    `json:"id"`
-	Change string    `json:"change"`
-	Seat   string    `json:"seat"`
+	Change string    `json:"change,omitempty"`
+	Seat   string    `json:"seat,omitempty"`
 	At     time.Time `json:"at"`
 }
 
 type jsonDoNow struct {
 	ID      string   `json:"id"`
-	Title   string   `json:"title"`
-	Trigger string   `json:"trigger"`
-	Proof   []string `json:"proof"`
+	Title   string   `json:"title,omitempty"`
+	Trigger string   `json:"trigger,omitempty"`
+	Proof   []string `json:"proof,omitempty"`
 }
 
 type jsonBrief struct {
 	Notice   string         `json:"notice"`
-	Seat     string         `json:"seat"`
-	Shelf    string         `json:"shelf"`
-	Language string         `json:"language"`
+	Seat     string         `json:"seat,omitempty"`
+	Shelf    string         `json:"shelf,omitempty"`
+	Language string         `json:"language,omitempty"`
 	Live     int            `json:"live"`
 	Retired  int            `json:"retired"`
-	State    *jsonState     `json:"state"`
-	Changed  []jsonChange   `json:"changed"`
-	Rules    []jsonEntry    `json:"rules"`
-	Traps    []jsonEntry    `json:"traps"`
-	Todos    []jsonEntry    `json:"todos"`
-	Notes    []jsonEntry    `json:"notes"`
-	News     []jsonEntry    `json:"news"`
-	Topics   map[string]int `json:"topics"`
-	DoNow    []jsonDoNow    `json:"do_now"`
+	State    *jsonState     `json:"state,omitempty"`
+	Changed  []jsonChange   `json:"changed,omitempty"`
+	Rules    []jsonEntry    `json:"rules,omitempty"`
+	Traps    []jsonEntry    `json:"traps,omitempty"`
+	Todos    []jsonEntry    `json:"todos,omitempty"`
+	Notes    []jsonEntry    `json:"notes,omitempty"`
+	News     []jsonEntry    `json:"news,omitempty"`
+	Topics   map[string]int `json:"topics,omitempty"`
+	DoNow    []jsonDoNow    `json:"do_now,omitempty"`
 }
 
 // briefJSON is the whole brief for a program: no character budget, every live
@@ -291,8 +296,7 @@ func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seat
 
 	answer := jsonBrief{
 		Notice: filedNotice, Seat: seatName, Shelf: mem.shelfName(mem.shelfOf(seatName)), Language: mem.language(ctx), Live: len(live),
-		Changed: []jsonChange{}, Rules: []jsonEntry{}, Traps: []jsonEntry{}, Todos: []jsonEntry{}, Notes: []jsonEntry{},
-		News: []jsonEntry{}, Topics: mem.topicCounts(folded), DoNow: []jsonDoNow{},
+		Topics: mem.topicCounts(folded),
 	}
 
 	if slot, found := folded.states[seatName]; found {
@@ -331,7 +335,7 @@ func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seat
 	}
 
 	for _, item := range mem.pendingDoNow(seatName).Items {
-		answer.DoNow = append(answer.DoNow, jsonDoNow{ID: item.ID, Title: item.Title, Trigger: item.Trigger, Proof: orEmpty(item.Proof)})
+		answer.DoNow = append(answer.DoNow, jsonDoNow{ID: item.ID, Title: item.Title, Trigger: item.Trigger, Proof: item.Proof})
 	}
 
 	return jsonAnswer(answer)
@@ -339,9 +343,9 @@ func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seat
 
 type jsonSeat struct {
 	Name    string      `json:"name"`
-	Shelf   string      `json:"shelf"`
-	State   string      `json:"state"`
-	Holder  *jsonHolder `json:"holder"`
+	Shelf   string      `json:"shelf,omitempty"`
+	State   string      `json:"state,omitempty"`
+	Holder  *jsonHolder `json:"holder,omitempty"`
 	Filed   int         `json:"filed"`
 	Used    int         `json:"used"`
 	Project string      `json:"project,omitempty"`
@@ -349,7 +353,7 @@ type jsonSeat struct {
 }
 
 type jsonHolder struct {
-	SessionID string `json:"session_id"`
+	SessionID string `json:"session_id,omitempty"`
 	PID       int    `json:"pid"`
 	Claimed   string `json:"claimed,omitempty"`
 }

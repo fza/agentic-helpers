@@ -161,7 +161,8 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 ```
 
 - **Each entry prints once per context.** Brief, recall, search, view or show already printed it, unchanged
-  since → `<id> <title> (seen)` in its place (JSON `{"id", "title", "seen": true}`); the full text
+  since → `<id> <title> (seen)` in its place (JSON `{"id", "title", "seen": true}`, a search hit's
+  with its score); the full text
   is above in your context. `show` after a search line still prints the body. Compaction, `/clear`,
   resume → full again. A fresh subagent (not a fork) shares your session and never saw them: it passes
   `--again` (MCP `"again": true`) on every read.
@@ -169,6 +170,10 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - Own shelf by default; `--all-seats` → other seats' work, to take over, never redo.
 - `--term`: case-insensitive RE2, all required. `--query`: by meaning. Both → fused. `--status`
   alone → a listing by time.
+- **`<id> 92% <title>`**: the hit's score, whole percent of the best hit (100); JSON `score`. A
+  listing prints none.
+- **JSON (MCP, `--json`): an absent key is empty.** `[]`, `{}`, `null`, `""` and `false` are left
+  out; every other value stays, `0` and defaults included.
 - `14 more: --skip 10` / `more: --skip 10` → next page. No line → last page.
 - **`--query` exits 1 → no embedder**, not "nothing found". Fall back to `--term`, say so.
 - Line flags computed now: `drifted: <path>`, `gone: <path>`, `other branch: <b>`; `→ <target> closed by|superseded

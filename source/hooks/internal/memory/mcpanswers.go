@@ -1,7 +1,16 @@
 package memory
 
-// What each MCP tool answers beside its message. Keys are only ever added, as
-// for the reads.
+// What each MCP tool answers beside its message. Keys are only ever added, and
+// a list is empty rather than absent: the absent-key rule of the reads covers
+// read answers alone.
+
+func orEmpty(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+
+	return values
+}
 
 type idFields struct {
 	ID string `json:"id"`

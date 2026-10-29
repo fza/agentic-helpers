@@ -37,11 +37,11 @@ type returnReason struct {
 }
 
 type jsonReturn struct {
-	Reason    string   `json:"reason"`
-	Detail    string   `json:"detail"`
-	Verbs     []string `json:"verbs"`
-	Answer    string   `json:"answer"`
-	Unchecked bool     `json:"unchecked"`
+	Reason    string   `json:"reason,omitempty"`
+	Detail    string   `json:"detail,omitempty"`
+	Verbs     []string `json:"verbs,omitempty"`
+	Answer    string   `json:"answer,omitempty"`
+	Unchecked bool     `json:"unchecked,omitempty"`
 }
 
 func (reason returnReason) text() string {
@@ -53,7 +53,7 @@ func (reason returnReason) text() string {
 }
 
 func (reason returnReason) json() jsonReturn {
-	return jsonReturn{Reason: reason.kind, Detail: reason.detail, Verbs: orEmpty(reason.verbs), Answer: reason.answer,
+	return jsonReturn{Reason: reason.kind, Detail: reason.detail, Verbs: reason.verbs, Answer: reason.answer,
 		Unchecked: reason.unchecked}
 }
 

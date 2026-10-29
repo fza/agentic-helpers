@@ -151,17 +151,19 @@ func seenPointer(hit found) string {
 }
 
 // seenTool is a tool version the calling agent's context already holds: its
-// name and version alone, as the text answers with its pointer.
+// name and version alone, and a find hit's score, as the text answers with
+// its pointer.
 type seenTool struct {
 	Name    string  `json:"name"`
-	Label   *string `json:"label"`
+	Score   *int    `json:"score,omitempty"`
+	Label   *string `json:"label,omitempty"`
 	Version int     `json:"version"`
 	Seen    bool    `json:"seen"`
 }
 
 func (held listedTool) MarshalJSON() ([]byte, error) {
 	if held.Seen {
-		return json.Marshal(seenTool{Name: held.Name, Label: held.Label, Version: held.Version, Seen: true})
+		return json.Marshal(seenTool{Name: held.Name, Score: held.Score, Label: held.Label, Version: held.Version, Seen: true})
 	}
 
 	type plain listedTool
@@ -185,21 +187,4 @@ func (lib *library) forgetSeen(ctx context.Context) {
 	if err == nil {
 		_ = file.Delete(ctx, key)
 	}
-}
-
-func (held scoredTool) MarshalJSON() ([]byte, error) {
-	if held.Seen {
-		return json.Marshal(seenTool{Name: held.Name, Label: held.Label, Version: held.Version, Seen: true})
-	}
-
-	type plainListed listedTool
-
-	return json.Marshal(struct {
-		plainListed
-		Score *float64 `json:"score"`
-	}{plainListed(held.listedTool), held.Score})
-}
-
-func (scoredTool) SchemaAlternative() any {
-	return seenTool{}
 }

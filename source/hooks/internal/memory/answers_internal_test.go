@@ -7,19 +7,6 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 )
 
-type jsonShow struct {
-	Notice  string      `json:"notice"`
-	Entries []jsonEntry `json:"entries"`
-}
-
-type jsonWho struct {
-	Seats []jsonSeat `json:"seats"`
-}
-
-type jsonTopics struct {
-	Topics map[string]map[string]int `json:"topics"`
-}
-
 // jsonView is view's answer: the notice and its sections, each a list, a
 // count of topics or groups of entries, or, for `explain`, the message alone.
 type jsonView struct {

@@ -19,13 +19,13 @@ import (
 const claimBudget = 20000
 
 type holderView struct {
-	Seat           string `json:"seat"`
-	SessionID      string `json:"session_id"`
+	Seat           string `json:"seat,omitempty"`
+	SessionID      string `json:"session_id,omitempty"`
 	PID            int    `json:"pid,omitempty"`
 	Started        string `json:"started,omitempty"`
 	Claimed        string `json:"claimed,omitempty"`
 	TranscriptPath string `json:"transcript_path,omitempty"`
-	Alive          bool   `json:"alive"`
+	Alive          bool   `json:"alive,omitempty"`
 	Reserved       bool   `json:"reserved,omitempty"`
 }
 

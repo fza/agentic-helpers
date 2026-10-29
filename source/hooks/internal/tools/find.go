@@ -21,6 +21,10 @@ const (
 	pageSize = 10
 )
 
+// maxLifted is the most a lifted cosine reaches: a perfect match, taken by the
+// most sessions a lift counts, in the own project.
+const maxLifted = 1 + takeCap + ownLift
+
 type ranked struct {
 	hit   found
 	term  bool
@@ -29,6 +33,34 @@ type ranked struct {
 
 func takeLift(takers int) float64 {
 	return min(takeStep*math.Log1p(float64(takers)), takeCap)
+}
+
+// rankValue is a hit's place in find's order as one number: a term match
+// counts 1, and the lifted cosine adds its share of maxLifted, at most 1, so
+// a term hit never values below a hit by meaning alone, and within each the
+// higher cosine values higher, as the sort orders them.
+func (hit ranked) rankValue() float64 {
+	value := 0.0
+	if hit.term {
+		value = 1
+	}
+
+	if hit.score != nil {
+		value += min(max(*hit.score, 0)/maxLifted, 1)
+	}
+
+	return value
+}
+
+// percentOf is a hit's score as sdd prints it: its rank value in whole percent
+// of best, the first hit's, so the first scores 100 and none below it more
+// than the hit above. Every value is 0 or more; a best of 0 ties every hit.
+func percentOf(value float64, best float64) int {
+	if best <= 0 {
+		return 100
+	}
+
+	return int(math.Round(100 * value / best))
 }
 
 func (lib *library) find(ctx context.Context, req request) result {
@@ -130,7 +162,12 @@ func (lib *library) find(ctx context.Context, req request) result {
 	defer seen.save()
 
 	if req.JSON {
-		return lib.findJSON(seen, shown, len(hits), total, len(stores), page)
+		best := 0.0
+		if len(hits) > 0 {
+			best = hits[0].rankValue()
+		}
+
+		return lib.findJSON(seen, shown, best, len(hits), total, len(stores), page)
 	}
 
 	lines := []string{framing}
@@ -198,23 +235,29 @@ func (lib *library) matchesTerms(hit found, terms []string) bool {
 	return true
 }
 
+// listedTool is a tool as find and list answer it in JSON. As every read
+// answer, it carries a key only while the key holds a value: the own
+// project's tool has no label and is own, another project's is labelled and
+// not own.
 type listedTool struct {
-	Name    string   `json:"name"`
-	Label   *string  `json:"label"`
-	Own     bool     `json:"own"`
-	Version int      `json:"version"`
-	Summary string   `json:"summary"`
-	Usage   string   `json:"usage"`
-	Inputs  string   `json:"inputs"`
-	Outputs string   `json:"outputs"`
-	Score   *float64 `json:"score,omitempty"`
-	Takers  int      `json:"takers"`
+	Name string `json:"name"`
+	// Score is a find hit's match in percent of the best hit's; list ranks
+	// nothing and carries none.
+	Score   *int    `json:"score,omitempty"`
+	Label   *string `json:"label,omitempty"`
+	Own     bool    `json:"own,omitempty"`
+	Version int     `json:"version"`
+	Summary string  `json:"summary,omitempty"`
+	Usage   string  `json:"usage,omitempty"`
+	Inputs  string  `json:"inputs,omitempty"`
+	Outputs string  `json:"outputs,omitempty"`
+	Takers  int     `json:"takers"`
 	// Seen marks a version the calling agent's context already holds; it then
 	// answers with its name and version alone.
 	Seen bool `json:"-"`
 }
 
-func asListed(hit found, score *float64) listedTool {
+func asListed(hit found) listedTool {
 	var label *string
 	if !hit.store.own {
 		label = &hit.store.label
@@ -223,36 +266,34 @@ func asListed(hit found, score *float64) listedTool {
 	tool := hit.tool
 
 	return listedTool{Name: tool.Name, Label: label, Own: hit.store.own, Version: tool.Version, Summary: tool.Summary,
-		Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs, Score: score, Takers: len(tool.Takers)}
-}
-
-// scoredTool is a found tool with its cosine to the query, null where it was
-// found by a term alone.
-type scoredTool struct {
-	listedTool
-	Score *float64 `json:"score"`
+		Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs, Takers: len(tool.Takers)}
 }
 
 // listing is what find and list answer as JSON.
-type listing[T any] struct {
-	Framing  string `json:"framing"`
-	Tools    []T    `json:"tools"`
-	Shown    int    `json:"shown"`
-	Matching int    `json:"matching"`
-	Total    int    `json:"total"`
-	Projects int    `json:"projects"`
-	Page     int    `json:"page"`
+type listing struct {
+	Framing  string       `json:"framing,omitempty"`
+	Tools    []listedTool `json:"tools,omitempty"`
+	Shown    int          `json:"shown"`
+	Matching int          `json:"matching"`
+	Total    int          `json:"total"`
+	Projects int          `json:"projects"`
+	Page     int          `json:"page"`
 }
 
-func (lib *library) findJSON(seen *presented, shown []ranked, matching int, total int, projects int, page int) result {
-	tools := make([]scoredTool, 0, len(shown))
+func (lib *library) findJSON(seen *presented, shown []ranked, best float64, matching int, total int, projects int,
+	page int,
+) result {
+	tools := make([]listedTool, 0, len(shown))
 	for _, hit := range shown {
-		listed := asListed(hit.hit, nil)
+		listed := asListed(hit.hit)
 		listed.Seen = seen.printed(hit.hit)
-		tools = append(tools, scoredTool{listedTool: listed, Score: hit.score})
+
+		score := percentOf(hit.rankValue(), best)
+		listed.Score = &score
+		tools = append(tools, listed)
 	}
 
-	return encoded(listing[scoredTool]{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(shown),
+	return encoded(listing{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(shown),
 		Matching: matching, Total: total, Projects: projects, Page: page})
 }
 
@@ -273,11 +314,11 @@ func (lib *library) list(ctx context.Context, req request) result {
 	defer seen.save()
 
 	if req.JSON {
-		tools := []listedTool{}
+		var tools []listedTool
 
 		for _, name := range own.names() {
 			hit := found{store: own, tool: own.index.Tools[name]}
-			listed := asListed(hit, nil)
+			listed := asListed(hit)
 			listed.Seen = seen.printed(hit)
 			tools = append(tools, listed)
 		}
@@ -287,7 +328,7 @@ func (lib *library) list(ctx context.Context, req request) result {
 			total += len(held.index.Tools)
 		}
 
-		return encoded(listing[listedTool]{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(tools),
+		return encoded(listing{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(tools),
 			Matching: len(tools), Total: total, Projects: len(stores), Page: 1})
 	}
 

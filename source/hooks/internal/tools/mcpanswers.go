@@ -1,7 +1,8 @@
 package tools
 
 // What each MCP tool answers beside its message, or, for find and list, the
-// listing they answer. Keys are only ever added.
+// listing they answer. A message answer's keys are only ever added; the
+// listing carries a key only while it holds a value, as listedTool says.
 
 type nameFields struct {
 	Name string `json:"name"`
@@ -37,7 +38,7 @@ type reindexedFields struct {
 // mcpOutputs are the answers per tool: a read's listing, or the fields of a
 // message answer.
 var mcpOutputs = map[string]any{
-	"find": listing[scoredTool]{}, "list": listing[listedTool]{}, "take": takenFields{}, "add": nameFields{},
+	"find": listing{}, "list": listing{}, "take": takenFields{}, "add": nameFields{},
 	"update": updatedFields{}, "merge": mergedFields{}, "reindex": reindexedFields{},
 }
 
