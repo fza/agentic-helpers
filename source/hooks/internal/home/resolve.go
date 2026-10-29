@@ -353,9 +353,12 @@ func (held *mapping) decide(checkout Checkout) decision {
 }
 
 // joinGraph is the one place a checkout with no store of its own joins the
-// store of the graph repository its `.sdd/` names, silently. The config naming
-// that repository is committed text a clone brings along, so asking first is
-// one line here: answer a ReasonSplit question naming the graph store.
+// store of the graph repository its `.sdd/` names. The config naming that
+// repository is committed text a clone brings along, no stronger a sign of
+// the owner's intent than a shared origin, so the join is silent only where
+// the graph store already admits the checkout (a bind, an earlier join, an
+// index too stale to say so); otherwise a ReasonSplit question names the
+// graph store, and nothing is joined or written until a bind answers it.
 func (held *mapping) joinGraph(checkout Checkout) (decision, bool) {
 	if checkout.Graph == nil {
 		return decision{}, false
@@ -366,7 +369,29 @@ func (held *mapping) joinGraph(checkout Checkout) (decision, bool) {
 		return decision{}, false
 	}
 
-	return decision{store: graphID, graphJoins: true}, true
+	identity, _ := held.store(graphID)
+	if admits(*identity, checkout) {
+		return decision{store: graphID, graphJoins: true}, true
+	}
+
+	asked := held.question(checkout, ReasonSplit, []string{graphID})
+	asked.Graph = checkout.Graph.Root
+
+	return decision{question: asked}, true
+}
+
+// admits says the store lists the checkout.
+func admits(identity Identity, checkout Checkout) bool {
+	return slices.ContainsFunc(identity.Checkouts, func(admitted Admitted) bool { return admitted.is(checkout) })
+}
+
+// is says the admitted checkout is this one: the same git common directory
+// and path, or the same volume and inode, as a moved checkout keeps.
+func (admitted Admitted) is(checkout Checkout) bool {
+	sameDir := pathKey(admitted.CommonDir, admitted.Path) == pathKey(checkout.CommonDir, checkout.Root)
+	sameInode := admitted.Volume != "" && admitted.Volume == checkout.Volume && admitted.Inode == checkout.Inode
+
+	return sameDir || sameInode
 }
 
 // strongMatch is the store the checkout's pointer, inode or path names, in
@@ -637,12 +662,7 @@ func (held *mapping) admit(identity *Identity, checkout Checkout, force bool) bo
 	entry := Admitted{Path: checkout.Root, CommonDir: checkout.CommonDir, Volume: checkout.Volume, Inode: checkout.Inode}
 	changed := false
 
-	at := slices.IndexFunc(identity.Checkouts, func(admitted Admitted) bool {
-		sameDir := pathKey(admitted.CommonDir, admitted.Path) == pathKey(entry.CommonDir, entry.Path)
-		sameInode := admitted.Volume != "" && admitted.Volume == entry.Volume && admitted.Inode == entry.Inode
-
-		return sameDir || sameInode
-	})
+	at := slices.IndexFunc(identity.Checkouts, func(admitted Admitted) bool { return admitted.is(checkout) })
 
 	switch {
 	case at < 0:

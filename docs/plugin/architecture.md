@@ -56,9 +56,15 @@ still existing (a move across volumes); a pointer copied with a checkout confirm
 Every write to an identity, a pointer or the index happens under the lock, and the index is
 rewritten whole from the identities after each.
 
-Where the code side of a split layout has no store, it joins the graph repository's store silently
-in one place, `mapping.joinGraph` in `internal/home/resolve.go`; asking there instead is one change
-to that function.
+Where the code side of a split layout has no store, `mapping.joinGraph` in
+`internal/home/resolve.go` decides whether it joins the graph repository's store: silently where
+that store's `identity.json` already admits the checkout (by git common dir and path, or by volume
+and inode, as after a bind or an earlier join), else with a `ReasonSplit` question naming the graph
+folder and the graph store, nothing joined and no pointer written. The link is committed config a
+clone brings along, so it counts no more than a shared origin, which asks too. Rejected: following
+only `.sdd/config.local.yaml`, which would stop stock sdd's committed `graph_dir` and the fork's
+`project_dir` from ever joining; requiring the graph repository to name the code repository back,
+which no sdd release writes.
 
 The home is bookkeeping, not a boundary: any process able to write it can edit a pointer or an
 identity, which decides which store a call works on, never whether it may. `<data>/format.json`

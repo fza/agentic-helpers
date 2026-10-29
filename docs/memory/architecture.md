@@ -176,7 +176,8 @@ carries a format number; one that does still reads.
 
 Which store a checkout works on is `internal/home`'s answer: the pointer in its git common
 directory, else the identifiers the stores' `identity.json` record, so every worktree of a
-repository shares one store, and a code repository shares its graph repository's. A directory counts
+repository shares one store, and a code repository shares its graph repository's once that store
+admits it ([plugin architecture](../plugin/architecture.md#the-home)). A directory counts
 as inside git when `git rev-parse --is-inside-work-tree` says `true`; a `.git` directory and a bare
 repository do not. Outside git, with `memory_require_git` set to `false`, the store is found by the
 directory's absolute path.

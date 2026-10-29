@@ -22,19 +22,22 @@ const (
 	// checkouts and not this one, as a copied checkout does.
 	ReasonCopied Reason = "copied"
 	// ReasonSplit: a split layout's code and graph repositories work on
-	// different stores.
+	// different stores, or the code repository has none and the graph
+	// repository's store does not admit it.
 	ReasonSplit Reason = "split"
 )
 
 // Question is a checkout's store left to the user, always about the checkout
 // a session runs in. Merge names the stores `agentic-memory merge` would
-// join, from first, where one is offered.
+// join, from first, where one is offered; Graph is the graph repository a
+// split layout names, where its store does not admit the checkout.
 type Question struct {
 	Checkout string
 	Reason   Reason
 	Stores   []Candidate
 	Remotes  []string
 	Merge    []string
+	Graph    string
 }
 
 // Candidate is a store a question offers, as a person tells it apart.
@@ -114,6 +117,8 @@ func (asked Question) reason() string {
 		return "its path belonged to a checkout of another repository"
 	case ReasonCopied:
 		return "it carries the pointer of a store that admits other checkouts"
+	case ReasonSplit:
+		return fmt.Sprintf("its `.sdd/` names the graph repository %s, whose store does not admit it", asked.Graph)
 	}
 
 	return "its identifiers name more than one store"

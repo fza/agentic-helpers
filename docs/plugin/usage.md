@@ -61,7 +61,11 @@ or `agentic-memory merge` answers ([memory usage](../memory/usage.md#which-store
 
 A code repository whose graph lives in another repository, named by `project_dir` in
 `.sdd/config.yaml` (the sdd fork) or by a stock sdd `graph_dir` leaving the checkout, shares the
-graph repository's store, the pointer written into both git common dirs.
+graph repository's store, the pointer written into both git common dirs, once that store admits
+it. That config is committed, so a clone brings it along: where the graph store does not list the
+checkout yet, the agent asks the user once (``its `.sdd/` names the graph repository <folder>,
+whose store does not admit it``), and `agentic-memory bind <graph store>` or `bind --new` answers. Until
+then the checkout reads nothing of that store.
 
 An unclaimed store nobody promotes is deleted once `orphan_store_grace` (`config.yaml` only, `30d`
 unless set) has passed since it became unclaimed, unless one of the checkouts it last knew exists
