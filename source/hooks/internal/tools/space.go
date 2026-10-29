@@ -40,11 +40,12 @@ func figureOf(records map[string]space.Record, limitMB int) space.Figure {
 
 // storedVersion is one version a store keeps on disk.
 type storedVersion struct {
-	store *store
-	tool  string
-	v     int
-	at    string
-	bytes int64
+	store    *store
+	tool     string
+	v        int
+	at       string
+	bytes    int64
+	prunable bool
 }
 
 func (version storedVersion) String() string {
@@ -120,46 +121,43 @@ func origins(stores []*store) map[forkOrigin]bool {
 	return named
 }
 
-// versionsOf is every version a store keeps, and those of them it may prune:
-// neither its tool's current version nor a fork's origin.
-func versionsOf(held *store, named map[forkOrigin]bool) ([]storedVersion, []storedVersion) {
-	var every, prunable []storedVersion
+func versionNumber(folder string) (int, bool) {
+	v, err := strconv.Atoi(strings.TrimPrefix(folder, "v"))
+
+	return v, err == nil && folder == versionDir(v)
+}
+
+// versionsOf is every version a store keeps, with its recorded size, each
+// marked prunable where it is neither its tool's current version nor a fork's
+// origin.
+func versionsOf(held *store, named map[forkOrigin]bool) []storedVersion {
+	var every []storedVersion
 
 	for _, name := range held.names() {
 		tool := held.index.Tools[name]
 
 		for folder, hashes := range tool.Hashes {
-			v, err := strconv.Atoi(strings.TrimPrefix(folder, "v"))
-			if err != nil || folder != versionDir(v) || !versionStored(held.path, name, folder) {
+			v, valid := versionNumber(folder)
+			if !valid || !versionStored(held.path, name, folder) {
 				continue
 			}
 
-			version := storedVersion{store: held, tool: name, v: v, at: tool.Written[folder], bytes: hashedBytes(hashes)}
-			every = append(every, version)
-
-			if v != tool.Version && !named[forkOrigin{Project: held.key, Tool: name, V: v}] {
-				prunable = append(prunable, version)
-			}
+			every = append(every, storedVersion{store: held, tool: name, v: v, at: tool.Written[folder],
+				bytes:    hashedBytes(hashes),
+				prunable: v != tool.Version && !named[forkOrigin{Project: held.key, Tool: name, V: v}]})
 		}
 	}
 
-	return every, prunable
+	return every
 }
 
 func usageOf(held *store, named map[forkOrigin]bool) space.Record {
-	every, prunable := versionsOf(held, named)
-
 	var record space.Record
 
-	may := map[storedVersion]bool{}
-	for _, version := range prunable {
-		may[version] = true
-	}
-
-	for _, version := range every {
+	for _, version := range versionsOf(held, named) {
 		record.Stored = space.Add(record.Stored, version.bytes)
 
-		if !may[version] {
+		if !version.prunable {
 			record.Held = space.Add(record.Held, version.bytes)
 		}
 	}
@@ -167,21 +165,164 @@ func usageOf(held *store, named map[forkOrigin]bool) space.Record {
 	return record
 }
 
-// prunableVersions is every version the stores may prune, oldest first.
-func prunableVersions(stores []*store, named map[forkOrigin]bool) []storedVersion {
-	var all []storedVersion
+// recordedBytes is what the stores' indexes record they hold: it only decides
+// whether the stores are measured.
+func recordedBytes(stores []*store, named map[forkOrigin]bool) int64 {
+	var total int64
 
 	for _, held := range stores {
-		_, prunable := versionsOf(held, named)
-		all = append(all, prunable...)
+		total = space.Add(total, usageOf(held, named).Stored)
 	}
 
-	slices.SortFunc(all, func(a, b storedVersion) int {
+	return total
+}
+
+// measured is what every version in the stores holds on disk, and the
+// prunable ones with their sizes on disk, oldest first. An index and the
+// ledger are writable by anything sandboxed, so a prune is decided on these
+// sizes, never on recorded ones.
+func measured(stores []*store, named map[forkOrigin]bool) (int64, []storedVersion) {
+	var (
+		stored   int64
+		prunable []storedVersion
+	)
+
+	for _, held := range stores {
+		for _, version := range versionsOf(held, named) {
+			version.bytes = versionOnDisk(held.path, version.tool, versionDir(version.v))
+			stored = space.Add(stored, version.bytes)
+
+			if version.prunable {
+				prunable = append(prunable, version)
+			}
+		}
+	}
+
+	slices.SortFunc(prunable, func(a, b storedVersion) int {
 		return cmp.Or(strings.Compare(a.at, b.at), strings.Compare(a.store.key, b.store.key),
 			strings.Compare(a.tool, b.tool), cmp.Compare(a.v, b.v))
 	})
 
-	return all
+	return stored, prunable
+}
+
+func versionOnDisk(at string, tool string, folder string) int64 {
+	root, err := openDir(at)
+	if err != nil {
+		return 0
+	}
+
+	defer root.close()
+
+	toolDir, err := root.sub(tool)
+	if err != nil {
+		return 0
+	}
+
+	defer toolDir.close()
+
+	version, err := toolDir.sub(folder)
+	if err != nil {
+		return 0
+	}
+
+	defer version.close()
+
+	return version.size(versionLimit)
+}
+
+// storeOnDisk is what a store's version folders hold on disk, counted to at
+// most limit, read without its index.
+func storeOnDisk(at string, limit int64) int64 {
+	root, err := openDir(at)
+	if err != nil {
+		return 0
+	}
+
+	defer root.close()
+
+	tools, err := root.entries()
+	if err != nil {
+		return 0
+	}
+
+	var total int64
+
+	for _, entry := range tools {
+		if !entry.IsDir() || total >= limit {
+			continue
+		}
+
+		toolDir, err := root.sub(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		versions, err := toolDir.entries()
+		if err == nil {
+			for _, folder := range versions {
+				_, valid := versionNumber(folder.Name())
+				if !valid || !folder.IsDir() {
+					continue
+				}
+
+				version, err := toolDir.sub(folder.Name())
+				if err != nil {
+					continue
+				}
+
+				total = space.Add(total, version.size(versionLimit))
+				version.close()
+			}
+		}
+
+		toolDir.close()
+	}
+
+	return min(total, limit)
+}
+
+// size is what the regular files below held take, by their lstat, counted to
+// at most limit and walkDepth folders deep.
+func (held *dir) size(limit int64) int64 {
+	var total int64
+
+	var descend func(current *dir, depth int)
+
+	descend = func(current *dir, depth int) {
+		listed, err := current.entries()
+		if err != nil {
+			return
+		}
+
+		for _, entry := range listed {
+			if total >= limit {
+				return
+			}
+
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+
+			switch {
+			case info.IsDir() && depth < walkDepth:
+				child, err := current.sub(entry.Name())
+				if err != nil {
+					continue
+				}
+
+				descend(child, depth+1)
+				child.close()
+			case info.Mode().IsRegular():
+				total = space.Add(total, info.Size())
+			}
+		}
+	}
+
+	descend(held, 0)
+
+	return min(total, limit)
 }
 
 // pruneVersion removes one version from its store: its files' hashes go into
@@ -241,22 +382,24 @@ func pruneVersion(version storedVersion) error {
 func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	stores := lib.stores(ctx)
 	named := origins(stores)
+	limit := int64(lib.options.ToolsTotalMB) << 20
+	others := lib.unreached()
 
-	var stored int64
-
-	for _, held := range stores {
-		stored = space.Add(stored, usageOf(held, named).Stored)
+	recorded := recordedBytes(stores, named)
+	for _, record := range others {
+		recorded = space.Add(recorded, record.Stored)
 	}
 
-	if lib.scopeProject() {
-		for key, record := range space.Read(ledgerPath(lib.root())) {
-			if key != lib.key {
-				stored = space.Add(stored, record.Stored)
-			}
-		}
+	if space.Add(recorded, incoming) <= limit {
+		return nil
 	}
 
-	over := space.Add(stored, incoming) - int64(lib.options.ToolsTotalMB)<<20
+	stored, prunable := measured(stores, named)
+	for key := range others {
+		stored = space.Add(stored, storeOnDisk(projectkey.Dir(lib.root(), key), limit))
+	}
+
+	over := space.Add(stored, incoming) - limit
 	if over <= 0 {
 		return nil
 	}
@@ -266,7 +409,7 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 		freed  int64
 	)
 
-	for _, version := range prunableVersions(stores, named) {
+	for _, version := range prunable {
 		if freed >= over {
 			break
 		}
@@ -289,6 +432,27 @@ func (lib *library) makeRoom(ctx context.Context, incoming int64) error {
 	}
 
 	return nil
+}
+
+// unreached is the ledger's record of every store a project-scoped caller
+// cannot reach. The ledger is writable by anything sandboxed, so a key counts
+// only where it names a folder below the root in its one clean form: never a
+// folder elsewhere on the machine, never the own store a second time.
+func (lib *library) unreached() map[string]space.Record {
+	if !lib.scopeProject() {
+		return nil
+	}
+
+	records := map[string]space.Record{}
+
+	for key, record := range space.Read(ledgerPath(lib.root())) {
+		local := filepath.FromSlash(key)
+		if key != lib.key && filepath.IsLocal(local) && filepath.Clean(local) == local {
+			records[key] = record
+		}
+	}
+
+	return records
 }
 
 func (lib *library) prune(ctx context.Context, version storedVersion) error {
@@ -358,22 +522,20 @@ func Prune(ctx context.Context, home string, limitMB int) {
 	}
 
 	named := origins(stores)
+	limit := int64(limitMB) << 20
 
-	var stored int64
+	if recordedBytes(stores, named) > limit {
+		stored, prunable := measured(stores, named)
+		over := stored - limit
 
-	for _, held := range stores {
-		stored = space.Add(stored, usageOf(held, named).Stored)
-	}
+		for _, version := range prunable {
+			if over <= 0 {
+				break
+			}
 
-	over := stored - int64(limitMB)<<20
-
-	for _, version := range prunableVersions(stores, named) {
-		if over <= 0 {
-			break
-		}
-
-		if pruneLocked(ctx, version, pruneLockWait) == nil {
-			over -= version.bytes
+			if pruneLocked(ctx, version, pruneLockWait) == nil {
+				over -= version.bytes
+			}
 		}
 	}
 

@@ -3,6 +3,7 @@ package tools_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -322,6 +323,9 @@ func sizeEvery(row map[string]any, size float64) {
 func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
 	cases := map[string]func(tools map[string]map[string]any){
 		"a size past the cap": func(tools map[string]map[string]any) { sizeEvery(tools["row-tally"], 1<<40) },
+		"a size within the cap the disk does not back": func(tools map[string]map[string]any) {
+			sizeEvery(tools["row-tally"], 900<<10)
+		},
 		"a version with no folder": func(tools map[string]map[string]any) {
 			tools["ghost"] = map[string]any{
 				"version": 9, "name": "ghost", "summary": "s", "usage": "u", "files": []string{"g.py"},
@@ -349,6 +353,47 @@ func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
 				"--usage", "python3 the script < file", "--distinct", "lines, not words")
 			if got.code != 0 || !h.stored("word-count/v1") {
 				t.Errorf("a write with room on disk should prune nothing, whatever another store's index claims, got %d %q",
+					got.code, got.err)
+			}
+		})
+	}
+}
+
+func TestAForgedLedgerCannotTriggerPruning(t *testing.T) {
+	cases := map[string]func(h *harness) string{
+		"a store claiming more than it holds": func(*harness) string { return otherRepo },
+		"a key naming no store":               func(*harness) string { return "ghost/store" },
+		"a key naming the own store again":    func(h *harness) string { return "./" + h.repoID },
+		"a key reaching outside the library": func(h *harness) string {
+			test.WriteFile(h.t, filepath.Join(h.home, "outside", "big", "v1", "big.py"), strings.Repeat("x", 2<<20))
+
+			return "../../outside"
+		},
+	}
+
+	for name, forge := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.limitTools("1")
+
+			h.must("add", "word-count", "--from", h.sized("words-one", 200), "--summary", "Count the words of standard input",
+				"--usage", "python3 the script < file")
+			h.must("update", "word-count", "--from", h.sized("words-two", 200), "--why", "faster")
+
+			other := h.elsewhere(otherRepo)
+			other.must("add", "row-tally", "--from", other.sized("tally", 200), "--summary", "Tally the rows of a table",
+				"--usage", "python3 the script < file", "--distinct", "rows, not words")
+
+			key := forge(h)
+			test.WriteFile(t, filepath.Join(tools.Root(h.home), ".space.json"),
+				fmt.Sprintf(`{%q:{"stored":%d,"held":%d}}`, key, int64(1)<<40, int64(1)<<40))
+
+			h.variables["AGENTIC_TOOLS_SCOPE"] = "project"
+
+			got := h.run("", "add", "line-count", "--from", h.sized("lines", 100), "--summary", "Count the lines of a file",
+				"--usage", "python3 the script < file", "--distinct", "lines, not words")
+			if got.code != 0 || !h.stored("word-count/v1") {
+				t.Errorf("a scoped write with room on disk should prune nothing, whatever the ledger claims, got %d %q",
 					got.code, got.err)
 			}
 		})
