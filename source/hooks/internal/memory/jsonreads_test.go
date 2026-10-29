@@ -7,11 +7,25 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-var entryKeys = []string{
-	"anchors", "attachments", "branch", "commit", "filed", "for", "forbids", "from", "id", "kind", "linked_from", "links",
-	"on", "other_branch", "proof", "retention", "seat", "shelf", "status", "status_change", "title", "topics", "until", "when",
+// hubKeys are the keys of the hub jsonReadsHarness files, each holding a
+// value: a live trap anchored to a file, linking a decision, linked to.
+var hubKeys = []string{
+	"anchors", "branch", "commit", "filed", "from", "id", "kind", "linked_from", "links", "retention", "seat", "shelf",
+	"status", "title", "topics",
+}
+
+// noEmptyKey fails where a read answer carries a key holding an empty value.
+func noEmptyKey(t *testing.T, text string) {
+	t.Helper()
+
+	empty, err := test.EmptyKeys([]byte(text))
+	if err != nil || len(empty) > 0 {
+		t.Errorf("a read answer should carry no key holding an empty value, got %v %v:\n%s", empty, err, text)
+	}
 }
 
 func keysOf(object map[string]any) []string {
@@ -93,12 +107,14 @@ func TestShowAnswersJSON(t *testing.T) {
 				t.Fatalf("show --json should answer every entry asked for: %s", text)
 			}
 
+			noEmptyKey(t, text)
+
 			first, _ := entries[0].(map[string]any)
-			withBody := append(slices.Clone(entryKeys), "body")
+			withBody := append(slices.Clone(hubKeys), "body")
 			slices.Sort(withBody)
 
 			if !slices.Equal(keysOf(first), withBody) {
-				t.Errorf("a shown entry should carry every entry key and its body, got %v", keysOf(first))
+				t.Errorf("a shown entry should carry every key holding a value and its body, got %v", keysOf(first))
 			}
 
 			if first["kind"] != "trap" || first["body"] != "hub body" || first["status"] != "live" {
@@ -145,12 +161,16 @@ func TestSearchAnswersJSON(t *testing.T) {
 				text = mcpText(t, h.mcp(`{"name":"search","arguments":{"term":["Gate"],"limit":1,"json":true,"again":true}}`))
 			}
 
+			noEmptyKey(t, text)
+
 			answer := decoded(t, text)
 			entries, _ := answer["entries"].([]any)
 			first, _ := entries[0].(map[string]any)
+			withScore := append(slices.Clone(hubKeys), "score")
+			slices.Sort(withScore)
 
-			if len(entries) != 1 || !slices.Equal(keysOf(first), entryKeys) {
-				t.Errorf("a search hit should carry every entry key and no body, got %v", keysOf(first))
+			if len(entries) != 1 || !slices.Equal(keysOf(first), withScore) {
+				t.Errorf("a search hit should carry every key holding a value and its score, and no body, got %v", keysOf(first))
 			}
 
 			if more, _ := answer["more"].(map[string]any); more["skip"] != float64(1) {
@@ -177,12 +197,13 @@ func TestBriefAnswersJSON(t *testing.T) {
 				text = mcpText(t, h.mcp(`{"name":"brief","arguments":{"json":true}}`))
 			}
 
+			noEmptyKey(t, text)
+
 			answer := decoded(t, text)
 			if !slices.Equal(keysOf(answer), []string{
-				"changed", "do_now", "language", "live", "news", "notes", "notice", "retired", "rules", "seat", "shelf", "state", "todos",
-				"topics", "traps",
+				"language", "live", "notice", "retired", "seat", "shelf", "state", "todos", "topics", "traps",
 			}) {
-				t.Errorf("the brief should carry every section key, got %v", keysOf(answer))
+				t.Errorf("the brief should carry every section holding an entry and its counts, zero ones too, got %v", keysOf(answer))
 			}
 
 			state, _ := answer["state"].(map[string]any)
@@ -216,6 +237,9 @@ func TestWhoAndTopicsAnswerJSON(t *testing.T) {
 				who = mcpText(t, h.mcp(`{"name":"who","arguments":{"all":true,"json":true}}`))
 				topics = mcpText(t, h.mcp(`{"name":"topics","arguments":{"json":true}}`))
 			}
+
+			noEmptyKey(t, who)
+			noEmptyKey(t, topics)
 
 			seats, _ := decoded(t, who)["seats"].([]any)
 			main, _ := seats[0].(map[string]any)

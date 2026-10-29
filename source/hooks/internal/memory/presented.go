@@ -148,16 +148,18 @@ func pointer(held *entry) string {
 }
 
 // jsonSeenEntry is an entry the calling session's context already holds: its
-// id and title alone, as the text answers with its pointer.
+// id and title alone, and a search hit's score, as the text answers with its
+// pointer.
 type jsonSeenEntry struct {
 	ID    string `json:"id"`
-	Title string `json:"title"`
+	Score *int   `json:"score,omitempty"`
+	Title string `json:"title,omitempty"`
 	Seen  bool   `json:"seen"`
 }
 
 func (object jsonEntry) MarshalJSON() ([]byte, error) {
 	if object.Seen {
-		return json.Marshal(jsonSeenEntry{ID: object.ID, Title: object.Title, Seen: true})
+		return json.Marshal(jsonSeenEntry{ID: object.ID, Score: object.Score, Title: object.Title, Seen: true})
 	}
 
 	type plain jsonEntry

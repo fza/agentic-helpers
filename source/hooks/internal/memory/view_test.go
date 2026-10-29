@@ -35,8 +35,8 @@ func viewTitles(t *testing.T, h *harness, text string) []string {
 	var answer viewAnswer
 
 	err := json.Unmarshal([]byte(h.must("", "view", "--layout", text, "--json")), &answer)
-	if err != nil || len(answer.Sections) != 1 {
-		t.Fatalf("view --json should answer one object with one section: %v", err)
+	if err != nil || len(answer.Sections) > 1 {
+		t.Fatalf("view --json should answer one object with at most one section, an empty one leaving it: %v", err)
 	}
 
 	titles := []string{}

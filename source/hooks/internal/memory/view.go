@@ -711,32 +711,31 @@ type jsonTopicCount struct {
 }
 
 type jsonListSection struct {
-	Entries []jsonEntry `json:"entries"`
+	Entries []jsonEntry `json:"entries,omitempty"`
 	More    *jsonMore   `json:"more,omitempty"`
 }
 
 type jsonGroupedSection struct {
-	Groups map[string]jsonGroup `json:"groups"`
+	Groups map[string]jsonGroup `json:"groups,omitempty"`
 	More   *jsonMore            `json:"more,omitempty"`
 }
 
 type jsonGroup struct {
-	Entries []jsonEntry `json:"entries"`
+	Entries []jsonEntry `json:"entries,omitempty"`
 }
 
 type jsonCountsSection struct {
-	Topics map[string]jsonTopicCount `json:"topics"`
+	Topics map[string]jsonTopicCount `json:"topics,omitempty"`
 }
 
 // viewJSON is one object: the notice, then each section under its name, in
-// the order the layout gives them.
+// the order the layout gives them. A section with nothing in it is an empty
+// object and leaves the answer, as an empty key does everywhere, and so does
+// sections where every section is empty.
 func (scope *viewScope) viewJSON(sections []viewSection) result {
-	var answer bytes.Buffer
+	var written bytes.Buffer
 
-	notice, _ := json.Marshal(filedNotice)
-	answer.WriteString(`{"notice":` + string(notice) + `,"sections":{`)
-
-	for index, section := range sections {
+	for _, section := range sections {
 		page, kept := scope.run(section)
 
 		var value any
@@ -777,18 +776,27 @@ func (scope *viewScope) viewJSON(sections []viewSection) result {
 			return refused("encoding the answer: %v", err)
 		}
 
-		if index > 0 {
-			answer.WriteString(",")
+		if string(encoded) == "{}" {
+			continue
 		}
 
-		answer.Write(name)
-		answer.WriteString(":")
-		answer.Write(encoded)
+		if written.Len() > 0 {
+			written.WriteString(",")
+		}
+
+		written.Write(name)
+		written.WriteString(":")
+		written.Write(encoded)
 	}
 
-	answer.WriteString("}}")
+	notice, _ := json.Marshal(filedNotice)
 
-	return done(answer.String())
+	answer := `{"notice":` + string(notice)
+	if written.Len() > 0 {
+		answer += `,"sections":{` + written.String() + "}"
+	}
+
+	return done(answer + "}")
 }
 
 // entryObject is one entry of a listed section as JSON, with the reasons it

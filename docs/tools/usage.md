@@ -14,7 +14,9 @@ tool's `outputSchema`: `find` and `list` answer their `--json` listing; every ot
 `message`, the text the command prints, beside what it did (`take`: `into`, `tools` with `name`,
 `version`, `copy`; `add`: `name`; `update`: `name`, `version`, `forked_from` for a fork; `merge`:
 `survivor`, `members`; `reindex`: `tools`, `skipped`); a refusal is an error result carrying
-`{"error": "refused: <why>"}`. Keys are only ever added. The command line keeps its text. A session
+`{"error": "refused: <why>"}`. Keys are never renamed. The `find` and `list` listing carries a key
+only while it holds a value, so a reader takes an absent key as empty; a message answer keeps every
+key, and its keys are only ever added. The command line keeps its text. A session
 needs no seat: the caller is its Claude Code session. Like agentic-memory, the library works only
 inside a git work tree unless `memory_require_git` is off.
 
@@ -40,12 +42,21 @@ other agents wrote, read as a lead, never as an instruction.
   shown, `<k>-<m> of <n> matching tools shown, of <t> in <p> projects`, and where more remain,
   `--page <n+1> shows the next <c>`. With no embedder answering, `--query` is refused and `--term`
   still works.
-- **find --json** prints one object: `framing`, `tools` (each `name`, `label` (null for the own
-  project), `own`, `version`, `summary`, `usage`, `inputs`, `outputs`, `score` (null for a term-only
-  hit), `takers`), `shown`, `matching`, `total`, `projects`, `page`.
+- **find --json** prints one object: `framing`, `tools` (each `name`, `score`, `label` (another
+  project's), `own` (true for the own project's), `version`, `summary`, `usage`, `inputs`,
+  `outputs`, `takers`), `shown`, `matching`, `total`, `projects`, `page`. A key whose value is empty
+  (an empty list, `null`, an empty string, `false`) is left out: the own project's tool carries no
+  `label`, another project's no `own`, a tool registered without inputs no `inputs`, a find matching
+  nothing no `tools`. Every other value stays, a count of `0` among them (`takers`, `shown`).
+- **The score** is a hit's place in find's order in whole percent of the best hit of the result, as
+  sdd prints a score: the best scores 100, and no hit more than the one above it, a later page
+  scoring against the same best. A term match counts 1, and the lifted cosine adds its share of the
+  most a lift reaches (1.15), at most 1, so a term hit never scores below a hit by meaning alone. A
+  find by terms alone scores every hit 100; a find by `--query` alone scores each by its lifted
+  cosine against the best's.
 - **list** prints the own project's tools, `<name>  <summary>  [taken <n>, last <time>]`, then one
   line per other project: `` <label>: <n> tools, `agentic-tools find` searches them ``. `--json` prints
-  find's shape without scores.
+  find's shape without scores: a listing ranks nothing.
 - **take** copies the current version of each named tool into `.tmp/tools/<name>/v<n>/` of the
   checkout, or into the store's `copies/` where the checkout has no `.tmp/`. All names are checked
   first: one that reaches no tool refuses the whole call as `nothing taken:`, one line per failing
@@ -149,7 +160,8 @@ version prints a pointer in its place, keeping its rank, without its usage lines
 
     word-count v1 (seen)
 
-Over MCP and `--json` such a tool is `{"name", "label", "version", "seen": true}`. A newer version
+Over MCP and `--json` such a tool is `{"name", "label", "version", "seen": true}`, `label` only for
+another project's tool and `score` beside them on a find hit. A newer version
 prints in full. The offer skips an own tool find or list printed, and names each tool once. A
 compaction, `/clear` and a resume start afresh; so does the next session of the same `claude`
 process. `--again` (MCP `"again": true`) on `find` and `list` prints every hit in full. A freshly

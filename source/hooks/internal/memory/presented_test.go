@@ -5,10 +5,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func seenPointer(id string, title string) string {
 	return id + " " + title + " (seen)"
+}
+
+// bestHitPointer is the pointer a search prints for a hit scoring as the
+// best of its result.
+func bestHitPointer(id string, title string) string {
+	return id + " 100% " + title + " (seen)"
 }
 
 func TestARepeatedSearchHitPrintsAPointerInRankOrder(t *testing.T) {
@@ -29,9 +37,9 @@ func TestARepeatedSearchHitPrintsAPointerInRankOrder(t *testing.T) {
 
 	for index, text := range lines {
 		switch {
-		case text == seenPointer(gate, "Gate reads Bash only"):
+		case text == bestHitPointer(gate, "Gate reads Bash only"):
 			pointed = index
-		case strings.HasPrefix(text, tail+" Tail seal gate rename  ["):
+		case strings.HasPrefix(text, tail+" 100% Tail seal gate rename  ["):
 			full = index
 		}
 	}
@@ -73,7 +81,7 @@ func TestTheBriefsEntriesComeBackAsPointers(t *testing.T) {
 	id := h.file("Gate reads Bash only", "finding")
 	h.must("", "brief")
 
-	if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != seenPointer(id, "Gate reads Bash only") {
+	if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != bestHitPointer(id, "Gate reads Bash only") {
 		t.Errorf("an entry the brief printed should come back as its pointer, got:\n%s", out)
 	}
 
@@ -112,8 +120,8 @@ func TestASeenEntryAnswersWithItsIDAndTitleInJSON(t *testing.T) {
 	}
 
 	seen := answer.Entries[0]
-	if len(seen) != 3 || seen["id"] != id || seen["title"] != "Gate reads Bash only" || seen["seen"] != true {
-		t.Errorf("a seen entry should answer with its id, title and seen alone, got %v", seen)
+	if len(seen) != 4 || seen["id"] != id || seen["title"] != "Gate reads Bash only" || seen["seen"] != true || seen["score"] == nil {
+		t.Errorf("a seen search hit should answer with its id, score, title and seen alone, got %v", seen)
 	}
 }
 
@@ -126,13 +134,13 @@ func TestAFreshContextPrintsEverythingInFull(t *testing.T) {
 			id := h.file("Gate reads Bash only", "finding")
 			h.must("", "search", "--term", "Gate reads", "--no-heat")
 
-			if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != seenPointer(id, "Gate reads Bash only") {
+			if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != bestHitPointer(id, "Gate reads Bash only") {
 				t.Fatalf("a repeated hit should print its pointer before the context starts afresh, got:\n%s", out)
 			}
 
 			// A compaction's and a /clear's brief reprints the entry; a resume
 			// prints none, so the next read does.
-			out := h.must(hookPayload(source, "", ""), "session-start") + h.must("", "search", "--term", "Gate reads", "--no-heat")
+			out := h.must(hookPayload(source, "", ""), "session-start") + test.Unscored(h.must("", "search", "--term", "Gate reads", "--no-heat"))
 			if !strings.Contains(out, id+" Gate reads Bash only  [") {
 				t.Errorf("a context started afresh should get the entry in full first, got:\n%s", out)
 			}

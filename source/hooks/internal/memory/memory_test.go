@@ -997,8 +997,8 @@ func TestHolderJSON(t *testing.T) {
 	}
 
 	got := h.run("", "holder", "--session", "nobody", "--json")
-	if got.code != 1 || !strings.Contains(got.out, `"seat":""`) {
-		t.Errorf("a session holding nothing should answer an empty seat with exit 1, got %d %s", got.code, got.out)
+	if got.code != 1 || strings.Contains(got.out, `"seat"`) || !strings.Contains(got.out, `"session_id":"nobody"`) {
+		t.Errorf("a session holding nothing should answer without a seat, exit 1, got %d %s", got.code, got.out)
 	}
 }
 

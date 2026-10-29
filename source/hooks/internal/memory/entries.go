@@ -719,7 +719,7 @@ func (mem *memory) topics(ctx context.Context, req request) result {
 	}
 
 	if req.JSON {
-		return jsonAnswer(map[string]any{"topics": perSeat})
+		return jsonAnswer(jsonTopics{Topics: perSeat})
 	}
 
 	counts := mem.topicCounts(folded)
@@ -814,7 +814,7 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	// Each arm keeps the whole window before fusion, so a later page is the fused
 	// ranking's next slice; total counts every result where it is exact, and is
 	// -1 where a query scores every candidate.
-	var arms [][]string
+	var arms [][]rankedHit
 
 	total := 0
 
@@ -844,7 +844,21 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	}
 
 	ranked := fuse(arms, window)
-	page := ranked[min(req.Skip, len(ranked)):]
+	hits := ranked[min(req.Skip, len(ranked)):]
+
+	page := make([]string, 0, len(hits))
+	for _, hit := range hits {
+		page = append(page, hit.id)
+	}
+
+	// A listing matches nothing, so its entries carry no score.
+	var scores []int
+
+	if !listing {
+		for _, hit := range hits {
+			scores = append(scores, percentOf(hit.value, ranked[0].value))
+		}
+	}
 
 	next := req.Skip + len(page)
 
@@ -860,8 +874,13 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		here := mem.checkout(ctx)
 		answer := jsonSearch{Notice: filedNotice, Entries: make([]jsonEntry, 0, len(page))}
 
-		for _, id := range page {
-			answer.Entries = append(answer.Entries, mem.objectOf(folded.entries[id], mem.entryJSON(here, folded, folded.entries[id], false)))
+		for index, id := range page {
+			object := mem.objectOf(folded.entries[id], mem.entryJSON(here, folded, folded.entries[id], false))
+			if scores != nil {
+				object.Score = &scores[index]
+			}
+
+			answer.Entries = append(answer.Entries, object)
 		}
 
 		if (total < 0 && len(ranked) == window) || total > next {
@@ -880,8 +899,13 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	here := mem.checkout(ctx)
 
 	lines := make([]string, 0, len(page)+1)
-	for _, id := range page {
-		lines = append(lines, mem.lineOf(folded.entries[id], line(here, folded.entries[id])))
+	for index, id := range page {
+		text := mem.lineOf(folded.entries[id], line(here, folded.entries[id]))
+		if scores != nil {
+			text = fmt.Sprintf("%s %d%%%s", id, scores[index], strings.TrimPrefix(text, id))
+		}
+
+		lines = append(lines, text)
 	}
 
 	switch {
@@ -946,7 +970,7 @@ func (scope *viewScope) searchFilters(req request) ([]filter, error) {
 // listingArm orders entries by when they last changed status: the most
 // recently ended first for a retired or superseded entry, the most recently
 // filed first for a live one.
-func listingArm(candidates []*entry) []string {
+func listingArm(candidates []*entry) []rankedHit {
 	since := func(held *entry) time.Time {
 		last, found := held.latest()
 		if found && held.status != statusLive {
@@ -961,12 +985,37 @@ func listingArm(candidates []*entry) []string {
 		return cmp.Or(since(b).Compare(since(a)), strings.Compare(a.id, b.id))
 	})
 
-	ids := make([]string, 0, len(ordered))
+	hits := make([]rankedHit, 0, len(ordered))
 	for _, held := range ordered {
-		ids = append(ids, held.id)
+		hits = append(hits, rankedHit{id: held.id})
 	}
 
-	return ids
+	return hits
+}
+
+// rankedHit is an entry's place in a search arm or the fused ranking, value
+// being what ranked it: a term search's match count, a query's cosine, a
+// hybrid's reciprocal rank sum. A listing ranks by time and leaves it zero.
+type rankedHit struct {
+	id    string
+	value float64
+}
+
+// percentOf is a hit's score as sdd prints it: its value in whole percent of
+// best, the value of the result's first hit. A ranking is never increasing,
+// so the first hit scores 100 and every later one no more than the one above
+// it. A best of zero or below, a query matching nothing by meaning, leaves
+// the hits tied with it at 100 and the rest at 0.
+func percentOf(value float64, best float64) int {
+	if best <= 0 {
+		if value >= best {
+			return 100
+		}
+
+		return 0
+	}
+
+	return int(math.Round(100 * max(value, 0) / best))
 }
 
 func scoredCandidates(candidates []*entry, scores map[string]float32) []*entry {
@@ -981,7 +1030,7 @@ func scoredCandidates(candidates []*entry, scores map[string]float32) []*entry {
 	return found
 }
 
-func keywordArm(candidates []*entry, patterns []*regexp.Regexp, limit int) []string {
+func keywordArm(candidates []*entry, patterns []*regexp.Regexp, limit int) []rankedHit {
 	type hit struct {
 		held  *entry
 		count int
@@ -1014,15 +1063,15 @@ func keywordArm(candidates []*entry, patterns []*regexp.Regexp, limit int) []str
 		return cmp.Or(cmp.Compare(b.count, a.count), b.held.filed.Compare(a.held.filed))
 	})
 
-	ids := make([]string, 0, min(limit, len(hits)))
+	ranked := make([]rankedHit, 0, min(limit, len(hits)))
 	for _, held := range hits[:min(limit, len(hits))] {
-		ids = append(ids, held.held.id)
+		ranked = append(ranked, rankedHit{id: held.held.id, value: float64(held.count)})
 	}
 
-	return ids
+	return ranked
 }
 
-func semanticArm(candidates []*entry, scores map[string]float32, limit int) []string {
+func semanticArm(candidates []*entry, scores map[string]float32, limit int) []rankedHit {
 	var ranked []*entry
 
 	for _, held := range candidates {
@@ -1035,17 +1084,17 @@ func semanticArm(candidates []*entry, scores map[string]float32, limit int) []st
 		return cmp.Or(cmp.Compare(scores[b.id], scores[a.id]), strings.Compare(a.id, b.id))
 	})
 
-	ids := make([]string, 0, min(limit, len(ranked)))
+	hits := make([]rankedHit, 0, min(limit, len(ranked)))
 	for _, held := range ranked[:min(limit, len(ranked))] {
-		ids = append(ids, held.id)
+		hits = append(hits, rankedHit{id: held.id, value: float64(scores[held.id])})
 	}
 
-	return ids
+	return hits
 }
 
 // fuse combines ranked arms by reciprocal rank, as sdd's hybrid search does; a
-// single arm passes through.
-func fuse(arms [][]string, limit int) []string {
+// single arm passes through with its own values.
+func fuse(arms [][]rankedHit, limit int) []rankedHit {
 	if len(arms) == 1 {
 		return arms[0]
 	}
@@ -1055,12 +1104,12 @@ func fuse(arms [][]string, limit int) []string {
 	var order []string
 
 	for _, arm := range arms {
-		for rank, id := range arm {
-			if _, seen := scores[id]; !seen {
-				order = append(order, id)
+		for rank, hit := range arm {
+			if _, seen := scores[hit.id]; !seen {
+				order = append(order, hit.id)
 			}
 
-			scores[id] += 1 / float64(rrfK+rank+1)
+			scores[hit.id] += 1 / float64(rrfK+rank+1)
 		}
 	}
 
@@ -1068,7 +1117,12 @@ func fuse(arms [][]string, limit int) []string {
 		return cmp.Or(cmp.Compare(scores[b], scores[a]), strings.Compare(a, b))
 	})
 
-	return order[:min(limit, len(order))]
+	fused := make([]rankedHit, 0, min(limit, len(order)))
+	for _, id := range order[:min(limit, len(order))] {
+		fused = append(fused, rankedHit{id: id, value: scores[id]})
+	}
+
+	return fused
 }
 
 func (mem *memory) confirm(ctx context.Context, req request) result {

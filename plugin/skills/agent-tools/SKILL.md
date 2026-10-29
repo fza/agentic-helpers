@@ -24,8 +24,12 @@ agentic-tools take <name>...                                     # copy into .tm
 - **take checks every name first.** One unknown → `nothing taken:`, nothing copied. A copy already
   there is reused, never overwritten: your edits stay.
 - No embedder → `--query` refused. Use `--term`.
+- **JSON (MCP, `--json`): an absent key is empty.** `[]`, `null`, `""` and `false` are left out: no
+  `label` → own project, no `own` → another's. Every other value stays, `0` included.
+- **`score`** on each find hit: whole percent of the best hit (100), never higher than the hit above.
+  Term hits score above hits by meaning alone; terms alone → every hit 100. `list` carries none.
 - **Each tool version prints once per context.** find or list printed it before → `<name> v<n>
-  (seen)` in its place (JSON `{"name", "label", "version", "seen": true}`); its usage is above in
+  (seen)` in its place (JSON `{"name", "label", "version", "seen": true}`, `score` on a find hit); its usage is above in
   your context. Newer version → full. Compaction, `/clear`, resume → full again. A fresh subagent
   (not a fork) shares your `claude` process and never saw them: it passes `--again` (MCP `"again":
   true`) on every find and list.

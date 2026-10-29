@@ -61,7 +61,8 @@ func (mem *memory) who(ctx context.Context, req request) result {
 // whoJSON is who's answer for a program: every seat of this project, and
 // with --all every other project's, each naming its project.
 func (mem *memory) whoJSON(ctx context.Context, req request) result {
-	seats := []jsonSeat{}
+	var seats []jsonSeat
+
 	here := ""
 
 	if mem.storeExists() {
@@ -86,7 +87,7 @@ func (mem *memory) whoJSON(ctx context.Context, req request) result {
 		}
 	}
 
-	return jsonAnswer(map[string]any{"seats": seats})
+	return jsonAnswer(jsonWho{Seats: seats})
 }
 
 func indent(rows []string) string {

@@ -389,7 +389,7 @@ func TestAFormat3StoreMigratesToKinds(t *testing.T) {
 	rule, long, normal := format3Store(t, h)
 	original := test.Tree(t, filepath.Join(h.store(), "log"))
 
-	out := h.must("", "search", "--term", "Owner|Gate finding")
+	out := test.Unscored(h.must("", "search", "--term", "Owner|Gate finding"))
 
 	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":6`) {
 		t.Fatalf("the store should be at the current format after one call, got %s", format)

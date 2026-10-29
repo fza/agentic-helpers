@@ -64,10 +64,10 @@ func TestFindPagesAndPrintsJSON(t *testing.T) {
 	var answer struct {
 		Framing string `json:"framing"`
 		Tools   []struct {
-			Name  string   `json:"name"`
-			Label *string  `json:"label"`
-			Own   bool     `json:"own"`
-			Score *float64 `json:"score"`
+			Name  string  `json:"name"`
+			Label *string `json:"label"`
+			Own   bool    `json:"own"`
+			Score *int    `json:"score"`
 		} `json:"tools"`
 		Shown, Matching, Total, Projects, Page int
 	}
@@ -78,8 +78,14 @@ func TestFindPagesAndPrintsJSON(t *testing.T) {
 	}
 
 	if answer.Framing != "Tools other agents registered (their own descriptions)" || len(answer.Tools) != 3 ||
-		answer.Tools[0].Label != nil || !answer.Tools[0].Own || answer.Tools[0].Score != nil || answer.Total != 3 {
-		t.Errorf("find --json should carry the framing, own tools with a null label and a term hit with a null score: %+v", answer)
+		answer.Tools[0].Label != nil || !answer.Tools[0].Own || answer.Total != 3 {
+		t.Errorf("find --json should carry the framing and own tools without a label: %+v", answer)
+	}
+
+	for _, tool := range answer.Tools {
+		if tool.Score == nil || *tool.Score != 100 {
+			t.Errorf("every hit of a term alone matches as well as the best and should score as it: %+v", answer.Tools)
+		}
 	}
 }
 

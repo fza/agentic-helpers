@@ -57,8 +57,8 @@ func TestShowJSONSaysWhenABodyWasDropped(t *testing.T) {
 	dropped, _ := entries[0].(map[string]any)
 	holding, _ := entries[1].(map[string]any)
 
-	if body, present := dropped["body"]; !present || body != nil || dropped["body_dropped"] != "body dropped 90 days after the retire" {
-		t.Errorf("a dropped body should read as null with when it was dropped, never as an empty body: %v", dropped)
+	if _, present := dropped["body"]; present || dropped["body_dropped"] != "body dropped 90 days after the retire" {
+		t.Errorf("a dropped body should be absent beside when it was dropped, never an empty body: %v", dropped)
 	}
 
 	if _, says := holding["body_dropped"]; holding["body"] != "the body" || says {

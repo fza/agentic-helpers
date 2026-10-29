@@ -264,7 +264,7 @@ func TestAHookNeverRestoresASeatItsSessionReleased(t *testing.T) {
 		)
 
 		view, _ := h.holderJSON("main", "--json")
-		if released == 0 && view["session_id"] != "" {
+		if released == 0 && view["session_id"] != nil {
 			t.Fatalf("round %d: a seat its session released should keep no claim after that session's hook: %v", round, view)
 		}
 	}

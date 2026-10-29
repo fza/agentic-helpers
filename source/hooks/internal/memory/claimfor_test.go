@@ -34,7 +34,7 @@ func TestAClaimForASessionIsAReservationItTakesOver(t *testing.T) {
 	}
 
 	view, code := board.holderJSON("impl", "--json")
-	if code != 1 || view["reserved"] != true || view["alive"] != false || view["session_id"] != job.session || view["seat"] != "impl" {
+	if code != 1 || view["reserved"] != true || view["alive"] != nil || view["session_id"] != job.session || view["seat"] != "impl" {
 		t.Errorf("a reservation should read as reserved, not alive, exit 1, got %d %v", code, view)
 	}
 
