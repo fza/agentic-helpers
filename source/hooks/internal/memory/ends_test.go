@@ -520,9 +520,9 @@ func TestRetireQuestionFlagsInPlaceAndListsOnlyTheRest(t *testing.T) {
 	overCap := h.file("Cold finding citing a closed decision", "body", "--link", closedDecision)
 	listed := h.file("Hot finding citing a closed decision", "body", "--link", closedDecision)
 	h.must("", "show", listed)
-	h.must("", "show", listed)
+	h.must("", "show", listed, "--again")
 
-	brief := h.must("", "brief")
+	brief := h.must("", "brief", "--again")
 
 	if !strings.HasSuffix(briefLine(brief, listed), "retire? every link ended") {
 		t.Errorf("a candidate the notes print should carry retire? on its own line:\n%s", brief)
@@ -623,12 +623,12 @@ func TestEveryLinkEndedSkipsOwnPredecessorsAndATodosMemoryLinks(t *testing.T) {
 
 			id := tc.file(h)
 
-			flagged := strings.HasSuffix(briefLine(h.must("", "brief"), id), "retire? every link ended")
+			flagged := strings.HasSuffix(briefLine(h.must("", "brief", "--again"), id), "retire? every link ended")
 			if flagged != tc.candidate {
 				t.Errorf("the brief should flag retire? only where every link that can end the entry ended, flagged: %t", flagged)
 			}
 
-			title, _, found := strings.Cut(strings.TrimPrefix(briefLine(h.must("", "brief"), id), id+" "), "  [")
+			title, _, found := strings.Cut(strings.TrimPrefix(briefLine(h.must("", "brief", "--again"), id), id+" "), "  [")
 			if !found {
 				t.Fatalf("the brief should list the entry")
 			}

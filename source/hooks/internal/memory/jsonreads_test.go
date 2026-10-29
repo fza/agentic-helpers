@@ -84,9 +84,9 @@ func TestShowAnswersJSON(t *testing.T) {
 		t.Run(via, func(t *testing.T) {
 			text := ""
 			if via == "cli" {
-				text = h.must("", "show", hub, cite, "--json")
+				text = h.must("", "show", hub, cite, "--json", "--again")
 			} else {
-				text = mcpText(t, h.mcp(`{"name":"show","arguments":{"ids":["`+hub+`","`+cite+`"],"json":true}}`))
+				text = mcpText(t, h.mcp(`{"name":"show","arguments":{"ids":["`+hub+`","`+cite+`"],"json":true,"again":true}}`))
 			}
 
 			entries, _ := decoded(t, text)["entries"].([]any)
@@ -141,9 +141,9 @@ func TestSearchAnswersJSON(t *testing.T) {
 		t.Run(via, func(t *testing.T) {
 			text := ""
 			if via == "cli" {
-				text = h.must("", "search", "--term", "Gate", "--limit", "1", "--json")
+				text = h.must("", "search", "--term", "Gate", "--limit", "1", "--json", "--again")
 			} else {
-				text = mcpText(t, h.mcp(`{"name":"search","arguments":{"term":["Gate"],"limit":1,"json":true}}`))
+				text = mcpText(t, h.mcp(`{"name":"search","arguments":{"term":["Gate"],"limit":1,"json":true,"again":true}}`))
 			}
 
 			answer := decoded(t, text)

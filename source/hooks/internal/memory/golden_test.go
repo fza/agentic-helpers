@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -126,7 +127,9 @@ func TestReadsMatchTheirGoldenText(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := goldenStore(t)
 
-			got := h.must("", tc.args...)
+			// The store's claim printed a brief; every read here asks for its
+			// full text again, as the golden text holds it.
+			got := h.must("", append(slices.Clone(tc.args), "--again")...)
 			got = localStamp.ReplaceAllString(got, "<stamp>")
 			got = strings.ReplaceAll(got, h.repo, "<repo>")
 

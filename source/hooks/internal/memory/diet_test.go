@@ -19,7 +19,7 @@ func TestTheBriefPrintsShortLines(t *testing.T) {
 		t.Errorf("the brief should print the short line:\n%s", brief)
 	}
 
-	if out := h.must("", "search", "--term", "in the brief"); !strings.Contains(out, "[main, note, from agent, ") {
+	if out := h.must("", "search", "--term", "in the brief", "--again"); !strings.Contains(out, "[main, note, from agent, ") {
 		t.Errorf("search should keep the full line:\n%s", out)
 	}
 }
@@ -88,11 +88,11 @@ func TestInboundLinksLeaveOutSuperseded(t *testing.T) {
 		t.Errorf("the inbound count should leave out superseded entries:\n%s", shown)
 	}
 
-	if all := h.must("", "show", hub, "--with-superseded"); !strings.Contains(all, "  "+first+" ") {
+	if all := h.must("", "show", hub, "--with-superseded", "--again"); !strings.Contains(all, "  "+first+" ") {
 		t.Errorf("--with-superseded should list superseded entries too:\n%s", all)
 	}
 
-	answer := h.mcp(`{"name":"show","arguments":{"ids":["` + hub + `"],"with_superseded":true}}`)
+	answer := h.mcp(`{"name":"show","arguments":{"ids":["` + hub + `"],"with_superseded":true,"again":true}}`)
 	if !strings.Contains(answer, first) {
 		t.Errorf("the MCP key with_superseded should list them: %s", answer)
 	}

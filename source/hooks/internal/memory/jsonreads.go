@@ -46,6 +46,9 @@ type jsonEntry struct {
 	// Expanded is the memory entries the entry links to, in a section
 	// expand(refs) widens.
 	Expanded []jsonEntry `json:"expanded,omitempty"`
+	// Seen marks an entry the calling session's context already holds; it
+	// then answers with its id and title alone.
+	Seen bool `json:"seen,omitempty"`
 }
 
 type jsonStatusChange struct {
@@ -176,7 +179,7 @@ func (mem *memory) showJSON(here tree, folded *state, req request) result {
 			}
 		}
 
-		entries = append(entries, object)
+		entries = append(entries, mem.objectOf(held, object))
 	}
 
 	if len(missing) > 0 {
@@ -292,13 +295,13 @@ func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seat
 	for _, held := range live {
 		section := sections[held.kind]
 		if section != nil {
-			*section = append(*section, mem.entryJSON(here, folded, held, false))
+			*section = append(*section, mem.objectOf(held, mem.entryJSON(here, folded, held, false)))
 		}
 	}
 
 	for _, held := range folded.entryList() {
 		if !mem.onShelf(held, seatName) && held.status == statusLive && held.filed.After(since) {
-			answer.News = append(answer.News, mem.entryJSON(here, folded, held, false))
+			answer.News = append(answer.News, mem.objectOf(held, mem.entryJSON(here, folded, held, false)))
 		}
 	}
 

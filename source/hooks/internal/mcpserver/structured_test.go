@@ -331,3 +331,46 @@ func TestAMessagedAnswerCarriesItsTextBesideTheFields(t *testing.T) {
 		}
 	}
 }
+
+type shortened struct {
+	Name  string `json:"name"`
+	Short bool   `json:"short"`
+}
+
+type lengthy struct {
+	Name  string `json:"name"`
+	Notes string `json:"notes"`
+	Short bool   `json:"-"`
+}
+
+func (held lengthy) MarshalJSON() ([]byte, error) {
+	if held.Short {
+		return json.Marshal(shortened{Name: held.Name, Short: true})
+	}
+
+	type plain lengthy
+
+	return json.Marshal(plain(held))
+}
+
+func (lengthy) SchemaAlternative() any {
+	return shortened{}
+}
+
+func TestASchemaAdmitsTheOtherShapeATypeMayWrite(t *testing.T) {
+	schema := mcpserver.SchemaOf([]lengthy{})
+
+	for _, held := range []lengthy{{Name: "a", Notes: "b"}, {Name: "a", Short: true}} {
+		data, _ := json.Marshal([]lengthy{held})
+
+		err := test.Conforms(schema, data)
+		if err != nil {
+			t.Errorf("the schema should admit both shapes the type writes: %v (%s)", err, data)
+		}
+	}
+
+	err := test.Conforms(schema, []byte(`[{"name":"a"}]`))
+	if err == nil {
+		t.Error("the schema should still require each shape's own keys")
+	}
+}

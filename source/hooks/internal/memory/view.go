@@ -454,6 +454,8 @@ func (mem *memory) view(ctx context.Context, req request) result {
 	reader, _ := mem.seated(ctx)
 	scope := mem.scope(ctx, folded, reader)
 
+	defer mem.presenting(ctx, req.Again)()
+
 	text := cmp.Or(req.Layout, req.Explain)
 	if req.Explain == briefName {
 		text = briefLayout(mem.options().BriefNoteLimit)
@@ -508,6 +510,13 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 			continue
 		case renderBodies:
 			for _, held := range page {
+				if scope.mem.seen.hasBody(held) {
+					lines = append(lines, pointer(held))
+
+					continue
+				}
+
+				scope.mem.seen.markBody(held)
 				lines = append(lines, showBlock(scope.here, scope.folded, held, scope.mem.options().RetiredBodyDays, false))
 				lines = append(lines, scope.expandedLines(section, held, "  ")...)
 			}
@@ -537,12 +546,25 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 	return strings.Join(lines, "\n")
 }
 
+// plain is whether the section prints an entry as a read printed it before:
+// one carrying return reasons, expanded links or sizes holds what no earlier
+// line held, so it prints in full however much of it stands in the context.
+func (section viewSection) plain() bool {
+	return len(section.returns) == 0 && !section.expand && !section.sized
+}
+
 // entryLines is one entry of a listed section: its line, then the reasons it
 // returns and the links expand(refs) lists, indented beneath it.
 func (scope *viewScope) entryLines(section viewSection, held *entry, indent string, now time.Time) []string {
 	text := line(scope.here, held)
 	if section.compact {
 		text = shortLine(scope.here, held, scope.reader, now)
+	}
+
+	if section.plain() {
+		text = scope.mem.lineOf(held, text)
+	} else {
+		scope.mem.seen.markLine(held)
 	}
 
 	lines := []string{indent + text}
@@ -573,7 +595,7 @@ func (scope *viewScope) expandedLines(section viewSection, held *entry, indent s
 
 		linked, found := scope.folded.entries[link.Target]
 		if found {
-			text = shortLine(scope.here, linked, scope.reader, scope.mem.now())
+			text = scope.mem.lineOf(linked, shortLine(scope.here, linked, scope.reader, scope.mem.now()))
 		}
 
 		if link.State != "ok" {
@@ -772,6 +794,9 @@ func (scope *viewScope) viewJSON(sections []viewSection) result {
 // returns and the entries expand(refs) adds.
 func (scope *viewScope) entryObject(section viewSection, held *entry) jsonEntry {
 	object := scope.mem.entryJSON(scope.here, scope.folded, held, section.render == renderBodies)
+	if section.plain() {
+		object = scope.mem.objectOf(held, object)
+	}
 	for _, reason := range scope.returnsOf(held, section.returns) {
 		object.Returns = append(object.Returns, reason.json())
 	}

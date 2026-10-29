@@ -489,6 +489,8 @@ func (mem *memory) show(ctx context.Context, req request) result {
 
 	here := mem.checkout(ctx)
 
+	defer mem.presenting(ctx, req.Again)()
+
 	if req.JSON {
 		return mem.showJSON(here, folded, req)
 	}
@@ -511,6 +513,14 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		}
 
 		shown = append(shown, id)
+
+		if mem.seen.hasBody(held) {
+			blocks = append(blocks, pointer(held))
+
+			continue
+		}
+
+		mem.seen.markBody(held)
 		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays, req.WithSuperseded))
 	}
 
@@ -723,6 +733,8 @@ func (mem *memory) search(ctx context.Context, req request) result {
 
 	own, _ := mem.seated(ctx)
 
+	defer mem.presenting(ctx, req.Again)()
+
 	if !req.AllSeats && len(req.Seats) == 0 && own == "" {
 		return refused("a search covers the own shelf by default: claim a seat first, or name --seat or --all-seats")
 	}
@@ -810,7 +822,7 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		answer := jsonSearch{Notice: filedNotice, Entries: make([]jsonEntry, 0, len(page))}
 
 		for _, id := range page {
-			answer.Entries = append(answer.Entries, mem.entryJSON(here, folded, folded.entries[id], false))
+			answer.Entries = append(answer.Entries, mem.objectOf(folded.entries[id], mem.entryJSON(here, folded, folded.entries[id], false)))
 		}
 
 		if (total < 0 && len(ranked) == window) || total > next {
@@ -830,7 +842,7 @@ func (mem *memory) search(ctx context.Context, req request) result {
 
 	lines := make([]string, 0, len(page)+1)
 	for _, id := range page {
-		lines = append(lines, line(here, folded.entries[id]))
+		lines = append(lines, mem.lineOf(folded.entries[id], line(here, folded.entries[id])))
 	}
 
 	switch {

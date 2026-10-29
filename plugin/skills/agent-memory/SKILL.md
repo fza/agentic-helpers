@@ -125,6 +125,12 @@ agentic-memory show <id>... [--with-superseded] [--no-heat]
 agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 ```
 
+- **Each entry prints once per context.** Brief, recall, search, view or show already printed it, unchanged
+  since → `<id> <title> (seen)` in its place (JSON `{"id", "title", "seen": true}`); the full text
+  is above in your context. `show` after a search line still prints the body. Compaction, `/clear`,
+  resume → full again. A fresh subagent (not a fork) shares your session and never saw them: it passes
+  `--again` (MCP `"again": true`) on every read.
+
 - Own shelf by default; `--all-seats` → other seats' work, to take over, never redo.
 - `--term`: case-insensitive RE2, all required. `--query`: by meaning. Both → fused. `--status`
   alone → a listing by time.
