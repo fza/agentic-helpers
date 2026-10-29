@@ -28,7 +28,7 @@ func Key(ctx context.Context, base string, lookup project.CommonDirLookup) (stri
 		return "", ErrNoRepository
 	}
 
-	id := declaredRepoID(filepath.Dir(common))
+	id := RepoID(filepath.Dir(common))
 	if id != "" {
 		return id, nil
 	}
@@ -51,7 +51,10 @@ func DirectoryKey(base string) string {
 	return "local/" + hex.EncodeToString(sum[:])[:12]
 }
 
-func declaredRepoID(root string) string {
+// RepoID is the `repo_id` the `.sdd/` directly in root declares, the graph
+// repository's where `project_dir` names one, or empty where it declares none
+// in sdd's shape.
+func RepoID(root string) string {
 	id := graphconfig.ResolveAt(root).RepoID()
 	if !validRepoID(id) {
 		return ""

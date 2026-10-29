@@ -77,6 +77,40 @@ func resolveFrom(dir string) Project {
 	return Project{Dir: graph, Entries: entriesOf(graph, readConfig(graph).GraphDir), Split: true}
 }
 
+// Link is where the `.sdd/` directly in root places its graph in another
+// repository: the folder `project_dir` names, which only the sdd fork at
+// github.com/fza/sdd reads, else a `graph_dir` leaving root, which is how
+// stock sdd keeps a graph apart. Empty where the graph stays inside root or
+// no `.sdd/` sits there. Unlike Resolve, this follows a `graph_dir` leaving
+// the checkout: it names the repository a store is shared with, not where
+// the gate counts entries.
+func Link(root string) string {
+	held := filepath.Join(root, GraphDirName)
+
+	info, err := os.Stat(held)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+
+	own := readConfig(held)
+	if own.ProjectDir != "" {
+		return joinTo(root, own.ProjectDir)
+	}
+
+	if own.GraphDir == "" {
+		return ""
+	}
+
+	entries := joinTo(root, own.GraphDir)
+
+	inside, err := filepath.Rel(root, entries)
+	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
+		return entries
+	}
+
+	return ""
+}
+
 func (project Project) config() sddConfig {
 	if project.Dir == "" {
 		return sddConfig{}

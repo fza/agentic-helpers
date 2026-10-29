@@ -58,11 +58,11 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
@@ -141,10 +141,12 @@ type Env struct {
 	ProjectDir string
 	WorkingDir string
 	Home       string
-	Checkout   project.CommonDirLookup
-	Runner     sddcaps.Runner
-	Processes  seat.Processes
-	OwnerName  string
+	// Roots locate the memory store whose seats exempt_seats names.
+	Roots     home.Roots
+	Checkout  project.CommonDirLookup
+	Runner    sddcaps.Runner
+	Processes seat.Processes
+	OwnerName string
 	// Settings and Getenv carry the plugin's options: the gate's own switch, and
 	// memory's, which exempt_seats rests on.
 	Settings []string
@@ -860,12 +862,17 @@ func (env Env) exempt(ctx context.Context, seats []string) bool {
 		return false
 	}
 
-	key, err := projectkey.Key(ctx, env.project(), env.Checkout)
+	checkout, err := home.Inspect(ctx, env.project(), env.Checkout, nil)
 	if err != nil {
 		return false
 	}
 
-	store := projectkey.Dir(seat.StoreRoot(env.Home), key)
+	resolution, err := home.Resolver{Roots: env.Roots}.Find(ctx, checkout)
+	if err != nil || resolution.Store == "" || resolution.New {
+		return false
+	}
+
+	store := env.Roots.Store(resolution.Store, home.Memory)
 
 	held, _ := seat.Of(ctx, seat.Dir(store), env.Processes, env.OwnerName)
 	if held == "" {

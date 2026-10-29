@@ -126,6 +126,10 @@ type Options struct {
 	// TemporarySeatLifetime is how long a closed temporary shelf keeps its
 	// entries, as `lifetime` spells a span; empty takes agentic-memory's default.
 	TemporarySeatLifetime string
+	// OrphanStoreGrace is how long an unclaimed store waits for a checkout to
+	// promote it before it is deleted, a span as TemporarySeatLifetime takes
+	// one; empty takes the home's default.
+	OrphanStoreGrace string
 	// ShellGuardOutsideProject / ShellGuardFindDelete / ShellGuardSecrets are
 	// `ask`, `deny` or `off`; the other shell-guard options switch a guard that
 	// denies when on.
@@ -163,7 +167,7 @@ var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
 	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
-	"temporary_seat_lifetime", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
+	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
 	"shell_guard_secret_output", "shell_guard_secret_output_skip",
@@ -176,7 +180,7 @@ var Keys = []string{
 // would leave the lowest value deciding for both, whichever process ran the
 // cleanup. Only `config.yaml` and managed settings set them, and the plugin's
 // `userConfig` declares none.
-var ConfigOnly = []string{"retired_body_days", "temporary_seat_lifetime", "tools_total_mb"}
+var ConfigOnly = []string{"retired_body_days", "temporary_seat_lifetime", "tools_total_mb", "orphan_store_grace"}
 
 // LayerDefault ... LayerManaged name where an option's value comes from.
 const (
@@ -414,6 +418,7 @@ func (options *Options) fields() fields {
 			"embedding_api_key_env":          &options.EmbeddingAPIKeyEnv,
 			"memory_language":                &options.MemoryLanguage,
 			"temporary_seat_lifetime":        &options.TemporarySeatLifetime,
+			"orphan_store_grace":             &options.OrphanStoreGrace,
 			"shell_guard_secret_output_skip": &options.ShellGuardSecretOutputSkip,
 		},
 		numbers: map[string]*int{

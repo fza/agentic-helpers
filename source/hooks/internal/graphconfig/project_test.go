@@ -155,3 +155,38 @@ func TestResolveWithoutAGraph(t *testing.T) {
 		t.Error("resolving at a checkout should not walk up to a graph above it")
 	}
 }
+
+func TestLink(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{name: "no config", config: "", want: ""},
+		{name: "the fork's project_dir", config: "project_dir: ../app-sdd\n", want: "app-sdd"},
+		{name: "a graph_dir leaving the checkout", config: "graph_dir: ../app-sdd/.sdd/graph\n", want: "app-sdd/.sdd/graph"},
+		{name: "a graph_dir inside the checkout", config: "graph_dir: graph\n", want: ""},
+		{name: "repo_id alone", config: "repo_id: github.com/acme/app\n", want: ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			workspace := t.TempDir()
+			code := filepath.Join(workspace, "app")
+			makeDir(t, filepath.Join(code, ".sdd"))
+
+			if tc.config != "" {
+				test.WriteFile(t, filepath.Join(code, ".sdd", "config.yaml"), tc.config)
+			}
+
+			want := ""
+			if tc.want != "" {
+				want = filepath.Join(workspace, tc.want)
+			}
+
+			if got := graphconfig.Link(code); got != want {
+				t.Errorf("the link should name the graph's place outside the checkout and only that, got %q", got)
+			}
+		})
+	}
+}

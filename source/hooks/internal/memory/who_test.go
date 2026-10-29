@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -57,7 +58,8 @@ func TestWhoAllAddsEveryOtherProjectReadOnly(t *testing.T) {
 	h.must("", "claim", "main")
 	h.processes.Other()
 
-	elsewhere := filepath.Join(h.home, ".claude", "agentic-memory", "gitlab.com", "acme", "tool")
+	elsewhereID := test.OtherStore(t, h.roots(), "gitlab.com/acme/tool")
+	elsewhere := h.roots().Store(elsewhereID, home.Memory)
 	test.ClaimOtherSeat(t, elsewhere, "drive", test.OtherSession)
 	test.ClaimDeadSeat(t, elsewhere, "left", test.Session)
 	test.ClaimSeat(t, filepath.Join(h.store(), "backup", "format-1-20261025T170001.000000000Z"), "ghost", test.Session)
@@ -69,7 +71,7 @@ func TestWhoAllAddsEveryOtherProjectReadOnly(t *testing.T) {
 	}
 
 	out := h.must("", "who", "--all")
-	if !strings.Contains(out, "gitlab.com/acme/tool:\n") || !regexp.MustCompile(`(?m)^  drive\s+shelf drive\s+a1b2c3d4 pid 300  filed \d+ / used \d+ \(14d\)$`).MatchString(out) ||
+	if !strings.Contains(out, "gitlab.com/acme/tool ("+elsewhereID+"):\n") || !regexp.MustCompile(`(?m)^  drive\s+shelf drive\s+a1b2c3d4 pid 300  filed \d+ / used \d+ \(14d\)$`).MatchString(out) ||
 		strings.Contains(out, "ghost") {
 		t.Errorf("who --all should add every other project's seats under its name, backups aside, got:\n%s", out)
 	}
@@ -139,7 +141,8 @@ func TestWhoCountsUnusedFreeSeatsRatherThanListingThem(t *testing.T) {
 	h.must("", "release")
 	h.must("", "claim", "main")
 
-	elsewhere := filepath.Join(h.home, ".claude", "agentic-memory", "gitlab.com", "acme", "tool")
+	elsewhereID := test.OtherStore(t, h.roots(), "gitlab.com/acme/tool")
+	elsewhere := h.roots().Store(elsewhereID, home.Memory)
 	test.ClaimDeadSeat(t, elsewhere, "left", test.Session)
 	test.ClaimDeadSeat(t, elsewhere, "gone", test.Session)
 
@@ -170,7 +173,7 @@ func TestWhoCountsUnusedFreeSeatsRatherThanListingThem(t *testing.T) {
 
 	all := h.must("", "who", "--all")
 	if strings.Contains(all, "idle") || strings.Contains(all, "left") ||
-		!strings.Contains(all, "+1 unused seat: agentic-memory who --unused\n\ngitlab.com/acme/tool:\n  +2 unused seats: agentic-memory who --all --unused") {
+		!strings.Contains(all, "+1 unused seat: agentic-memory who --unused\n\ngitlab.com/acme/tool ("+elsewhereID+"):\n  +2 unused seats: agentic-memory who --all --unused") {
 		t.Errorf("who --all should count each project's unused seats at the end of its block, got:\n%s", all)
 	}
 

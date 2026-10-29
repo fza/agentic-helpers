@@ -235,7 +235,7 @@ func TestAForeignLinkFlagsWhatTheExportSays(t *testing.T) {
 
 	h.sdd = &sddcaps.Probe{Runner: &test.Runner{Stock: true, Unreleased: true}}
 
-	err = os.Remove(filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID), "graph-status.json"))
+	err = os.Remove(filepath.Join(h.cacheDir(), "graph-status.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

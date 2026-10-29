@@ -26,7 +26,7 @@ func splitProject(t *testing.T) (grounding.Env, string) {
 	test.WriteFile(t, filepath.Join(graph, ".sdd", "grounding.yaml"), test.Fixture(t, "grounding/area-prefix.yaml"))
 	mkdir(t, filepath.Join(graph, "graph"))
 
-	return grounding.Env{ProjectDir: code, WorkingDir: code, Home: t.TempDir(), Runner: &test.Runner{}}, graph
+	return grounding.Env{ProjectDir: code, WorkingDir: code, Home: t.TempDir(), Roots: test.Roots(t.TempDir()), Runner: &test.Runner{}}, graph
 }
 
 func TestASplitLayoutReadsTheGraphRepository(t *testing.T) {

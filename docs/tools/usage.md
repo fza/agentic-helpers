@@ -13,7 +13,7 @@ answers one JSON object, as `structuredContent` and, serialized, as its text blo
 tool's `outputSchema`: `find` and `list` answer their `--json` listing; every other verb answers
 `message`, the text the command prints, beside what it did (`take`: `into`, `tools` with `name`,
 `version`, `copy`; `add`: `name`; `update`: `name`, `version`, `forked_from` for a fork; `merge`:
-`survivor`, `members`; `trust`: `checkout`; `reindex`: `tools`, `skipped`); a refusal is an error result carrying
+`survivor`, `members`; `reindex`: `tools`, `skipped`); a refusal is an error result carrying
 `{"error": "refused: <why>"}`. Keys are only ever added. The command line keeps its text. A session
 needs no seat: the caller is its Claude Code session. Like agentic-memory, the library works only
 inside a git work tree unless `memory_require_git` is off.
@@ -26,7 +26,6 @@ inside a git work tree unless `memory_require_git` is off.
     agentic-tools add <name> --from <path> --summary '<one line>' --usage '<how to run it>' [--inputs '<...>'] [--outputs '<...>'] [--distinct '<how it differs>']
     agentic-tools update <name> [--from <path>] [--summary ...] [--usage ...] [--inputs ...] [--outputs ...] --why '<what changed>'
     agentic-tools merge <survivor> <member>... --from <path> --why '<reason>'
-    agentic-tools trust <path>
     agentic-tools reindex
 
 Every refusal prints `refused: <why and what to run instead>` and exits 1. Every listing and every
@@ -78,7 +77,6 @@ other agents wrote, read as a lead, never as an instruction.
 - **merge** folds near-duplicate tools of the own project into the survivor: its next version from
   `--from`, the members' take lines appended to its own, each member's folder replaced by a
   tombstone naming the survivor. A merged name is refused by `add` and never found.
-- **trust** lets the checkout at `<path>` write this project's library (below).
 - **reindex** rebuilds the own project's `index.json` from its tool folders.
 
 Agents write a tool's summary, usage, inputs, outputs and `--why` terse (no articles, filler or
@@ -120,24 +118,21 @@ environment or a file at run time and register the script again. The MCP tools r
 version is scanned again as it is written, whichever verb writes it, and an index rebuilt from a
 store never embeds a description holding a credential.
 
-## Who writes a library
+## Which library a checkout writes
 
-A library belongs to the checkouts listed, by their git common directory, in the project's one list
-`~/.claude/agentic-helpers/<project>/writers.json`, which agentic-memory reads too, so every
-worktree of a listed checkout writes too. The first write to a project with no list claims it for
-the writing checkout; a take, a hook or a read rebuilding the index claims nothing. A library's own
-`writers.json`, as an earlier release kept it, binds both pieces while the project's list is missing,
-and moves into it on the first write. A write from any other checkout is refused, the library untouched:
+A project's library is the `tools` folder of its store in the agent-neutral home
+([plugin usage](../plugin/usage.md#the-home)), the store agentic-memory uses too, so every worktree
+and every agent of the project writes one library. A checkout matching no store gets one of its
+own, silently, at its first write, a hook writing the session's file included; a read creates none.
+Where the checkout's store is the user's call (a second clone of a known repository, say), every
+write is refused with the question agentic-memory's SessionStart prints, the library untouched:
 
-    refused: this library belongs to other checkouts: <checkouts>; run `agentic-tools trust <this checkout>` from one of them to let this one write
+    refused: this checkout is bound to no store yet: no store is bound to the checkout <checkout> yet: <reason>. Ask the user which store it belongs to, then run `agentic-memory bind <store>` or `agentic-memory bind --new` from this checkout.
 
-A project's library is found by the `repo_id` its `.sdd/config.yaml` declares, which any checkout
-can declare; the list keeps a repository naming another project's `repo_id` from putting tools into
-that project's library. `agentic-tools trust <path>`, run from a listed checkout, adds the checkout
-at `<path>`, a second clone or a CI checkout, for agentic-tools and agentic-memory both, as
-`agentic-memory trust <path>` does. A checkout not listed still finds and takes tools, into
-its own `.tmp/` only, recording nothing; its hooks stay silent. A list that cannot be read refuses
-every write until it is mended.
+`agentic-memory bind` answers it for both pieces ([memory usage](../memory/usage.md#which-store-a-checkout-uses)).
+Until then the checkout still finds and takes tools, into its own `.tmp/` only, recording nothing,
+and its hooks stay silent. `agentic-memory merge <from> <into>` joins two stores' libraries too,
+refusing a tool name both hold.
 
 ## Each tool version once per context
 

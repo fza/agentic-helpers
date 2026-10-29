@@ -56,7 +56,7 @@ const attachmentsDir = "attachments"
 // attachmentsRoot is the one attachment store of the machine, every project's
 // files in it once, by hash.
 func (mem *memory) attachmentsRoot() string {
-	return filepath.Join(mem.root(), attachmentsDir)
+	return mem.env.Roots.Shared(attachmentsDir)
 }
 
 func (mem *memory) attachmentPath(held attachPayload) string {
@@ -644,8 +644,8 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 	keep := map[string]bool{}
 	sizes := map[string]int64{}
 
-	for _, key := range mem.storeKeys() {
-		other := &memory{env: mem.env, streams: mem.streams, key: key}
+	for _, id := range mem.storeIDs() {
+		other := mem.sibling(id)
 
 		version, err := readFormat(other.store())
 		if err == nil && version == storeFormat {

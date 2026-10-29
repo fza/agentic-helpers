@@ -29,9 +29,9 @@ agentic-memory claim --shelf <s>        # a new seat <s>-<n> onto shelf s
 - **`agentic-memory: changed on shelf <name> (<n>):`** → a shelf mate retired, retained, rekinded,
   retitled, tagged or untagged an entry. One line each, `<id> <title>: <what> by <seat>`. Act on it,
   say nothing about the mechanism.
-- Store → `~/.claude/agentic-memory/<project>/`, outside the repo. Project = `.sdd/config.yaml`
-  `repo_id` (the graph repo's where `project_dir` names one), else a hash of the main checkout.
-  Worktrees share it, and so do a code repo and its graph repo.
+- Store → `~/.local/share/agentic-helpers/stores/<id>/memory/`, outside the repo, one per project.
+  Found by `.git/agentic-store`, else the checkout's path, `repo_id` or origin. Worktrees share it,
+  and so do a code repo and its graph repo.
 
 ## Shared entries
 

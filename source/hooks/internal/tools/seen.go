@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
@@ -48,7 +49,7 @@ func (lib *library) seenPath(ctx context.Context) string {
 
 	name := strconv.Itoa(owner) + "-" + strconv.FormatInt(started.Unix(), 10) + ".json"
 
-	return filepath.Join(lib.env.CacheRoot, self, "seen", name)
+	return filepath.Join(lib.env.Roots.SharedCache(home.Tools), "seen", name)
 }
 
 // presenting opens the seen set for one read; nil where no owner is found,

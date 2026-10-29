@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 )
@@ -34,7 +35,7 @@ var hooks = map[string]func(lib *library, ctx context.Context) int{
 // event: whatever goes wrong, it adds nothing. A machine holding no library,
 // which the first `add` creates, hears nothing and gets nothing created.
 func (lib *library) hookPayload(ctx context.Context) (hookio.Payload, bool) {
-	if !exists(lib.root()) {
+	if len(storeIDs(lib.env.Roots)) == 0 {
 		return hookio.Payload{}, false
 	}
 
@@ -47,10 +48,10 @@ func (lib *library) hookPayload(ctx context.Context) (hookio.Payload, bool) {
 
 	usable := lib.session != "" && !lib.outsideGit && sessionShape.MatchString(lib.session)
 
-	// Every hook writes the session's file into the store, which a checkout
-	// that may not write the library never does. Where the project keeps no
-	// library yet there is nothing to guard, and no list is made for it.
-	return payload, usable && (!exists(lib.ownDir()) || lib.recorder(ctx) == nil)
+	// Every hook writes the session's file into the own store: a checkout
+	// matching no store gets one here, and one whose store is the user's call
+	// hears nothing until it is answered.
+	return payload, usable && lib.recorder(ctx) == nil
 }
 
 // prompt delivers the nudges stop recorded, then offers up to three own tools
@@ -316,7 +317,7 @@ func (lib *library) notice(ctx context.Context) int {
 
 		if present && source.Version > tool.ForkedFrom.V && source.Version > state.Notified[originKey] {
 			origins = append(origins, fmt.Sprintf("tool library: `%s` in %s has v%d; yours forked at v%d",
-				tool.ForkedFrom.Tool, tool.ForkedFrom.Project, source.Version, tool.ForkedFrom.V))
+				tool.ForkedFrom.Tool, lib.storeName(tool.ForkedFrom.Project), source.Version, tool.ForkedFrom.V))
 			state.Notified[originKey] = source.Version
 		}
 	}
@@ -367,7 +368,7 @@ func (lib *library) noticeSignature(state *sessionState) string {
 	parts := make([]string, 0, len(projects))
 
 	for _, project := range projects {
-		info, err := os.Lstat(filepath.Join(lib.root(), filepath.FromSlash(project), "index.json"))
+		info, err := os.Lstat(filepath.Join(lib.env.Roots.Store(project, home.Tools), "index.json"))
 		if err != nil {
 			parts = append(parts, project+"=-")
 

@@ -110,7 +110,7 @@ func writeInto(target *dir, file walked) error {
 // ownStore opens the own store, made where it is missing, every component
 // checked.
 func (lib *library) ownStore() (*dir, error) {
-	return ensureDir(lib.root(), lib.key)
+	return ensureDir(lib.env.Roots.Stores(), lib.ownRel())
 }
 
 // reindexTool rereads one tool's folder into the own index and writes it.

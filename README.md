@@ -115,7 +115,7 @@ an option. An empty value counts as unset. A project's `.claude/settings.json` a
 `.claude/settings.local.json` are never read for plugin options: Claude Code itself ignores them
 there, and one embedder and one set of guards serve every project on the machine.
 
-**`config.yaml` only:** `retired_body_days`, `temporary_seat_lifetime` and `tools_total_mb` decide when
+**`config.yaml` only:** `retired_body_days`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace` decide when
 stored data every agent shares is deleted, so Claude Code's dialog lacks them and an answer there is
 ignored; two agents set apart would otherwise leave the lowest value deciding for both. A key deleting
 only what one session made for itself, such as `capture_remove_draft`, stays in the dialog.
@@ -173,6 +173,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 | `memory_require_git` | `true` | Memory works only inside a git work tree |
 | `memory_turns_off_auto` | `true` | Claiming a seat turns Claude Code's built-in auto memory off for the project, from the next session, through `.claude/settings.local.json` |
 | `temporary_seat_lifetime` | `1d` | `config.yaml` only. How long a closed temporary shelf keeps its entries before they are deleted |
+| `orphan_store_grace` | `30d` | `config.yaml` only. How long a store whose checkout cannot be found waits for one to claim it before it is deleted |
 
 ### Tool library
 

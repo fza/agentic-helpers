@@ -125,7 +125,7 @@ func TestMCPShowOwesTheDepth(t *testing.T) {
 func TestAnExemptSeatShowsThroughMCPAtAnyDepth(t *testing.T) {
 	env := configured(t, "show-depth-exempt.yaml")
 	env.Processes, env.OwnerName = test.NewProcesses(), "claude"
-	test.ClaimSeat(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "reviewer", test.Session)
+	test.ClaimSeat(t, test.MemoryStore(t, env.Roots, env.ProjectDir, env.Checkout), "reviewer", test.Session)
 
 	passes(t, run(t, env, "gate", mcp("show", map[string]any{"ids": []string{"20260907-164635-d-tac-vkm"}})))
 }

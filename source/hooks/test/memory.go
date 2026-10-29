@@ -46,6 +46,9 @@ type Git struct {
 	// Before runs ahead of every call it answers, the way a file changes on
 	// disk while git runs.
 	Before func(args []string)
+	// Remotes answers `config --get-regexp ^remote\..*\.url$`, a line per
+	// remote as git prints it; empty answers as git does with no remote.
+	Remotes string
 
 	mutex sync.Mutex
 	calls [][]string
@@ -111,6 +114,14 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 		return fake.Commit + "\n", nil
 	case "rev-parse --abbrev-ref HEAD":
 		return branch + "\n", nil
+	}
+
+	if strings.Join(args, " ") == `config --get-regexp ^remote\..*\.url$` {
+		if fake.Remotes == "" {
+			return "", errors.New("exit status 1")
+		}
+
+		return fake.Remotes, nil
 	}
 
 	if strings.Join(args, " ") == "config --global --get core.excludesFile" {

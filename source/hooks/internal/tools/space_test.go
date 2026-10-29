@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -195,7 +196,7 @@ func TestAScopedWriteCountsTheStoresItCannotReach(t *testing.T) {
 	h.must("add", "word-count", "--from", h.sized("words", 300), "--summary", "Count the words of standard input",
 		"--usage", "python3 the script < file")
 
-	if used := tools.Space(h.home, 1).Used; used < 600<<10 {
+	if used := tools.Space(h.roots(), 1).Used; used < 600<<10 {
 		t.Errorf("a scoped write should keep the ledger's records of the stores it cannot reach, got %d bytes used", used)
 	}
 
@@ -243,13 +244,13 @@ func TestTheSessionStartPassPrunesEveryStore(t *testing.T) {
 		"--usage", "python3 the script < file")
 	h.must("update", "word-count", "--from", h.sized("words-two", 600), "--why", "faster")
 
-	tools.Prune(context.Background(), h.home, 1)
+	tools.Prune(context.Background(), h.roots(), 1)
 
 	if h.stored("word-count/v1") || !h.stored("word-count/v2") {
 		t.Error("the pass should prune the oldest prunable version while the machine is past its limit")
 	}
 
-	if figure := tools.Space(h.home, 1); figure.Used < 600<<10 || figure.Used > 601<<10 {
+	if figure := tools.Space(h.roots(), 1); figure.Used < 600<<10 || figure.Used > 601<<10 {
 		t.Errorf("the pass should record what is left in the ledger, got %d bytes used", figure.Used)
 	}
 }
@@ -259,7 +260,7 @@ func TestTheSpaceFigureIsTheIndexsRecordedSizes(t *testing.T) {
 	store := h.elsewhere(otherRepo).store()
 	test.FixtureTree(t, "tools/fdbox-library", store)
 
-	tools.Prune(context.Background(), h.home, 500)
+	tools.Prune(context.Background(), h.roots(), 500)
 
 	if _, err := os.Stat(filepath.Join(store, "word-count", "v1")); err != nil {
 		t.Error("a pass with room under the limit should prune nothing")
@@ -269,16 +270,16 @@ func TestTheSpaceFigureIsTheIndexsRecordedSizes(t *testing.T) {
 	want := int64(len(test.Fixture(t, "tools/fdbox-library/word-count/v2/word_count.py")) +
 		len(test.Fixture(t, "tools/fdbox-library/moved-sentences/v1/moved.py")))
 
-	if got := tools.Space(h.home, 500).Used; got != want {
+	if got := tools.Space(h.roots(), 500).Used; got != want {
 		t.Errorf("space used should be the recorded size of every version neither prunable nor gone, got %d, want %d", got, want)
 	}
 
 	grown := filepath.Join(store, "word-count", "v2", "word_count.py")
 	test.WriteFile(t, grown, strings.Repeat("y", 64<<10))
 
-	tools.Prune(context.Background(), h.home, 500)
+	tools.Prune(context.Background(), h.roots(), 500)
 
-	if got := tools.Space(h.home, 500).Used; got != want {
+	if got := tools.Space(h.roots(), 500).Used; got != want {
 		t.Errorf("space should come from the sizes the index recorded, never from the files on disk, got %d", got)
 	}
 }
@@ -348,7 +349,7 @@ func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
 				"--usage", "python3 the script < file", "--distinct", "rows, not words")
 			other.tamperIndex(tamper)
 
-			tools.Prune(context.Background(), h.home, 1)
+			tools.Prune(context.Background(), h.roots(), 1)
 
 			if !h.stored("word-count/v1") {
 				t.Fatal("a pass with room on disk should prune nothing, whatever another store's index claims")
@@ -391,7 +392,7 @@ func TestAForgedLedgerCannotTriggerPruning(t *testing.T) {
 				"--usage", "python3 the script < file", "--distinct", "rows, not words")
 
 			key := forge(h)
-			test.WriteFile(t, filepath.Join(tools.Root(h.home), ".space.json"),
+			test.WriteFile(t, filepath.Join(h.roots().Shared(home.Tools), ".space.json"),
 				fmt.Sprintf(`{%q:{"stored":%d,"held":%d}}`, key, int64(1)<<40, int64(1)<<40))
 
 			h.variables["AGENTIC_TOOLS_SCOPE"] = "project"
@@ -422,7 +423,7 @@ func TestAStoreCountsOnceWhateverTheCaseOfItsKey(t *testing.T) {
 		t.Skip("the file system tells keys differing in case apart")
 	}
 
-	test.WriteFile(t, filepath.Join(tools.Root(h.home), ".space.json"),
+	test.WriteFile(t, filepath.Join(h.roots().Shared(home.Tools), ".space.json"),
 		fmt.Sprintf(`{%q:{"stored":%d,"held":%d}}`, made, int64(1)<<40, int64(1)<<40))
 
 	h.variables["AGENTIC_TOOLS_SCOPE"] = "project"

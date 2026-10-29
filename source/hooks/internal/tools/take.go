@@ -48,17 +48,17 @@ func (lib *library) take(ctx context.Context, req request) result {
 		return refused("nothing taken:\n  %s", strings.Join(failures, "\n  "))
 	}
 
+	// A checkout bound to no store still copies, into its own `.tmp/` only; it
+	// records no take and no holding, which live in the store. Binding comes
+	// first: it settles which store the copies' folder lies in.
+	writes := lib.recorder(ctx) == nil
 	base := lib.copyBase(ctx)
 	state := lib.loadSession()
 	role := lib.role(ctx)
-
-	// A checkout that may not write the library still copies, into its own
-	// `.tmp/` only; it records no take and no holding, which live in the store.
-	writes := lib.recorder(ctx) == nil
 	if !writes && !strings.HasPrefix(base, lib.checkout(ctx)+string(filepath.Separator)) {
-		return refused("this checkout is not listed in writers.json and takes only into its own .tmp/: "+
-			"create %s, or run `%s trust %s` from a listed checkout", filepath.Join(lib.checkout(ctx), ".tmp"), self,
-			lib.checkout(ctx))
+		return refused("this checkout is bound to no store yet and takes only into its own .tmp/: "+
+			"create %s, or answer the store question with `%s bind`", filepath.Join(lib.checkout(ctx), ".tmp"),
+			memoryBinary)
 	}
 
 	lines := []string{framing, "taken into " + base}
@@ -197,7 +197,7 @@ func (lib *library) copyParent(ctx context.Context, parent string) (*dir, error)
 
 	relative, err := filepath.Rel(lib.ownDir(), parent)
 	if err == nil && !strings.HasPrefix(relative, "..") {
-		return ensureDir(lib.root(), lib.key+"/"+filepath.ToSlash(relative))
+		return ensureDir(lib.env.Roots.Stores(), lib.ownRel()+"/"+filepath.ToSlash(relative))
 	}
 
 	relative, err = filepath.Rel(checkout, parent)

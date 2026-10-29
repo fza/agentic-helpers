@@ -46,8 +46,10 @@ func Withheld(ctx context.Context, prompt string) string {
 	return fmt.Sprintf("agentic-memory: this prompt looks like it holds a credential (%s); it was not sent to the embedding endpoint", rules)
 }
 
-func Dir(cacheRoot string) string {
-	return filepath.Join(cacheRoot, "agentic-helpers", "prompt-vectors")
+// Dir is where prompt vectors live below the home's cache root
+// (internal/home), shared by every store.
+func Dir(cache string) string {
+	return filepath.Join(cache, "prompt-vectors")
 }
 
 func hash(prompt string) string {

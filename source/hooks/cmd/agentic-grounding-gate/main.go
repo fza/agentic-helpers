@@ -10,6 +10,7 @@ import (
 	"runtime"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
@@ -23,14 +24,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	home, err := os.UserHomeDir()
+	userHome, err := os.UserHomeDir()
 	if err != nil {
-		home = ""
+		userHome = ""
 	}
 
 	cacheRoot := os.Getenv("XDG_CACHE_HOME")
-	if cacheRoot == "" && home != "" {
-		cacheRoot = filepath.Join(home, ".cache")
+	if cacheRoot == "" && userHome != "" {
+		cacheRoot = filepath.Join(userHome, ".cache")
 	}
 
 	owner := os.Getenv("AGENTIC_MEMORY_PROCESS_NAME")
@@ -41,12 +42,13 @@ func main() {
 	env := grounding.Env{
 		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"),
 		WorkingDir: working,
-		Home:       home,
+		Home:       userHome,
+		Roots:      home.Locate(userHome, os.Getenv),
 		Checkout:   project.GitCommonDir{},
 		Runner:     process.Runner{},
 		Processes:  process.Table{},
 		OwnerName:  owner,
-		Settings:   pluginconfig.Paths(home, runtime.GOOS, os.Getenv),
+		Settings:   pluginconfig.Paths(userHome, runtime.GOOS, os.Getenv),
 		Getenv:     os.Getenv,
 		SddCache:   sddcaps.CacheDir(cacheRoot),
 		LookPath:   exec.LookPath,

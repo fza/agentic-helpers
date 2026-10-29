@@ -9,8 +9,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
-	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 )
 
 // OwnerStart is when the fake owner process started, and OwnerStarted how a
@@ -48,15 +47,36 @@ func ClaimOtherSeat(t *testing.T, store string, seat string, session string) {
 	writeClaim(t, store, seat, map[string]any{"session_id": session, "pid": OtherOwnerPID, "started": OtherOwnerStarted})
 }
 
-// MemoryStore is the agentic-memory store of the project a session works on in
-// base, under home.
-func MemoryStore(base string, home string, lookup project.CommonDirLookup) string {
-	key, err := projectkey.Key(context.Background(), base, lookup)
+// MemoryStore is the memory folder of the store the checkout holding base
+// resolves to in roots, the store created where none matches, as a session's
+// first write there would.
+func MemoryStore(t *testing.T, roots home.Roots, base string, lookup project.CommonDirLookup) string {
+	t.Helper()
+
+	return roots.Store(StoreOf(t, roots, base, lookup, nil), home.Memory)
+}
+
+// StoreOf is the id of the store the checkout holding base resolves to in
+// roots, created where none matches; git answers its remotes, nil none.
+func StoreOf(t *testing.T, roots home.Roots, base string, lookup project.CommonDirLookup, git home.Git) string {
+	t.Helper()
+
+	checkout, err := home.Inspect(context.Background(), base, lookup, git)
 	if err != nil {
-		key = projectkey.DirectoryKey(base)
+		checkout = home.InspectDirectory(base)
 	}
 
-	return projectkey.Dir(seat.StoreRoot(home), key)
+	resolution, err := home.Resolver{Roots: roots}.Ensure(context.Background(), checkout)
+	if err != nil || resolution.Store == "" {
+		t.Fatalf("resolving the store of %s: %v %+v", base, err, resolution.Question)
+	}
+
+	return resolution.Store
+}
+
+// Roots is a test's agent-neutral home below dir.
+func Roots(dir string) home.Roots {
+	return home.Roots{Data: filepath.Join(dir, "data"), Cache: filepath.Join(dir, "cache", "agentic-helpers")}
 }
 
 // ClaimDeadSeat writes a claim whose holder process is gone.
@@ -85,4 +105,16 @@ func ClaimSeatByID(t *testing.T, store string, id string, name string, session s
 	WriteFile(t, filepath.Join(store, "seats.json"), fmt.Sprintf(`{%q: {"name": %q}}`, id, name))
 	WriteFile(t, filepath.Join(store, "format.json"), `{"format": 2}`)
 	writeClaim(t, store, id, map[string]any{"session_id": session, "pid": OwnerPID, "started": OwnerStarted})
+}
+
+// OtherStore is the id of another project's store on the machine: a checkout
+// of its own declaring repoID, bound to a store of its own.
+func OtherStore(t *testing.T, roots home.Roots, repoID string) string {
+	t.Helper()
+
+	checkout := filepath.Join(t.TempDir(), "checkout")
+	WriteFile(t, filepath.Join(checkout, ".sdd", "config.yaml"), "repo_id: "+repoID+"\n")
+	WriteFile(t, filepath.Join(checkout, ".git", "HEAD"), "ref: refs/heads/main\n")
+
+	return StoreOf(t, roots, checkout, GitDirOf{}, nil)
 }

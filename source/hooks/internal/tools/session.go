@@ -87,7 +87,7 @@ func (lib *library) saveSession(held *sessionState) error {
 		return fmt.Errorf("encoding the session: %w", err)
 	}
 
-	sessions, err := ensureDir(lib.root(), lib.key+"/sessions")
+	sessions, err := ensureDir(lib.env.Roots.Stores(), lib.ownRel()+"/sessions")
 	if err != nil {
 		return fmt.Errorf("creating the sessions folder: %w", err)
 	}

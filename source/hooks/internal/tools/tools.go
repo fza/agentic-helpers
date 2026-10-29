@@ -1,11 +1,12 @@
 // Package tools is agentic-tools: a library of the small helper tools agents
-// write, kept per project under `~/.claude/agentic-tools/<project>/` and read
-// across every project on the machine, the own project preferred. Writes touch
+// write, kept in the `tools` folder of each project's store in the
+// agent-neutral home (internal/home) and read across every store on the
+// machine, the own project's preferred. Writes touch
 // the caller's own store only; pruning old versions to keep every library on
 // the machine under tools_total_mb is the one change made to another store.
 //
 // Every value in every store is untrusted: a sandboxed process can write a
-// store wherever its sandbox allows `~/.claude`, and a foreign store holds
+// store wherever its sandbox allows the home, and a foreign store holds
 // another project's agents' text. Readers follow no link, wait on no pipe and
 // cap every read; every listing opens with a framing lead; and the lines the
 // hooks push into a session carry tool names, paths and commands only.
@@ -24,12 +25,12 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
@@ -56,7 +57,7 @@ type EmbedderFactory func(config embed.Config) (embed.Embedder, error)
 type Env struct {
 	Base      string
 	Home      string
-	CacheRoot string
+	Roots     home.Roots
 	OwnerName string
 	SessionID string
 	Settings  []string
@@ -75,7 +76,13 @@ type Env struct {
 type library struct {
 	env     Env
 	streams hookio.Streams
-	key     string
+	// key is the id of the own store; facts the checkout as the home matches
+	// it, unbound set where no store matched it yet, question the user's call
+	// standing on it.
+	key      string
+	facts    home.Checkout
+	unbound  bool
+	question *home.Question
 	// outsideGit is set where the session works outside a git work tree and
 	// the plugin keeps the library to git: nothing is read or written.
 	outsideGit bool
@@ -176,23 +183,48 @@ func (lib *library) callRefusal() string {
 	return ""
 }
 
-// locate keys the own store as agentic-memory keys its own, under the same
-// git work tree rule.
+// locate finds the own store as agentic-memory finds its own, under the
+// same git work tree rule, creating nothing.
 func (lib *library) locate(ctx context.Context) {
-	key, err := projectkey.Key(ctx, lib.env.Base, lib.env.Checkout)
-	if err == nil && lib.insideWorkTree(ctx) {
-		lib.key = key
+	if lib.insideWorkTree(ctx) {
+		checkout, err := home.Inspect(ctx, lib.env.Base, lib.env.Checkout, lib.env.Git)
+		if err == nil {
+			lib.facts = checkout
+			lib.locateStore(ctx, false)
 
-		return
+			return
+		}
 	}
 
 	if !lib.options.MemoryRequireGit {
-		lib.key = projectkey.DirectoryKey(lib.env.Base)
+		lib.facts = home.InspectDirectory(lib.env.Base)
+		lib.locateStore(ctx, false)
 
 		return
 	}
 
 	lib.outsideGit = true
+}
+
+// locateStore maps the checkout to its store, creating one where create is
+// set and none matches.
+func (lib *library) locateStore(ctx context.Context, create bool) error {
+	resolver := home.Resolver{Roots: lib.env.Roots, Now: lib.env.Now}
+
+	find := resolver.Find
+	if create {
+		find = resolver.Ensure
+	}
+
+	resolution, err := find(ctx, lib.facts)
+	if err != nil {
+		return err
+	}
+
+	lib.key, lib.unbound, lib.question = resolution.Store, resolution.New, resolution.Question
+	lib.forget()
+
+	return nil
 }
 
 func (lib *library) insideWorkTree(ctx context.Context) bool {
@@ -220,9 +252,10 @@ func (lib *library) workTree(ctx context.Context) string {
 	return filepath.Clean(strings.TrimSpace(answer))
 }
 
-func (lib *library) root() string { return filepath.Join(lib.env.Home, ".claude", self) }
+func (lib *library) ownDir() string { return lib.env.Roots.Store(lib.key, home.Tools) }
 
-func (lib *library) ownDir() string { return projectkey.Dir(lib.root(), lib.key) }
+// ownRel is the own store's folder below the home's stores.
+func (lib *library) ownRel() string { return lib.key + "/" + home.Tools }
 
 func (lib *library) checkout(ctx context.Context) string {
 	return project.Root(ctx, lib.env.Base, lib.env.Checkout)
@@ -256,7 +289,7 @@ func (lib *library) role(ctx context.Context) string {
 		return ""
 	}
 
-	memoryStore := projectkey.Dir(seat.StoreRoot(lib.env.Home), lib.key)
+	memoryStore := lib.env.Roots.Store(lib.key, home.Memory)
 
 	id, _ := seat.Of(ctx, seat.Dir(memoryStore), lib.env.Processes, lib.env.OwnerName)
 	if id == "" {
@@ -327,7 +360,7 @@ func (lib *library) embedder() (embed.Embedder, error) {
 }
 
 func (lib *library) promptVectors() string {
-	return promptvector.Dir(lib.env.CacheRoot)
+	return promptvector.Dir(lib.env.Roots.Cache)
 }
 
 func (lib *library) say(text string) {

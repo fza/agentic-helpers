@@ -204,7 +204,7 @@ func TestACommandOffTheListingNamesItsCommandLine(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	for _, name := range []string{"lifetime", "drop", "follow", "unfollow", "trust", "holder", "rename", "rekind",
+	for _, name := range []string{"lifetime", "drop", "follow", "unfollow", "bind", "holder", "rename", "rekind",
 		"retain", "merge", "unlink", "revive", "attach", "read", "private"} {
 		t.Run(name, func(t *testing.T) {
 			if _, listed := h.listedTools()[name]; listed {

@@ -99,10 +99,6 @@ func TestASeatWithoutTrapsReadsNoTrapState(t *testing.T) {
 	}
 }
 
-func (h *harness) cacheDir() string {
-	return filepath.Join(h.cache, "agentic-memory", filepath.FromSlash(repoID))
-}
-
 func TestOnAndProofBelongToARule(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")

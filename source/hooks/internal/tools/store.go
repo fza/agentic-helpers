@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 )
 
 const indexSchema = 3
@@ -515,87 +518,105 @@ func isStore(folder *dir) bool {
 	return false
 }
 
-// storeKeys lists every store under root by its project key, at most
-// walkDepth folders deep. A link or an unreadable folder is passed over.
-func storeKeys(root string) []string {
-	top, err := openDir(root)
+// storeIDs lists the id of every store in the home holding a tool library.
+// A link or an unreadable folder is passed over.
+func storeIDs(roots home.Roots) []string {
+	top, err := openDir(roots.Stores())
 	if err != nil {
 		return nil
 	}
 
 	defer top.close()
 
-	var keys []string
+	listed, err := top.entries()
+	if err != nil {
+		return nil
+	}
 
-	var descend func(current *dir, prefix string, depth int)
+	var ids []string
 
-	descend = func(current *dir, prefix string, depth int) {
-		if len(keys) >= walkFiles {
-			return
+	for _, entry := range listed {
+		if len(ids) >= walkFiles || !entry.IsDir() {
+			continue
 		}
 
-		if prefix != "" && isStore(current) {
-			keys = append(keys, prefix)
-
-			return
-		}
-
-		if depth >= walkDepth {
-			return
-		}
-
-		listed, err := current.entries()
+		held, err := top.sub(entry.Name())
 		if err != nil {
-			return
+			continue
 		}
 
-		for _, entry := range listed {
-			name := entry.Name()
-			if !entry.IsDir() || strings.HasPrefix(name, ".") {
-				continue
-			}
+		library, err := held.sub(home.Tools)
+		held.close()
 
-			child, err := current.sub(name)
-			if err != nil {
-				continue
-			}
+		if err != nil {
+			continue
+		}
 
-			descend(child, filepath.ToSlash(filepath.Join(prefix, name)), depth+1)
-			child.close()
+		if isStore(library) {
+			ids = append(ids, entry.Name())
+		}
+
+		library.close()
+	}
+
+	slices.Sort(ids)
+
+	return ids
+}
+
+// storeNames is each store's name as a person reads it, its repo_id where it
+// has one; the own store, which may not exist yet, by its checkout.
+func (lib *library) storeNames(ids []string) map[string]string {
+	identities := lib.env.Roots.Identities()
+	names := map[string]string{}
+
+	for _, id := range ids {
+		identity, found := identities[id]
+
+		switch {
+		case found:
+			names[id] = identity.Name()
+		case id == lib.key:
+			names[id] = cmp.Or(lib.facts.RepoID, lib.facts.Origin, filepath.Base(lib.facts.Root))
+		default:
+			names[id] = id
 		}
 	}
 
-	descend(top, "", 0)
-	slices.Sort(keys)
-
-	return keys
+	return names
 }
 
-// labels names each project key by its last segment, adding leading segments
-// only where two keys would otherwise share a label.
-func labels(keys []string) map[string]string {
+// storeName is how the store id reads to a person, its id where it has no
+// identity.
+func (lib *library) storeName(id string) string {
+	return lib.storeNames([]string{id})[id]
+}
+
+// labels names each store by the last segment of its name, adding leading
+// segments only where two names would otherwise share a label.
+func labels(names map[string]string) map[string]string {
 	named := map[string]string{}
 	depth := map[string]int{}
 
-	for _, key := range keys {
-		depth[key] = 1
+	for id := range names {
+		depth[id] = 1
 	}
 
 	for range walkDepth + 1 {
 		named = map[string]string{}
 		count := map[string]int{}
 
-		for _, key := range keys {
-			label := lastSegments(key, depth[key])
-			named[key] = label
+		for id, name := range names {
+			label := lastSegments(name, depth[id])
+			named[id] = label
 			count[label]++
 		}
 
 		clash := false
 
-		for _, key := range keys {
-			if count[named[key]] > 1 && depth[key] < len(strings.Split(key, "/")) {
-				depth[key]++
+		for id, name := range names {
+			if count[named[id]] > 1 && depth[id] < len(strings.Split(name, "/")) {
+				depth[id]++
 				clash = true
 			}
 		}

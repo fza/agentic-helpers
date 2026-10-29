@@ -65,7 +65,7 @@ func TestASeatExemptFromTheWholeGate(t *testing.T) {
 	env := configured(t, "exempt-seats.yaml")
 	processes := test.NewProcesses()
 	env.Processes, env.OwnerName = processes, "claude"
-	store := test.MemoryStore(env.ProjectDir, env.Home, env.Checkout)
+	store := test.MemoryStore(t, env.Roots, env.ProjectDir, env.Checkout)
 	test.ClaimSeat(t, store, "reviewer", test.Session)
 	onDisk(t, env, ".sdd/tmp/drafts/d.md")
 
@@ -97,7 +97,7 @@ func TestOutsideGitNoSeatIsExempt(t *testing.T) {
 	env := configured(t, "exempt-seats.yaml")
 	processes := test.NewProcesses()
 	env.Processes, env.OwnerName = processes, "claude"
-	test.ClaimSeat(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "reviewer", test.Session)
+	test.ClaimSeat(t, test.MemoryStore(t, env.Roots, env.ProjectDir, env.Checkout), "reviewer", test.Session)
 	env.Checkout = test.CommonDir{Err: errors.New("not a git repository")}
 
 	owesEveryRead(t, run(t, env, "gate", ask(test.Session)))
@@ -108,7 +108,7 @@ func TestAnExemptSeatIsNamedInAnySpelling(t *testing.T) {
 	test.WriteFile(t, filepath.Join(env.ProjectDir, ".sdd", "grounding.yaml"), "exempt_seats: [Café]\n")
 	processes := test.NewProcesses()
 	env.Processes, env.OwnerName = processes, "claude"
-	test.ClaimSeat(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "café", test.Session)
+	test.ClaimSeat(t, test.MemoryStore(t, env.Roots, env.ProjectDir, env.Checkout), "café", test.Session)
 
 	passes(t, run(t, env, "gate", ask(test.Session)))
 }
@@ -117,7 +117,7 @@ func TestAnExemptSeatIsFoundByItsIDsName(t *testing.T) {
 	env := configured(t, "exempt-seats.yaml")
 	processes := test.NewProcesses()
 	env.Processes, env.OwnerName = processes, "claude"
-	test.ClaimSeatByID(t, test.MemoryStore(env.ProjectDir, env.Home, env.Checkout), "s-4kq9td", "reviewer", test.Session)
+	test.ClaimSeatByID(t, test.MemoryStore(t, env.Roots, env.ProjectDir, env.Checkout), "s-4kq9td", "reviewer", test.Session)
 
 	passes(t, run(t, env, "gate", ask(test.Session)))
 }

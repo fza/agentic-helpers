@@ -3,8 +3,9 @@
 // rewritten: entries are retired or superseded, and the tool, not the agent,
 // chooses what returns to a fresh context.
 //
-// The log is the truth, under `~/.claude/agentic-memory/<project>/`; vectors,
-// heat and per-session state are a cache under `~/.cache/agentic-memory/`.
+// The log is the truth, in the `memory` folder of the project's store in the
+// agent-neutral home (internal/home); vectors, heat and per-session state are
+// a cache in the store's folder under the home's cache root.
 // Every agent-facing subcommand is also a tool of the `memory` MCP server.
 package memory
 
@@ -18,18 +19,19 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
-	"github.com/fza/agentic-helpers/source/hooks/internal/projectkey"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
@@ -49,10 +51,12 @@ type Git interface {
 type EmbedderFactory func(config embed.Config) (embed.Embedder, error)
 
 // Env is everything a run reads from outside the store. Base is the directory
-// the session works in; Home and CacheRoot locate the store and its cache.
+// the session works in; Roots locate the stores and their caches; CacheRoot is
+// the machine's cache directory, where sdd keeps its own.
 type Env struct {
 	Base          string
 	Home          string
+	Roots         home.Roots
 	CacheRoot     string
 	OwnerName     string
 	SessionID     string
@@ -79,10 +83,21 @@ type Env struct {
 	WaitDeadline time.Duration
 }
 
+// agent names the agent whose sessions memory reads, under
+// `<data>/sessions/<agent>/`.
+const agent = "claude"
+
 type memory struct {
 	env     Env
 	streams hookio.Streams
-	key     string
+	// key is the id of the store the checkout works on.
+	key string
+	// facts is the checkout as the home matches it; unbound says no store
+	// matched it yet, so key names a store nothing holds until a write
+	// creates it; question is the user's call standing on it.
+	facts    home.Checkout
+	unbound  bool
+	question *home.Question
 	// seen is what the calling session's context already holds of each entry,
 	// for the read running now; nil where no seated session calls.
 	seen *presented
@@ -103,10 +118,6 @@ type memory struct {
 	// is set once a read said they are unavailable.
 	graphKnown  map[string]graphState
 	graphWarned bool
-
-	// gitKeyed is set where the store is keyed by the project's git identity,
-	// which a checkout can declare, and not by a directory's own path.
-	gitKeyed bool
 
 	// graphConfig is read once per process: every link, end condition and
 	// language read asks for it. here is the caller's checkout, asked once per
@@ -144,13 +155,21 @@ func (mem *memory) graphProject(ctx context.Context) resolvedGraph {
 	return *mem.graphConfig
 }
 
-func (mem *memory) root() string      { return seat.StoreRoot(mem.env.Home) }
-func (mem *memory) store() string     { return projectkey.Dir(mem.root(), mem.key) }
+func (mem *memory) store() string     { return mem.env.Roots.Store(mem.key, home.Memory) }
 func (mem *memory) logDir() string    { return filepath.Join(mem.store(), "log") }
 func (mem *memory) seatsDir() string  { return seat.Dir(mem.store()) }
-func (mem *memory) sensorDir() string { return filepath.Join(mem.root(), "sessions") }
-func (mem *memory) cacheDir() string {
-	return projectkey.Dir(filepath.Join(mem.env.CacheRoot, self), mem.key)
+func (mem *memory) sensorDir() string { return mem.env.Roots.Sessions(agent) }
+func (mem *memory) cacheDir() string  { return mem.env.Roots.StoreCache(mem.key, home.Memory) }
+
+// sibling is the memory of another store on the machine.
+func (mem *memory) sibling(id string) *memory {
+	return &memory{env: mem.env, streams: mem.streams, key: id}
+}
+
+// resolver draws store ids from crypto/rand, never from env.Random: an id
+// needs no reproducing, and a draw there would shift every entry id after it.
+func (mem *memory) resolver() home.Resolver {
+	return home.Resolver{Roots: mem.env.Roots, Now: mem.env.Now}
 }
 
 func (mem *memory) storeExists() bool {
@@ -159,23 +178,47 @@ func (mem *memory) storeExists() bool {
 	return err == nil && info.IsDir()
 }
 
-// locate keys the store: the project's own key inside a git work tree, and
-// outside one the directory's own key where the plugin allows memory there.
+// locate finds the checkout's store: inside a git work tree by the checkout,
+// outside one by the directory's own path where the plugin allows memory
+// there. Nothing is created: a checkout matching no store works on an id
+// nothing holds until a write binds it.
 func (mem *memory) locate(ctx context.Context) {
-	key, err := projectkey.Key(ctx, mem.env.Base, mem.env.Checkout)
-	if err == nil && mem.insideWorkTree(ctx) {
-		mem.key, mem.gitKeyed = key, true
+	if mem.insideWorkTree(ctx) {
+		checkout, err := home.Inspect(ctx, mem.env.Base, mem.env.Checkout, mem.env.Git)
+		if err == nil {
+			mem.facts = checkout
+			mem.resolve(ctx, false)
 
-		return
+			return
+		}
 	}
 
 	if !mem.options().MemoryRequireGit {
-		mem.key = projectkey.DirectoryKey(mem.env.Base)
+		mem.facts = home.InspectDirectory(mem.env.Base)
+		mem.resolve(ctx, false)
 
 		return
 	}
 
 	mem.outsideGit = true
+}
+
+// resolve maps the checkout to its store, creating one where create is set
+// and none matches.
+func (mem *memory) resolve(ctx context.Context, create bool) {
+	find := mem.resolver().Find
+	if create {
+		find = mem.resolver().Ensure
+	}
+
+	resolution, err := find(ctx, mem.facts)
+	if err != nil {
+		mem.unreadable = err.Error()
+
+		return
+	}
+
+	mem.key, mem.unbound, mem.question = resolution.Store, resolution.New, resolution.Question
 }
 
 func (mem *memory) insideWorkTree(ctx context.Context) bool {
@@ -189,6 +232,8 @@ func (mem *memory) storeRefusal() string {
 		return mem.outsideGitRefusal()
 	case mem.unreadable != "":
 		return mem.unreadable
+	case mem.key == "" && mem.question != nil:
+		return mem.question.Text(self)
 	}
 
 	return ""
@@ -378,7 +423,9 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	mem := &memory{env: env, streams: streams}
 	defer func() { mem.hashCache.save() }()
 
-	if !pieces.Memory.On(mem.options()) {
+	settles := settlesMapping(args[0], args[1:])
+
+	if !pieces.Memory.On(mem.options()) && !settles {
 		return mem.off(ctx, args[0])
 	}
 
@@ -402,19 +449,8 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	name := args[0]
 	_, isHook := hookEvents[name]
 
-	// A checkout not admitted neither migrates the store nor uses it: a hook
-	// stays silent, a command is refused, and the MCP server, which checks
-	// each call, starts without migrating.
-	admitted := mem.admission(ctx, name)
-	if admitted != nil {
-		switch {
-		case isHook:
-			return 0
-		case name == "mcp":
-			return mem.serveMCP(ctx)
-		}
-
-		return mem.refuse(admitted)
+	if !isHook && !settles {
+		mem.admission(ctx, name)
 	}
 
 	err := mem.prepare(ctx)
@@ -439,8 +475,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return mem.serveMCP(ctx)
 	}
 
+	// A question standing refuses every call but those answering anywhere.
+	asking := mem.key == "" && mem.question != nil
 	refusal := mem.storeRefusal()
-	if refusal != "" && name != "help" && name != "--help" && name != "-h" {
+
+	if refusal != "" && !settles && !(asking && slices.Contains(readOnly, name)) && name != "help" && name != "--help" &&
+		name != "-h" {
 		_, _ = fmt.Fprintln(streams.Err, self+": "+refusal)
 
 		return 1

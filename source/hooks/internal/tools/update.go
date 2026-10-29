@@ -160,7 +160,7 @@ func (lib *library) fork(ctx context.Context, req request, hit found, previous [
 		}
 
 		err = lib.writeVersion(ctx, version{name: old.Name, number: 1, files: previous, spec: first,
-			why: fmt.Sprintf("forked from %s %s v%d", hit.store.key, old.Name, old.Version)})
+			why: fmt.Sprintf("forked from %s %s v%d", lib.storeName(hit.store.key), old.Name, old.Version)})
 		if err != nil {
 			return err
 		}
@@ -175,8 +175,8 @@ func (lib *library) fork(ctx context.Context, req request, hit found, previous [
 	lib.moveHolding(req.From, hit, old.Name, 2)
 
 	return done(fmt.Sprintf("forked %s from %s into this project; updated it, now current\n%s", old.Name,
-		hit.store.key, space.Line(lib.recordSpace(ctx)))).
-		with(updatedFields{Name: old.Name, Version: 2, ForkedFrom: hit.store.key})
+		lib.storeName(hit.store.key), space.Line(lib.recordSpace(ctx)))).
+		with(updatedFields{Name: old.Name, Version: 2, ForkedFrom: lib.storeName(hit.store.key)})
 }
 
 // moveHolding points the session's holding at the version just written where

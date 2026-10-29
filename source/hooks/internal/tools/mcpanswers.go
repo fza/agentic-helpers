@@ -29,10 +29,6 @@ type mergedFields struct {
 	Members  []string `json:"members"`
 }
 
-type trustedFields struct {
-	Checkout string `json:"checkout"`
-}
-
 type reindexedFields struct {
 	Tools   int `json:"tools"`
 	Skipped int `json:"skipped"`
@@ -42,7 +38,7 @@ type reindexedFields struct {
 // message answer.
 var mcpOutputs = map[string]any{
 	"find": listing[scoredTool]{}, "list": listing[listedTool]{}, "take": takenFields{}, "add": nameFields{},
-	"update": updatedFields{}, "merge": mergedFields{}, "trust": trustedFields{}, "reindex": reindexedFields{},
+	"update": updatedFields{}, "merge": mergedFields{}, "reindex": reindexedFields{},
 }
 
 // mcpReads answer their listing over MCP whatever the call's json key says.
