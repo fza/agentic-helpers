@@ -20,7 +20,8 @@ Go rules, loaded when a session touches code under `source/`.
   shell-guard and the grounding gate, the only way to tell a call from text that names one;
   `golang.org/x/sys` reads darwin's process table through sysctl, which the standard library does
   not expose and which saves a `ps` spawn per read, and maps memory's vector segments with
-  `madvise`, which `syscall` lacks on darwin; `github.com/bmatcuk/doublestar/v4` matches
+  `madvise`, which `syscall` lacks on darwin, and asks standard input for its terminal settings,
+  which the standard library cannot; `github.com/bmatcuk/doublestar/v4` matches
   memory's `path:` triggers, since `path.Match` has no `**`.
 
 ## Hooks

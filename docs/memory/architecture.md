@@ -33,7 +33,13 @@ a checkout matching no store works on an id nothing holds yet and creates nothin
 that writes creates the store, through `home.Resolver.Ensure`. Where the mapping is the user's call,
 the store id is empty: a hook stays silent, SessionStart prints the question, every other call is
 refused with it, and the MCP server, which resolves again on each call while unbound, starts
-without migrating. `bind` and `merge` of two store ids run whatever the mapping says.
+without migrating. `bind` and `merge` of two store ids run whatever the mapping says, but an
+agent's reach only the stores the open question lists (`home.Question.Offers`) and the checkout's
+own; a terminal on standard input (`hookio.Terminal`, asked for its termios settings, since
+`/dev/null` is a character device too) with no owner process among the caller's ancestors
+(`seat.UnderOwner`, the walk `seat.Owner` makes) lifts that, and the MCP server's off-listing
+`bind` and `merge` refuse as the command line refuses an agent. Rejected: the terminal alone, which
+an agent opens with `script`; a typed challenge, which an agent driving the pty reads and answers.
 
 Before that, every call lets `internal/migration` move the layout of the releases before the home
 into it, once for the machine ([plugin architecture](../plugin/architecture.md#the-migration)): an

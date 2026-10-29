@@ -109,6 +109,25 @@ func TestOwnerWalksPastTheShell(t *testing.T) {
 	}
 }
 
+func TestUnderOwner(t *testing.T) {
+	cases := []struct {
+		name      string
+		processes *test.Processes
+		under     bool
+	}{
+		{name: "a call from a shell a claude process started", processes: test.NewProcesses(), under: true},
+		{name: "a call from the user's own shell", processes: test.NewProcessesOutsideClaude()},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if seat.UnderOwner(context.Background(), tc.processes, "claude") != tc.under {
+				t.Error("only a call with a claude ancestor should count as under the owner")
+			}
+		})
+	}
+}
+
 func TestRemoveKeepsTheLastClaim(t *testing.T) {
 	store := t.TempDir()
 	test.ClaimSeat(t, store, "main", test.Session)

@@ -44,7 +44,13 @@ hook ask, always about this checkout:
 - **`agentic-memory: the checkout <dir> and its graph repository keep their memory in two stores.`**
   → ask keep apart (`agentic-memory bind <own store>`) or join (`agentic-memory merge <own> <graph>`).
 - **`moved <identifier> from the store <id> ...; agentic-memory merge <id> <new> joins the two
-  stores`** after a bind → ask the user whether to join them; never merge unasked.
+  stores`** after a bind → ask the user whether to join them; never merge unasked. No question lists
+  that store any more, so a join is the user's to run at a shell.
+- **`agentic-memory: <store> is not offered for this checkout; run the bind in a terminal`** (or
+  `run the merge`) → that store is not among the ones the question lists, so no agent may reach it.
+  Tell the user the command to run at a shell outside Claude Code; never retry it another way
+  (`script`, a pty, a detached process, the pointer file).
+  `bind --new` always runs.
 - Never edit `agentic-store` in `.git/` or a store's `identity.json`: `bind` and `merge` do.
 - **`agentic-helpers: migrating to <data> failed: <cause>; nothing moved, and the next call tries
   again`** → the move of the old `~/.claude` layout into the home failed; memory works on the old

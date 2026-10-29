@@ -2,6 +2,7 @@ package home
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -41,6 +42,16 @@ type Candidate struct {
 	ID        string
 	Name      string
 	Checkouts []string
+}
+
+// Offers says whether the question lists the store as an answer; where no
+// question stands, none is offered.
+func (asked *Question) Offers(id string) bool {
+	if asked == nil {
+		return false
+	}
+
+	return slices.ContainsFunc(asked.Stores, func(candidate Candidate) bool { return candidate.ID == id })
 }
 
 func (held *mapping) question(checkout Checkout, reason Reason, ids []string) *Question {

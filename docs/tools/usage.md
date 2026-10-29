@@ -142,9 +142,13 @@ write is refused with the question agentic-memory's SessionStart prints, the lib
     refused: this checkout is bound to no store yet: no store is bound to the checkout <checkout> yet: <reason>. Ask the user which store it belongs to, then run `agentic-memory bind <store>` or `agentic-memory bind --new` from this checkout.
 
 `agentic-memory bind` answers it for both pieces ([memory usage](../memory/usage.md#which-store-a-checkout-uses)).
+An agent's `bind <store>` reaches only a store the question lists; any other is refused with
+`agentic-memory: <store> is not offered for this checkout; run the bind in a terminal`, and the
+user runs it at a shell outside Claude Code.
 Until then the checkout still finds and takes tools, into its own `.tmp/` only, recording nothing,
 and its hooks stay silent. `agentic-memory merge <from> <into>` joins two stores' libraries too,
-refusing a tool name both hold.
+refusing a tool name both hold; run by an agent, only the checkout's own store with one the question
+lists (`agentic-memory: <store> is not offered for this checkout; run the merge in a terminal`).
 
 A library kept under `~/.claude/agentic-tools/<key>/` by releases before the home moves into its
 store's `tools` folder at the first call of a release with the home

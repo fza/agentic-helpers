@@ -82,9 +82,10 @@ func main() {
 		Embedders: func(config embed.Config) (embed.Embedder, error) {
 			return embed.New(config, &http.Client{Timeout: 30 * time.Second})
 		},
-		Version: version,
-		Tmp:     "/tmp",
-		Idle:    migration.Idle(machine),
+		Version:  version,
+		Terminal: hookio.Terminal{File: os.Stdin},
+		Tmp:      "/tmp",
+		Idle:     migration.Idle(machine),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

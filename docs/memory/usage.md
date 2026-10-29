@@ -84,6 +84,23 @@ the joined store. An entry id both stores hold, or a tool name both libraries ho
 merge before anything changes. Given two topics, `merge` merges topics. `bind` and
 `merge` of stores run while memory is off too: the mapping serves every component.
 
+Run by an agent, `bind <store>` reaches only a store the open question for the current checkout
+lists, and `merge <a> <b>` only where one side is the checkout's own store and the other a store
+that question lists; `bind --new` reaches no data and always runs. Any other bind or merge is
+refused with nothing written:
+
+    agentic-memory: <store> is not offered for this checkout; run the bind in a terminal
+    agentic-memory: <store> is not offered for this checkout; run the merge in a terminal
+
+A merge refusal names the side that is neither the own store nor listed. A call whose standard
+input is a terminal and that no Claude Code process started (the user at a shell outside Claude
+Code) runs any bind or merge. Any ancestor named like the process a seat's holder runs in
+(`claude`) makes the call an agent's even with a terminal, so a pty an agent
+opens (`script`, a Python pty) and a `!` command inside Claude Code are refused as above. The check
+is a guardrail against an agent binding by accident or by an injected instruction, not a security
+boundary: an agent running as the user can still detach from its process tree, or write the store
+pointer directly.
+
 ## Seats
 
 A **seat** is a named job, held by one session at a time; claiming one is what turns memory on for
@@ -1055,6 +1072,11 @@ listing loads into every session's context and an agent seldom runs them, and a 
 refused with its command line:
 
     agentic-memory: <subcommand> is no MCP tool; run it through Bash: agentic-memory <usage>
+
+A `bind` naming a store, or a `merge` naming two stores, that the command line would refuse an
+agent is refused with that refusal instead, `agentic-memory: <store> is not offered for this
+checkout; run the bind in a terminal` (or `run the merge`): an MCP call never counts as coming
+from a terminal.
 
 `agentic-memory help` lists every subcommand. A tool
 takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_SEATS`), and its

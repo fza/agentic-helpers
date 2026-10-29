@@ -59,6 +59,9 @@ type harness struct {
 	// draws stands in for the random source where a test needs ids apart from
 	// another harness's; nil takes the fixed stream every run starts afresh.
 	draws io.Reader
+	// terminal is the call's standard input; nil counts every call as an
+	// agent's, as a run without one does.
+	terminal memory.Terminal
 }
 
 func newHarness(t *testing.T) *harness {
@@ -153,7 +156,7 @@ func (h *harness) env() memory.Env {
 		Random: cmp.Or[io.Reader](h.draws, test.Random()), Processes: h.processes, Checkout: h.lookup(),
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
-		CompactWindow: h.compactWindow,
+		CompactWindow: h.compactWindow, Terminal: h.terminal,
 	}
 }
 
@@ -171,6 +174,18 @@ func (h *harness) run(stdin string, args ...string) ran {
 	code := memory.Main(context.Background(), args, h.env(), captured.Streams(stdin))
 
 	return ran{out: captured.Out.String(), err: captured.Err.String(), code: code}
+}
+
+// atUserShell runs the call as the user at a shell outside Claude Code: a
+// terminal on standard input, no claude process among its ancestors.
+func (h *harness) atUserShell(args ...string) ran {
+	h.t.Helper()
+
+	shell := *h
+	shell.terminal = test.Terminal(true)
+	shell.processes = test.NewProcessesOutsideClaude()
+
+	return shell.run("", args...)
 }
 
 func (h *harness) must(stdin string, args ...string) string {
