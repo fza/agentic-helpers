@@ -236,10 +236,12 @@ shows the user, and the output passes as returned. The launcher, finding no bina
 
 ## Options
 
-`internal/pluginconfig` reads every `shell_guard_*` option from the user and managed settings
-files, as every other piece does. `shell_guard_ask_timeout` below 0 reads as 0 and above 3600 as
-3600, under the hook's own `timeout` in `hooks.json` (3660 seconds), past which Claude Code would
-stop the hook before it denies. `shell_guard_secret_output` takes `all`, `files` or `off`, empty
+`internal/pluginconfig` reads every `shell_guard_*` option in the layers every other piece's
+options take, with `config.yaml` held to `TightenOnly`: a value there looser than the layer below
+is dropped and named, and `shell_guard_secret_output_skip`, in `NeverConfig`, is never read from
+it. `shell_guard_ask_timeout` below 0 reads as 0 and above 3600 as 3600, under the hook's own
+`timeout` in `hooks.json` (3660 seconds), past which Claude Code would stop the hook before it
+denies. `shell_guard_secret_output` takes `all`, `files` or `off`, empty
 reading as `all`; `shell_guard_secret_output_skip` is kept as written and split on commas by the
 hook. A mode other than those a guard takes, or a file it cannot read,
 leaves every option at its default, so a typo never switches a guard off.

@@ -72,11 +72,24 @@ func (resolution *Resolution) foldConfig(path string) {
 			continue
 		}
 
+		if slices.Contains(NeverConfig, key) {
+			resolution.Problems = append(resolution.Problems, fmt.Sprintf("%v %s; %v ignored", ErrNeverConfig, key, values[key]))
+
+			continue
+		}
+
 		candidate := resolution.Options
 
 		err = candidate.apply(map[string]json.RawMessage{key: raw})
 		if err != nil {
 			resolution.Problems = append(resolution.Problems, fmt.Sprintf("%s: %v; the layer below applies", path, err))
+
+			continue
+		}
+
+		if candidate.loosens(key, resolution.Options) {
+			resolution.Problems = append(resolution.Problems,
+				fmt.Sprintf("%v %s; %s ignored", ErrLoosens, key, candidate.Value(key)))
 
 			continue
 		}
@@ -116,7 +129,8 @@ func readConfig(path string) (map[string]any, error) {
 // Set writes key's value into the `config.yaml` at path, through a temporary
 // file renamed into place: the key's line replaced where the file has one,
 // else appended, every other line and comment kept. The value is checked as
-// the reader checks it; an empty one unsets the key.
+// the reader checks it, a NeverConfig key and a guard value looser than its
+// default refused; an empty one unsets the key.
 func Set(path string, key string, value string) error {
 	line, err := configLine(key, value)
 	if err != nil {
@@ -165,6 +179,10 @@ func configLine(key string, value string) (string, error) {
 		return "", fmt.Errorf("%w: %s; the nearest is %s", ErrUnknownKey, key, levenshtein.Nearest(key, Keys))
 	}
 
+	if slices.Contains(NeverConfig, key) {
+		return "", fmt.Errorf("%w %s; set it in Claude Code's settings", ErrNeverConfig, key)
+	}
+
 	if value == "" {
 		return key + `: ""`, nil
 	}
@@ -179,6 +197,10 @@ func configLine(key string, value string) (string, error) {
 	err = checked.apply(map[string]json.RawMessage{key: raw})
 	if err != nil {
 		return "", err
+	}
+
+	if checked.loosens(key, Defaults()) {
+		return "", fmt.Errorf("%w %s; loosen it in Claude Code's settings", ErrLoosens, key)
 	}
 
 	field := checked.fields()

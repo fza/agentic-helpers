@@ -77,7 +77,9 @@ func TestEveryLayerResolvesInOrderManagedSettingsLast(t *testing.T) {
 		{name: "a config-only key from managed settings", key: "temporary_seat_lifetime", values: layers{config: `"2d"`, managed: `"12h"`}, value: "12h", layer: pluginconfig.LayerManaged},
 		{name: "a writing style", key: "writing_style", values: layers{config: "plain"}, value: "plain", layer: pluginconfig.LayerConfig},
 		{name: "terse writing unless set", key: "writing_style", value: "terse"},
-		{name: "a word YAML 1.1 would read as a boolean", key: "shell_guard_secrets", values: layers{config: "off"}, value: "off", layer: pluginconfig.LayerConfig},
+		{name: "a looser guard from user settings over a stricter config.yaml", key: "shell_guard_secrets", values: layers{config: "deny", user: `"off"`}, value: "off", layer: pluginconfig.LayerUser},
+		{name: "managed settings over a guard config.yaml tightens", key: "shell_guard_enabled", values: layers{config: "true", env: "true", managed: "false"}, value: "false", layer: pluginconfig.LayerManaged},
+		{name: "managed settings over the agent for a key config.yaml never sets", key: "embedding_endpoint", values: layers{user: `"http://user"`, managed: `"http://managed"`}, value: "http://managed", layer: pluginconfig.LayerManaged},
 	}
 
 	for _, tc := range cases {
@@ -141,6 +143,183 @@ func TestAnInvalidConfigValueFallsBackAndIsNamed(t *testing.T) {
 	}
 }
 
+func TestConfigYAMLMayOnlyTightenAGuard(t *testing.T) {
+	cases := []struct {
+		key     string
+		config  string
+		value   string
+		ignored string
+	}{
+		{key: "shell_guard_enabled", config: "true", value: "true"},
+		{key: "shell_guard_enabled", config: "false", value: "true", ignored: "false"},
+		{key: "grounding_gate_enabled", config: "true", value: "true"},
+		{key: "grounding_gate_enabled", config: "false", value: "true", ignored: "false"},
+		{key: "shell_guard_lone_removal", config: "true", value: "true"},
+		{key: "shell_guard_lone_removal", config: `"false"`, value: "true", ignored: "false"},
+		{key: "shell_guard_expansion", config: "true", value: "true"},
+		{key: "shell_guard_expansion", config: "false", value: "true", ignored: "false"},
+		{key: "shell_guard_nested_code", config: "true", value: "true"},
+		{key: "shell_guard_nested_code", config: "false", value: "true", ignored: "false"},
+		{key: "shell_guard_mktemp", config: "true", value: "true"},
+		{key: "shell_guard_mktemp", config: "false", value: "true", ignored: "false"},
+		{key: "shell_guard_alternatives", config: "true", value: "true"},
+		{key: "shell_guard_alternatives", config: "false", value: "true", ignored: "false"},
+		{key: "shell_guard_secret_output", config: "all", value: "all"},
+		{key: "shell_guard_secret_output", config: "files", value: "all", ignored: "files"},
+		{key: "shell_guard_secret_output", config: "off", value: "all", ignored: "off"},
+		{key: "shell_guard_outside_project", config: "deny", value: "deny"},
+		{key: "shell_guard_outside_project", config: "ask", value: "ask"},
+		{key: "shell_guard_outside_project", config: "off", value: "ask", ignored: "off"},
+		{key: "shell_guard_find_delete", config: "deny", value: "deny"},
+		{key: "shell_guard_find_delete", config: `"off"`, value: "ask", ignored: "off"},
+		{key: "shell_guard_secrets", config: "deny", value: "deny"},
+		{key: "shell_guard_secrets", config: "off", value: "ask", ignored: "off"},
+		{key: "shell_guard_ask_timeout", config: "30", value: "30"},
+		{key: "shell_guard_ask_timeout", config: "120", value: "120"},
+		{key: "shell_guard_ask_timeout", config: "600", value: "120", ignored: "600"},
+		{key: "shell_guard_ask_timeout", config: "5000", value: "120", ignored: "5000"},
+		{key: "shell_guard_ask_timeout", config: "0", value: "120", ignored: "0"},
+		{key: "shell_guard_ask_timeout", config: "-5", value: "120", ignored: "-5"},
+	}
+
+	for _, key := range pluginconfig.TightenOnly {
+		looser := slices.ContainsFunc(cases, func(tc struct{ key, config, value, ignored string }) bool {
+			return tc.key == key && tc.ignored != ""
+		})
+		if !looser {
+			t.Errorf("every tighten-only key should be tried with a looser value, %s is not", key)
+		}
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.key+" "+tc.config, func(t *testing.T) {
+			resolution := layered(t, tc.key, layers{config: tc.config})
+
+			if got := resolution.Options.Value(tc.key); got != tc.value {
+				t.Errorf("a stricter value should apply and a looser one leave the layer below, got %q", got)
+			}
+
+			if tc.ignored == "" {
+				if resolution.From[tc.key] != pluginconfig.LayerConfig || len(resolution.Problems) != 0 {
+					t.Errorf("a value at least as strict should come from config.yaml without a problem, got %q %v",
+						resolution.From[tc.key], resolution.Problems)
+				}
+
+				return
+			}
+
+			if resolution.From[tc.key] != "" {
+				t.Errorf("an ignored value should name no layer, got %q", resolution.From[tc.key])
+			}
+
+			want := "config.yaml may only tighten " + tc.key + "; " + tc.ignored + " ignored"
+			if !slices.Equal(resolution.Problems, []string{want}) {
+				t.Errorf("a looser value should be named as ignored, got %v", resolution.Problems)
+			}
+		})
+	}
+}
+
+func TestConfigYAMLNeverSetsTheEmbedderOrTheSkipList(t *testing.T) {
+	cases := []struct {
+		key   string
+		value string
+	}{
+		{key: "embedding_endpoint", value: "http://collector.example"},
+		{key: "embedding_api_key_env", value: "GITHUB_TOKEN"},
+		{key: "shell_guard_secret_output_skip", value: "Bash"},
+	}
+
+	if len(cases) != len(pluginconfig.NeverConfig) {
+		t.Errorf("every key config.yaml never sets should be tried")
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			resolution := layered(t, tc.key, layers{config: `"` + tc.value + `"`})
+
+			if got := resolution.Options.Value(tc.key); got != "" || resolution.From[tc.key] != "" {
+				t.Errorf("config.yaml should change nothing for the key, got %q from %q", got, resolution.From[tc.key])
+			}
+
+			want := "config.yaml never sets " + tc.key + "; " + tc.value + " ignored"
+			if !slices.Equal(resolution.Problems, []string{want}) {
+				t.Errorf("the ignored value should be named, got %v", resolution.Problems)
+			}
+
+			resolution = layered(t, tc.key, layers{config: `"elsewhere"`, user: `"` + tc.value + `"`})
+			if got := resolution.Options.Value(tc.key); got != tc.value || resolution.From[tc.key] != pluginconfig.LayerUser {
+				t.Errorf("Claude Code's settings should still set the key, got %q", got)
+			}
+
+			resolution = layered(t, tc.key, layers{env: tc.value})
+			if got := resolution.Options.Value(tc.key); got != "" || resolution.From[tc.key] != "" {
+				t.Errorf("an environment prefix an agent can set should never set the key, got %q", got)
+			}
+
+			resolution = layered(t, tc.key, layers{user: `"` + tc.value + `"`, env: "from-the-environment"})
+			if got := resolution.Options.Value(tc.key); got != tc.value || resolution.From[tc.key] != pluginconfig.LayerUser {
+				t.Errorf("the user settings should decide the key past any environment value, got %q", got)
+			}
+		})
+	}
+
+	resolution := layered(t, "embedding_model", layers{user: `"from-settings"`, env: "from-the-environment"})
+	if got := resolution.Options.Value("embedding_model"); got != "from-the-environment" || resolution.From["embedding_model"] != pluginconfig.LayerAgent {
+		t.Errorf("the hook environment should still set every other key, got %q", got)
+	}
+}
+
+func TestSetRefusesALooserGuardAndEveryKeyConfigNeverSets(t *testing.T) {
+	cases := []struct {
+		key     string
+		value   string
+		refusal error
+		message string
+	}{
+		{key: "shell_guard_enabled", value: "false", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_enabled; loosen it in Claude Code's settings"},
+		{key: "grounding_gate_enabled", value: "false", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten grounding_gate_enabled; loosen it in Claude Code's settings"},
+		{key: "shell_guard_secrets", value: "off", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_secrets; loosen it in Claude Code's settings"},
+		{key: "shell_guard_secret_output", value: "files", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_secret_output; loosen it in Claude Code's settings"},
+		{key: "shell_guard_ask_timeout", value: "0", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_ask_timeout; loosen it in Claude Code's settings"},
+		{key: "shell_guard_ask_timeout", value: "121", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_ask_timeout; loosen it in Claude Code's settings"},
+		{key: "embedding_endpoint", value: "http://collector.example", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets embedding_endpoint; set it in Claude Code's settings"},
+		{key: "embedding_api_key_env", value: "GITHUB_TOKEN", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets embedding_api_key_env; set it in Claude Code's settings"},
+		{key: "embedding_api_key_env", value: "", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets embedding_api_key_env; set it in Claude Code's settings"},
+		{key: "shell_guard_secret_output_skip", value: "Bash", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets shell_guard_secret_output_skip; set it in Claude Code's settings"},
+		{key: "shell_guard_secrets", value: "deny"},
+		{key: "shell_guard_ask_timeout", value: "30"},
+		{key: "shell_guard_enabled", value: "true"},
+		{key: "shell_guard_enabled", value: ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.key+" "+tc.value, func(t *testing.T) {
+			config := filepath.Join(t.TempDir(), "config.yaml")
+
+			err := pluginconfig.Set(config, tc.key, tc.value)
+
+			_, statErr := os.Stat(config)
+
+			if tc.refusal == nil {
+				if err != nil || statErr != nil {
+					t.Errorf("a value at least as strict should be written, got %v", err)
+				}
+
+				return
+			}
+
+			if !errors.Is(err, tc.refusal) || err.Error() != tc.message {
+				t.Errorf("the value should be refused saying where it belongs, got %v", err)
+			}
+
+			if !errors.Is(statErr, os.ErrNotExist) {
+				t.Error("a refused set should write nothing")
+			}
+		})
+	}
+}
+
 func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 	config := filepath.Join(t.TempDir(), "agentic-helpers", "config.yaml")
 
@@ -151,7 +330,7 @@ func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 
 	test.WriteFile(t, config, "# machine options\nentry_max_words: 600\nmemory_language: \"de\"\n")
 
-	for _, set := range [][2]string{{"entry_max_words", "700"}, {"shell_guard_secrets", "off"}, {"memory_enabled", "false"}, {"tools_query_floor", "0.5"}} {
+	for _, set := range [][2]string{{"entry_max_words", "700"}, {"shell_guard_secrets", "deny"}, {"memory_enabled", "false"}, {"tools_query_floor", "0.5"}} {
 		err = pluginconfig.Set(config, set[0], set[1])
 		if err != nil {
 			t.Fatalf("setting %s should succeed: %v", set[0], err)
@@ -163,7 +342,7 @@ func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "# machine options\nentry_max_words: 700\nmemory_language: \"de\"\nshell_guard_secrets: \"off\"\nmemory_enabled: false\ntools_query_floor: 0.5\n"
+	want := "# machine options\nentry_max_words: 700\nmemory_language: \"de\"\nshell_guard_secrets: \"deny\"\nmemory_enabled: false\ntools_query_floor: 0.5\n"
 	if string(written) != want {
 		t.Errorf("set should replace the key's line or append one, keeping every other line, got:\n%s", written)
 	}
@@ -174,7 +353,7 @@ func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 	}
 
 	options := resolution.Options
-	if options.EntryMaxWords != 700 || options.ShellGuardSecrets != "off" || options.MemoryEnabled || options.MemoryLanguage != "de" || options.ToolsQueryFloor != 0.5 {
+	if options.EntryMaxWords != 700 || options.ShellGuardSecrets != "deny" || options.MemoryEnabled || options.MemoryLanguage != "de" || options.ToolsQueryFloor != 0.5 {
 		t.Errorf("the reader should take every value set wrote, got %+v", options)
 	}
 }

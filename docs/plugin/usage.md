@@ -162,13 +162,42 @@ made for itself, `capture_remove_draft`, stays in the dialog. At session start `
 copies a value the user settings still hold for a `config.yaml`-only key into `config.yaml`, where the
 file names none; it writes no settings file.
 
+**`config.yaml` only tightens a guard.** Any agent can write the file in one Bash call, where Claude
+Code's settings sit behind its permission prompts, so the file never lifts a guard. Against the
+built-in default, the layer below it:
+
+| Keys | `config.yaml` takes |
+|---|---|
+| `shell_guard_enabled`, `grounding_gate_enabled`, `shell_guard_lone_removal`, `shell_guard_expansion`, `shell_guard_nested_code`, `shell_guard_mktemp`, `shell_guard_alternatives` | only `true` |
+| `shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets` | only as strict or stricter: `off` < `ask` < `deny` |
+| `shell_guard_secret_output` | only as strict or stricter: `off` < `files` < `all` |
+| `shell_guard_ask_timeout` | only as short or shorter; `0` waits without limit, the loosest |
+| `embedding_endpoint`, `embedding_api_key_env`, `shell_guard_secret_output_skip` | nothing: never read from it |
+
+The embedder's endpoint and key variable together could send any environment variable to a server
+the writer picks; the skip list can only loosen. A looser value, or any value for a key the file never
+sets, is ignored, the layer below applies, and `agentic-helpers check` names it at session start as
+`agentic-helpers: config.yaml may only tighten <key>; <value> ignored` or
+`agentic-helpers: config.yaml never sets <key>; <value> ignored`. Loosening a guard and pointing the
+embedder elsewhere stay possible in Claude Code's settings, and managed settings still lock every key.
+The keys `config.yaml` never sets are never taken from `CLAUDE_PLUGIN_OPTION_<KEY>` either: an agent
+can prefix its own command with that variable, and none of them is a `sensitive` option, so Claude
+Code keeps them in the settings files read anyway. `CLAUDE_CONFIG_DIR` is still honoured, as Claude
+Code's own contract; redirecting it takes a settings file written there, a visible step, which is
+the accepted cost.
+
     agentic-helpers config                       # every key: value and the layer it comes from
     agentic-helpers config get <key>             # one key's line
     agentic-helpers config set <key> <value>     # write it into config.yaml
 
 `config set` checks the value as the reader does, replaces the key's line or appends one, keeps every
 other line and comment, and writes through a temporary file renamed into place. An unknown key is
-refused naming the nearest; a layer above `config.yaml` that sets the key too is named:
+refused naming the nearest. A guard value looser than its default is refused, writing nothing:
+`agentic-helpers: refused: config.yaml may only tighten <key>; loosen it in Claude Code's settings`,
+and so is every key the file never sets:
+`agentic-helpers: refused: config.yaml never sets <key>; set it in Claude Code's settings`. The
+listing marks those keys `config.yaml only tightens` and `never config.yaml`. A layer above
+`config.yaml` that sets the key too is named:
 `<layer> also sets <key> and wins over config.yaml: <value> applies`. An invalid value in
 `config.yaml` (a word for a number, an unknown key, a file that is no YAML map) is skipped, the layer
 below applies, and `agentic-helpers check` names it at session start as

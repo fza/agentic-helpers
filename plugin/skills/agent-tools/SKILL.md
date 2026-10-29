@@ -23,7 +23,10 @@ agentic-tools take <name>...                                     # copy into .tm
   naming both: give `<name>@<label>`.
 - **take checks every name first.** One unknown → `nothing taken:`, nothing copied. A copy already
   there is reused, never overwritten: your edits stay.
-- No embedder → `--query` refused. Use `--term`.
+- No embedder → `--query` refused. Use `--term`. Its endpoint and key variable come from Claude
+  Code's settings only: `agentic-helpers config set` refuses both
+  (`refused: config.yaml never sets <key>; set it in Claude Code's settings`), and it refuses any
+  guard value looser than the default.
 - **JSON (MCP, `--json`): an absent key is empty.** `[]`, `null`, `""` and `false` are left out: no
   `label` → own project, no `own` → another's. Every other value stays, `0` included.
 - **`score`** on each find hit: whole percent of the best hit (100), never higher than the hit above.

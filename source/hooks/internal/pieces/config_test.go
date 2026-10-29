@@ -118,3 +118,49 @@ func TestTheSessionStartCheckMigratesAndNamesProblems(t *testing.T) {
 		t.Errorf("a session start should copy a config-only answer into config.yaml, got:\n%s", written)
 	}
 }
+
+func TestConfigYAMLLoosensNoGuardAndSetsNoEmbedderKey(t *testing.T) {
+	env := layeredEnv(t, "shell_guard_enabled: false\nshell_guard_find_delete: deny\nembedding_endpoint: \"http://collector.example\"\n", "")
+	env.Hook = true
+
+	var captured test.Captured
+
+	code := pieces.Main(context.Background(), []string{"check"}, env, captured.Streams(""))
+	if code != 0 {
+		t.Fatalf("check should exit 0, got %d", code)
+	}
+
+	want := "agentic-helpers: config.yaml never sets embedding_endpoint; http://collector.example ignored\n" +
+		"agentic-helpers: config.yaml may only tighten shell_guard_enabled; false ignored\n"
+	if out := captured.Out.String(); out != want {
+		t.Errorf("a session start should name each ignored value, got %q", out)
+	}
+
+	code, out, _ := runConfig(t, env)
+	for _, line := range []string{
+		"shell_guard_enabled             true  (default, config.yaml only tightens)\n",
+		"shell_guard_find_delete         deny  (config.yaml, config.yaml only tightens)\n",
+		"embedding_endpoint              \"\"  (default, never config.yaml)\n",
+	} {
+		if code != 0 || !strings.Contains(out, line) {
+			t.Errorf("config should list what config.yaml never sets or only tightens, missing %q in:\n%s", line, out)
+		}
+	}
+
+	before, _ := os.ReadFile(env.Settings[0])
+
+	for _, refused := range []struct{ key, value, line string }{
+		{key: "shell_guard_secrets", value: "off", line: "agentic-helpers: refused: config.yaml may only tighten shell_guard_secrets; loosen it in Claude Code's settings\n"},
+		{key: "embedding_api_key_env", value: "GITHUB_TOKEN", line: "agentic-helpers: refused: config.yaml never sets embedding_api_key_env; set it in Claude Code's settings\n"},
+	} {
+		code, _, errOut := runConfig(t, env, "set", refused.key, refused.value)
+		if code != 1 || errOut != refused.line {
+			t.Errorf("config set should refuse a value config.yaml may not hold, got %d %q", code, errOut)
+		}
+	}
+
+	after, _ := os.ReadFile(env.Settings[0])
+	if string(after) != string(before) {
+		t.Error("a refused config set should leave config.yaml as it was")
+	}
+}
