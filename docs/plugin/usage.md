@@ -173,8 +173,11 @@ Each piece has a boolean plugin option switching it on or off for the machine, o
 instructions name the option, and its skill stays listed. Each binary checks its own switch. A
 feature resting on an off piece goes off with it, and the rest of its piece runs; the table is in
 [`README.md`](../../README.md#dependencies). At each session start `agentic-helpers check` prints one
-line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`;
-run as a command it lists every piece on or off, with its features off under it.
+line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`,
+and, where the machine needs a command substitution shell-guard enforces, one naming them, such as
+`agentic-helpers: this machine: timeout -> gtimeout; sed and date are BSD` (see
+[shell-guard's command alternatives](../shell-guard/usage.md#command-alternatives)); run as a command
+it lists every piece on or off, with its features off under it.
 
 Every binary reads `config.yaml`, then `settings.json` under `CLAUDE_CONFIG_DIR` (else `~/.claude`),
 then, in a hook, the options Claude Code hands it as `CLAUDE_PLUGIN_OPTION_<KEY>`, then the managed

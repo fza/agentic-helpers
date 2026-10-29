@@ -140,6 +140,9 @@ type Options struct {
 	ShellGuardExpansion      bool
 	ShellGuardNestedCode     bool
 	ShellGuardMktemp         bool
+	// ShellGuardAlternatives switches the refusals of the command alternatives
+	// table and the SessionStart line naming what the machine needs.
+	ShellGuardAlternatives bool
 	// ShellGuardSecretOutput is `all`, `files` or `off`;
 	// ShellGuardSecretOutputSkip the comma-separated tool names or patterns
 	// whose output is never redacted.
@@ -170,7 +173,7 @@ var Keys = []string{
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
-	"shell_guard_secret_output", "shell_guard_secret_output_skip",
+	"shell_guard_secret_output", "shell_guard_secret_output_skip", "shell_guard_alternatives",
 	"memory_enabled", "tools_enabled", "scratch_enabled", "grounding_gate_enabled", "capture_enabled",
 	"shell_guard_enabled",
 }
@@ -392,7 +395,7 @@ func Defaults() Options {
 		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true, WritingStyle: StyleTerse,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
-		ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
+		ShellGuardAlternatives: true, ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
 		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
 		ShellGuardEnabled: true,
 	}
@@ -455,6 +458,7 @@ func (options *Options) fields() fields {
 			"shell_guard_expansion":    &options.ShellGuardExpansion,
 			"shell_guard_nested_code":  &options.ShellGuardNestedCode,
 			"shell_guard_mktemp":       &options.ShellGuardMktemp,
+			"shell_guard_alternatives": &options.ShellGuardAlternatives,
 			"capture_remove_draft":     &options.CaptureRemoveDraft,
 			"memory_enabled":           &options.MemoryEnabled,
 			"tools_enabled":            &options.ToolsEnabled,

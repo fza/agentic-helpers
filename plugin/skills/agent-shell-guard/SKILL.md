@@ -1,6 +1,6 @@
 ---
 name: agent-shell-guard
-description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, refusing an ask a rewrite fixes twice first, and bans mktemp; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
+description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, refusing an ask a rewrite fixes twice first, bans mktemp, and refuses a command missing here (timeout) or a usage BSD sed or date gets wrong, naming the command that works; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
 license: MIT
 ---
 
@@ -19,9 +19,15 @@ before it runs. Reason starts `agentic-shell-guard: ` → this hook.
   text, quotes around plain text, or `$'...'` with no escape but `\n` `\t` `\r` `\\` `\'` `\"` and
   two-digit `\x` (not `\x00`): `$'rm' -rf /` is `rm -rf /`. Any other escape = an expansion.
 - **Text naming `rm`**: a sed script, a grep pattern, a commit message. Quoted text is no command.
+- **A time limit in front keeps it lone**: `timeout`, `gtimeout`, `uu-timeout` (options and
+  duration fixed text: no `$x`, `"$(...)"`, glob or brace, quoted or not) or exactly `perl -e 'alarm N; exec @ARGV'` with the command as separate words
+  after it: the program a plain word (no `-`, no spaces, no shell characters), every word after it
+  fixed text or `"$var"` (never `$var`, `"$@"` or a glob). Anything else is inline perl code. They
+  bound only how long it runs.
 
 ```bash
 rm -rf sub/build .tmp/claude/<session>/probe     # passes: one call, literal, inside
+gtimeout 30 rm -rf sub/build                     # passes: a time limit keeps it lone
 cd sub && rm x                                   # denied: not alone. Absolute path instead
 rm -rf "$dir"                                    # denied: expansion. Spell the path
 ```
@@ -38,6 +44,38 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 | `inline code for <interpreter> names a removal or mktemp; refusing` | no removal in `python -c`, `perl -e`, `awk`, `ssh` code; a lone `rm` instead |
 | `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | literal code, or none; no code piped into a shell |
 | `cannot parse the command; refusing` | fix the quoting |
+
+## Command alternatives → run what it names
+
+A call that would fail on this machine, or silently do the wrong thing, is denied with the command
+that works. Session start already says what the machine needs:
+`agentic-helpers: this machine: timeout -> gtimeout; sed and date are BSD`. Nothing appears where
+nothing is needed (Linux with GNU tools).
+
+| Reason (after `agentic-shell-guard: `) | Do |
+|---|---|
+| `timeout is not installed here; use: <rewritten command>` | run the rewritten command as given. The chain: `timeout`, `gtimeout`, `uu-timeout`, then `perl -e 'alarm N; exec @ARGV' <command>` (seconds, rounded up) |
+| `timeout is not installed here; use: perl -e 'alarm <seconds>; exec @ARGV' <command>` | options (`-s`, `-k`) or a duration built at run time have no exact perl form: write it yourself, without them |
+| `<command> here is BSD <command>: <usage>; use: <rewritten command>` | the GNU tool (`gsed`, `gdate`) is installed: run the rewritten command |
+| `<command> here is BSD <command>: <usage>; instead <form>` | no GNU tool installed: rewrite as the form says |
+
+The perl alarm form ends a command that runs out with `SIGALRM`: exit 142, not GNU's 124.
+
+The usages, `<usage>` → `<form>`:
+
+- `-i takes the next word as its backup suffix` → `write -i '' for no backup file, or -i.bak`
+- `it takes no long option` → `use the short one`
+- `it has no -z` → `install GNU sed (gsed), or work line by line`
+- `\+ \? \| \s \w \b \< \> match nothing in a basic expression` →
+  `use -E with + ? |, [[:space:]], [[:alnum:]_], [[:<:]] [[:>:]]`
+- `a 0,/re/ address matches nothing` → `use 1,/re/ where line 1 cannot match, or install GNU sed (gsed)`
+- `a, i and c take their text only after a backslash and a newline` → `write a\ and a newline before the text`
+- `it has no -d` (date) → `use gdate -d, or date -j -f <format> <value>`
+
+Only these usages are refused: `sed -E`, `sed -i ''`, `\+` in a replacement, `readlink -f` and
+`grep -P` run. Code handed to `bash -c` and a command named by a path (`/usr/bin/sed`) are not
+checked. The user turns this off with
+`shell_guard_alternatives`.
 
 ## Questions → the user decides
 

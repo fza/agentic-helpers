@@ -5,7 +5,24 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
 )
+
+func perlAlarm(t *testing.T) alternatives.Alternative {
+	t.Helper()
+
+	entry, _ := alternatives.Lookup("timeout")
+	for _, alternative := range entry.Alternatives {
+		if alternative.Program == "perl" {
+			return alternative
+		}
+	}
+
+	t.Fatal("timeout should have the perl alarm form among its alternatives")
+
+	return alternatives.Alternative{}
+}
 
 func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 	skill, err := os.ReadFile("../../../../plugin/skills/agent-shell-guard/SKILL.md")
@@ -34,6 +51,19 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		strings.NewReplacer("%d", "<n>", "%s", "<tool>").Replace(noteWithheld),
 		self + ": " + reasonOutputUnread, self + ": " + reasonOutputFailure, self + ": " + reasonOutputAnswer,
 		"shell_guard_secret_output", "shell_guard_secret_output_skip", "agentic-shell-guard output",
+		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), "<rewritten command>"),
+		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), generic(perlAlarm(t))),
+		fmt.Sprintf(reasonUse, fmt.Sprintf(leadDialect, "<command>", alternatives.FlavourBSD, "<command>", "<usage>"),
+			"<rewritten command>"),
+		fmt.Sprintf(leadDialect, "<command>", alternatives.FlavourBSD, "<command>", "<usage>") + "; " +
+			fmt.Sprintf(insteadForm, "<form>"),
+		"agentic-helpers: this machine: ", "shell_guard_alternatives", "142",
+	}
+
+	for _, entry := range alternatives.Table {
+		for _, usage := range entry.Usages {
+			quoted = append(quoted, usage.Says, usage.Instead)
+		}
 	}
 
 	for _, reason := range quoted {

@@ -28,7 +28,14 @@ is the base name of its first word, lower-cased, so `/bin/rm`, `\rm` and `RM` ar
 
 A command is a lone removal when it is one statement, not negated, not in the background, without
 redirections or assignments, whose name is `rm`, `rmdir` or `unlink`, or `git` with `rm` as its first
-argument. Its arguments after `--`, or not starting with `-`, are its targets. Each resolves to a
+argument. A time limit before the name is passed over (`shellwalk.TimeLimitRuns`): `timeout` and every
+alternative the table names for it, `gtimeout`, `uu-timeout` and the exact perl alarm form, past
+their options, option values and duration, as long as every word before the removal is fixed text
+with no glob or brace. A word that is not, such as a quoted option value `"$(rm -rf ~/x)"`, which
+the walk skips as one word, sends the whole command to the walk below, which reaches the command it
+substitutes. A time limit bounds only how long the removal runs, never where or with what targets,
+so the removal behind one is judged as standing alone. Its arguments after `--`, or not starting
+with `-`, are its targets. Each resolves to a
 physical absolute path: `~` and `~/` against the home directory, a relative one against `cwd`; `~user`
 and a brace leave it unresolvable. The deepest existing directory of a path resolves through its
 symlinks. A component starting with a dot and holding a glob character (`*?[`) leaves the target
@@ -46,7 +53,17 @@ Any other command is walked call by call. A removal (or `git ... rm`) denies und
 alone)`. `mktemp` denies under `shell_guard_mktemp`, its reason naming `.tmp/` by whether the project
 carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A launcher (`sudo`,
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
-stood alone. A call whose name has no literal value (`$CMD`, `"$tool"`, `$(...)`, a `$'...'` holding
+stood alone. Every alternative of the command alternatives table that launches a command joins the
+launchers from that table (`alternatives.Launchers`): one opening with options, as `gtimeout`, by
+name with its entry's value options; one opening with fixed words, the perl alarm form, only where
+a call spells them exactly (`alternatives.PrefixLaunch`), and its code is then no inline code. The
+word after the prefix must not start with `-`, which perl reads as one more option (`-e` code among
+them), and must be fixed text holding no whitespace and none of `` $&*(){}[]'";\|?<>~` `` or a
+newline, whatever follows it, since perl's `exec` of one such word runs it through `/bin/sh`. Every
+word after it must stay exactly one word (`shellwalk.OneKnownWord`: fixed text with no glob or
+brace, or wholly double-quoted with no `@`, `*` or `!` expansion), since a word that expands to
+nothing (`$empty`, `"$@"`, a glob matching nothing under `nullglob`) would leave the first one
+alone at run time. Any other perl call stays inline code. A call whose name has no literal value (`$CMD`, `"$tool"`, `$(...)`, a `$'...'` holding
 an escape outside the decoded set) could be any command, a removal among them: passed at least one
 argument, it takes `shell_guard_outside_project`'s verdict, reason `cannot judge: the command name
 <word> is not fixed text`, the word as the command spells it. Passed none, it runs only where the
@@ -63,6 +80,63 @@ its own, so the walk takes it for the command and it takes this verdict. A name 
 brace counts as not fixed text too, since it expands into other words; a `[` counts as a glob only
 with a `]` after it in the same word, so the test command `[ -f x ]` is fixed text. The walk that finds calls, launchers, nested code and pipe feeds lives in
 `internal/shellwalk`, which the grounding gate walks commands through too.
+
+## Command alternatives
+
+`internal/alternatives` holds the table, `alternatives.Table`, one Go record per command: its name,
+its kind (`Missing` or `Dialect`), an ordered list of alternatives, and for a launcher its value
+options and whether it only bounds time. An alternative is a program and an argument template with
+named slots: `{opts...}` the call's options, `{dur}` its duration, `{cmd...}` the command it runs
+with every word after it. A slot standing as a whole word takes the call's own word; `{dur}` inside
+fixed text, as in perl's `'alarm {dur}; exec @ARGV'`, takes the duration in whole seconds. The
+position of `{cmd...}` drives both the rewrite and the walk, so every alternative launching a
+command is walked by construction. The table lives in code, since `config.yaml` is agent-writable.
+
+`judgeAlternatives` (under `shell_guard_alternatives`) parses the command again and visits every
+`CallExpr` with `syntax.Walk`, judging each word `shellwalk.Certain` marks as a command the shell
+certainly runs (the first, and each a launcher before it runs), named by fixed text. A command
+named by a path is not judged: only a binary the `PATH` finds by its bare name is read for its
+flavour, never a file the proposed command picks. `alternatives.Machine` answers for the
+machine: `Find` looks a bare name up on the `PATH` the hook was handed, as `exec.LookPath` would on
+the process's own (an executable regular file), counting only absolute entries: an empty or
+relative one names a directory under the working directory, which the hook does not share with the
+shell and where a project's own file could sit. `Flavour` reads only an absolute path, as `Find`
+returns.
+
+- **Missing.** The name not found, the first installed alternative stands in. `fill` builds its
+  words from the call: options up to the duration (a value option taking its value), the duration,
+  then the command. It is not exact where nothing follows the duration, where the template has no
+  slot for options the call carries, or where a duration set into fixed text is not a literal
+  number with an optional `s`, `m`, `h` or `d`; the reason then names the alternative's form with
+  its slots (`generic`). No alternative installed, the call runs.
+- **Dialect.** The name found, its arguments are matched against the entry's usages, read up to the
+  first operand as BSD's getopt reads them; a word built at run time ends the reading. A usage
+  matching, the binary's flavour decides: `Machine.Flavour` resolves the path's symlinks and reads
+  at most the first 8 MiB of the regular file for the entry's markers (`Entry.Markers`), GNU's
+  first: `GNU sed` and `GNU coreutils`, the package names GNU's binaries carry; for BSD, the Apple
+  project tag macOS's binaries carry (`PROGRAM:sed  PROJECT:text_cmds`,
+  `PROGRAM:date  PROJECT:shell_cmds`) and BSD's usage lines (`[-i extension]`,
+  `usage: date [-jnRu]`). A binary carrying neither, a busybox or one whose marker lies past the
+  limit, has no flavour, and nothing is refused. It never runs the binary: running whatever the
+  `PATH` holds to learn its flavour would run it before any call is approved. The answer, an empty
+  one included, is kept in `<cache root>/command-flavours.json`, keyed by the resolved path,
+  modification time and size. A
+  sed script is read far enough to tell its expressions (addresses, `s`'s pattern) from replacement
+  text, `y` strings, labels, file names and appended text, outside bracket expressions, an escaped
+  delimiter being the delimiter's own character; an unknown command ends the reading.
+
+Each finding replaces its call's words from the command on, the deepest launched command first,
+and the reason names the first finding: `<lead>; use: <the whole command printed>` with every exact
+rewrite applied, or, where the first finding has none, `<lead>; use: <form>` for a missing command
+and `<lead>; instead <form>` for a dialect. Every finding denies. Code handed to another shell is
+not rewritten: its text is a word of the outer command, and rewriting inside it would change
+quoting the agent chose.
+
+`agentic-helpers check`, as the SessionStart hook, asks the same `Machine` for `Line`: each missing
+command with the alternative standing in for it, then the names of the commands found in their BSD
+flavour, joined with `; ` after `this machine: `, and nothing where both are empty or where
+shell-guard or `shell_guard_alternatives` is off. `cmd/agentic-helpers` hands it the `PATH` and
+the cache root.
 
 ## Credentials
 

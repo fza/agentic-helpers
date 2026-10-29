@@ -19,16 +19,21 @@ import (
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
 )
 
 var Shells = []string{"sh", "bash", "zsh", "dash", "ksh", "mksh", "fish"}
 
-// A launcher runs its arguments as a command.
-var Launchers = []string{
-	"sudo", "doas", "command", "builtin", "exec", "env", "nohup", "nice", "ionice", "timeout",
+// A launcher runs its arguments as a command. Every alternative of the
+// command alternatives table that launches one joins by name; one opening
+// with fixed words, as the perl alarm form, is a launcher only where a call
+// spells them (see prefixLaunch).
+var Launchers = append([]string{
+	"sudo", "doas", "command", "builtin", "exec", "env", "nohup", "nice", "ionice",
 	"xargs", "parallel", "caffeinate", "stdbuf", "unbuffer", "time", "chronic", "flock",
 	"find", "arch",
-}
+}, namedAlternatives()...)
 
 var interpreters = []string{
 	"perl", "ruby", "node", "deno", "bun", "php", "osascript", "awk", "gawk", "mawk", "nawk",
@@ -51,7 +56,7 @@ type LauncherOptions struct {
 	Chdir []string
 }
 
-var Options = map[string]LauncherOptions{
+var Options = withAlternatives(map[string]LauncherOptions{
 	"env": {Value: []string{"-C", "--chdir", "-u", "--unset"}, Chdir: []string{"-C", "--chdir"}},
 	"sudo": {
 		Value: []string{
@@ -63,10 +68,97 @@ var Options = map[string]LauncherOptions{
 	"xargs": {Value: []string{
 		"-I", "-L", "-d", "--delimiter", "-E", "-a", "--arg-file", "-s", "--max-chars", "-n", "--max-args", "-P", "--max-procs",
 	}},
-	"nice":    {Value: []string{"-n", "--adjustment"}},
-	"timeout": {Value: []string{"-s", "--signal", "-k", "--kill-after"}},
-	"flock":   {Value: []string{"-w", "--timeout", "-E", "--conflict-exit-code"}},
-	"ionice":  {Value: []string{"-c", "--class", "-n", "--classdata", "-p", "--pid"}},
+	"nice":   {Value: []string{"-n", "--adjustment"}},
+	"flock":  {Value: []string{"-w", "--timeout", "-E", "--conflict-exit-code"}},
+	"ionice": {Value: []string{"-c", "--class", "-n", "--classdata", "-p", "--pid"}},
+})
+
+func namedAlternatives() []string {
+	var names []string
+
+	for _, launcher := range alternatives.Launchers() {
+		if launcher.Prefix == nil {
+			names = append(names, launcher.Program)
+		}
+	}
+
+	return names
+}
+
+func withAlternatives(options map[string]LauncherOptions) map[string]LauncherOptions {
+	for _, launcher := range alternatives.Launchers() {
+		if launcher.Prefix == nil {
+			options[launcher.Program] = LauncherOptions{Value: launcher.ValueOptions}
+		}
+	}
+
+	return options
+}
+
+// prefixLaunch is the index of the word a launcher opening with fixed words
+// runs, as `perl -e 'alarm 9; exec @ARGV' make` runs make, or -1 where args
+// open with no such launcher: any other perl code stays inline code.
+func prefixLaunch(args []*syntax.Word) int {
+	values := make([]alternatives.Arg, 0, len(args))
+	for _, arg := range args {
+		value, isLiteral := Literal(arg)
+		values = append(values, alternatives.Arg{
+			Text: value, Literal: isLiteral && !Patterned(arg), OneWord: OneKnownWord(arg),
+		})
+	}
+
+	return alternatives.PrefixLaunch(CommandName(args[0]), values)
+}
+
+func isLauncher(args []*syntax.Word) bool {
+	return slices.Contains(Launchers, CommandName(args[0])) || prefixLaunch(args) >= 0
+}
+
+// Certain is the index of every word of a call the shell certainly runs as a
+// command: the first, and each one a launcher before it runs.
+func Certain(args []*syntax.Word) []int {
+	if len(args) == 0 {
+		return nil
+	}
+
+	starts := []int{0}
+
+	for start := 0; start < len(args) && isLauncher(args[start:]); {
+		next := launchedAt(args[start:])
+		if next < 0 {
+			break
+		}
+
+		start += next
+		if start < len(args) {
+			starts = append(starts, start)
+		}
+	}
+
+	return starts
+}
+
+// TimeLimitRuns is the index of the word a time limit opening args runs
+// (timeout and every alternative standing in for it), or -1 where args open
+// with none. Such a launcher bounds only how long its command runs.
+func TimeLimitRuns(args []*syntax.Word) int {
+	if len(args) == 0 {
+		return -1
+	}
+
+	name := CommandName(args[0])
+
+	for _, launcher := range alternatives.Launchers() {
+		if !launcher.TimeLimit || launcher.Program != name {
+			continue
+		}
+
+		if launcher.Prefix == nil || prefixLaunch(args) >= 0 {
+			return launchedAt(args)
+		}
+	}
+
+	return -1
 }
 
 // MovesDirectory reports whether a call runs in another directory than the
@@ -160,19 +252,12 @@ func Walk(node syntax.Node, visitor Visitor) {
 func offerCall(visitor Visitor, args []*syntax.Word) {
 	offer(visitor, Call{Args: args, Certain: true})
 
-	if !slices.Contains(Launchers, CommandName(args[0])) {
+	if !isLauncher(args) {
 		return
 	}
 
 	certain := map[int]bool{}
-
-	for start := 0; start < len(args) && slices.Contains(Launchers, CommandName(args[start])); {
-		next := launchedAt(args[start:])
-		if next < 0 {
-			break
-		}
-
-		start += next
+	for _, start := range Certain(args) {
 		certain[start] = true
 	}
 
@@ -200,7 +285,7 @@ func offer(visitor Visitor, call Call) {
 		if code != nil {
 			visitor.Code(name+" -c", []*syntax.Word{code})
 		}
-	case IsInterpreter(name):
+	case IsInterpreter(name) && prefixLaunch(args) < 0:
 		visitor.Inline(name, args[1:])
 	}
 }
@@ -212,6 +297,11 @@ func offer(visitor Visitor, call Call) {
 // and may lie past the last word. A word with an expansion is the command
 // itself, except to find, whose expressions take any word.
 func launchedAt(args []*syntax.Word) int {
+	prefixed := prefixLaunch(args)
+	if prefixed >= 0 {
+		return prefixed
+	}
+
 	launcher := CommandName(args[0])
 
 	for index := 1; index < len(args); index++ {
@@ -346,7 +436,7 @@ func launchedShell(args []*syntax.Word) []*syntax.Word {
 		switch {
 		case slices.Contains(Shells, name):
 			return args[index:]
-		case index == 0 && !slices.Contains(Launchers, name):
+		case index == 0 && !isLauncher(args):
 			return nil
 		}
 	}

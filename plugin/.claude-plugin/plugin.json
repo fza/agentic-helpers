@@ -182,6 +182,12 @@
       "description": "Deny mktemp anywhere in a Bash command; scratch files go under the project's .tmp/; default on",
       "required": false
     },
+    "shell_guard_alternatives": {
+      "type": "boolean",
+      "title": "Shell-guard: command alternatives",
+      "description": "Refuse a Bash call naming a command missing here (timeout) or a usage its BSD flavour gets wrong (sed -i, date -d), naming the command that works, and say at session start what this machine needs; default on",
+      "required": false
+    },
     "shell_guard_secrets": {
       "type": "string",
       "title": "Shell-guard: credentials in a command",

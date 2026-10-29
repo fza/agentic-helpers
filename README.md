@@ -202,6 +202,7 @@ An option whose default is `ask` also takes `deny` or `off`.
 | `shell_guard_expansion` | `true` | Refuses a deletion whose target comes from a variable or a command substitution |
 | `shell_guard_nested_code` | `true` | Refuses a deletion or `mktemp` inside `eval`, a shell's `-c`, or another language's inline code |
 | `shell_guard_mktemp` | `true` | Refuses `mktemp` in any Bash command |
+| `shell_guard_alternatives` | `true` | Refuses a command missing here (`timeout`) or a usage BSD `sed` or `date` gets wrong, naming the command that works, and names at session start what the machine needs |
 | `shell_guard_secret_output` | `all` | Hides output lines from outside the project that look like credentials. `files` checks only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; `off` checks nothing |
 | `shell_guard_secret_output_skip` | none | Tools whose output is never hidden, comma-separated. Patterns such as `mcp__sdd__*` work |
 | `shell_guard_ask_timeout` | `120` | Seconds an ask waits in `auto` and `bypassPermissions` mode before it denies (at most 3600; `0` waits forever) |

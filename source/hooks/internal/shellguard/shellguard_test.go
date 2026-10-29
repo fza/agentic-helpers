@@ -152,6 +152,17 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"the test command comparing a variable", "{project}", `[ "$a" = b ]`, "allow"},
 		{"the test command before another", "{project}", "[ -f x ] && echo y", "allow"},
 		{"the test keyword", "{project}", "[[ -f x ]]", "allow"},
+		{"rm under timeout", "{project}", "timeout 10 rm a", "allow"},
+		{"a time limit running nothing", "{project}", "timeout --", "allow"},
+		{"a substitution as a time limit's duration", "{project}", `timeout "$(rm -rf ~/x)" 9 rm a`, "deny"},
+		{"a substitution as a time limit's option value", "{project}", "gtimeout -s $(cmd) 9 rm a", "deny"},
+		{"a quoted substitution as a time limit's option value", "{project}", `gtimeout -s "$(rm -rf ~/x)" 9 rm a`, "deny"},
+		{"a quoted harmless substitution as a time limit's option value", "{project}", `gtimeout -k "$(echo 5)" 9 rm a`, "deny"},
+		{"a substitution inside a time limit's duration", "{project}", "timeout 9$(cmd) rm a", "deny"},
+		{"a glob as a time limit's option value", "{project}", "gtimeout -s KIL? 9 rm a", "deny"},
+		{"a glob among a time limit's options", "{project}", "timeout -v* 9 rm a", "deny"},
+		{"a substitution in the alarm form's code", "{project}", `perl -e "alarm $(rm -rf ~/x); exec @ARGV" rm a`, "deny"},
+		{"a substitution after a removal under the alarm form", "{project}", `perl -e 'alarm 9; exec @ARGV' rm a "$(rm -rf ~/x)"`, "deny"},
 
 		{"mktemp", "{project}", "mktemp", "deny"},
 		{"mktemp in a substitution", "{project}", "dir=$(mktemp -d)", "deny"},
@@ -196,7 +207,6 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"negated rm", "{project}", "! rm a", "deny"},
 		{"rm under sudo", "{project}", "sudo rm a", "deny"},
 		{"rm under command", "{project}", "command rm a", "deny"},
-		{"rm under timeout", "{project}", "timeout 10 rm a", "deny"},
 		{"rm fed by xargs", "{project}", "ls | xargs rm", "deny"},
 		{"rm fed by xargs with options", "{project}", "ls | xargs -n1 rm -f", "deny"},
 		{"rm run by find", "{project}", `find . -name x -exec rm {} \;`, "deny"},
@@ -286,10 +296,11 @@ func TestEachOptionChangesOnlyItsOwnGuard(t *testing.T) {
 	// other guard judges, so a setting reaching past its guard shows.
 	others := map[string]string{
 		"outside": "rm ~/x", "find": "find . -delete", "lone": "ls && rm a", "expansion": "rm $f",
-		"nested": `bash -c 'rm x'`, "mktemp": "mktemp",
+		"nested": `bash -c 'rm x'`, "mktemp": "mktemp", "alternatives": "timeout 9 make",
 	}
 	defaults := map[string]string{
 		"outside": "ask", "find": "ask", "lone": "deny", "expansion": "deny", "nested": "deny", "mktemp": "deny",
+		"alternatives": "deny",
 	}
 
 	cases := []struct {
@@ -311,11 +322,14 @@ func TestEachOptionChangesOnlyItsOwnGuard(t *testing.T) {
 		{`"shell_guard_nested_code":false`, "nested", "ask"},
 		{`"shell_guard_mktemp":true`, "mktemp", "deny"},
 		{`"shell_guard_mktemp":false`, "mktemp", "allow"},
+		{`"shell_guard_alternatives":true`, "alternatives", "deny"},
+		{`"shell_guard_alternatives":false`, "alternatives", "allow"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.option, func(t *testing.T) {
 			g := newGuard(t, true, tc.option)
+			g.env.Getenv = test.Getenv(test.Stubs(t, "gtimeout"))
 
 			for guard, command := range others {
 				want := defaults[guard]
