@@ -26,10 +26,10 @@ options off.
   two hex digits other than `00`, so `$'rm' -rf /` is judged as `rm -rf /`; one holding any other
   escape (octal, `\u`, `\U`, `\c`, `\e`, a one-digit `\x`, a NUL) is read as an expansion.
   Targets resolve through symlinks, so a link inside the project pointing elsewhere is elsewhere.
-  A time limit in front of it keeps it lone: `timeout`, `gtimeout` or `uu-timeout` with options and
-  duration all fixed text (no variable, substitution, glob or brace, quoted or not), or exactly
-  `perl -e 'alarm N; exec @ARGV'`, which bound only how long the
-  removal runs, never where or what (`gtimeout 30 rm -rf ./build` passes).
+  A time limit in front of it keeps it lone: `timeout`, `gtimeout`, `uu-timeout` or
+  `agentic-helpers bound` with options and duration all fixed text (no variable, substitution, glob
+  or brace, quoted or not), or exactly `perl -e 'alarm N; exec @ARGV'`, which bound only how long
+  the removal runs, never where or what (`agentic-helpers bound 30 rm -rf ./build` passes).
 - Anything naming no removal and no `mktemp`.
 
 ## The guards and their options
@@ -97,22 +97,31 @@ that file is agent-writable, and a wrong launcher declared there would make shel
 wrong word.
 
 **Missing commands.** A command not on the `PATH` is stood in for by the first of its alternatives
-that is. For `timeout`: `timeout` itself (Linux, or macOS with GNU's gnubin or uutils' uubin first
-on the `PATH`), then `gtimeout` (GNU coreutils), then `uu-timeout` (uutils), then
-`perl -e 'alarm N; exec @ARGV' <command>`. The refusal names the whole command rewritten, quoting,
+that is. For `timeout`, missing on macOS unless GNU's gnubin or uutils' uubin comes first on the
+`PATH`, that is always the plugin's own `agentic-helpers bound`, whatever else is installed, so the
+rewrite is the same on every machine. The refusal names the whole command rewritten, quoting,
 pipelines and every other call kept:
 
-    agentic-shell-guard: timeout is not installed here; use: gtimeout 9 make test
+    agentic-shell-guard: timeout is not installed here; use: agentic-helpers bound 9 make test
 
-The perl form takes whole seconds, a duration's `s`, `m`, `h` or `d` multiplied out and a fraction
-rounded up; options (`-s`, `-k`) and a duration built at run time have no exact perl form, so the
-refusal then names the form with its slots,
-`timeout is not installed here; use: perl -e 'alarm <seconds>; exec @ARGV' <command>`. A command
-the perl form ends by its alarm exits 142 (`SIGALRM`), not GNU's 124. With no alternative installed
-the call runs, and fails as it would have.
+`agentic-helpers bound <duration> <command> [argument...]` takes the duration as `timeout` does,
+seconds with an optional fraction and `s`, `m`, `h` or `d`, so the rewrite copies it unchanged; `0`
+bounds nothing. It runs the command in a process group of its own; when the duration runs out it
+sends the group `SIGTERM`, then `SIGKILL` 5 seconds later, and exits 124. A `SIGINT`, `SIGTERM` or
+`SIGHUP` it receives goes to the group. Otherwise it exits with the command's own status (128 plus
+the signal where one ended it), 125 when its own arguments are wrong, 126 when the command cannot
+run, 127 when it is not found. Options (`-s`, `-k`) have no `bound` form, so the refusal then names
+it with its slots, `timeout is not installed here; use: agentic-helpers bound <duration> <command>`.
+
+`gtimeout`, `uu-timeout` and `perl -e 'alarm N; exec @ARGV'` are offered no more. A perl alarm
+bounds no Go program: the alarm survives `exec`, and Go's runtime catches `SIGALRM` and ignores it,
+so `go test` or any `agentic-*` binary behind it runs on. `gtimeout` and `uu-timeout` bound well, but
+differ by machine. All three stay launchers the walk understands, since an agent may still type
+them.
 
 Every alternative launching a command is a launcher for every other guard: the command behind
-`gtimeout`, `uu-timeout` or the exact perl alarm form is judged as the command behind `timeout`, so
+`agentic-helpers bound`, `gtimeout`, `uu-timeout` or the exact perl alarm form is judged as the
+command behind `timeout`, so `agentic-helpers bound 9 rm -rf ~/x` asks as outside the project, and
 `perl -e 'alarm 9; exec @ARGV' rm -rf ~/x` asks as outside the project rather than refusing as
 inline perl code. The perl form counts only where the word after it does not start with `-` (perl
 would read it as one more option, `-e` code among them), that word is fixed text with no
@@ -155,7 +164,7 @@ names a directory under the working directory, where a project's own `sed` could
 **At session start** `agentic-helpers check` prints one line naming the substitutions the machine
 needs, and nothing where none is (Linux with GNU tools):
 
-    agentic-helpers: this machine: timeout -> gtimeout; sed and date are BSD
+    agentic-helpers: this machine: timeout -> agentic-helpers bound; sed and date are BSD
 
 `shell_guard_alternatives` switches the refusals and the line together; with shell-guard off,
 neither appears.

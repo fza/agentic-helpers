@@ -29,7 +29,8 @@ is the base name of its first word, lower-cased, so `/bin/rm`, `\rm` and `RM` ar
 A command is a lone removal when it is one statement, not negated, not in the background, without
 redirections or assignments, whose name is `rm`, `rmdir` or `unlink`, or `git` with `rm` as its first
 argument. A time limit before the name is passed over (`shellwalk.TimeLimitRuns`): `timeout` and every
-alternative the table names for it, `gtimeout`, `uu-timeout` and the exact perl alarm form, past
+alternative the table names for it, `agentic-helpers bound`, `gtimeout`, `uu-timeout` and the exact
+perl alarm form, past
 their options, option values and duration, as long as every word before the removal is fixed text
 with no glob or brace. A word that is not, such as a quoted option value `"$(rm -rf ~/x)"`, which
 the walk skips as one word, sends the whole command to the walk below, which reaches the command it
@@ -55,7 +56,9 @@ carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A 
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
 stood alone. Every alternative of the command alternatives table that launches a command joins the
 launchers from that table (`alternatives.Launchers`): one opening with options, as `gtimeout`, by
-name with its entry's value options; one opening with fixed words, the perl alarm form, only where
+name with its entry's value options; one with a subcommand, as `agentic-helpers bound`, only where
+that subcommand follows as fixed text, the words after it then read as after a launcher by name;
+one opening with fixed words, the perl alarm form, only where
 a call spells them exactly (`alternatives.PrefixLaunch`), and its code is then no inline code. The
 word after the prefix must not start with `-`, which perl reads as one more option (`-e` code among
 them), and must be fixed text holding no whitespace and none of `` $&*(){}[]'";\|?<>~` `` or a
@@ -84,9 +87,12 @@ with a `]` after it in the same word, so the test command `[ -f x ]` is fixed te
 ## Command alternatives
 
 `internal/alternatives` holds the table, `alternatives.Table`, one Go record per command: its name,
-its kind (`Missing` or `Dialect`), an ordered list of alternatives, and for a launcher its value
-options and whether it only bounds time. An alternative is a program and an argument template with
-named slots: `{opts...}` the call's options, `{dur}` its duration, `{cmd...}` the command it runs
+its kind (`Missing` or `Dialect`), an ordered list of alternatives a rewrite offers, the ones only
+the walk reads (`Walked`: for `timeout`, `timeout` itself, `gtimeout`, `uu-timeout` and the perl
+alarm form), and for a launcher its value options and whether it only bounds time. An alternative
+is a program, a subcommand where it has one, whether the plugin bundles it (`Bundled`, offered
+without a `PATH` lookup, since a hook's `PATH` need not hold the plugin's `bin/`), and an argument
+template with named slots: `{opts...}` the call's options, `{dur}` its duration, `{cmd...}` the command it runs
 with every word after it. A slot standing as a whole word takes the call's own word; `{dur}` inside
 fixed text, as in perl's `'alarm {dur}; exec @ARGV'`, takes the duration in whole seconds. The
 position of `{cmd...}` drives both the rewrite and the walk, so every alternative launching a

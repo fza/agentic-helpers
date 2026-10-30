@@ -71,9 +71,14 @@ func (machine *Machine) Find(name string) (string, bool) {
 	return "", false
 }
 
-// Installed is the first of the entry's alternatives on the PATH.
+// Installed is the first of the entry's alternatives bundled with the plugin
+// or on the PATH.
 func (machine *Machine) Installed(entry Entry) (Alternative, bool) {
 	for _, alternative := range entry.Alternatives {
+		if alternative.Bundled {
+			return alternative, true
+		}
+
 		_, found := machine.Find(alternative.Program)
 		if found {
 			return alternative, true

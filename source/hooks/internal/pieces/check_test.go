@@ -10,7 +10,7 @@ import (
 )
 
 func TestTheMachineLineAppearsOnlyWhereASubstitutionIsNeeded(t *testing.T) {
-	const line = "agentic-helpers: this machine: timeout -> gtimeout; sed and date are BSD\n"
+	const line = "agentic-helpers: this machine: timeout -> agentic-helpers bound; sed and date are BSD\n"
 
 	cases := []struct {
 		name      string

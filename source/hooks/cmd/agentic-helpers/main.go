@@ -1,6 +1,7 @@
 // Command agentic-helpers reports on the plugin as a whole: `check` names the
 // features off because a piece they rest on is off, and the command
-// substitutions the machine needs.
+// substitutions the machine needs. `bound` runs a command for at most a
+// duration, standing in for a missing `timeout`.
 package main
 
 import (
@@ -9,6 +10,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/bound"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
@@ -29,6 +31,13 @@ func main() {
 	}
 
 	ctx := context.Background()
+
+	// A bounded run reads no settings and migrates nothing, so it starts at
+	// once and its output is the command's alone.
+	if len(os.Args) > 1 && os.Args[1] == "bound" {
+		os.Exit(bound.Main(ctx, os.Args[2:], hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}))
+	}
+
 	machine := migration.Machine(userHome, os.Getenv)
 	migration.Prepare(ctx, machine, os.Stderr)
 

@@ -9,17 +9,17 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
 )
 
-func perlAlarm(t *testing.T) alternatives.Alternative {
+func bundledBound(t *testing.T) alternatives.Alternative {
 	t.Helper()
 
 	entry, _ := alternatives.Lookup("timeout")
 	for _, alternative := range entry.Alternatives {
-		if alternative.Program == "perl" {
+		if alternative.Bundled && alternative.Subcommand == "bound" {
 			return alternative
 		}
 	}
 
-	t.Fatal("timeout should have the perl alarm form among its alternatives")
+	t.Fatal("timeout should have the plugin's bound among its alternatives")
 
 	return alternatives.Alternative{}
 }
@@ -52,12 +52,12 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		self + ": " + reasonOutputUnread, self + ": " + reasonOutputFailure, self + ": " + reasonOutputAnswer,
 		"shell_guard_secret_output", "shell_guard_secret_output_skip", "agentic-shell-guard output",
 		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), "<rewritten command>"),
-		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), generic(perlAlarm(t))),
+		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), generic(bundledBound(t))),
 		fmt.Sprintf(reasonUse, fmt.Sprintf(leadDialect, "<command>", alternatives.FlavourBSD, "<command>", "<usage>"),
 			"<rewritten command>"),
 		fmt.Sprintf(leadDialect, "<command>", alternatives.FlavourBSD, "<command>", "<usage>") + "; " +
 			fmt.Sprintf(insteadForm, "<form>"),
-		"agentic-helpers: this machine: ", "shell_guard_alternatives", "142",
+		"agentic-helpers: this machine: ", "shell_guard_alternatives", "124",
 	}
 
 	for _, entry := range alternatives.Table {

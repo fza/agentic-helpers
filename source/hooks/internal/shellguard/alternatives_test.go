@@ -24,17 +24,18 @@ func onMachine(t *testing.T, options string, installed []string, gnu []string) (
 	return g, path
 }
 
-func TestAMissingTimeoutNamesEachAlternativeInTurn(t *testing.T) {
+func TestAMissingTimeoutNamesTheBoundAlone(t *testing.T) {
+	bound := "timeout is not installed here; use: agentic-helpers bound 9 make test"
 	cases := []struct {
 		name      string
 		installed []string
 		reason    string
 	}{
 		{"timeout installed", []string{"timeout", "gtimeout", "uu-timeout", "perl"}, ""},
-		{"gtimeout first", []string{"gtimeout", "uu-timeout", "perl"}, "timeout is not installed here; use: gtimeout 9 make test"},
-		{"uu-timeout next", []string{"uu-timeout", "perl"}, "timeout is not installed here; use: uu-timeout 9 make test"},
-		{"the perl alarm form last", []string{"perl"}, "timeout is not installed here; use: perl -e 'alarm 9; exec @ARGV' make test"},
-		{"nothing stands in", nil, ""},
+		{"gtimeout installed", []string{"gtimeout", "uu-timeout", "perl"}, bound},
+		{"uu-timeout installed", []string{"uu-timeout", "perl"}, bound},
+		{"perl alone", []string{"perl"}, bound},
+		{"nothing installed", nil, bound},
 	}
 
 	for _, tc := range cases {
@@ -46,7 +47,7 @@ func TestAMissingTimeoutNamesEachAlternativeInTurn(t *testing.T) {
 			case tc.reason == "" && decision != "allow":
 				t.Errorf("with timeout installed or nothing to name, the call should run, got %s %q", decision, reason)
 			case tc.reason != "" && (decision != "deny" || reason != self+tc.reason):
-				t.Errorf("the refusal should name the first installed alternative, got %s %q", decision, reason)
+				t.Errorf("the refusal should name the plugin's bound whatever else is installed, got %s %q", decision, reason)
 			}
 		})
 	}
@@ -59,18 +60,17 @@ func TestTheRewriteIsBuiltFromTheParsedCommand(t *testing.T) {
 		command   string
 		use       string
 	}{
-		{"a pipeline and quoting", []string{"perl"}, `cd sub && timeout 5m go test './...' | tail -5`,
-			`cd sub && perl -e 'alarm 300; exec @ARGV' go test './...' | tail -5`},
-		{"a fraction rounded up", []string{"perl"}, "timeout 1.5 make", "perl -e 'alarm 2; exec @ARGV' make"},
-		{"options the alarm form cannot carry", []string{"perl"}, "timeout -s KILL 9 make",
-			"perl -e 'alarm <seconds>; exec @ARGV' <command>"},
-		{"a duration built at run time", []string{"perl"}, `timeout "$d" make`, "perl -e 'alarm <seconds>; exec @ARGV' <command>"},
-		{"options gtimeout carries", []string{"gtimeout"}, "timeout -s KILL -k 5 9 make", "gtimeout -s KILL -k 5 9 make"},
-		{"a duration gtimeout carries", []string{"gtimeout"}, `timeout "$d" make`, `gtimeout "$d" make`},
-		{"under a launcher", []string{"gtimeout"}, "sudo timeout 9 make", "sudo gtimeout 9 make"},
-		{"a time limit inside a time limit", []string{"gtimeout"}, "timeout 9 timeout 3 make", "gtimeout 9 gtimeout 3 make"},
-		{"in a substitution", []string{"gtimeout"}, `echo "$(timeout 9 make)"`, `echo "$(gtimeout 9 make)"`},
-		{"timeout with nothing to run", []string{"gtimeout"}, "timeout 9", "gtimeout <duration> <command>"},
+		{"a pipeline and quoting", nil, `cd sub && timeout 5m go test './...' | tail -5`,
+			`cd sub && agentic-helpers bound 5m go test './...' | tail -5`},
+		{"a fraction kept as written", nil, "timeout 1.5 make", "agentic-helpers bound 1.5 make"},
+		{"options the bound has none of", []string{"gtimeout"}, "timeout -s KILL -k 5 9 make",
+			"agentic-helpers bound <duration> <command>"},
+		{"a duration built at run time", nil, `timeout "$d" make`, `agentic-helpers bound "$d" make`},
+		{"under a launcher", nil, "sudo timeout 9 make", "sudo agentic-helpers bound 9 make"},
+		{"a time limit inside a time limit", nil, "timeout 9 timeout 3 make",
+			"agentic-helpers bound 9 agentic-helpers bound 3 make"},
+		{"in a substitution", nil, `echo "$(timeout 9 make)"`, `echo "$(agentic-helpers bound 9 make)"`},
+		{"timeout with nothing to run", nil, "timeout 9", "agentic-helpers bound <duration> <command>"},
 	}
 
 	for _, tc := range cases {
@@ -237,7 +237,7 @@ func TestEveryFindingIsRewrittenAndTheFirstNamed(t *testing.T) {
 	g, _ := onMachine(t, "", []string{"gtimeout", "sed", "gsed"}, nil)
 
 	decision, reason := g.judge("timeout 9 sed -i 's/a/b/' f", "{project}")
-	if decision != "deny" || reason != self+"timeout is not installed here; use: gtimeout 9 gsed -i 's/a/b/' f" {
+	if decision != "deny" || reason != self+"timeout is not installed here; use: agentic-helpers bound 9 gsed -i 's/a/b/' f" {
 		t.Errorf("the first finding should lead, with every exact rewrite applied, got %s %q", decision, reason)
 	}
 }

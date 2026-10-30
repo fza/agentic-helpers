@@ -96,7 +96,8 @@ func TestCheck(t *testing.T) {
 			var captured test.Captured
 
 			code := pieces.Main(context.Background(), []string{"check"},
-				pieces.Env{Settings: settings(t, tc.options), Hook: tc.hook}, captured.Streams(""))
+				pieces.Env{Settings: settings(t, tc.options), Hook: tc.hook, Getenv: test.Getenv(test.Stubs(t, "timeout"))},
+				captured.Streams(""))
 			out := captured.Out.String()
 
 			if code != 0 {

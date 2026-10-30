@@ -371,11 +371,9 @@ func TestTheLineNamesOnlyTheSubstitutionsNeeded(t *testing.T) {
 		line      string
 	}{
 		{"timeout installed and GNU tools", []string{"timeout", "gtimeout", "perl", "sed", "date"}, []string{"sed", "date"}, ""},
-		{"timeout missing, gtimeout first", []string{"gtimeout", "uu-timeout", "perl"}, nil, "this machine: timeout -> gtimeout"},
-		{"timeout missing, uu-timeout next", []string{"uu-timeout", "perl"}, nil, "this machine: timeout -> uu-timeout"},
-		{"timeout missing, perl last", []string{"perl"}, nil, "this machine: timeout -> perl -e 'alarm N; exec @ARGV'"},
-		{"nothing stands in", nil, nil, ""},
-		{"BSD sed and date", []string{"gtimeout", "sed", "date"}, nil, "this machine: timeout -> gtimeout; sed and date are BSD"},
+		{"timeout missing, gtimeout installed", []string{"gtimeout", "uu-timeout", "perl"}, nil, "this machine: timeout -> agentic-helpers bound"},
+		{"timeout missing, nothing installed", nil, nil, "this machine: timeout -> agentic-helpers bound"},
+		{"BSD sed and date", []string{"gtimeout", "sed", "date"}, nil, "this machine: timeout -> agentic-helpers bound; sed and date are BSD"},
 		{"BSD sed only", []string{"timeout", "sed", "date"}, []string{"date"}, "this machine: sed is BSD"},
 	}
 

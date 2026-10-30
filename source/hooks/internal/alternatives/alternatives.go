@@ -42,14 +42,21 @@ const (
 	SlotCommand  = "{cmd...}"
 )
 
+// Alternative is what to run instead: Program, then Subcommand where it has
+// one, then Template filled from the call. Bundled is true for a command the
+// plugin itself ships, offered without a PATH lookup: the hook's PATH need not
+// hold the plugin's bin/, which the Bash tool's does.
 type Alternative struct {
-	Program  string
-	Template []string
+	Program    string
+	Subcommand string
+	Template   []string
+	Bundled    bool
 }
 
 // Entry / Launcher holds for a command whose alternatives launch the command
 // after them: Template's SlotCommand marks where it starts, and the walk reads
-// every alternative of the entry as a launcher. ValueOptions are the
+// every alternative of the entry as a launcher, and every Walked one, which
+// the walk reads but a rewrite never offers. ValueOptions are the
 // launcher's options taking the next word as their value. TimeLimit is true
 // for a launcher that only bounds how long its command runs, never where or
 // with what, so shell-guard judges a removal behind it as standing alone.
@@ -61,6 +68,7 @@ type Entry struct {
 	Name         string
 	Kind         Kind
 	Alternatives []Alternative
+	Walked       []Alternative
 	Launcher     bool
 	ValueOptions []string
 	TimeLimit    bool
@@ -96,7 +104,13 @@ var Table = []Entry{
 	{
 		Name: "timeout", Kind: Missing, Launcher: true, TimeLimit: true,
 		ValueOptions: []string{"-s", "--signal", "-k", "--kill-after"},
+		// A perl alarm bounds no Go program, whose runtime ignores SIGALRM,
+		// and gtimeout or uu-timeout differ by machine: the plugin's own bound
+		// is offered alone, and the others stay launchers an agent may type.
 		Alternatives: []Alternative{
+			{Program: "agentic-helpers", Subcommand: "bound", Template: []string{SlotDuration, SlotCommand}, Bundled: true},
+		},
+		Walked: []Alternative{
 			{Program: "timeout", Template: timeoutTemplate},
 			{Program: "gtimeout", Template: timeoutTemplate},
 			{Program: "uu-timeout", Template: timeoutTemplate},
@@ -131,9 +145,12 @@ func Lookup(name string) (Entry, bool) {
 
 // Launcher is one alternative that launches a command. Prefix is the fixed
 // words its template opens with before SlotCommand, nil where it opens with
-// SlotOptions and so reads as a launcher by name alone.
+// SlotOptions and so reads as a launcher by name alone. Subcommand, where set,
+// is the word that makes Program a launcher, as `bound` makes
+// `agentic-helpers` one; what follows it reads as after a launcher by name.
 type Launcher struct {
 	Program      string
+	Subcommand   string
 	Prefix       []string
 	ValueOptions []string
 	TimeLimit    bool
@@ -147,11 +164,16 @@ func Launchers() []Launcher {
 			continue
 		}
 
-		for _, alternative := range entry.Alternatives {
+		for _, alternative := range slices.Concat(entry.Alternatives, entry.Walked) {
 			launcher := Launcher{Program: alternative.Program, ValueOptions: entry.ValueOptions, TimeLimit: entry.TimeLimit}
 
 			at := slices.Index(alternative.Template, SlotCommand)
-			if at > 0 && alternative.Template[0] != SlotOptions {
+
+			switch {
+			case alternative.Subcommand != "":
+				launcher.Subcommand = alternative.Subcommand
+				launcher.ValueOptions = nil
+			case at > 0 && alternative.Template[0] != SlotOptions:
 				launcher.Prefix = alternative.Template[:at]
 			}
 
@@ -228,6 +250,9 @@ func prefixWord(fixed string) *regexp.Regexp {
 // with the fixed words of its template, SlotDuration as N.
 func (alternative Alternative) Shown() string {
 	words := []string{alternative.Program}
+	if alternative.Subcommand != "" {
+		words = append(words, alternative.Subcommand)
+	}
 
 	for _, word := range alternative.Template {
 		if word == SlotOptions || word == SlotDuration || word == SlotCommand {
