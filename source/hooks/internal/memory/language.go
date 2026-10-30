@@ -3,9 +3,11 @@ package memory
 import (
 	"context"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 )
 
-const defaultLanguage = "en"
+const defaultLanguage = pluginconfig.DefaultMemoryLanguage
 
 // language is the locale entries are written in: the graph's own, which sdd
 // authors its entries in, else the plugin's memory_language, else English.

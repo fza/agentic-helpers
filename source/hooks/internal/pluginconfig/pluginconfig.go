@@ -28,6 +28,15 @@ const PluginID = "agentic-helpers@agentic-helpers"
 
 const DefaultEntryMaxWords = 500
 
+// DefaultMemoryLanguage / DefaultTemporarySeatLifetime / DefaultOrphanStoreGrace
+// are the built-in values of keys that read as text, so `agentic-helpers
+// config` shows the value in effect rather than an empty one.
+const (
+	DefaultMemoryLanguage        = "en"
+	DefaultTemporarySeatLifetime = "1d"
+	DefaultOrphanStoreGrace      = "30d"
+)
+
 const DefaultStateStaleAfterWrites = 5
 
 // The verdicts shell-guard's outside-project and find -delete guards take.
@@ -168,11 +177,11 @@ type Options struct {
 	// off for the project through its `.claude/settings.local.json`.
 	MemoryTurnsOffAuto bool
 	// TemporarySeatLifetime is how long a closed temporary shelf keeps its
-	// entries, as `lifetime` spells a span; empty takes agentic-memory's default.
+	// entries, as `lifetime` spells a span.
 	TemporarySeatLifetime string
 	// OrphanStoreGrace is how long an unclaimed store waits for a checkout to
 	// promote it before it is deleted, a span as TemporarySeatLifetime takes
-	// one; empty takes the home's default.
+	// one.
 	OrphanStoreGrace string
 	// ShellGuardOutsideProject / ShellGuardFindDelete / ShellGuardSecrets are
 	// `ask`, `deny` or `off`; the other shell-guard options switch a guard that
@@ -584,7 +593,8 @@ func Defaults() Options {
 		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true, WritingStyle: StyleTerse,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
-		ShellGuardAlternatives: true, ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
+		ShellGuardAlternatives: true, MemoryLanguage: DefaultMemoryLanguage, TemporarySeatLifetime: DefaultTemporarySeatLifetime,
+		OrphanStoreGrace: DefaultOrphanStoreGrace, ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
 		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, ScratchSweep: ScratchSweepRelease,
 		GroundingGateEnabled: true, CaptureEnabled: true, ShellGuardEnabled: true,
 	}
