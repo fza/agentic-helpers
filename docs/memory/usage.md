@@ -147,6 +147,11 @@ new seat.
 
 An agent asked for a seat in words that are not its exact name ("Haupt-Session") lists the seats
 with `who`, maps the words onto the seat meaning the same, and asks when none or several fit.
+After a claim the user requests, the agent answers with a short overview of where work stands, in
+the user's language and drawn from the brief the claim printed: the state slot, what is due, open
+todos with their next items, and decisions waiting on the user. It states outcomes and names an
+entry only where it marks work the user has to act on. Memory stays quiet otherwise; a claim at a
+resumed session's start or one a launcher makes is no request and gets no overview.
 
 A seat whose holder still runs is refused to every other session, always: nothing tells a stuck
 holder from a busy one, and a busy one losing its seat would find every write refused without
