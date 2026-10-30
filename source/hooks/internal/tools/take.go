@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 func (lib *library) copyBase(ctx context.Context) string {
@@ -138,21 +140,21 @@ func indented(label string, value string) []string {
 // folder, through a staging sibling renamed into place, every write relative
 // to a checked folder's descriptor.
 func (lib *library) copyVersion(ctx context.Context, hit found, target string) error {
-	root, err := openDir(hit.store.path)
+	root, err := safefs.OpenDir(hit.store.path)
 	if err != nil {
 		return err
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	folder, err := root.subPath(hit.tool.Name + "/" + versionDir(hit.tool.Version))
+	folder, err := root.SubPath(hit.tool.Name + "/" + versionDir(hit.tool.Version))
 	if err != nil {
 		return err
 	}
 
-	defer folder.close()
+	defer folder.Close()
 
-	files, err := folder.walk(versionLimit, nil)
+	files, err := folder.Walk(versionLimit, nil)
 	if err != nil {
 		return err
 	}
@@ -162,7 +164,7 @@ func (lib *library) copyVersion(ctx context.Context, hit found, target string) e
 		return err
 	}
 
-	defer parent.close()
+	defer parent.Close()
 
 	random := make([]byte, 8)
 
@@ -173,7 +175,7 @@ func (lib *library) copyVersion(ctx context.Context, hit found, target string) e
 
 	staging := "." + filepath.Base(target) + "-" + hex.EncodeToString(random)
 
-	stage, err := parent.ensureSub(staging)
+	stage, err := parent.EnsureSub(staging, 0o700)
 	if err != nil {
 		return err
 	}
@@ -185,14 +187,14 @@ func (lib *library) copyVersion(ctx context.Context, hit found, target string) e
 		}
 	}
 
-	stage.close()
+	stage.Close()
 
 	if err == nil {
-		err = parent.root.Rename(staging, filepath.Base(target))
+		err = parent.Rename(staging, parent, filepath.Base(target))
 	}
 
 	if err != nil {
-		_ = parent.root.RemoveAll(staging)
+		_ = parent.RemoveAll(staging)
 
 		return fmt.Errorf("writing the copy: %w", err)
 	}
@@ -202,17 +204,17 @@ func (lib *library) copyVersion(ctx context.Context, hit found, target string) e
 
 // copyParent opens a copy's parent folder below the checkout or the own
 // store, every component checked to be a real folder.
-func (lib *library) copyParent(ctx context.Context, parent string) (*dir, error) {
+func (lib *library) copyParent(ctx context.Context, parent string) (*safefs.Dir, error) {
 	checkout := lib.checkout(ctx)
 
 	relative, err := filepath.Rel(lib.ownDir(), parent)
 	if err == nil && !strings.HasPrefix(relative, "..") {
-		return ensureDir(lib.env.Roots.Stores(), lib.ownRel()+"/"+filepath.ToSlash(relative))
+		return safefs.EnsureAt(lib.env.Roots.Data, parent, 0o700)
 	}
 
 	relative, err = filepath.Rel(checkout, parent)
 	if checkout != "" && err == nil && !strings.HasPrefix(relative, "..") {
-		return ensureDir(checkout, filepath.ToSlash(relative))
+		return safefs.EnsureAt(checkout, parent, 0o700)
 	}
 
 	return nil, fmt.Errorf("%s lies outside the checkout and the store", parent)
@@ -226,14 +228,14 @@ func (lib *library) recordTake(name string, line takeLine) error {
 		return err
 	}
 
-	defer store.close()
+	defer store.Close()
 
-	folder, err := store.sub(name)
+	folder, err := store.Sub(name)
 	if err != nil {
 		return err
 	}
 
-	defer folder.close()
+	defer folder.Close()
 
 	err = appendJournal(folder, takesJournal, line)
 	if err != nil {

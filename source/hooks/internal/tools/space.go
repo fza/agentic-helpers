@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
@@ -96,12 +97,12 @@ func versionStored(at string, tool string, folder string) bool {
 	return err == nil && info.IsDir()
 }
 
-func walkedBytes(files ...[]walked) int64 {
+func walkedBytes(files ...[]safefs.Walked) int64 {
 	var total int64
 
 	for _, set := range files {
 		for _, file := range set {
-			total += int64(len(file.data))
+			total += int64(len(file.Data))
 		}
 	}
 
@@ -209,41 +210,41 @@ func measured(stores []*store, named map[forkOrigin]bool) (int64, []storedVersio
 }
 
 func versionOnDisk(at string, tool string, folder string) int64 {
-	root, err := openDir(at)
+	root, err := safefs.OpenDir(at)
 	if err != nil {
 		return 0
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	toolDir, err := root.sub(tool)
+	toolDir, err := root.Sub(tool)
 	if err != nil {
 		return 0
 	}
 
-	defer toolDir.close()
+	defer toolDir.Close()
 
-	version, err := toolDir.sub(folder)
+	version, err := toolDir.Sub(folder)
 	if err != nil {
 		return 0
 	}
 
-	defer version.close()
+	defer version.Close()
 
-	return version.size(versionLimit)
+	return size(version, versionLimit)
 }
 
 // storeOnDisk is what a store's version folders hold on disk, counted to at
 // most limit, read without its index.
 func storeOnDisk(at string, limit int64) int64 {
-	root, err := openDir(at)
+	root, err := safefs.OpenDir(at)
 	if err != nil {
 		return 0
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	tools, err := root.entries()
+	tools, err := root.Entries()
 	if err != nil {
 		return 0
 	}
@@ -255,12 +256,12 @@ func storeOnDisk(at string, limit int64) int64 {
 			continue
 		}
 
-		toolDir, err := root.sub(entry.Name())
+		toolDir, err := root.Sub(entry.Name())
 		if err != nil {
 			continue
 		}
 
-		versions, err := toolDir.entries()
+		versions, err := toolDir.Entries()
 		if err == nil {
 			for _, folder := range versions {
 				_, valid := versionNumber(folder.Name())
@@ -268,31 +269,31 @@ func storeOnDisk(at string, limit int64) int64 {
 					continue
 				}
 
-				version, err := toolDir.sub(folder.Name())
+				version, err := toolDir.Sub(folder.Name())
 				if err != nil {
 					continue
 				}
 
-				total = space.Add(total, version.size(versionLimit))
-				version.close()
+				total = space.Add(total, size(version, versionLimit))
+				version.Close()
 			}
 		}
 
-		toolDir.close()
+		toolDir.Close()
 	}
 
 	return min(total, limit)
 }
 
 // size is what the regular files below held take, by their lstat, counted to
-// at most limit and walkDepth folders deep.
-func (held *dir) size(limit int64) int64 {
+// at most limit and safefs.WalkDepth folders deep.
+func size(held *safefs.Dir, limit int64) int64 {
 	var total int64
 
-	var descend func(current *dir, depth int)
+	var descend func(current *safefs.Dir, depth int)
 
-	descend = func(current *dir, depth int) {
-		listed, err := current.entries()
+	descend = func(current *safefs.Dir, depth int) {
+		listed, err := current.Entries()
 		if err != nil {
 			return
 		}
@@ -308,14 +309,14 @@ func (held *dir) size(limit int64) int64 {
 			}
 
 			switch {
-			case info.IsDir() && depth < walkDepth:
-				child, err := current.sub(entry.Name())
+			case info.IsDir() && depth < safefs.WalkDepth:
+				child, err := current.Sub(entry.Name())
 				if err != nil {
 					continue
 				}
 
 				descend(child, depth+1)
-				child.close()
+				child.Close()
 			case info.Mode().IsRegular():
 				total = space.Add(total, info.Size())
 			}
@@ -332,19 +333,19 @@ func (held *dir) size(limit int64) int64 {
 // duplicate check whole, then the folder goes and the store's index is read
 // again from disk. The caller holds the store's lock.
 func pruneVersion(version storedVersion) error {
-	root, err := openDir(version.store.path)
+	root, err := safefs.OpenDir(version.store.path)
 	if err != nil {
 		return err
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	folder, err := root.sub(version.tool)
+	folder, err := root.Sub(version.tool)
 	if err != nil {
 		return err
 	}
 
-	defer folder.close()
+	defer folder.Close()
 
 	tool := version.store.index.Tools[version.tool]
 
@@ -354,9 +355,9 @@ func pruneVersion(version storedVersion) error {
 		return err
 	}
 
-	err = folder.root.RemoveAll(versionDir(version.v))
+	err = folder.RemoveAll(versionDir(version.v))
 	if err != nil {
-		return fmt.Errorf("removing %s/%s: %w", folder.path, versionDir(version.v), err)
+		return fmt.Errorf("removing %s/%s: %w", folder.Path(), versionDir(version.v), err)
 	}
 
 	row, err := readTool(folder, version.tool)
@@ -591,12 +592,12 @@ func replacedAt(tool *indexed, v int) (time.Time, bool) {
 // ledgerLocked refreshes a store's size ledger holding its lock, passing over
 // a store another process is writing.
 func ledgerLocked(ctx context.Context, held *store, named map[forkOrigin]bool, cache string) {
-	root, err := openDir(held.path)
+	root, err := safefs.OpenDir(held.path)
 	if err != nil {
 		return
 	}
 
-	defer root.close()
+	defer root.Close()
 
 	unlock, err := lockStore(ctx, root, pruneLockWait)
 	if err != nil {
@@ -614,12 +615,12 @@ func ledgerLocked(ctx context.Context, held *store, named map[forkOrigin]bool, c
 // keepIndex writes an index the pass rebuilt back into its store, so the next
 // pass reads the sizes it recorded instead of reading every file again.
 func keepIndex(ctx context.Context, at string, built *index) {
-	root, err := openDir(at)
+	root, err := safefs.OpenDir(at)
 	if err != nil {
 		return
 	}
 
-	defer root.close()
+	defer root.Close()
 
 	unlock, err := lockStore(ctx, root, pruneLockWait)
 	if err != nil {
@@ -632,12 +633,12 @@ func keepIndex(ctx context.Context, at string, built *index) {
 }
 
 func pruneLocked(ctx context.Context, version storedVersion, named map[forkOrigin]bool, wait time.Duration) error {
-	root, err := openDir(version.store.path)
+	root, err := safefs.OpenDir(version.store.path)
 	if err != nil {
 		return err
 	}
 
-	defer root.close()
+	defer root.Close()
 
 	unlock, err := lockStore(ctx, root, wait)
 	if err != nil {

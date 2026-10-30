@@ -85,47 +85,47 @@ func (lib *library) fold(member string, survivor string) error {
 		return err
 	}
 
-	defer store.close()
+	defer store.Close()
 
-	folder, err := store.sub(member)
+	folder, err := store.Sub(member)
 	if err != nil {
 		return err
 	}
 
 	takes, err := readJournal[takeLine](folder, takesJournal)
-	folder.close()
+	folder.Close()
 
 	if err != nil {
 		return fmt.Errorf("reading %s's takes: %w", member, err)
 	}
 
 	if len(takes) > 0 {
-		kept, err := store.sub(survivor)
+		kept, err := store.Sub(survivor)
 		if err != nil {
 			return err
 		}
 
 		err = appendJournal(kept, takesJournal, takes...)
-		kept.close()
+		kept.Close()
 
 		if err != nil {
 			return err
 		}
 	}
 
-	err = store.root.RemoveAll(member)
+	err = store.RemoveAll(member)
 	if err != nil {
 		return fmt.Errorf("removing %s: %w", member, err)
 	}
 
-	tombstone, err := store.ensureSub(member)
+	tombstone, err := store.EnsureSub(member, 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s's tombstone: %w", member, err)
 	}
 
-	defer tombstone.close()
+	defer tombstone.Close()
 
-	err = tombstone.create("merged", []byte(survivor+"\n"))
+	err = tombstone.Create("merged", []byte(survivor+"\n"), 0o600)
 	if err != nil {
 		return fmt.Errorf("writing %s's tombstone: %w", member, err)
 	}

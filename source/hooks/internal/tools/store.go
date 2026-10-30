@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 	"io/fs"
 	"path/filepath"
@@ -196,21 +197,21 @@ func jsonLines[T any](data []byte) ([]T, int) {
 }
 
 // readTool builds one tool's index row from its folder.
-func readTool(folder *dir, name string) (*indexed, error) {
-	raw, err := folder.read("current", currentLimit)
+func readTool(folder *safefs.Dir, name string) (*indexed, error) {
+	raw, err := folder.Read("current", currentLimit)
 	if err != nil {
 		return nil, err
 	}
 
 	current, valid := parseCurrent(raw)
 	if !valid {
-		return nil, fmt.Errorf("%s/current names no version", folder.path)
+		return nil, fmt.Errorf("%s/current names no version", folder.Path())
 	}
 
 	row := &indexed{Version: current, Name: name, Hashes: map[string][]fileHash{}, Written: map[string]string{},
 		Takers: []string{}, Roles: []string{}}
 
-	listed, err := folder.entries()
+	listed, err := folder.Entries()
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +243,7 @@ func readTool(folder *dir, name string) (*indexed, error) {
 
 	_, found := row.Hashes[versionDir(current)]
 	if !found {
-		return nil, fmt.Errorf("%s has no %s", folder.path, versionDir(current))
+		return nil, fmt.Errorf("%s has no %s", folder.Path(), versionDir(current))
 	}
 
 	err = row.readLines(folder)
@@ -265,7 +266,7 @@ func (row *indexed) spec() spec {
 		Files: row.Files, ForkedFrom: row.ForkedFrom}
 }
 
-func (row *indexed) readLines(folder *dir) error {
+func (row *indexed) readLines(folder *safefs.Dir) error {
 	lines, err := readJournal[historyLine](folder, historyJournal)
 	if err != nil {
 		return err
@@ -302,7 +303,7 @@ func (row *indexed) readLines(folder *dir) error {
 	return nil
 }
 
-func (row *indexed) readPruned(folder *dir) error {
+func (row *indexed) readPruned(folder *safefs.Dir) error {
 	lines, err := readJournal[prunedLine](folder, prunedJournal)
 	if err != nil {
 		return err
@@ -331,15 +332,15 @@ func (row *indexed) addRole(role string) {
 }
 
 // readVersion reads a version's `tool.json` and hashes its files.
-func readVersion(folder *dir, v int) ([]fileHash, spec, error) {
-	version, err := folder.sub(versionDir(v))
+func readVersion(folder *safefs.Dir, v int) ([]fileHash, spec, error) {
+	version, err := folder.Sub(versionDir(v))
 	if err != nil {
 		return nil, spec{}, err
 	}
 
-	defer version.close()
+	defer version.Close()
 
-	files, err := version.walk(versionLimit, nil)
+	files, err := version.Walk(versionLimit, nil)
 	if err != nil {
 		return nil, spec{}, err
 	}
@@ -351,18 +352,18 @@ func readVersion(folder *dir, v int) ([]fileHash, spec, error) {
 	)
 
 	for _, file := range files {
-		if file.name == "tool.json" {
-			err = json.Unmarshal(file.data, &held)
+		if file.Name == "tool.json" {
+			err = json.Unmarshal(file.Data, &held)
 			found = err == nil
 
 			continue
 		}
 
-		hashes = append(hashes, fileHash{Name: file.name, Sum: sum(file.data), Size: int64(len(file.data))})
+		hashes = append(hashes, fileHash{Name: file.Name, Sum: sum(file.Data), Size: int64(len(file.Data))})
 	}
 
 	if !found {
-		return nil, spec{}, fmt.Errorf("%s/%s/tool.json is missing or unreadable", folder.path, versionDir(v))
+		return nil, spec{}, fmt.Errorf("%s/%s/tool.json is missing or unreadable", folder.Path(), versionDir(v))
 	}
 
 	if len(held.Files) == 0 {
@@ -382,7 +383,7 @@ func readVersion(folder *dir, v int) ([]fileHash, spec, error) {
 func buildIndex(at string) (*index, error) {
 	built := emptyIndex()
 
-	root, err := openDir(at)
+	root, err := safefs.OpenDir(at)
 	if errors.Is(err, fs.ErrNotExist) {
 		return built, nil
 	}
@@ -391,9 +392,9 @@ func buildIndex(at string) (*index, error) {
 		return nil, err
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	listed, err := root.entries()
+	listed, err := root.Entries()
 	if err != nil {
 		return nil, err
 	}
@@ -404,23 +405,23 @@ func buildIndex(at string) (*index, error) {
 			continue
 		}
 
-		folder, err := root.sub(name)
+		folder, err := root.Sub(name)
 		if err != nil {
 			built.Skipped++
 
 			continue
 		}
 
-		survivor, err := folder.read("merged", currentLimit+nameMax)
+		survivor, err := folder.Read("merged", currentLimit+nameMax)
 		if err == nil {
 			built.Merged[name] = strings.TrimSpace(string(survivor))
-			folder.close()
+			folder.Close()
 
 			continue
 		}
 
 		row, err := readTool(folder, name)
-		folder.close()
+		folder.Close()
 
 		if err != nil {
 			built.Skipped++
@@ -437,14 +438,14 @@ func buildIndex(at string) (*index, error) {
 // loadIndex reads a store's `index.json`, or nothing where it is missing,
 // corrupt or of another schema.
 func loadIndex(at string) (*index, bool) {
-	root, err := openDir(at)
+	root, err := safefs.OpenDir(at)
 	if err != nil {
 		return nil, false
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	data, err := root.read("index.json", indexLimit)
+	data, err := root.Read("index.json", indexLimit)
 	if err != nil {
 		return nil, false
 	}
@@ -482,15 +483,15 @@ func loadIndex(at string) (*index, bool) {
 
 // isStore says whether a folder holds a library: an index, a lock, or a tool
 // folder with a `current`.
-func isStore(folder *dir) bool {
+func isStore(folder *safefs.Dir) bool {
 	for _, marker := range []string{"index.json", ".lock", space.LedgerName} {
-		_, err := folder.fileInfo(marker)
+		_, err := folder.FileInfo(marker)
 		if err == nil {
 			return true
 		}
 	}
 
-	listed, err := folder.entries()
+	listed, err := folder.Entries()
 	if err != nil {
 		return false
 	}
@@ -500,13 +501,13 @@ func isStore(folder *dir) bool {
 			continue
 		}
 
-		child, err := folder.sub(entry.Name())
+		child, err := folder.Sub(entry.Name())
 		if err != nil {
 			continue
 		}
 
-		_, err = child.fileInfo("current")
-		child.close()
+		_, err = child.FileInfo("current")
+		child.Close()
 
 		if err == nil {
 			return true
@@ -519,14 +520,14 @@ func isStore(folder *dir) bool {
 // storeIDs lists the id of every store in the home holding a tool library.
 // A link or an unreadable folder is passed over.
 func storeIDs(roots home.Roots) []string {
-	top, err := openDir(roots.Stores())
+	top, err := safefs.OpenDir(roots.Stores())
 	if err != nil {
 		return nil
 	}
 
-	defer top.close()
+	defer top.Close()
 
-	listed, err := top.entries()
+	listed, err := top.Entries()
 	if err != nil {
 		return nil
 	}
@@ -534,17 +535,17 @@ func storeIDs(roots home.Roots) []string {
 	var ids []string
 
 	for _, entry := range listed {
-		if len(ids) >= walkFiles || !entry.IsDir() {
+		if len(ids) >= safefs.WalkFiles || !entry.IsDir() {
 			continue
 		}
 
-		held, err := top.sub(entry.Name())
+		held, err := top.Sub(entry.Name())
 		if err != nil {
 			continue
 		}
 
-		library, err := held.sub(home.Tools)
-		held.close()
+		library, err := held.Sub(home.Tools)
+		held.Close()
 
 		if err != nil {
 			continue
@@ -554,7 +555,7 @@ func storeIDs(roots home.Roots) []string {
 			ids = append(ids, entry.Name())
 		}
 
-		library.close()
+		library.Close()
 	}
 
 	slices.Sort(ids)
@@ -600,7 +601,7 @@ func labels(names map[string]string) map[string]string {
 		depth[id] = 1
 	}
 
-	for range walkDepth + 1 {
+	for range safefs.WalkDepth + 1 {
 		named = map[string]string{}
 		count := map[string]int{}
 

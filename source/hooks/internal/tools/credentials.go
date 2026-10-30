@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 )
 
@@ -19,11 +20,11 @@ type labelled struct {
 // credential, or nothing. add and update run it before the description is
 // embedded, so a refused write never reaches the embedding endpoint;
 // writeVersion runs it again on every version, so no write path skips it.
-func credentialIn(ctx context.Context, files []walked, fields []labelled) string {
+func credentialIn(ctx context.Context, files []safefs.Walked, fields []labelled) string {
 	for _, file := range files {
 		found := scanFile(ctx, file)
 		if len(found) > 0 {
-			return credentialRefusal(file.name, found)
+			return credentialRefusal(file.Name, found)
 		}
 	}
 
@@ -41,9 +42,9 @@ func credentialIn(ctx context.Context, files []walked, fields []labelled) string
 // as text that is no file: gitleaks' path allowlists skip whole files (lock
 // files, vendored folders, images), and a tool file of such a name would
 // otherwise keep a credential unscanned.
-func scanFile(ctx context.Context, file walked) []secrets.Finding {
-	content := string(file.data)
-	found := append(secrets.Scan(ctx, content, file.name), secrets.Scan(ctx, content, "")...)
+func scanFile(ctx context.Context, file safefs.Walked) []secrets.Finding {
+	content := string(file.Data)
+	found := append(secrets.Scan(ctx, content, file.Name), secrets.Scan(ctx, content, "")...)
 
 	slices.SortStableFunc(found, func(a, b secrets.Finding) int { return cmp.Compare(a.Line, b.Line) })
 

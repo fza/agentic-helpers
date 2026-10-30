@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // version is what a write lays down: the files, the spec and its history line.
 type version struct {
 	name   string
 	number int
-	files  []walked
+	files  []safefs.Walked
 	spec   spec
 	why    string
 	vector []float32
@@ -32,32 +34,32 @@ func (lib *library) writeVersion(ctx context.Context, next version) error {
 		return err
 	}
 
-	defer store.close()
+	defer store.Close()
 
-	folder, err := store.ensureSub(next.name)
+	folder, err := store.EnsureSub(next.name, 0o700)
 	if err != nil {
 		return err
 	}
 
-	defer folder.close()
+	defer folder.Close()
 
-	err = folder.root.Mkdir(versionDir(next.number), 0o700)
-	if err != nil {
-		return fmt.Errorf("creating %s/%s: %w", folder.path, versionDir(next.number), err)
-	}
-
-	target, err := folder.sub(versionDir(next.number))
+	err = folder.Mkdir(versionDir(next.number), 0o700)
 	if err != nil {
 		return err
 	}
 
-	defer target.close()
+	target, err := folder.Sub(versionDir(next.number))
+	if err != nil {
+		return err
+	}
+
+	defer target.Close()
 
 	next.spec.Name = next.name
 	next.spec.Files = nil
 
 	for _, file := range next.files {
-		next.spec.Files = append(next.spec.Files, file.name)
+		next.spec.Files = append(next.spec.Files, file.Name)
 
 		err = writeInto(target, file)
 		if err != nil {
@@ -70,7 +72,7 @@ func (lib *library) writeVersion(ctx context.Context, next version) error {
 		return fmt.Errorf("encoding tool.json: %w", err)
 	}
 
-	err = target.create("tool.json", append(described, '\n'))
+	err = target.Create("tool.json", append(described, '\n'), 0o600)
 	if err != nil {
 		return err
 	}
@@ -82,7 +84,7 @@ func (lib *library) writeVersion(ctx context.Context, next version) error {
 		return err
 	}
 
-	err = folder.replace("current", []byte(strconv.Itoa(next.number)+"\n"))
+	err = folder.Replace("current", []byte(strconv.Itoa(next.number)+"\n"), 0o600)
 	if err != nil {
 		return err
 	}
@@ -91,26 +93,26 @@ func (lib *library) writeVersion(ctx context.Context, next version) error {
 }
 
 // writeInto creates one walked file below target, its folders made on the way.
-func writeInto(target *dir, file walked) error {
-	folder := path.Dir(file.name)
+func writeInto(target *safefs.Dir, file safefs.Walked) error {
+	folder := path.Dir(file.Name)
 	if folder == "." {
-		return target.create(file.name, file.data)
+		return target.Create(file.Name, file.Data, 0o600)
 	}
 
-	inner, err := target.ensureSubPath(folder)
+	inner, err := target.EnsureSubPath(folder, 0o700)
 	if err != nil {
 		return err
 	}
 
-	defer inner.close()
+	defer inner.Close()
 
-	return inner.create(path.Base(file.name), file.data)
+	return inner.Create(path.Base(file.Name), file.Data, 0o600)
 }
 
 // ownStore opens the own store, made where it is missing, every component
 // checked.
-func (lib *library) ownStore() (*dir, error) {
-	return ensureDir(lib.env.Roots.Stores(), lib.ownRel())
+func (lib *library) ownStore() (*safefs.Dir, error) {
+	return safefs.EnsureAt(lib.env.Roots.Data, lib.ownDir(), 0o700)
 }
 
 // reindexTool rereads one tool's folder into the own index and writes it.
@@ -125,19 +127,19 @@ func (lib *library) reindexTool(name string, vector []float32) error {
 		held = rebuilt
 	}
 
-	root, err := openDir(lib.ownDir())
+	root, err := safefs.OpenDir(lib.ownDir())
 	if err != nil {
 		return err
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	folder, err := root.sub(name)
+	folder, err := root.Sub(name)
 	if err != nil {
 		return err
 	}
 
-	defer folder.close()
+	defer folder.Close()
 
 	row, err := readTool(folder, name)
 	if err != nil {

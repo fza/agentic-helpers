@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // A tool folder's history, takes and pruned versions are journals of typed
@@ -33,14 +34,14 @@ var (
 // readJournal is every line of the folder's journal, read up to where the
 // read stops, records of another kind skipped; a folder without one reads its
 // legacy lines.
-func readJournal[T any](folder *dir, held journal) ([]T, error) {
-	data, err := folder.readOptional(held.name, lineFileLimit)
+func readJournal[T any](folder *safefs.Dir, held journal) ([]T, error) {
+	data, err := folder.ReadOptional(held.name, lineFileLimit)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(data) == 0 {
-		legacy, err := folder.readOptional(held.legacy, lineFileLimit)
+		legacy, err := folder.ReadOptional(held.legacy, lineFileLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +53,7 @@ func readJournal[T any](folder *dir, held journal) ([]T, error) {
 
 	records, _, err := memorylog.ReadJournal(data)
 	if errors.Is(err, memorylog.ErrNotJournal) {
-		return nil, fmt.Errorf("%s: %w", path.Join(folder.path, held.name), err)
+		return nil, fmt.Errorf("%s: %w", path.Join(folder.Path(), held.name), err)
 	}
 
 	var lines []T
@@ -84,7 +85,7 @@ func lineRecord(held journal, value any) (memorylog.Record, error) {
 // appendJournal appends value to the folder's journal; the caller holds the
 // store lock. A journal a crash tore is cut where its read stops, and a
 // folder still holding legacy lines gets them in its new journal first.
-func appendJournal[T any](folder *dir, held journal, values ...T) error {
+func appendJournal[T any](folder *safefs.Dir, held journal, values ...T) error {
 	var framed []byte
 
 	for _, value := range values {
@@ -96,14 +97,14 @@ func appendJournal[T any](folder *dir, held journal, values ...T) error {
 		framed = memorylog.AppendRecord(framed, record)
 	}
 
-	existing, err := folder.readOptional(held.name, lineFileLimit)
+	existing, err := folder.ReadOptional(held.name, lineFileLimit)
 	if err != nil {
 		return err
 	}
 
 	_, end, stopped := memorylog.ReadJournal(existing)
 	if errors.Is(stopped, memorylog.ErrNotJournal) {
-		return fmt.Errorf("%s: %w", path.Join(folder.path, held.name), stopped)
+		return fmt.Errorf("%s: %w", path.Join(folder.Path(), held.name), stopped)
 	}
 
 	if len(existing) > 0 && stopped == nil {
@@ -124,7 +125,7 @@ func appendJournal[T any](folder *dir, held journal, values ...T) error {
 		base = append(base, carried...)
 	}
 
-	err = folder.replace(held.name, append(base, framed...))
+	err = folder.Replace(held.name, append(base, framed...), 0o600)
 	if err != nil {
 		return err
 	}
@@ -133,8 +134,8 @@ func appendJournal[T any](folder *dir, held journal, values ...T) error {
 }
 
 // legacyRecords is every line of the folder's legacy file, framed.
-func legacyRecords[T any](folder *dir, held journal) ([]byte, error) {
-	legacy, err := folder.readOptional(held.legacy, lineFileLimit)
+func legacyRecords[T any](folder *safefs.Dir, held journal) ([]byte, error) {
+	legacy, err := folder.ReadOptional(held.legacy, lineFileLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -155,19 +156,19 @@ func legacyRecords[T any](folder *dir, held journal) ([]byte, error) {
 	return framed, nil
 }
 
-func removeLegacy(folder *dir, held journal) error {
-	err := folder.root.Remove(held.legacy)
+func removeLegacy(folder *safefs.Dir, held journal) error {
+	err := folder.Remove(held.legacy)
 	if err != nil && !isMissing(err) {
-		return fmt.Errorf("removing %s: %w", path.Join(folder.path, held.legacy), err)
+		return fmt.Errorf("removing %s: %w", path.Join(folder.Path(), held.legacy), err)
 	}
 
 	return nil
 }
 
-func appendBytes(folder *dir, name string, data []byte) error {
-	at := path.Join(folder.path, name)
+func appendBytes(folder *safefs.Dir, name string, data []byte) error {
+	at := path.Join(folder.Path(), name)
 
-	file, err := folder.appendTo(name)
+	file, err := folder.Append(name, 0o600)
 	if err != nil {
 		return err
 	}
@@ -189,7 +190,7 @@ func appendBytes(folder *dir, name string, data []byte) error {
 // convertJournals writes a journal for every legacy file of the folder that
 // has none yet, keeping the legacy files: the store's migration removes them
 // once its format is written.
-func convertJournals(folder *dir) error {
+func convertJournals(folder *safefs.Dir) error {
 	for _, held := range journals {
 		var (
 			framed []byte
@@ -209,7 +210,7 @@ func convertJournals(folder *dir) error {
 			return err
 		}
 
-		existing, err := folder.readOptional(held.name, lineFileLimit)
+		existing, err := folder.ReadOptional(held.name, lineFileLimit)
 		if err != nil {
 			return err
 		}
@@ -218,7 +219,7 @@ func convertJournals(folder *dir) error {
 			continue
 		}
 
-		err = folder.replace(held.name, append(memorylog.JournalHeader(), framed...))
+		err = folder.Replace(held.name, append(memorylog.JournalHeader(), framed...), 0o600)
 		if err != nil {
 			return err
 		}

@@ -10,28 +10,29 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
 var longOption = regexp.MustCompile(`--[a-z][a-z0-9-]*`)
 
 // versionFiles reads a stored version's files, its `tool.json` left out.
-func versionFiles(held *store, name string, v int) ([]walked, error) {
-	root, err := openDir(held.path)
+func versionFiles(held *store, name string, v int) ([]safefs.Walked, error) {
+	root, err := safefs.OpenDir(held.path)
 	if err != nil {
 		return nil, err
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	folder, err := root.subPath(name + "/" + versionDir(v))
+	folder, err := root.SubPath(name + "/" + versionDir(v))
 	if err != nil {
 		return nil, err
 	}
 
-	defer folder.close()
+	defer folder.Close()
 
-	return folder.walk(versionLimit, func(entry string) bool { return entry == "tool.json" })
+	return folder.Walk(versionLimit, func(entry string) bool { return entry == "tool.json" })
 }
 
 func (lib *library) update(ctx context.Context, req request) result {
@@ -134,7 +135,7 @@ func (lib *library) update(ctx context.Context, req request) result {
 
 // fork copies a foreign tool's current version into the own store as v1, then
 // lays the update over it as v2. The origin is never written.
-func (lib *library) fork(ctx context.Context, req request, hit found, previous []walked, files []walked, next spec,
+func (lib *library) fork(ctx context.Context, req request, hit found, previous []safefs.Walked, files []safefs.Walked, next spec,
 	vector []float32,
 ) result {
 	old := hit.tool
@@ -212,21 +213,21 @@ func (lib *library) moveHolding(ctx context.Context, from string, hit found, nam
 	}
 }
 
-func sameFiles(a []walked, b []walked) bool {
+func sameFiles(a []safefs.Walked, b []safefs.Walked) bool {
 	if len(a) != len(b) {
 		return false
 	}
 
-	sorted := func(files []walked) []walked {
+	sorted := func(files []safefs.Walked) []safefs.Walked {
 		copied := slices.Clone(files)
-		slices.SortFunc(copied, func(x, y walked) int { return strings.Compare(x.name, y.name) })
+		slices.SortFunc(copied, func(x, y safefs.Walked) int { return strings.Compare(x.Name, y.Name) })
 
 		return copied
 	}
 
 	left, right := sorted(a), sorted(b)
 	for index := range left {
-		if left[index].name != right[index].name || !bytes.Equal(left[index].data, right[index].data) {
+		if left[index].Name != right[index].Name || !bytes.Equal(left[index].Data, right[index].Data) {
 			return false
 		}
 	}
@@ -236,18 +237,18 @@ func sameFiles(a []walked, b []walked) bool {
 
 // staleUsage names a file or a long option the old usage mentions that the
 // new files no longer hold, or nothing.
-func staleUsage(usage string, previous []walked, files []walked) string {
+func staleUsage(usage string, previous []safefs.Walked, files []safefs.Walked) string {
 	holds := map[string]bool{}
 
 	var text bytes.Buffer
 
 	for _, file := range files {
-		holds[file.name], holds[path.Base(file.name)] = true, true
-		text.Write(file.data)
+		holds[file.Name], holds[path.Base(file.Name)] = true, true
+		text.Write(file.Data)
 	}
 
 	for _, file := range previous {
-		for _, name := range []string{file.name, path.Base(file.name)} {
+		for _, name := range []string{file.Name, path.Base(file.Name)} {
 			if strings.Contains(usage, name) && !holds[name] {
 				return name
 			}
