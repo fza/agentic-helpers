@@ -700,7 +700,7 @@ func TestThePluginShipsOnlyItsOwnComponents(t *testing.T) {
 		t.Fatalf("reading the plugin directory: %v", err)
 	}
 
-	own := []string{".claude-plugin", ".mcp.json", "bin", "hooks", "skills"}
+	own := []string{".claude-plugin", ".mcp.json", "README.md", "bin", "hooks", "skills"}
 
 	var names []string
 	for _, entry := range entries {
@@ -708,7 +708,7 @@ func TestThePluginShipsOnlyItsOwnComponents(t *testing.T) {
 	}
 
 	if !slices.Equal(names, own) {
-		t.Errorf("the plugin directory should hold its manifest, shims, hooks and skills alone, got: %v", names)
+		t.Errorf("the plugin directory should hold its manifest, README, shims, hooks and skills alone, got: %v", names)
 	}
 
 	manifests, err := os.ReadDir(filepath.Join(pluginRoot, ".claude-plugin"))
