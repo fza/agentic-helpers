@@ -18,7 +18,7 @@ const (
 	takeStep = 0.05
 	takeCap  = 0.1
 	ownLift  = 0.05
-	pageSize = 10
+	pageSize = 5
 )
 
 // maxLifted is the most a lifted cosine reaches: a perfect match, taken by the
@@ -198,7 +198,7 @@ func hitLine(hit ranked) string {
 		line += fmt.Sprintf("  [%.2f]", *hit.score)
 	}
 
-	return line + "\n" + strings.Join(indented("usage", tool.Usage), "\n")
+	return line
 }
 
 // matchesTerms holds every term, case-insensitive and literal, to a tool's
@@ -245,13 +245,8 @@ type listedTool struct {
 	// nothing and carries none.
 	Score   *int    `json:"score,omitempty"`
 	Label   *string `json:"label,omitempty"`
-	Own     bool    `json:"own,omitempty"`
 	Version int     `json:"version"`
 	Summary string  `json:"summary,omitempty"`
-	Usage   string  `json:"usage,omitempty"`
-	Inputs  string  `json:"inputs,omitempty"`
-	Outputs string  `json:"outputs,omitempty"`
-	Takers  int     `json:"takers"`
 	// Seen marks a version the calling agent's context already holds; it then
 	// answers with its name and version alone.
 	Seen bool `json:"-"`
@@ -265,8 +260,7 @@ func asListed(hit found) listedTool {
 
 	tool := hit.tool
 
-	return listedTool{Name: tool.Name, Label: label, Own: hit.store.own, Version: tool.Version, Summary: tool.Summary,
-		Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs, Takers: len(tool.Takers)}
+	return listedTool{Name: tool.Name, Label: label, Version: tool.Version, Summary: tool.Summary}
 }
 
 // listing is what find and list answer as JSON.

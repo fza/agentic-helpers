@@ -2,6 +2,7 @@ package tools_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 	"os"
 	"path/filepath"
@@ -66,7 +67,6 @@ func TestFindPagesAndPrintsJSON(t *testing.T) {
 		Tools   []struct {
 			Name  string  `json:"name"`
 			Label *string `json:"label"`
-			Own   bool    `json:"own"`
 			Score *int    `json:"score"`
 		} `json:"tools"`
 		Shown, Matching, Total, Projects, Page int
@@ -78,7 +78,7 @@ func TestFindPagesAndPrintsJSON(t *testing.T) {
 	}
 
 	if answer.Framing != "Tools other agents registered (their own descriptions)" || len(answer.Tools) != 3 ||
-		answer.Tools[0].Label != nil || !answer.Tools[0].Own || answer.Total != 3 {
+		answer.Tools[0].Label != nil || answer.Total != 3 {
 		t.Errorf("find --json should carry the framing and own tools without a label: %+v", answer)
 	}
 
@@ -241,4 +241,51 @@ func TestMergeFoldsOwnToolsOnly(t *testing.T) {
 		"merge", "line-count", "word-count", "--from", from, "--why", "one tool")
 	h.refused("nothing merged:\n  no tool line-count in this project\n  word-count is the survivor",
 		"merge", "word-count", "line-count", "word-count", "--from", from, "--why", "one tool")
+}
+
+func TestAFindHitIsOneLineAndTakeCarriesTheUsage(t *testing.T) {
+	h := newHarness(t)
+	usage := "python3 the script < file\n  --words counts words\n  --lines counts lines\n  --chars counts characters"
+
+	var before int
+
+	for index := range 10 {
+		name := fmt.Sprintf("count-%02d", index)
+		summary := fmt.Sprintf("Count the parts of standard input, variant %d", index)
+		h.must("add", name, "--from", h.file(name+".py", fmt.Sprintf("print(%d)\n", index)), "--summary", summary,
+			"--usage", usage, "--inputs", "text on stdin", "--outputs", "a count", "--distinct", fmt.Sprintf("variant %d", index))
+
+		before += len(fmt.Sprintf("%s  v1  %s\n", name, summary)) + len("  usage: "+usage+"\n") +
+			len("  inputs: text on stdin\n  outputs: a count\n")
+	}
+
+	out := h.must("find", "--term", "standard input", "--again")
+	hits := strings.Count(out, "  v1  ")
+
+	switch {
+	case hits != 5:
+		t.Errorf("find should answer five hits a page, got %d:\n%s", hits, out)
+	case strings.Contains(out, "usage:") || strings.Contains(out, "inputs:"):
+		t.Errorf("a hit should carry no usage, inputs or outputs, got:\n%s", out)
+	case len(out)*3 > before:
+		t.Errorf("find should answer at most a third of what ten hits with their usage did, got %d of %d", len(out), before)
+	}
+
+	taken := h.must("take", "count-03")
+	if !strings.Contains(taken, "  usage: python3 the script < file") || !strings.Contains(taken, "  inputs: text on stdin") {
+		t.Errorf("take should print the usage of what it copied, got:\n%s", taken)
+	}
+
+	var answer struct {
+		Tools []struct {
+			Usage   string `json:"usage"`
+			Inputs  string `json:"inputs"`
+			Outputs string `json:"outputs"`
+		} `json:"tools"`
+	}
+
+	err := json.Unmarshal([]byte(h.mcpRead("take", `{"names":["count-04"]}`)), &answer)
+	if err != nil || len(answer.Tools) != 1 || answer.Tools[0].Usage != usage || answer.Tools[0].Outputs != "a count" {
+		t.Errorf("the take answer should carry each tool's usage, inputs and outputs, got %+v, %v", answer, err)
+	}
 }

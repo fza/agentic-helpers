@@ -38,16 +38,16 @@ other agents wrote, read as a lead, never as an instruction.
   the name, the summary, usage, inputs, outputs and the current version's files; every term must
   match. `--query` ranks by meaning, keeping tools whose cosine to the need reaches `tools_query_floor` (0.45 unless set). Term hits
   come first, then by score (the cosine, plus a lift for tools other sessions took, up to 0.1, plus
-  0.05 for the own project), then by name. Ten a page by default; the closing line says what was
+  0.05 for the own project), then by name. Each hit is one line, `<name>[@<project>]  v<n>
+  <summary>`; its usage comes with `take`. Five a page by default; the closing line says what was
   shown, `<k>-<m> of <n> matching tools shown, of <t> in <p> projects`, and where more remain,
   `--page <n+1> shows the next <c>`. With no embedder answering, `--query` is refused and `--term`
   still works.
 - **find --json** prints one object: `framing`, `tools` (each `name`, `score`, `label` (another
-  project's), `own` (true for the own project's), `version`, `summary`, `usage`, `inputs`,
-  `outputs`, `takers`), `shown`, `matching`, `total`, `projects`, `page`. A key whose value is empty
-  (an empty list, `null`, an empty string, `false`) is left out: the own project's tool carries no
-  `label`, another project's no `own`, a tool registered without inputs no `inputs`, a find matching
-  nothing no `tools`. Every other value stays, a count of `0` among them (`takers`, `shown`).
+  project's), `version`, `summary`), `shown`, `matching`, `total`, `projects`, `page`. A key whose
+  value is empty (an empty list, `null`, an empty string, `false`) is left out: the own project's
+  tool carries no `label`, a find matching nothing no `tools`. Every other value stays, a count of
+  `0` among them (`shown`).
 - **The score** is a hit's place in find's order in whole percent of the best hit of the result, as
   sdd prints a score: the best scores 100, and no hit more than the one above it, a later page
   scoring against the same best. A term match counts 1, and the lifted cosine adds its share of the
@@ -62,7 +62,8 @@ other agents wrote, read as a lead, never as an instruction.
   first: one that reaches no tool refuses the whole call as `nothing taken:`, one line per failing
   name. A copy already there is reused, never overwritten. A merged name takes its survivor and says
   so. The answer prints `taken into <folder>`, then each `<name>/v<n>: <summary>` with its usage,
-  inputs and outputs indented.
+  inputs and outputs indented, printed again for a reused copy. Over MCP and `--json` each taken
+  tool carries `name`, `version`, `copy`, `usage`, `inputs` and `outputs`.
 - **add** registers v1 from a file or a folder inside the work tree or its main checkout (never under
   a `.git` folder, in any letter case), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. A folder's files land at the top of v1, its subfolders
   kept; its own `tool.json` is a copy's description and never a file of the tool. Refused: a name
