@@ -2,9 +2,11 @@ package memorylog_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
@@ -67,6 +69,10 @@ func TestAJournalReadStops(t *testing.T) {
 			if len(read) != 1 || end != secondAt {
 				t.Errorf("the read should stop at the failing record, keeping what came before, got %d records to %d",
 					len(read), end)
+			}
+
+			if !strings.Contains(err.Error(), fmt.Sprintf("at byte %d", secondAt)) {
+				t.Errorf("the error should name where the failing record lies in the file, got %v", err)
 			}
 		})
 	}
