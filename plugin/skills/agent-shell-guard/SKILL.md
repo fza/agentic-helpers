@@ -89,7 +89,7 @@ decides how:
 | Mode | The ask |
 |---|---|
 | `default`, `acceptEdits`, `plan` | a prompt with no time limit |
-| `auto`, `bypassPermissions` | a prompt with a countdown (`shell_guard_ask_timeout`, 120 s unless set); nobody answering → denied |
+| `auto`, `bypassPermissions` | a prompt with a countdown (`shell_guard_ask_timeout`, 2m unless set); nobody answering → denied |
 | `dontAsk` | denied at once, with the reason below |
 
 Questions it asks:
@@ -122,7 +122,7 @@ A countdown that runs out comes back as a deny:
 
 | Reason (after `agentic-shell-guard: `) | Do |
 |---|---|
-| `nobody answered within <n>s; <reason>` | nobody was at the prompt; go on without the call, and report it |
+| `nobody answered within <span>; <reason>` (`2m`, `45s`) | nobody was at the prompt; go on without the call, and report it |
 | `3 countdowns ran out unanswered since the last prompt; <reason>` | every ask now denies at once until the user prompts again; stop retrying, report what waits on them |
 
 The user may set these to `deny`. Then a removal outside the project is theirs: suggest they run

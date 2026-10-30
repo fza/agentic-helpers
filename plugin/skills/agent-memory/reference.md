@@ -36,7 +36,7 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
 - `rekind` to `rule` only for an entry filed `--from user`.
 - Heat weights: `confirm` 1.0, `show` 0.5, `link` to a memory entry 0.5, `ack --done` of a rule 0.5,
   a search's top three hits 0.25. Recall, the brief and a decline warm nothing.
-- Superseded bodies drop 14 days on, retired ones `retired_body_days` on (90 unless set). Dropped
+- Superseded bodies drop 14 days on, retired ones `retired_body_lifetime` on (90d unless set). Dropped
   body → `revive` refused, file it again. `show`'s event list keeps 14 days.
 - Topic refusals: `<id> keeps at least one topic; tag the right one first: agentic-memory tag <id>
   <topic>`; `<id> carries no topic <topic>`.

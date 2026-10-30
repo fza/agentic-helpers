@@ -50,7 +50,7 @@ a looser value there is ignored and named at session start
 | `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it |
 | `shell_guard_mktemp` | boolean | `true` | `mktemp` anywhere in the command |
 | `shell_guard_alternatives` | boolean | `true` | a command missing on the machine, or a usage its BSD flavour gets wrong (see [Command alternatives](#command-alternatives)); off, the session start line naming the machine's substitutions goes too |
-| `shell_guard_ask_timeout` | seconds, at most 3600 | `120` | how long an ask waits in `auto` and `bypassPermissions` mode before it denies; `0` waits without limit |
+| `shell_guard_ask_timeout` | a span (`45s`, `2m`), at most `1h`; a bare number counts seconds | `2m` | how long an ask waits in `auto` and `bypassPermissions` mode before it denies; `0` waits without limit |
 
 A boolean guard denies when on. **A command that does not parse as bash is denied whatever the
 options say**: the guard cannot judge it.
@@ -64,7 +64,7 @@ options say**: the guard cannot judge it.
   | Mode | The ask |
   |---|---|
   | `default`, `acceptEdits`, `plan`, or none given | a prompt with no time limit: a person approves each call |
-  | `auto`, `bypassPermissions` | a prompt with a countdown of `shell_guard_ask_timeout` seconds; nobody answering by then denies it |
+  | `auto`, `bypassPermissions` | a prompt with a countdown of `shell_guard_ask_timeout`; nobody answering by then denies it |
   | `dontAsk` | a deny at once, with the guard's reason |
 
   The countdown is the `PermissionRequest` hook `agentic-shell-guard permission`, which judges the
@@ -183,7 +183,7 @@ Every reason starts `agentic-shell-guard: `:
 | `timeout is not installed here; use: <rewritten command>` | command alternatives, a missing command |
 | `<command> here is BSD <command>: <usage>; use: <rewritten command>`, `<command> here is BSD <command>: <usage>; instead <form>` | command alternatives, a dialect usage, with and without the GNU tool installed |
 | `cannot parse the command; refusing` | always |
-| `nobody answered within <n>s; <reason>` | an ask in `auto` or `bypassPermissions` mode whose countdown ran out |
+| `nobody answered within <span>; <reason>` | an ask in `auto` or `bypassPermissions` mode whose countdown ran out |
 | `3 countdowns ran out unanswered since the last prompt; <reason>` | an ask in `auto` or `bypassPermissions` mode after three countdowns ran out |
 
 In `dontAsk` mode an ask comes back as a deny carrying the ask's own reason.
@@ -299,7 +299,7 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
         "shell_guard_nested_code": true,
         "shell_guard_mktemp": true,
         "shell_guard_alternatives": true,
-        "shell_guard_ask_timeout": 120
+        "shell_guard_ask_timeout": "2m"
       }
     }
   }

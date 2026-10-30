@@ -711,7 +711,7 @@ func allCommands() []command {
 			run:         (*memory).claim,
 			schema: `{"type":"object","properties":{` + seatName + `,` +
 				`"shelf":{"type":"string","description":"shelf for a new seat; alone, claims a new seat on it"},` +
-				`"lifetime":{"type":"string","description":"durable, temporary or a span: 90m, 12h, 2d, 0"},` +
+				`"lifetime":{"type":"string","description":"durable, temporary or a span: 90m, 12h, 2d, 1w, 0"},` +
 				`"private":{"type":"boolean","description":"hide the seat from other projects' who"},` +
 				`"session":{"type":"string","description":"another session to claim for"}}}`,
 		},
@@ -740,7 +740,7 @@ func allCommands() []command {
 			positional:  func(req *request) error { return exactly(1, &req.Value)(req) },
 			run:         (*memory).lifetime,
 			schema: `{"type":"object","properties":{"value":{"type":"string",` +
-				`"description":"durable, temporary, or a span such as 90m, 12h, 2d or 0"}},"required":["value"]}`,
+				`"description":"durable, temporary, or a span such as 90m, 12h, 2d, 1w or 0"}},"required":["value"]}`,
 		},
 		{
 			name: "drop", cliOnly: true, usage: "drop <shelf>", description: "purge a temporary shelf no seat uses, with its seats and entries, at once",

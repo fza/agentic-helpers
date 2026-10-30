@@ -52,6 +52,10 @@ func (resolution *Resolution) foldConfig(path string) {
 		return
 	}
 
+	for _, problem := range renameOld(values, LayerConfig) {
+		resolution.Problems = append(resolution.Problems, problem)
+	}
+
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
@@ -256,11 +260,6 @@ func MigrateAgentAnswers(paths []string) ([]string, error) {
 			continue
 		}
 
-		_, named := present[key]
-		if named {
-			continue
-		}
-
 		var value string
 
 		err = json.Unmarshal(answer, &value)
@@ -268,19 +267,81 @@ func MigrateAgentAnswers(paths []string) ([]string, error) {
 			value = strings.TrimSpace(string(answer))
 		}
 
+		// An answer under a renamed key lands under its new name, in the
+		// new key's form.
+		target := key
+
+		renamed, old := Renamed[key]
+		if old {
+			target = renamed.Key
+
+			_, err = strconv.ParseUint(value, 10, 32)
+			if err == nil {
+				value += renamed.Unit
+			}
+		}
+
+		_, named := present[key]
+		_, namedTarget := present[target]
+
+		if named || namedTarget {
+			continue
+		}
+
 		// An answer the reader refuses never applied; it is left behind.
-		_, err = configLine(key, value)
+		_, err = configLine(target, value)
 		if err != nil {
 			continue
 		}
 
-		err = Set(config, key, value)
+		err = Set(config, target, value)
 		if err != nil {
 			return copied, err
 		}
 
-		copied = append(copied, key)
+		present[target] = value
+		copied = append(copied, target)
 	}
 
 	return copied, nil
+}
+
+// renameOld moves each Renamed key in values to its new name, its bare number
+// given the old unit, unless the new name is set too, and names every old key
+// it met. layer is where the old key should be renamed.
+func renameOld(values map[string]any, layer string) []string {
+	var problems []string
+
+	olds := make([]string, 0, len(Renamed))
+	for old := range Renamed {
+		olds = append(olds, old)
+	}
+
+	slices.Sort(olds)
+
+	for _, old := range olds {
+		value, found := values[old]
+		if !found {
+			continue
+		}
+
+		delete(values, old)
+
+		renamed := Renamed[old]
+		text := strings.TrimSpace(fmt.Sprint(value))
+
+		_, err := strconv.ParseUint(text, 10, 32)
+		if err == nil {
+			text += renamed.Unit
+		}
+
+		_, taken := values[renamed.Key]
+		if !taken {
+			values[renamed.Key] = text
+		}
+
+		problems = append(problems, fmt.Sprintf("%s is now %s (%s); rename it in %s", old, renamed.Key, text, layer))
+	}
+
+	return problems
 }

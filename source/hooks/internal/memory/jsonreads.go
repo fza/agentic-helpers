@@ -158,7 +158,7 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 	}
 
 	if withBody {
-		object.BodyDropped = droppedNote(held, mem.options().RetiredBodyDays)
+		object.BodyDropped = droppedNote(held, mem.options().RetiredBodyLifetime)
 
 		if object.BodyDropped == "" && held.body != "" {
 			body, _ := json.Marshal(held.body)

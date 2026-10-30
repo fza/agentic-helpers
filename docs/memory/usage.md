@@ -503,7 +503,7 @@ larger in the store than it was attached`, and a compressed one that inflates pa
 `attachment <name> inflates past the size it was attached at`. Attaching reads a file from
 anywhere: the credential scan, not the path, guards what lands in the store.
 
-An attachment ends when its entry's body does: 14 days after a supersede, `retired_body_days` after
+An attachment ends when its entry's body does: 14 days after a supersede, `retired_body_lifetime` after
 a retire, at once in a temporary shelf's purge. A `revive` before then brings it back with the body.
 
 ### What never belongs in memory
@@ -1258,7 +1258,7 @@ environment variable to a server the writer picks.
 | `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env` | the embedder search by meaning and prompt recall run on |
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
-| `retired_body_days` | `config.yaml` only: how long a retired entry keeps its body, 90 unless set, never under 14 |
+| `retired_body_lifetime` | `config.yaml` only: how long a retired entry keeps its body, a span (`90d`, `6w`); `90d` unless set, never under `14d`. The older `retired_body_days` (a number of days) is still read for one release, and `agentic-helpers check` names it |
 | `entry_id_length` | the characters after `m-` in a new entry id |
 | `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note` |
 | `attachment_max_mb` | the megabytes one attached file may hold, 10 unless set |

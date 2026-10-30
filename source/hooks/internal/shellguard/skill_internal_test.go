@@ -40,7 +40,7 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		"cannot read the code piped to <shell>; refusing",
 		self + ": could not read the command; refusing", self + ": internal failure; refusing",
 		self + ": could not answer; refusing",
-		"nobody answered within <n>s; <reason>",
+		"nobody answered within <span>; <reason>",
 		fmt.Sprintf("%d countdowns ran out unanswered since the last prompt; <reason>", unansweredLimit),
 		"`" + modeDontAsk + "`", "`" + modeAuto + "`", "`" + modeBypass + "`",
 		strings.NewReplacer("%s", "<rule ids>", "%d", "<n>").Replace(reasonSecrets), "shell_guard_secrets",

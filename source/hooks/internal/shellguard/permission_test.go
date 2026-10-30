@@ -152,7 +152,7 @@ func TestACountdownDeniesAnAskNobodyAnswers(t *testing.T) {
 			c := newCountdown(t, "")
 
 			said := c.request(context.Background(), askedFind, mode)
-			if said != "agentic-shell-guard: nobody answered within 120s; find -delete" {
+			if said != "agentic-shell-guard: nobody answered within 2m; find -delete" {
 				t.Errorf("the deny should name the countdown and the guard's reason, got %q", said)
 			}
 
@@ -166,7 +166,7 @@ func TestACountdownDeniesAnAskNobodyAnswers(t *testing.T) {
 		c := newCountdown(t, "")
 
 		said := c.request(context.Background(), askedName, "auto")
-		if said != "agentic-shell-guard: nobody answered within 120s; cannot judge: the command name $CMD is not fixed text" {
+		if said != "agentic-shell-guard: nobody answered within 2m; cannot judge: the command name $CMD is not fixed text" {
 			t.Errorf("the deny should name the countdown and the unjudged name, got %q", said)
 		}
 	})
@@ -241,7 +241,7 @@ func TestThreeUnansweredCountdownsDenyAtOnce(t *testing.T) {
 		test.WriteFile(t, c.transcript, test.Fixture(t, "shellguard/prompted-again.jsonl"))
 
 		said := c.request(context.Background(), askedFind, "auto")
-		if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 120s; ") {
+		if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 2m; ") {
 			t.Errorf("a prompt should start the count again, got %q", said)
 		}
 
@@ -256,7 +256,7 @@ func TestThreeUnansweredCountdownsDenyAtOnce(t *testing.T) {
 		other.session = test.OtherSession
 
 		said := other.request(context.Background(), askedFind, "auto")
-		if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 120s; ") {
+		if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 2m; ") {
 			t.Errorf("a fresh countdown state should wait, got %q", said)
 		}
 	})
@@ -278,7 +278,7 @@ func TestACountdownWithNowhereToNoteItKeepsWaiting(t *testing.T) {
 
 			for range 4 {
 				said := c.request(context.Background(), askedFind, "auto")
-				if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 120s; ") {
+				if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 2m; ") {
 					t.Errorf("every ask should wait out its countdown, got %q", said)
 				}
 			}
@@ -345,7 +345,7 @@ func TestANewerStateFormatIsLeftAlone(t *testing.T) {
 
 	for range 4 {
 		said := c.request(context.Background(), askedFind, "auto")
-		if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 120s; ") {
+		if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 2m; ") {
 			t.Errorf("a state of a newer format should be neither read nor written, got %q", said)
 		}
 	}

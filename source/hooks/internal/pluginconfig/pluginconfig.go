@@ -18,6 +18,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/span"
 )
 
 const PluginID = "agentic-helpers@agentic-helpers"
@@ -49,13 +52,13 @@ const (
 	StylePlain = "plain"
 )
 
-// DefaultShellGuardAskTimeout / MaxShellGuardAskTimeout bound the seconds
+// DefaultShellGuardAskTimeout / MaxShellGuardAskTimeout bound how long
 // shell-guard's ask waits for an answer in auto and bypassPermissions mode. The
 // ceiling stays under the PermissionRequest hook's own timeout in hooks.json,
 // past which Claude Code stops the hook before it can deny.
 const (
-	DefaultShellGuardAskTimeout = 120
-	MaxShellGuardAskTimeout     = 3600
+	DefaultShellGuardAskTimeout = 2 * time.Minute
+	MaxShellGuardAskTimeout     = time.Hour
 )
 
 // DefaultToolsDuplicateFloor is the cosine at or above which agentic-tools
@@ -68,12 +71,20 @@ const DefaultToolsDuplicateFloor = 0.85
 // the weakest paraphrase measured with embeddinggemma-300m.
 const DefaultToolsQueryFloor = 0.45
 
-// DefaultRetiredBodyDays / MinRetiredBodyDays bound how long a retired entry
-// keeps its body. The floor is the revive window: a body never goes before a
-// revive could still want it.
+// DefaultRetiredBodyLifetime / MinRetiredBodyLifetime bound how long a retired
+// entry keeps its body. The floor is the revive window: a body never goes
+// before a revive could still want it.
 const (
-	DefaultRetiredBodyDays = 90
-	MinRetiredBodyDays     = 14
+	DefaultRetiredBodyLifetime = 90 * 24 * time.Hour
+	MinRetiredBodyLifetime     = 14 * 24 * time.Hour
+)
+
+// DefaultToolsVersionLifetime / MinToolsVersionLifetime bound how long a tool
+// version replaced by a newer one is kept. The floor keeps the way back to the
+// version before an update for at least two weeks.
+const (
+	DefaultToolsVersionLifetime = 90 * 24 * time.Hour
+	MinToolsVersionLifetime     = 14 * 24 * time.Hour
 )
 
 // DefaultEntryIDLength / MinEntryIDLength / MaxEntryIDLength bound the
@@ -113,7 +124,8 @@ type Options struct {
 	// StateStaleAfterWrites is how many file writes since a seat's last state
 	// write hold the session's Stop for a new one.
 	StateStaleAfterWrites int
-	RetiredBodyDays       int
+	RetiredBodyLifetime   time.Duration
+	ToolsVersionLifetime  time.Duration
 	EntryIDLength         int
 	BriefNoteLimit        int
 	AttachmentMaxMB       int
@@ -150,9 +162,9 @@ type Options struct {
 	// whose output is never redacted.
 	ShellGuardSecretOutput     string
 	ShellGuardSecretOutputSkip string
-	// ShellGuardAskTimeout is the seconds an ask waits in auto and
+	// ShellGuardAskTimeout is how long an ask waits in auto and
 	// bypassPermissions mode before it denies; 0 waits without limit.
-	ShellGuardAskTimeout int
+	ShellGuardAskTimeout time.Duration
 	ToolsDuplicateFloor  float64
 	ToolsQueryFloor      float64
 	CaptureRemoveDraft   bool
@@ -170,7 +182,7 @@ type Options struct {
 // and the hook environment spell it.
 var Keys = []string{
 	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
-	"entry_max_words", "state_stale_after_writes", "retired_body_days", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
+	"entry_max_words", "state_stale_after_writes", "retired_body_lifetime", "tools_version_lifetime", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -185,7 +197,20 @@ var Keys = []string{
 // would leave the lowest value deciding for both, whichever process ran the
 // cleanup. Only `config.yaml` and managed settings set them, and the plugin's
 // `userConfig` declares none.
-var ConfigOnly = []string{"retired_body_days", "temporary_seat_lifetime", "tools_total_mb", "orphan_store_grace"}
+var ConfigOnly = []string{
+	"retired_body_lifetime", "tools_version_lifetime", "temporary_seat_lifetime", "tools_total_mb", "orphan_store_grace",
+	"retired_body_days",
+}
+
+// Renamed is every key read under an older name for one release, by that
+// name, with the unit a bare number there counts in. The new name wins where
+// both are set; either way `agentic-helpers check` names the old one.
+var Renamed = map[string]struct {
+	Key  string
+	Unit string
+}{
+	"retired_body_days": {Key: "retired_body_lifetime", Unit: "d"},
+}
 
 // NeverConfig is every key `config.yaml` never sets. Any agent can write that
 // file in one Bash call, where Claude Code's settings sit behind its permission
@@ -376,6 +401,11 @@ func (resolution *Resolution) foldSettings(paths []string, layer string, agent b
 // take applies one layer's values, all or none; an agent's layer never sets
 // a ConfigOnly key.
 func (resolution *Resolution) take(values map[string]json.RawMessage, layer string, agent bool) error {
+	values, err := resolution.renamed(values, layer, agent)
+	if err != nil {
+		return err
+	}
+
 	set := map[string]json.RawMessage{}
 
 	for key, raw := range values {
@@ -386,7 +416,7 @@ func (resolution *Resolution) take(values map[string]json.RawMessage, layer stri
 		set[key] = raw
 	}
 
-	err := resolution.Options.apply(set)
+	err = resolution.Options.apply(set)
 	if err != nil {
 		return err
 	}
@@ -400,6 +430,80 @@ func (resolution *Resolution) take(values map[string]json.RawMessage, layer stri
 	return nil
 }
 
+// renamed is values with each Renamed key a settings layer holds moved to its
+// new name, as renameOld moves it in `config.yaml`. An agent's layer never sets
+// one: every renamed key is ConfigOnly.
+func (resolution *Resolution) renamed(values map[string]json.RawMessage, layer string, agent bool) (map[string]json.RawMessage, error) {
+	decoded := map[string]any{}
+
+	for key, raw := range values {
+		_, old := Renamed[key]
+		if !old {
+			continue
+		}
+
+		if agent || unset(raw) {
+			decoded[key] = nil
+
+			continue
+		}
+
+		var value any
+
+		err := json.Unmarshal(raw, &value)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+
+		decoded[key] = value
+	}
+
+	if len(decoded) == 0 {
+		return values, nil
+	}
+
+	moved := map[string]json.RawMessage{}
+
+	for key, raw := range values {
+		if _, old := Renamed[key]; !old {
+			moved[key] = raw
+		}
+	}
+
+	for key, value := range decoded {
+		if value == nil {
+			delete(decoded, key)
+		}
+	}
+
+	for key := range Renamed {
+		if raw, found := moved[Renamed[key].Key]; found {
+			decoded[Renamed[key].Key] = raw
+		}
+	}
+
+	resolution.Problems = append(resolution.Problems, renameOld(decoded, layer)...)
+
+	for key, value := range decoded {
+		if _, old := Renamed[key]; old {
+			continue
+		}
+
+		if _, kept := value.(json.RawMessage); kept {
+			continue
+		}
+
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("encoding %s: %w", key, err)
+		}
+
+		moved[key] = raw
+	}
+
+	return moved, nil
+}
+
 func unset(raw json.RawMessage) bool {
 	text := strings.TrimSpace(string(raw))
 
@@ -407,7 +511,8 @@ func unset(raw json.RawMessage) bool {
 }
 
 func (options *Options) clamp() {
-	options.RetiredBodyDays = max(options.RetiredBodyDays, MinRetiredBodyDays)
+	options.RetiredBodyLifetime = max(options.RetiredBodyLifetime, MinRetiredBodyLifetime)
+	options.ToolsVersionLifetime = max(options.ToolsVersionLifetime, MinToolsVersionLifetime)
 	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
 	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
 	options.StateStaleAfterWrites = max(options.StateStaleAfterWrites, 1)
@@ -421,7 +526,7 @@ func (options *Options) clamp() {
 
 func Defaults() Options {
 	return Options{
-		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyDays: DefaultRetiredBodyDays, EntryIDLength: DefaultEntryIDLength,
+		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true, WritingStyle: StyleTerse,
@@ -438,6 +543,7 @@ type fields struct {
 	texts     map[string]*string
 	numbers   map[string]*int
 	fractions map[string]*float64
+	spans     map[string]*time.Duration
 	modes     map[string]*string
 	outputs   map[string]*string
 	styles    map[string]*string
@@ -460,13 +566,16 @@ func (options *Options) fields() fields {
 			"embedding_dimensions":     &options.EmbeddingDimensions,
 			"entry_max_words":          &options.EntryMaxWords,
 			"state_stale_after_writes": &options.StateStaleAfterWrites,
-			"retired_body_days":        &options.RetiredBodyDays,
 			"entry_id_length":          &options.EntryIDLength,
 			"brief_note_limit":         &options.BriefNoteLimit,
 			"attachment_max_mb":        &options.AttachmentMaxMB,
 			"attachments_total_mb":     &options.AttachmentsTotalMB,
 			"tools_total_mb":           &options.ToolsTotalMB,
-			"shell_guard_ask_timeout":  &options.ShellGuardAskTimeout,
+		},
+		spans: map[string]*time.Duration{
+			"retired_body_lifetime":   &options.RetiredBodyLifetime,
+			"tools_version_lifetime":  &options.ToolsVersionLifetime,
+			"shell_guard_ask_timeout": &options.ShellGuardAskTimeout,
 		},
 		fractions: map[string]*float64{
 			"tools_duplicate_floor": &options.ToolsDuplicateFloor,
@@ -528,7 +637,7 @@ func (options Options) strictness(key string) int {
 		return math.MinInt
 	}
 
-	return -options.ShellGuardAskTimeout
+	return -int(options.ShellGuardAskTimeout / time.Second)
 }
 
 // Value is the option's value as `config set` takes it; empty for a key the
@@ -546,6 +655,10 @@ func (options Options) Value(key string) string {
 
 	if target, found := field.fractions[key]; found {
 		return strconv.FormatFloat(*target, 'f', -1, 64)
+	}
+
+	if target, found := field.spans[key]; found {
+		return span.Format(*target)
 	}
 
 	if target, found := field.modes[key]; found {
@@ -610,6 +723,20 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 		*target = value
 	}
 
+	for key, target := range field.spans {
+		raw, found := values[key]
+		if !found {
+			continue
+		}
+
+		value, err := spanValue(raw, *target, bareSeconds[key])
+		if err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+
+		*target = value
+	}
+
 	for key, target := range field.modes {
 		raw, found := values[key]
 		if !found {
@@ -667,6 +794,42 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 	}
 
 	return nil
+}
+
+// bareSeconds is every span key whose answers predate spans and hold a bare
+// number of seconds, which keeps meaning seconds.
+var bareSeconds = map[string]bool{"shell_guard_ask_timeout": true}
+
+// spanValue accepts a span as span.Parse reads one, or a JSON number or numeric string
+// of seconds for a key whose older answers hold one; an empty string keeps
+// fallback.
+func spanValue(raw json.RawMessage, fallback time.Duration, seconds bool) (time.Duration, error) {
+	var text string
+
+	err := json.Unmarshal(raw, &text)
+	if err != nil {
+		var count float64
+
+		err = json.Unmarshal(raw, &count)
+		if err != nil {
+			return 0, fmt.Errorf("%s %w", raw, span.ErrInvalid)
+		}
+
+		text = strconv.FormatInt(int64(count), 10)
+	}
+
+	if text == "" {
+		return fallback, nil
+	}
+
+	// An older answer may hold a negative count, which always read as no
+	// limit; the clamp keeps it at 0.
+	count, err := strconv.ParseInt(text, 10, 32)
+	if err == nil && seconds {
+		return time.Duration(count) * time.Second, nil
+	}
+
+	return span.Parse(text)
 }
 
 // mode accepts `ask`, `deny` or `off`; an empty string keeps fallback.

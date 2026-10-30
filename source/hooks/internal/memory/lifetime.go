@@ -3,11 +3,10 @@ package memory
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/span"
 )
 
 // A shelf is durable or temporary. A temporary shelf's retention runs once the
@@ -21,27 +20,11 @@ const (
 	defaultLifetime   = "1d"
 )
 
-var spanPattern = regexp.MustCompile(`^([0-9]+)([mhd])$`)
+// retention reads a span as every time option reads one.
+func retention(text string) (time.Duration, bool) {
+	held, err := span.Parse(text)
 
-// span reads a retention: `0`, or a count of minutes, hours or days.
-func span(text string) (time.Duration, bool) {
-	if text == "0" {
-		return 0, true
-	}
-
-	parts := spanPattern.FindStringSubmatch(text)
-	if parts == nil {
-		return 0, false
-	}
-
-	count, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return 0, false
-	}
-
-	unit := map[string]time.Duration{"m": time.Minute, "h": time.Hour, "d": 24 * time.Hour}[parts[2]]
-
-	return time.Duration(count) * unit, true
+	return held, err == nil
 }
 
 // lifetimeValue is what a shelf stores for a value `lifetime` takes, or why
@@ -54,9 +37,9 @@ func lifetimeValue(value string) (string, error) {
 		return lifetimeTemporary, nil
 	}
 
-	_, valid := span(value)
+	_, valid := retention(value)
 	if !valid {
-		return "", fmt.Errorf("lifetime takes durable, temporary or a span such as 90m, 12h, 2d or 0, not %q", value)
+		return "", fmt.Errorf("lifetime takes durable, temporary or a span such as 90m, 12h, 2d, 1w or 0, not %q", value)
 	}
 
 	return value, nil
@@ -70,9 +53,9 @@ func (mem *memory) defaultRetention() (string, time.Duration, string) {
 		text = defaultLifetime
 	}
 
-	held, valid := span(text)
+	held, valid := retention(text)
 	if !valid {
-		fallback, _ := span(defaultLifetime)
+		fallback, _ := retention(defaultLifetime)
 
 		return defaultLifetime, fallback, fmt.Sprintf("temporary_seat_lifetime %q is no span; %s holds", text, defaultLifetime)
 	}
@@ -92,7 +75,7 @@ func (mem *memory) retention(shelf seat.Shelf) (bool, string, time.Duration, str
 		return true, text, held, note
 	}
 
-	held, valid := span(shelf.Lifetime)
+	held, valid := retention(shelf.Lifetime)
 	if !valid {
 		text, fallback, note := mem.defaultRetention()
 

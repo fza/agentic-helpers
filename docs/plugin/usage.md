@@ -159,7 +159,7 @@ a declared default to every hook as an answer and hide `config.yaml`, so each de
 default instead.
 
 **Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:
-`retired_body_days`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value
+`retired_body_lifetime`, `tools_version_lifetime`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value
 in the user settings or the hook environment is ignored, since two agents set apart would leave the
 lowest value deciding for both. Managed settings still set them. A key deleting only what one session
 made for itself, `capture_remove_draft`, stays in the dialog. At session start `agentic-helpers check`

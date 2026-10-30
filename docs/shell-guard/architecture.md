@@ -239,7 +239,7 @@ shows the user, and the output passes as returned. The launcher, finding no bina
 `internal/pluginconfig` reads every `shell_guard_*` option in the layers every other piece's
 options take, with `config.yaml` held to `TightenOnly`: a value there looser than the layer below
 is dropped and named, and `shell_guard_secret_output_skip`, in `NeverConfig`, is never read from
-it. `shell_guard_ask_timeout` below 0 reads as 0 and above 3600 as 3600, under the hook's own
+it. `shell_guard_ask_timeout` is a span read by `internal/span`, a bare number counting seconds; above `1h` it reads as `1h`, under the hook's own
 `timeout` in `hooks.json` (3660 seconds), past which Claude Code would stop the hook before it
 denies. `shell_guard_secret_output` takes `all`, `files` or `off`, empty
 reading as `all`; `shell_guard_secret_output_skip` is kept as written and split on commas by the
@@ -259,8 +259,8 @@ missing one reads as `default`.
 - `auto`, `bypassPermissions`: the `PreToolUse` hook answers `ask`. When the prompt is about to
   show, Claude Code runs the `PermissionRequest` hook, `agentic-shell-guard permission`. It judges
   the call again with the same options; for a call shell-guard asks about, it waits
-  `shell_guard_ask_timeout` seconds and answers `deny`, message
-  `agentic-shell-guard: nobody answered within <n>s; <reason>`. Whichever of the person and the hook
+  for `shell_guard_ask_timeout` and answers `deny`, message
+  `agentic-shell-guard: nobody answered within <span>; <reason>`. Whichever of the person and the hook
   answers first decides, and a hook stopped by a signal before its countdown ends answers nothing. Claude Code's own prompt for a critical-path removal takes the same shape in
   these modes. With the option at `0`, for a call shell-guard did not ask about, or in any other
   mode, the hook answers nothing and the prompt is the person's.

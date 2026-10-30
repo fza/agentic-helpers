@@ -291,7 +291,7 @@ func (mem *memory) options() pluginconfig.Options {
 }
 
 func (mem *memory) retiredKeep() time.Duration {
-	return time.Duration(mem.options().RetiredBodyDays) * 24 * time.Hour
+	return mem.options().RetiredBodyLifetime
 }
 
 // ownSeat is the name of the seat the calling process holds, or empty.

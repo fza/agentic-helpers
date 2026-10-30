@@ -39,7 +39,7 @@ func runConfig(t *testing.T, env pieces.Env, args ...string) (int, string, strin
 }
 
 func TestConfigListsEveryKeyWithItsLayer(t *testing.T) {
-	env := layeredEnv(t, "entry_max_words: 600\nretired_body_days: 120\nbrief_note_limit: many\n", `"memory_language":"de"`)
+	env := layeredEnv(t, "entry_max_words: 600\nretired_body_lifetime: 120d\nbrief_note_limit: many\n", `"memory_language":"de"`)
 
 	code, out, _ := runConfig(t, env)
 	if code != 0 {
@@ -49,7 +49,7 @@ func TestConfigListsEveryKeyWithItsLayer(t *testing.T) {
 	for _, want := range []string{
 		"entry_max_words                 600  (config.yaml)\n",
 		"memory_language                 de  (user settings)\n",
-		"retired_body_days               120  (config.yaml, never a plugin option)\n",
+		"retired_body_lifetime           120d  (config.yaml, never a plugin option)\n",
 		"embedding_provider              \"\"  (default)\n",
 		"problem: " + env.Settings[0] + ": brief_note_limit: not a number",
 	} {

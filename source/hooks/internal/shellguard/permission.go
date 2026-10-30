@@ -13,6 +13,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
+	"github.com/fza/agentic-helpers/source/hooks/internal/span"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
 )
 
@@ -107,8 +108,8 @@ func Permission(ctx context.Context, env Env, streams Streams) (code int) {
 		return 0
 	}
 
-	seconds := read.ShellGuardAskTimeout
-	if call.PermissionMode != modeAuto && call.PermissionMode != modeBypass || seconds == 0 {
+	countdown := read.ShellGuardAskTimeout
+	if call.PermissionMode != modeAuto && call.PermissionMode != modeBypass || countdown == 0 {
 		return 0
 	}
 
@@ -123,14 +124,14 @@ func Permission(ctx context.Context, env Env, streams Streams) (code int) {
 			self, unansweredLimit, verdict.Reason))
 	}
 
-	err = env.Clock.Wait(ctx, time.Duration(seconds)*time.Second)
+	err = env.Clock.Wait(ctx, countdown)
 	if err != nil {
 		return 0
 	}
 
 	held.ranOut(env.Clock.Now())
 
-	return deny(streams, fmt.Sprintf("%s: nobody answered within %ds; %s", self, seconds, verdict.Reason))
+	return deny(streams, fmt.Sprintf("%s: nobody answered within %s; %s", self, span.Format(countdown), verdict.Reason))
 }
 
 func deny(streams Streams, message string) int {

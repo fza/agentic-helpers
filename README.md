@@ -89,7 +89,7 @@ holds options every agent on the machine shares, one `key: value` per line:
 
 ```yaml
 memory_language: "de"
-retired_body_days: 120
+retired_body_lifetime: 120d
 ```
 
 `agentic-helpers config` lists every option, its value and where the value comes from;
@@ -115,7 +115,7 @@ an option. An empty value counts as unset. A project's `.claude/settings.json` a
 `.claude/settings.local.json` are never read for plugin options: Claude Code itself ignores them
 there, and one embedder and one set of guards serve every project on the machine.
 
-**`config.yaml` only:** `retired_body_days`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace` decide when
+**`config.yaml` only:** `retired_body_lifetime`, `tools_version_lifetime`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace` decide when
 stored data every agent shares is deleted, so Claude Code's dialog lacks them and an answer there is
 ignored; two agents set apart would otherwise leave the lowest value deciding for both. A key deleting
 only what one session made for itself, such as `capture_remove_draft`, stays in the dialog.
@@ -126,7 +126,11 @@ lifts what shell-guard and the grounding gate hold. A guard switch (`shell_guard
 `shell_guard_nested_code`, `shell_guard_mktemp`, `shell_guard_alternatives`) applies there only as
 `true`; a verdict (`shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets`)
 only stricter, `off` < `ask` < `deny`; `shell_guard_secret_output` only stricter, `off` < `files` <
-`all`; `shell_guard_ask_timeout` only shorter. A looser value there is ignored, and
+`all`; `shell_guard_ask_timeout` only shorter.
+
+**Time options take a span:** a whole count of seconds, minutes, hours, days or weeks (`45s`, `2m`,
+`12h`, `90d`, `2w`), a Go duration as sdd prints one (`1m0s`), or `0`. `retired_body_days`, a number
+of days, is still read as `retired_body_lifetime` for one release, and `agentic-helpers check` names it. A looser value there is ignored, and
 `agentic-helpers config set` refuses it. `embedding_endpoint`, `embedding_api_key_env` and
 `shell_guard_secret_output_skip` are never read from `config.yaml`: the first two together could send
 any environment variable to a server the writer picks. Loosen a guard or point the embedder elsewhere
@@ -175,7 +179,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 |---|---|---|
 | `entry_max_words` | `500` | Suggested word limit for an entry's body |
 | `state_stale_after_writes` | `5` | File writes after which the agent is asked once, at the end of a turn, to record where work stands |
-| `retired_body_days` | `90` | `config.yaml` only. Days a retired entry keeps its body (at least 14) |
+| `retired_body_lifetime` | `90d` | `config.yaml` only. How long a retired entry keeps its body (at least `14d`) |
 | `entry_id_length` | `6` | Characters after `m-` in a new entry's id (6 to 16) |
 | `brief_note_limit` | `10` | Notes the brief shows, most used first. `agentic-memory brief --kind note` lists them all |
 | `attachment_max_mb` | `10` | Size limit for one attached file, in MB |
@@ -218,7 +222,7 @@ than its default.
 | `shell_guard_alternatives` | `true` | Refuses a command missing here (`timeout`) or a usage BSD `sed` or `date` gets wrong, naming the command that works, and names at session start what the machine needs |
 | `shell_guard_secret_output` | `all` | Hides output lines from outside the project that look like credentials. `files` checks only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; `off` checks nothing |
 | `shell_guard_secret_output_skip` | none | Claude Code's settings only. Tools whose output is never hidden, comma-separated. Patterns such as `mcp__sdd__*` work |
-| `shell_guard_ask_timeout` | `120` | Seconds an ask waits in `auto` and `bypassPermissions` mode before it denies (at most 3600; `0` waits forever) |
+| `shell_guard_ask_timeout` | `2m` | How long an ask waits in `auto` and `bypassPermissions` mode before it denies (at most `1h`; `0` waits forever; a bare number counts seconds) |
 
 ## Dependencies
 

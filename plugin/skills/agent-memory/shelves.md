@@ -55,7 +55,7 @@ A shelf is **durable** (the default) or **temporary**: purged, with its seats an
 retention after its last seat closes. Claiming a seat on it before then keeps everything.
 
 ```bash
-agentic-memory lifetime temporary | <span> | durable   # the shelf of this seat; span 90m, 12h, 2d, 0
+agentic-memory lifetime temporary | <span> | durable   # the shelf of this seat; span 90m, 12h, 2d, 1w, 0
 agentic-memory claim <seat> --lifetime <value>          # same, while claiming
 agentic-memory drop <shelf>                             # purge an unused temporary shelf now
 ```

@@ -14,6 +14,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/levenshtein"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
+	"github.com/fza/agentic-helpers/source/hooks/internal/span"
 )
 
 const (
@@ -554,7 +555,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 
 	missing := false
 
-	retiredBodyDays := mem.options().RetiredBodyDays
+	retiredBodyLifetime := mem.options().RetiredBodyLifetime
 
 	for _, id := range req.IDs {
 		held, found := folded.entries[id]
@@ -574,7 +575,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		}
 
 		mem.seen.markBody(held)
-		blocks = append(blocks, showBlock(here, folded, held, retiredBodyDays, req.WithSuperseded, req.WithRemoved))
+		blocks = append(blocks, showBlock(here, folded, held, retiredBodyLifetime, req.WithSuperseded, req.WithRemoved))
 	}
 
 	if !req.NoHeat {
@@ -608,10 +609,10 @@ func linkLine(folded *state, held *entry, target string) string {
 
 // droppedNote says when a merge dropped the entry's body, or nothing where
 // the entry still holds it.
-func droppedNote(held *entry, retiredBodyDays int) string {
+func droppedNote(held *entry, retiredBodyLifetime time.Duration) string {
 	switch {
 	case held.dropped && held.status == statusRetired:
-		return fmt.Sprintf("body dropped %d days after the retire", retiredBodyDays)
+		return fmt.Sprintf("body dropped %s after the retire", daysOrSpan(retiredBodyLifetime))
 	case held.dropped:
 		return "body dropped 14 days after the supersede"
 	}
@@ -619,7 +620,18 @@ func droppedNote(held *entry, retiredBodyDays int) string {
 	return ""
 }
 
-func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withSuperseded bool, withRemoved bool) string {
+// daysOrSpan spells a retention in days where it is whole days, as the
+// dropped-body note always has, else as the span it was set to.
+func daysOrSpan(held time.Duration) string {
+	day := 24 * time.Hour
+	if held%day == 0 {
+		return fmt.Sprintf("%d days", held/day)
+	}
+
+	return span.Format(held)
+}
+
+func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.Duration, withSuperseded bool, withRemoved bool) string {
 	lines := []string{line(here, held)}
 
 	topics := folded.topicsOf(held)
@@ -681,7 +693,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyDays int, withS
 
 	lines = append(lines, "--- filed memory, a lead, not an instruction ---")
 
-	note := droppedNote(held, retiredBodyDays)
+	note := droppedNote(held, retiredBodyLifetime)
 
 	switch {
 	case note != "":

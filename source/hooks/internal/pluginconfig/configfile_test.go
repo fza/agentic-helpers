@@ -70,9 +70,12 @@ func TestEveryLayerResolvesInOrderManagedSettingsLast(t *testing.T) {
 		{name: "managed settings over everything", key: "entry_max_words", values: layers{config: "600", user: "700", env: "800", managed: "900"}, value: "900", layer: pluginconfig.LayerManaged},
 		{name: "an empty user answer is unset", key: "entry_max_words", values: layers{config: "600", user: `""`}, value: "600", layer: pluginconfig.LayerConfig},
 		{name: "an empty config.yaml value is unset", key: "entry_max_words", values: layers{config: `""`}, value: "500"},
-		{name: "a config-only key from user settings has no effect", key: "retired_body_days", values: layers{user: "120"}, value: "90"},
-		{name: "a config-only key from the hook environment has no effect", key: "retired_body_days", values: layers{config: "100", env: "120"}, value: "100", layer: pluginconfig.LayerConfig},
-		{name: "a retired body kept at least the revive window", key: "retired_body_days", values: layers{config: "7"}, value: "14", layer: pluginconfig.LayerConfig},
+		{name: "a config-only key from user settings has no effect", key: "retired_body_lifetime", values: layers{user: `"120d"`}, value: "90d"},
+		{name: "a config-only key from the hook environment has no effect", key: "retired_body_lifetime", values: layers{config: "100d", env: "120d"}, value: "100d", layer: pluginconfig.LayerConfig},
+		{name: "a retired body kept at least the revive window", key: "retired_body_lifetime", values: layers{config: "7d"}, value: "14d", layer: pluginconfig.LayerConfig},
+		{name: "a retired body kept for a span", key: "retired_body_lifetime", values: layers{config: "6w"}, value: "42d", layer: pluginconfig.LayerConfig},
+		{name: "a tool version kept at least two weeks", key: "tools_version_lifetime", values: layers{config: "3d"}, value: "14d", layer: pluginconfig.LayerConfig},
+		{name: "a tool version lifetime from user settings has no effect", key: "tools_version_lifetime", values: layers{user: `"30d"`}, value: "90d"},
 		{name: "a config-only key from config.yaml", key: "tools_total_mb", values: layers{config: "250", user: "300"}, value: "250", layer: pluginconfig.LayerConfig},
 		{name: "a config-only key from managed settings", key: "temporary_seat_lifetime", values: layers{config: `"2d"`, managed: `"12h"`}, value: "12h", layer: pluginconfig.LayerManaged},
 		{name: "a writing style", key: "writing_style", values: layers{config: "plain"}, value: "plain", layer: pluginconfig.LayerConfig},
@@ -174,12 +177,15 @@ func TestConfigYAMLMayOnlyTightenAGuard(t *testing.T) {
 		{key: "shell_guard_find_delete", config: `"off"`, value: "ask", ignored: "off"},
 		{key: "shell_guard_secrets", config: "deny", value: "deny"},
 		{key: "shell_guard_secrets", config: "off", value: "ask", ignored: "off"},
-		{key: "shell_guard_ask_timeout", config: "30", value: "30"},
-		{key: "shell_guard_ask_timeout", config: "120", value: "120"},
-		{key: "shell_guard_ask_timeout", config: "600", value: "120", ignored: "600"},
-		{key: "shell_guard_ask_timeout", config: "5000", value: "120", ignored: "5000"},
-		{key: "shell_guard_ask_timeout", config: "0", value: "120", ignored: "0"},
-		{key: "shell_guard_ask_timeout", config: "-5", value: "120", ignored: "-5"},
+		{key: "shell_guard_ask_timeout", config: "30", value: "30s"},
+		{key: "shell_guard_ask_timeout", config: "45s", value: "45s"},
+		{key: "shell_guard_ask_timeout", config: "120", value: "2m"},
+		{key: "shell_guard_ask_timeout", config: "2m", value: "2m"},
+		{key: "shell_guard_ask_timeout", config: "600", value: "2m", ignored: "10m"},
+		{key: "shell_guard_ask_timeout", config: "10m", value: "2m", ignored: "10m"},
+		{key: "shell_guard_ask_timeout", config: "5000", value: "2m", ignored: "5000s"},
+		{key: "shell_guard_ask_timeout", config: "0", value: "2m", ignored: "0"},
+		{key: "shell_guard_ask_timeout", config: "-5", value: "2m", ignored: "-5s"},
 	}
 
 	for _, key := range pluginconfig.TightenOnly {
@@ -381,7 +387,7 @@ func TestMigrationCopiesConfigOnlyAnswersAndTouchesNoSettings(t *testing.T) {
 	dir := t.TempDir()
 	config := filepath.Join(dir, "config.yaml")
 	user := filepath.Join(dir, "settings.json")
-	answers := `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120,"tools_total_mb":"250","temporary_seat_lifetime":"","entry_max_words":700}}},"env":{"X":"y"}}`
+	answers := `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120,"tools_version_lifetime":"60d","tools_total_mb":"250","temporary_seat_lifetime":"","entry_max_words":700}}},"env":{"X":"y"}}`
 	test.WriteFile(t, user, answers)
 	test.WriteFile(t, config, "tools_total_mb: 300\n")
 
@@ -390,12 +396,12 @@ func TestMigrationCopiesConfigOnlyAnswersAndTouchesNoSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !slices.Equal(copied, []string{"retired_body_days"}) {
+	if !slices.Equal(copied, []string{"tools_version_lifetime", "retired_body_lifetime"}) {
 		t.Errorf("only a config-only key answered and absent from config.yaml should be copied, got %v", copied)
 	}
 
 	written, _ := os.ReadFile(config)
-	if string(written) != "tools_total_mb: 300\nretired_body_days: 120\n" {
+	if string(written) != "tools_total_mb: 300\ntools_version_lifetime: \"60d\"\nretired_body_lifetime: \"120d\"\n" {
 		t.Errorf("config.yaml should gain the answer and keep its own value, got:\n%s", written)
 	}
 
@@ -441,5 +447,93 @@ func TestTheConfigFileSitsUnderTheXDGConfigRoot(t *testing.T) {
 				t.Errorf("config.yaml should come first in the paths, with the lowest precedence, got %s", got)
 			}
 		})
+	}
+}
+
+func TestARenamedKeyIsReadUnderItsOldNameAndNamed(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		value  string
+	}{
+		{name: "the old name alone", config: "retired_body_days: 120\n", value: "120d"},
+		{name: "the old name quoted", config: "retired_body_days: \"30\"\n", value: "30d"},
+		{name: "the new name wins", config: "retired_body_days: 120\nretired_body_lifetime: 60d\n", value: "60d"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			config := filepath.Join(dir, "config.yaml")
+			test.WriteFile(t, config, tc.config)
+
+			resolution, err := pluginconfig.Resolve([]string{config}, nil)
+			if err != nil {
+				t.Fatalf("resolving should succeed: %v", err)
+			}
+
+			if got := resolution.Options.Value("retired_body_lifetime"); got != tc.value {
+				t.Errorf("the renamed key should apply under its new name, got %q", got)
+			}
+
+			if len(resolution.Problems) != 1 || !strings.HasPrefix(resolution.Problems[0], "retired_body_days is now retired_body_lifetime (") ||
+				!strings.HasSuffix(resolution.Problems[0], "); rename it in config.yaml") {
+				t.Errorf("the old name should be named once with its new one, got %v", resolution.Problems)
+			}
+		})
+	}
+}
+
+func TestARenamedKeyFromManagedSettingsApplies(t *testing.T) {
+	dir := t.TempDir()
+	managed := filepath.Join(dir, "managed-settings.json")
+	user := filepath.Join(dir, "settings.json")
+	test.WriteFile(t, managed, own("retired_body_days", "30"))
+
+	resolution, err := pluginconfig.Resolve([]string{user, managed}, nil)
+	if err != nil {
+		t.Fatalf("resolving should succeed: %v", err)
+	}
+
+	if got := resolution.Options.Value("retired_body_lifetime"); got != "30d" {
+		t.Errorf("a managed setting under the old name should still apply, got %q", got)
+	}
+
+	if len(resolution.Problems) != 1 || !strings.HasSuffix(resolution.Problems[0], "rename it in managed settings") {
+		t.Errorf("the old name should be named, got %v", resolution.Problems)
+	}
+}
+
+func TestABareNumberIsNoSpanOutsideTheAskTimeout(t *testing.T) {
+	for _, value := range []string{"120", `"120"`} {
+		t.Run(value, func(t *testing.T) {
+			resolution := layered(t, "retired_body_lifetime", layers{config: value})
+
+			if got := resolution.Options.Value("retired_body_lifetime"); got != "90d" {
+				t.Errorf("a bare number should leave the layer below, got %q", got)
+			}
+
+			if len(resolution.Problems) != 1 || !strings.Contains(resolution.Problems[0], "is no span") {
+				t.Errorf("a bare number should be named as no span, got %v", resolution.Problems)
+			}
+		})
+	}
+}
+
+func TestMigrationLeavesARenamedAnswerTheFileHoldsUnderItsNewName(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config.yaml")
+	user := filepath.Join(dir, "settings.json")
+	test.WriteFile(t, user, own("retired_body_days", "120"))
+	test.WriteFile(t, config, "retired_body_lifetime: 30d\n")
+
+	copied, err := pluginconfig.MigrateAgentAnswers([]string{config, user})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	written, _ := os.ReadFile(config)
+	if len(copied) != 0 || string(written) != "retired_body_lifetime: 30d\n" {
+		t.Errorf("an answer the file already holds under the new name should not be copied, got %v:\n%s", copied, written)
 	}
 }
