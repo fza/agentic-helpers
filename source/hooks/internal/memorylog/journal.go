@@ -131,16 +131,21 @@ func ReadJournal(data []byte) ([]Record, int, error) {
 		return nil, 0, fmt.Errorf("%w: journal format %d", ErrNotJournal, data[len(journalMagic)])
 	}
 
-	records, end, err := ReadRecords(data[JournalHeaderSize:])
-
-	return records, JournalHeaderSize + end, err
+	return readRecords(data, JournalHeaderSize)
 }
 
 // ReadRecords reads records framed one after another, with no header.
 func ReadRecords(data []byte) ([]Record, int, error) {
+	return readRecords(data, 0)
+}
+
+// readRecords reads the records framed from start on; every offset it
+// returns or names counts from the start of data, so a torn record is named
+// where it lies in the file.
+func readRecords(data []byte, start int) ([]Record, int, error) {
 	var records []Record
 
-	offset := 0
+	offset := start
 
 	for offset < len(data) {
 		rest := data[offset:]
