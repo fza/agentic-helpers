@@ -273,13 +273,16 @@ func (lib *library) identical(ctx context.Context, files []safefs.Walked) string
 
 			// A pruned version's files still count: pruning makes room, it does
 			// not make a version's files new again.
-			for _, versions := range []map[string][]fileHash{tool.Hashes, tool.Pruned} {
-				for _, v := range sortedKeys(versions) {
-					for _, hash := range versions[v] {
+			for _, held := range []struct {
+				versions map[string][]fileHash
+				copies   string
+			}{{tool.Hashes, "copies it"}, {tool.Pruned, "copies its current version, this one being pruned for space"}} {
+				for _, v := range sortedKeys(held.versions) {
+					for _, hash := range held.versions[v] {
 						file, match := sums[hash.Sum]
 						if match {
-							return fmt.Sprintf("%s is %s %s byte for byte: `%s take %s` copies it", file, hit.shown(), v,
-								self, hit.shown())
+							return fmt.Sprintf("%s is %s %s byte for byte: `%s take %s` %s", file, hit.shown(), v,
+								self, hit.shown(), held.copies)
 						}
 					}
 				}

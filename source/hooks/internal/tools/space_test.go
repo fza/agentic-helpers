@@ -225,7 +225,7 @@ func TestAPrunedVersionStillRefusesItsFilesAsADuplicate(t *testing.T) {
 	}
 
 	again := h.file("again/words-one.py", string(firstContent))
-	h.refused("is word-count v1 byte for byte", "add", "word-tally", "--from", again, "--summary",
+	h.refused("is word-count v1 byte for byte: `agentic-tools take word-count` copies its current version, this one being pruned for space", "add", "word-tally", "--from", again, "--summary",
 		"Tally the words of a text", "--usage", "python3 the script < file", "--distinct", "tally")
 
 	err = os.Remove(filepath.Join(h.store(), "index.json"))
