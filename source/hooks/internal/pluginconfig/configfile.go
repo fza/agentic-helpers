@@ -23,7 +23,7 @@ import (
 // keys runs to a few kilobytes.
 const maxConfigBytes = 64 << 10
 
-var ErrUnknownKey = errors.New("no such option")
+var ErrUnknownKey = errors.New("is no option")
 
 // ConfigPath is the agent-neutral options file every agent on the machine
 // shares, under the XDG root meant for configuration.
@@ -124,10 +124,22 @@ func readConfig(path string) (map[string]any, error) {
 
 	err = yaml.Unmarshal(raw, &values)
 	if err != nil {
-		return nil, fmt.Errorf("is no YAML map of options: %w", err)
+		return nil, fmt.Errorf("is no YAML map of options: %w", parseError{err})
 	}
 
 	return values, nil
+}
+
+// parseError is the YAML parser's error without the source excerpt it prints
+// beneath, so the problem stays the one line a hook prints.
+type parseError struct{ err error }
+
+func (parse parseError) Error() string {
+	return strings.Join(strings.Fields(yaml.FormatError(parse.err, false, false)), " ")
+}
+
+func (parse parseError) Unwrap() error {
+	return parse.err
 }
 
 // Set writes key's value into the `config.yaml` at path, through a temporary
@@ -180,7 +192,7 @@ func Set(path string, key string, value string) error {
 // anything but the word.
 func configLine(key string, value string) (string, error) {
 	if !slices.Contains(Keys, key) {
-		return "", fmt.Errorf("%w: %s; the nearest is %s", ErrUnknownKey, key, levenshtein.Nearest(key, Keys))
+		return "", fmt.Errorf("%s %w; the nearest is %s", key, ErrUnknownKey, levenshtein.Nearest(key, Keys))
 	}
 
 	if slices.Contains(NeverConfig, key) {

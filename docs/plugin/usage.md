@@ -214,8 +214,11 @@ listing marks those keys `config.yaml only tightens` and `never config.yaml`. A 
 `config.yaml` that sets the key too is named:
 `<layer> also sets <key> and wins over config.yaml: <value> applies`. An invalid value in
 `config.yaml` (a word for a number, an unknown key, a file that is no YAML map) is skipped, the layer
-below applies, and `agentic-helpers check` names it at session start as
-`agentic-helpers: <path>: <key>: <why>; the layer below applies`; `config` lists it as `problem:`.
+below applies, and `agentic-helpers check` names it at session start, one line each:
+`agentic-helpers: <path>: <key>: <why>; the layer below applies` for a value,
+`agentic-helpers: <path>: <key> is no option; the nearest is <option>` for an unknown key, and
+`agentic-helpers: <path>: is no YAML map of options: <why>; none of its values apply` for a file
+that does not parse. `config` lists each as `problem:`.
 An invalid value in a settings file still sets every option to its default, as before.
 
 [`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md),
