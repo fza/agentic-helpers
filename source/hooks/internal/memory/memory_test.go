@@ -1034,6 +1034,10 @@ func TestSessionStart(t *testing.T) {
 		t.Errorf("a seatless session should hear the seats where memory exists:\n%s", out)
 	}
 
+	if !strings.Contains(out, "(\"main seat\", \"Haupt-Session\") asks to claim it: claim it, then answer with where work stands") {
+		t.Errorf("a seatless session should hear that a seat named loosely is a claim request:\n%s", out)
+	}
+
 	if !strings.Contains(h.must(hookPayload("compact", "", ""), "session-start"), "agentic-memory: seat main") {
 		t.Error("a compaction should bring back the brief")
 	}
