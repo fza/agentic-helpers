@@ -207,9 +207,9 @@
       "required": false
     },
     "shell_guard_ask_timeout": {
-      "type": "number",
+      "type": "string",
       "title": "Shell-guard: ask countdown",
-      "description": "Seconds a shell-guard ask waits for an answer in auto and bypassPermissions mode before it denies, at most 3600; 0 waits without limit; default 120",
+      "description": "How long a shell-guard ask waits for an answer in auto and bypassPermissions mode before it denies: a span such as 45s or 2m, at most 1h; a bare number counts seconds; 0 waits without limit; default 2m",
       "required": false
     },
     "tools_duplicate_floor": {

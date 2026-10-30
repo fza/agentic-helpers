@@ -1,9 +1,9 @@
 package home
 
 import (
-	"regexp"
-	"strconv"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/span"
 )
 
 // DefaultGrace is how long an unclaimed store waits for a checkout to promote
@@ -11,10 +11,8 @@ import (
 // over a holiday to be opened again.
 const DefaultGrace = "30d"
 
-var gracePattern = regexp.MustCompile(`^([0-9]+)([mhd])$`)
-
-// Grace reads `orphan_store_grace`: `0`, or a count of minutes, hours or
-// days. Empty or unreadable takes DefaultGrace, and says so.
+// Grace reads `orphan_store_grace`, a span as pluginconfig.Span reads one.
+// Empty or unreadable takes DefaultGrace, and says so.
 func Grace(text string) (time.Duration, bool) {
 	if text == "" {
 		held, _ := Grace(DefaultGrace)
@@ -22,25 +20,12 @@ func Grace(text string) (time.Duration, bool) {
 		return held, true
 	}
 
-	if text == "0" {
-		return 0, true
-	}
-
-	parts := gracePattern.FindStringSubmatch(text)
-	if parts == nil {
-		held, _ := Grace(DefaultGrace)
-
-		return held, false
-	}
-
-	count, err := strconv.Atoi(parts[1])
+	held, err := span.Parse(text)
 	if err != nil {
-		held, _ := Grace(DefaultGrace)
+		held, _ = Grace(DefaultGrace)
 
 		return held, false
 	}
 
-	unit := map[string]time.Duration{"m": time.Minute, "h": time.Hour, "d": 24 * time.Hour}[parts[2]]
-
-	return time.Duration(count) * unit, true
+	return held, true
 }

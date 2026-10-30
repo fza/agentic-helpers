@@ -136,7 +136,7 @@ func TestACredentialAskFollowsThePermissionMode(t *testing.T) {
 	}
 
 	said := newCountdown(t, "").request(context.Background(), command, "auto")
-	if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 120s; the command holds what looks like a credential (") {
+	if !strings.HasPrefix(said, "agentic-shell-guard: nobody answered within 2m; the command holds what looks like a credential (") {
 		t.Errorf("a credential ask nobody answers in auto mode should be denied, got %q", said)
 	}
 }

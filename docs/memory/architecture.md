@@ -310,7 +310,7 @@ A `state` row names a seat and no entry, and carries the seat's state slot: `bod
 only each seat's newest `state` row, and a purge drops the `state` rows of the seats it purges. The
 `untag`, `state`, `rekind` and `settle` rows are kinds binaries before format 4 do not read; the format bump
 keeps those binaries off the store. The same merge drops the body of an entry
-superseded more than 14 days earlier, or retired more than `retired_body_days` earlier; the entry
+superseded more than 14 days earlier, or retired more than `retired_body_lifetime` earlier; the entry
 stays in search, flagged, and `revive` refuses it.
 
 ## Seats and liveness
@@ -589,7 +589,7 @@ Every SessionStart, after the purges, sweeps the store: each store at the curren
 hashes its entries still holding their body name to `<store>/attachments.refs` and refreshes its
 ledger; a store this release cannot read keeps the refs it last wrote; then, under `attachments/.lock`, every stored file no refs
 list names is removed. A `drop` sweeps the same way. A body counts as held until its drop is due by
-time, so a file outlives a retire by `retired_body_days` and a supersede by 14 days whether or not a
+time, so a file outlives a retire by `retired_body_lifetime` and a supersede by 14 days whether or not a
 merge has run.
 
 ### Space

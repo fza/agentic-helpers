@@ -3,6 +3,7 @@ package pluginconfig_test
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -207,7 +208,7 @@ func TestRead(t *testing.T) {
 		{
 			name: "an ask timeout",
 			user: own + `{"shell_guard_ask_timeout":30}}}}`,
-			want: defaultsWith(func(options *pluginconfig.Options) { options.ShellGuardAskTimeout = 30 }),
+			want: defaultsWith(func(options *pluginconfig.Options) { options.ShellGuardAskTimeout = 30 * time.Second }),
 		},
 		{
 			name: "an ask timeout of no limit",
