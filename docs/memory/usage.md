@@ -334,6 +334,11 @@ filing time:
 
 - **A rule is the user's.** `--kind rule` without `--from user` is refused:
   `a rule is the user's grant or instruction: --kind rule needs --from user`.
+- **An entry states the outcome**: the finding, the decision, the step owed. It never plays back the
+  user's prompt or answer, nor narrates what the owner chose, asked or said: `--from user` records
+  whose it is, and the playback costs output tokens at filing and input on every `show` for nothing
+  a later session acts on. A rule keeps the user's instruction alone, verbatim, since it never
+  decays and a paraphrase can drift.
 - **`rekind <id> rule|trap|todo|note`** (CLI only) gives an entry another
   kind. Every seat on the entry's shelf may, as with `retitle`; rekinding to `rule` is refused unless
   the entry was filed `--from user`. A shelf mate's rekind arrives through

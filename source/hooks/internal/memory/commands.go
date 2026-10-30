@@ -416,7 +416,7 @@ func allCommands() []command {
 			replaced:  map[string]string{"retention": retentionReplaced},
 			schema: `{"type":"object","properties":{` +
 				`"title":{"type":"string","description":"3-10 words"},` +
-				`"body":{"type":"string","description":"entry text"},` +
+				`"body":{"type":"string","description":"entry text: the outcome, never the user's prompt played back"},` +
 				topicKey + `,` +
 				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"rule needs from user; note unless given"},` +
 				`"from":{"type":"string","enum":["user","agent","tool"],"description":"finding's source; agent unless given"},` +
