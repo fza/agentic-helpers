@@ -201,6 +201,36 @@ else `$XDG_CONFIG_HOME/git/ignore`, else `~/.config/git/ignore`), said once:
 repository`. A claim for another session (below) does the same, before that session starts.
 `memory_turns_off_auto: false` leaves the file alone.
 
+### A newer release
+
+Claude Code leaves plugin auto-update off for every third-party marketplace, so a machine stays on
+the release it installed until the user updates by hand. Where a newer one waits, a claim ends with
+lines for the agent, which tells the user in prose:
+
+    agentic-helpers: release 2.18.0 is out, this machine runs 2.17.0; tell the user in prose, offering both ways:
+      update now: claude plugin update agentic-helpers@agentic-helpers (takes effect next session)
+      or turn auto-update on: merge {"extraKnownMarketplaces": {"agentic-helpers": {"source": {"source": "github", "repo": "fza/agentic-helpers"}, "autoUpdate": true}}} into ~/.claude/settings.json
+      plugin option update_notice: false silences this notice
+
+They show at most once per local day per machine, whatever seat or project claims, and only where
+all of these hold:
+
+- `update_notice` is not `false`;
+- the running binary is a release (a `go install` build, `dev`, is never compared) older than the
+  latest one on GitHub;
+- auto-update is off: no `"autoUpdate": true` on the `agentic-helpers` entry of
+  `extraKnownMarketplaces` in the managed settings, the user settings or the checkout's
+  `.claude/settings.json` and `.claude/settings.local.json`, nor on its entry in
+  `plugins/known_marketplaces.json` under `CLAUDE_CONFIG_DIR` (else `~/.claude`);
+- no entry pins the marketplace to a `ref` or a `sha`.
+
+The latest release is asked of GitHub (`https://api.github.com/repos/fza/agentic-helpers/releases/latest`)
+at most once per 24 hours per machine, during a claim, within 3 seconds; the answer and its time are
+kept in `<data>/update-check.json`. A failed or slow request says nothing and waits for the next day.
+A claim made while another claim on the machine checks says nothing either. A claim at a resumed or
+forked session's start and a claim for another session (`--session`) never show the notice or ask
+GitHub; the CLI and the MCP `claim` do both.
+
 ## Resumed and forked sessions
 
 A seat follows its session into the new process `claude --resume` or `claude --fork-session
@@ -1321,6 +1351,7 @@ environment variable to a server the writer picks.
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |
+| `update_notice` | `true` unless set: a claim says once a day that a newer release waits while auto-update is off ([A newer release](#a-newer-release)); `false` shows no notice and asks GitHub nothing |
 | `temporary_seat_lifetime` | `config.yaml` only: how long a closed temporary shelf keeps its entries, a span as `lifetime` takes one (`12h`, `1d`, `0`); `1d` unless set, and `1d`, with a note in the reply, where it holds no span |
 | `orphan_store_grace` | `config.yaml` only: how long an unclaimed store waits for a checkout to promote it before SessionStart deletes it, a span as `lifetime` takes one; `30d` unless set or where it holds no span ([plugin usage](../plugin/usage.md#the-home)) |
 

@@ -23,7 +23,8 @@
         "shell_guard_mktemp": true,
         "shell_guard_alternatives": true,
         "shell_guard_secrets": "ask",
-        "shell_guard_secret_output": "all"
+        "shell_guard_secret_output": "all",
+        "update_notice": true
       }
     }
   }

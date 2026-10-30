@@ -309,6 +309,13 @@
       "min": 0.01,
       "max": 1,
       "required": false
+    },
+    "update_notice": {
+      "type": "boolean",
+      "title": "Update notice",
+      "description": "A seat claim says once a day that a newer agentic-helpers release exists while auto-update is off for its marketplace, which the agent relays; off, no notice and no release check; default on",
+      "default": true,
+      "required": false
     }
   }
 }

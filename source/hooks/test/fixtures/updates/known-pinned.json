@@ -1,0 +1,11 @@
+{
+  "agentic-helpers": {
+    "source": {
+      "source": "github",
+      "repo": "fza/agentic-helpers",
+      "ref": "v2.17.0"
+    },
+    "installLocation": "/home/u/.claude/plugins/marketplaces/agentic-helpers",
+    "lastUpdated": "2026-10-30T17:40:54.902Z"
+  }
+}

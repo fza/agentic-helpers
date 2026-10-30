@@ -35,6 +35,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
+	"github.com/fza/agentic-helpers/source/hooks/internal/updates"
 )
 
 const self = "agentic-memory"
@@ -93,6 +94,9 @@ type Env struct {
 	// seconds for 30 minutes.
 	WaitPoll     time.Duration
 	WaitDeadline time.Duration
+	// Releases asks GitHub for the latest release on a claim; nil asks
+	// nothing and shows no update notice.
+	Releases updates.Client
 }
 
 // agent names the agent whose sessions memory reads, under

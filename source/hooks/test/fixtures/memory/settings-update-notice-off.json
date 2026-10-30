@@ -1,0 +1,9 @@
+{
+  "pluginConfigs": {
+    "agentic-helpers@agentic-helpers": {
+      "options": {
+        "update_notice": false
+      }
+    }
+  }
+}

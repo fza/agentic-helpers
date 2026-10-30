@@ -60,6 +60,9 @@ Nothing leaves the machine unless one of these applies:
 - **A graph entry is captured.** sdd's pre-flight check sends the draft to Claude through
   `claude -p`.
 - **A release is first run.** The binaries are fetched from GitHub, as above.
+- **A seat is claimed, at most once a day.** The claim asks GitHub's API for the latest release, to
+  say when a newer one is out while auto-update is off. The request carries nothing but the
+  plugin's name as its user agent. With `update_notice: false`, nothing goes.
 
 ## What it writes outside the project
 
