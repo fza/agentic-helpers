@@ -444,8 +444,10 @@ Every hook exits at once in a project without a store.
 
 Every tool of the `memory` server answers a JSON object (`internal/mcpserver`): the value goes out
 as `structuredContent` and, serialized, as the text block MCP asks of a structured result for
-clients reading only text. A read answers what its `--json` builds; any other command `{"message": <its text>}` alone, since
-the text already names what the call produced and typed fields beside it would only repeat it. A refusal
+clients reading only text. `show` and `topics` answer what their `--json` builds (`mcpJSONReads`); every other command,
+the reads `search`, `brief`, `view` and `who` included, `{"message": <its text>}` alone, since the
+text already names what the call produced or found and typed fields would only repeat it at two to
+seven times the size. A refusal
 answers `{"error": <text>}` as an error result.
 
 No tool lists an `outputSchema`. The listing loads into every session's context, and the schemas,

@@ -674,7 +674,8 @@ func allCommands() []command {
 			name: "who", usage: "who [--all] [--unused]",
 			description: "this project's seats and shelves; frees seats whose holder is gone",
 			flags:       []flagSpec{{"all", flagSwitch}, {"unused", flagSwitch}}, run: (*memory).who,
-			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add other projects' seats"}}}`,
+			schema: `{"type":"object","properties":{"all":{"type":"boolean","description":"add other projects' seats"},` +
+				`"unused":{"type":"boolean","description":"list the seats with nothing filed or used, which who only counts"}}}`,
 		},
 		{
 			name: "follow", cliOnly: true, usage: "follow <topic>...", description: "receive every entry filed under these topics",

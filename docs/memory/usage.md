@@ -1205,11 +1205,12 @@ Every tool answers one JSON object, as `structuredContent` and, serialized, as i
 tool lists an `outputSchema`: the listing loads into every session's context, and the keys each
 answer carries are the ones below. The command line keeps its text and its `--json`.
 
-- **A read answers its `--json` object** (`show`, `search`, `brief`, `view`, `who` and `topics`).
-  `brief` with `kind` or `topic` lists that kind's or those topics' live entries in its sections, as
-  `brief --json --kind` and `brief --json --topic` do; `view` with `explain` answers
-  `{"message": <the explanation>}`.
-- **Every other tool answers `{"message": <the text the command prints>}` alone.** The text holds
+- **`show` and `topics` answer their `--json` object.** `show`'s JSON is no larger than its text,
+  the body making up most of either.
+- **Every other tool answers `{"message": <the text the command prints>}` alone**, the reads
+  `search`, `brief`, `view` and `who` included: their JSON repeats every key and stamp per entry and
+  costs two to seven times the text, which carries every line, flag, score and `more:` hint. A
+  script wanting the keys runs the command with `--json`. The text of a write holds
   what the call produced and every hint; fields beside it would only repeat them. A write's text
   never echoes the ids, topics, title or seat the caller sent: `state written`, `retired`,
   `superseded`, `linked`, `tagged`, `untagged`, `retitled`, `done` (or `undone`, `dropped`,
@@ -1217,7 +1218,7 @@ answer carries are the ones below. The command line keeps its text and its `--js
   the call did or found. `ack --add` names the new items, `confirm` the anchors it re-hashed.
 
 - **A refusal is an error result carrying `{"error": <the refusal text>}`** and nothing else.
-- A read answer leaves out every key holding an empty value, as `--json` does (see
+- A JSON answer leaves out every key holding an empty value, as `--json` does (see
   [Other tools](#other-tools)).
 
 ## Seats of the project, and of the machine
@@ -1235,10 +1236,10 @@ Each row ends with the seat's entries filed in the last 14 days and how many of 
 use warmed in that time (see [Search](#search)), so a seat filing far more than it uses shows it.
 
 A free seat with `filed 0 / used 0` is left out and counted in the block's last line, `+<n> unused
-seats: agentic-memory who --unused`; `who --unused` lists it too. Every seat ever claimed stays in
+seats: agentic-memory who --unused`; `who --unused` (MCP `unused`) lists it too. Every seat ever claimed stays in
 the store, a finished board row's seats among them, and listing each would bury the seats in use.
-A held or reserved seat is always listed, as is a seat this call freed. `who --json` and the MCP
-`who` tool list every seat.
+A held or reserved seat is always listed, as is a seat this call freed. `who --json` lists every
+seat.
 
 It frees the project's claims whose holder is gone and its reservations nobody took over in 10
 minutes, saying `freed` on their row; from a checkout bound to no store it frees nothing.

@@ -23,7 +23,7 @@ func TestAPrivateSeatLeavesNoTraceInAnotherProjectsWho(t *testing.T) {
 	for name, answer := range map[string]string{
 		"who --all":        elsewhere.must("", "who", "--all"),
 		"who --all --json": elsewhere.must("", "who", "--all", "--json"),
-		"MCP who all":      elsewhere.mcp(`{"name":"who","arguments":{"all":true}}`),
+		"MCP who all":      mcpMessage(t, elsewhere.mcp(`{"name":"who","arguments":{"all":true,"unused":true}}`)),
 	} {
 		if listsSeat(answer, "secret") || !listsSeat(answer, "open") {
 			t.Errorf("%s should list the other project's seats but not its private one, got:\n%s", name, answer)

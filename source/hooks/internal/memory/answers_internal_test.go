@@ -22,20 +22,25 @@ type jsonViewSection struct {
 	Groups  map[string]jsonGroup      `json:"groups,omitempty"`
 }
 
-// answerFields are the reads' JSON objects; every other tool answers its
-// message alone.
+// answerFields are the reads' --json objects.
 var answerFields = map[string]any{
 	"show": jsonShow{}, "search": jsonSearch{}, "brief": jsonBrief{}, "who": jsonWho{}, "topics": jsonTopics{},
 	"view": jsonView{},
 }
 
-// AnswerSchema is the shape a tool's answer keeps, derived from the types the
-// answer is built from, so a test holds every MCP answer to it although the
-// server lists no outputSchema.
+// JSONSchema is the shape a read's --json answer keeps, derived from the
+// types the answer is built from.
+func JSONSchema(name string) json.RawMessage {
+	return mcpserver.SchemaOf(answerFields[name])
+}
+
+// AnswerSchema is the shape a tool's MCP answer keeps, so a test holds every
+// MCP answer to it although the server lists no outputSchema: a read's --json
+// object where MCP answers it, the message alone everywhere else.
 func AnswerSchema(name string) json.RawMessage {
-	if slices.Contains(jsonReads, name) {
-		return mcpserver.SchemaOf(answerFields[name])
+	if slices.Contains(mcpJSONReads, name) {
+		return JSONSchema(name)
 	}
 
-	return mcpserver.MessageSchema(answerFields[name])
+	return mcpserver.MessageSchema(nil)
 }

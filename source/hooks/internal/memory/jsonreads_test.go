@@ -152,7 +152,7 @@ func TestShowAnswersJSON(t *testing.T) {
 func TestSearchAnswersJSON(t *testing.T) {
 	h, _, _ := jsonReadsHarness(t)
 
-	for _, via := range []string{"cli", "mcp"} {
+	for _, via := range []string{"cli"} {
 		t.Run(via, func(t *testing.T) {
 			text := ""
 			if via == "cli" {
@@ -188,7 +188,7 @@ func TestBriefAnswersJSON(t *testing.T) {
 	h, hub, cite := jsonReadsHarness(t)
 	before := h.slots("brief/")
 
-	for _, via := range []string{"cli", "mcp"} {
+	for _, via := range []string{"cli"} {
 		t.Run(via, func(t *testing.T) {
 			text := ""
 			if via == "cli" {
@@ -234,7 +234,7 @@ func TestWhoAndTopicsAnswerJSON(t *testing.T) {
 			if via == "cli" {
 				who, topics = h.must("", "who", "--all", "--json"), h.must("", "topics", "--json")
 			} else {
-				who = mcpText(t, h.mcp(`{"name":"who","arguments":{"all":true,"json":true}}`))
+				who = h.must("", "who", "--all", "--json")
 				topics = mcpText(t, h.mcp(`{"name":"topics","arguments":{"json":true}}`))
 			}
 

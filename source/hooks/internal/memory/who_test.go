@@ -181,9 +181,11 @@ func TestWhoCountsUnusedFreeSeatsRatherThanListingThem(t *testing.T) {
 		t.Errorf("who --all --unused should list every project's unused seats, got:\n%s", all)
 	}
 
-	for _, answer := range []string{h.must("", "who", "--json"), h.mcp(`{"name":"who","arguments":{}}`)} {
-		if !strings.Contains(answer, `"name":"idle"`) && !strings.Contains(answer, `\"name\":\"idle\"`) {
-			t.Errorf("who --json and the MCP who should list every seat, unused ones too, got:\n%s", answer)
-		}
+	if answer := h.must("", "who", "--json"); !strings.Contains(answer, `"name":"idle"`) {
+		t.Errorf("who --json should list every seat, unused ones too, got:\n%s", answer)
+	}
+
+	if answer := mcpMessage(t, h.mcp(`{"name":"who","arguments":{"unused":true}}`)); !listsSeat(answer, "idle") {
+		t.Errorf("the MCP who with unused should list the unused seats, got:\n%s", answer)
 	}
 }
