@@ -12,6 +12,12 @@
       "type": "string",
       "title": "Embedder source",
       "description": "Where the embedder comes from: auto uses the own embedding options where embedding_provider is set, else sdd's embedding configuration; sdd always uses sdd's; own never reads sdd. Under sdd's configuration no API key is sent; default auto",
+      "options": [
+        "auto",
+        "sdd",
+        "own"
+      ],
+      "default": "auto",
       "required": false
     },
     "embedding_provider": {
@@ -128,6 +134,11 @@
       "type": "string",
       "title": "Writing style",
       "description": "terse or plain: how agents write memory entries, the state and tool library notes; graph entries stay plain prose; default terse",
+      "options": [
+        "terse",
+        "plain"
+      ],
+      "default": "terse",
       "required": false
     },
     "tools_query_floor": {
@@ -160,6 +171,12 @@
       "type": "string",
       "title": "Scratch folder sweep",
       "description": "When a seat's .tmp/claude/<seat>/ folder goes: release (at agentic-memory release), session (when its session ends) or idle (only after a week unused); default release",
+      "options": [
+        "release",
+        "session",
+        "idle"
+      ],
+      "default": "release",
       "required": false
     },
     "grounding_gate_enabled": {
@@ -190,12 +207,24 @@
       "type": "string",
       "title": "Shell-guard: removals outside the project",
       "description": "ask, deny or off for an rm, rmdir, unlink or git rm reaching outside the project and /tmp, or a command whose name is not fixed text, passed arguments or able to split into words (an ask there refuses twice per session first); default ask",
+      "options": [
+        "ask",
+        "deny",
+        "off"
+      ],
+      "default": "ask",
       "required": false
     },
     "shell_guard_find_delete": {
       "type": "string",
       "title": "Shell-guard: find -delete",
       "description": "ask, deny or off for find ... -delete; default ask",
+      "options": [
+        "ask",
+        "deny",
+        "off"
+      ],
+      "default": "ask",
       "required": false
     },
     "shell_guard_lone_removal": {
@@ -232,12 +261,24 @@
       "type": "string",
       "title": "Shell-guard: credentials in a command",
       "description": "ask, deny or off for a Bash command holding what looks like a credential (a token, a key); an ask refuses twice per session first, so the agent can rewrite it; default ask",
+      "options": [
+        "ask",
+        "deny",
+        "off"
+      ],
+      "default": "ask",
       "required": false
     },
     "shell_guard_secret_output": {
       "type": "string",
       "title": "Shell-guard: credentials in tool output",
       "description": "all, files or off: withhold each line looking like a credential from tool output that comes from outside the project; files limits it to Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; default all",
+      "options": [
+        "all",
+        "files",
+        "off"
+      ],
+      "default": "all",
       "required": false
     },
     "shell_guard_secret_output_skip": {

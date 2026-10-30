@@ -75,15 +75,20 @@ func TestEveryDeclaredOptionIsReadAndNoConfigOnlyOneIsDeclared(t *testing.T) {
 	}
 }
 
-// A declared default reaches every hook as an answer, hiding config.yaml.
-func TestNoDeclaredOptionCarriesADefault(t *testing.T) {
+// Claude Code refuses a picker without a default and hands a hook no value for
+// an option nobody answered, so a picker's default is the built-in one and
+// config.yaml still decides; every other option declares none.
+func TestOnlyAPickerDeclaresADefaultAndOffersWhatTheReaderTakes(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(pluginRoot, ".claude-plugin", "plugin.json"))
 	if err != nil {
 		t.Fatalf("reading plugin.json: %v", err)
 	}
 
 	var manifest struct {
-		UserConfig map[string]map[string]json.RawMessage `json:"userConfig"`
+		UserConfig map[string]struct {
+			Default *string  `json:"default"`
+			Options []string `json:"options"`
+		} `json:"userConfig"`
 	}
 
 	err = json.Unmarshal(raw, &manifest)
@@ -91,11 +96,41 @@ func TestNoDeclaredOptionCarriesADefault(t *testing.T) {
 		t.Fatalf("parsing plugin.json: %v", err)
 	}
 
-	for key, declaration := range manifest.UserConfig {
-		_, declared := declaration["default"]
-		if declared {
-			t.Errorf("an option should name its default in its description and declare none: %s", key)
-		}
+	builtIn := pluginconfig.Defaults()
+
+	for key, declared := range manifest.UserConfig {
+		t.Run(key, func(t *testing.T) {
+			if declared.Options == nil {
+				if declared.Default != nil {
+					t.Error("an option offering no picker should name its default in its description and declare none")
+				}
+
+				return
+			}
+
+			if declared.Default == nil || *declared.Default != builtIn.Value(key) {
+				t.Errorf("a picker should declare the reader's built-in default, got %q", declaredText(declared.Default))
+			}
+
+			for _, value := range append(slices.Clone(declared.Options), "not-a-choice") {
+				options, err := pluginconfig.ReadWith(nil, func(name string) string {
+					if name == "CLAUDE_PLUGIN_OPTION_"+strings.ToUpper(key) {
+						return value
+					}
+
+					return ""
+				})
+
+				offered := slices.Contains(declared.Options, value)
+				if offered && (err != nil || options.Value(key) != value) {
+					t.Errorf("the reader should take every value the picker offers, %q gave %q, %v", value, options.Value(key), err)
+				}
+
+				if !offered && err == nil {
+					t.Errorf("the reader should refuse a value outside the picker, got %q", options.Value(key))
+				}
+			}
+		})
 	}
 }
 
@@ -183,4 +218,12 @@ func TestEveryNumberOptionIsBoundedAsTheReaderBoundsIt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func declaredText(value *string) string {
+	if value == nil {
+		return "(none)"
+	}
+
+	return *value
 }

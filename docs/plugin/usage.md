@@ -154,9 +154,14 @@ first:
    hook receives as `CLAUDE_PLUGIN_OPTION_<KEY>`;
 4. Claude Code's managed settings, last, so a machine lock always wins.
 
-An empty value counts as unset at every layer. The dialog declares no default: Claude Code would hand
-a declared default to every hook as an answer and hide `config.yaml`, so each description names its
-default instead.
+An empty value counts as unset at every layer. Each description names its default. Only a picker,
+an option with a fixed value set (`embedding_source`, `writing_style`, `scratch_sweep`,
+`shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets`,
+`shell_guard_secret_output`), declares one, since Claude Code refuses a picker without it; the
+declared default is always the built-in one. Claude Code hands a hook no value for an option nobody
+answered, a declared default included, so `config.yaml` still decides an unanswered picker. Every
+other option declares no default. `embedding_provider` stays a text field: unset, it means no own
+embedder, a state a picker could only hold under an invented value.
 
 **Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:
 `retired_body_lifetime`, `tools_version_lifetime`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value

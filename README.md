@@ -49,6 +49,9 @@ project's decision graph under `.sdd/`.
 
 ## Installing
 
+Needs Claude Code v2.1.271 or later: the plugin's option pickers need it, and an older Claude Code
+refuses to load the plugin.
+
 ```bash
 claude plugin marketplace add fza/agentic-helpers
 claude plugin install agentic-helpers@agentic-helpers
