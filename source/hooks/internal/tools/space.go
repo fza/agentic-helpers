@@ -489,6 +489,12 @@ func (lib *library) recordSpace(ctx context.Context) space.Figure {
 // over a store another process is writing, then brings every store still of
 // an earlier format to this one and gives it its size ledger.
 func Prune(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Duration, now time.Time) {
+	// The ledgers replace the one JSON file of sizes a release before them
+	// kept for the whole machine.
+	for _, legacy := range []string{".space.json", ".space.json.lock"} {
+		_ = os.Remove(filepath.Join(roots.Shared(home.Tools), legacy))
+	}
+
 	ids := storeIDs(roots)
 	if len(ids) == 0 {
 		return

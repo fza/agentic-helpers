@@ -3,13 +3,16 @@ package tools_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
@@ -252,6 +255,23 @@ func TestTheSessionStartPassPrunesEveryStore(t *testing.T) {
 
 	if figure := tools.Space(h.roots(), 1); figure.Used < 600<<10 || figure.Used > 601<<10 {
 		t.Errorf("the pass should record what is left in the ledger, got %d bytes used", figure.Used)
+	}
+}
+
+func TestTheSessionStartPassRemovesTheEarlierSizeFile(t *testing.T) {
+	h := newHarness(t)
+	shared := h.roots().Shared(home.Tools)
+
+	for _, legacy := range []string{".space.json", ".space.json.lock"} {
+		test.WriteFile(t, filepath.Join(shared, legacy), "{}")
+	}
+
+	tools.Prune(context.Background(), h.roots(), 500, 90*24*time.Hour, h.clock.Now())
+
+	for _, legacy := range []string{".space.json", ".space.json.lock"} {
+		if _, err := os.Lstat(filepath.Join(shared, legacy)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the pass should remove %s, which the ledgers replace", legacy)
+		}
 	}
 }
 
