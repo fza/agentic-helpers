@@ -292,7 +292,8 @@ func (mem *memory) purgeEverywhere(ctx context.Context) {
 	mem.sweepAttachments(ctx)
 
 	if pieces.Tools.On(mem.options()) {
-		tools.Prune(ctx, mem.env.Roots, mem.options().ToolsTotalMB)
+		options := mem.options()
+		tools.Prune(ctx, mem.env.Roots, options.ToolsTotalMB, options.ToolsVersionLifetime, mem.now())
 	}
 
 	grace, _ := home.Grace(mem.options().OrphanStoreGrace)

@@ -482,11 +482,12 @@ func (lib *library) recordSpace(ctx context.Context) space.Figure {
 	return Space(lib.env.Roots, lib.options.ToolsTotalMB)
 }
 
-// Prune is the SessionStart pass over every store on the machine: while the
-// stores hold more than limitMB, it prunes their oldest prunable versions,
-// passing over a store another process is writing, then brings every store
-// still of an earlier format to this one and gives it its size ledger.
-func Prune(ctx context.Context, roots home.Roots, limitMB int) {
+// Prune is the SessionStart pass over every store on the machine: it prunes
+// every prunable version replaced longer than lifetime before now, then, while
+// the stores hold more than limitMB, their oldest prunable versions, passing
+// over a store another process is writing, then brings every store still of
+// an earlier format to this one and gives it its size ledger.
+func Prune(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Duration, now time.Time) {
 	ids := storeIDs(roots)
 	if len(ids) == 0 {
 		return
@@ -513,6 +514,11 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int) {
 	}
 
 	named := origins(stores)
+
+	for _, version := range aged(stores, named, now.Add(-lifetime)) {
+		_ = pruneLocked(ctx, version, named, pruneLockWait)
+	}
+
 	limit := int64(limitMB) << 20
 
 	if recordedBytes(stores, named) > limit {
@@ -538,6 +544,48 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int) {
 			ledgerLocked(ctx, held, named, roots.StoreCache(held.key, home.Tools))
 		}
 	}
+}
+
+// aged is every prunable version its tool replaced before cutoff.
+func aged(stores []*store, named map[forkOrigin]bool, cutoff time.Time) []storedVersion {
+	var due []storedVersion
+
+	for _, held := range stores {
+		for _, version := range versionsOf(held, named) {
+			replaced, known := replacedAt(held.index.Tools[version.tool], version.v)
+			if version.prunable && known && replaced.Before(cutoff) {
+				due = append(due, version)
+			}
+		}
+	}
+
+	return due
+}
+
+// replacedAt is when version v stopped being its tool's current one: the
+// recorded write of the next version still stored. Counted from v's own write, a
+// version current for a year would go the moment an update replaced it,
+// taking the way back with it.
+func replacedAt(tool *indexed, v int) (time.Time, bool) {
+	var later []int
+
+	for folder := range tool.Written {
+		next, valid := versionNumber(folder)
+		if valid && next > v {
+			later = append(later, next)
+		}
+	}
+
+	slices.Sort(later)
+
+	for _, next := range later {
+		written, err := time.Parse(time.RFC3339, tool.Written[versionDir(next)])
+		if err == nil {
+			return written, true
+		}
+	}
+
+	return time.Time{}, false
 }
 
 // ledgerLocked refreshes a store's size ledger holding its lock, passing over

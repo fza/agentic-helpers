@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -243,7 +244,7 @@ func TestTheSessionStartPassPrunesEveryStore(t *testing.T) {
 		"--usage", "python3 the script < file")
 	h.must("update", "word-count", "--from", h.sized("words-two", 600), "--why", "faster")
 
-	tools.Prune(context.Background(), h.roots(), 1)
+	tools.Prune(context.Background(), h.roots(), 1, 90*24*time.Hour, h.clock.Now())
 
 	if h.stored("word-count/v1") || !h.stored("word-count/v2") {
 		t.Error("the pass should prune the oldest prunable version while the machine is past its limit")
@@ -259,7 +260,7 @@ func TestTheSpaceFigureIsTheIndexsRecordedSizes(t *testing.T) {
 	store := h.elsewhere(otherRepo).store()
 	test.FixtureTree(t, "tools/fdbox-library", store)
 
-	tools.Prune(context.Background(), h.roots(), 500)
+	tools.Prune(context.Background(), h.roots(), 500, 90*24*time.Hour, h.clock.Now())
 
 	if _, err := os.Stat(filepath.Join(store, "word-count", "v1")); err != nil {
 		t.Error("a pass with room under the limit should prune nothing")
@@ -276,7 +277,7 @@ func TestTheSpaceFigureIsTheIndexsRecordedSizes(t *testing.T) {
 	grown := filepath.Join(store, "word-count", "v2", "word_count.py")
 	test.WriteFile(t, grown, strings.Repeat("y", 64<<10))
 
-	tools.Prune(context.Background(), h.roots(), 500)
+	tools.Prune(context.Background(), h.roots(), 500, 90*24*time.Hour, h.clock.Now())
 
 	if got := tools.Space(h.roots(), 500).Used; got != want {
 		t.Errorf("space should come from the sizes the index recorded, never from the files on disk, got %d", got)
@@ -348,7 +349,7 @@ func TestAForeignIndexCannotTriggerPruning(t *testing.T) {
 				"--usage", "python3 the script < file", "--distinct", "rows, not words")
 			other.tamperIndex(tamper)
 
-			tools.Prune(context.Background(), h.roots(), 1)
+			tools.Prune(context.Background(), h.roots(), 1, 90*24*time.Hour, h.clock.Now())
 
 			if !h.stored("word-count/v1") {
 				t.Fatal("a pass with room on disk should prune nothing, whatever another store's index claims")
@@ -441,4 +442,62 @@ func TestANegativeSizeCannotDefeatTheLimit(t *testing.T) {
 
 	h.refused("no version is left to prune", "add", "line-count", "--from", h.sized("lines", 500), "--summary",
 		"Count the lines of a file", "--usage", "python3 the script < file", "--distinct", "lines, not words")
+}
+
+func TestTheSessionStartPassPrunesVersionsReplacedPastTheirLifetime(t *testing.T) {
+	h := newHarness(t)
+	other := h.elsewhere(otherRepo)
+
+	other.must("add", "row-tally", "--from", other.sized("tally-one", 20), "--summary", "Tally the rows of a table",
+		"--usage", "python3 the script < file")
+	h.must("update", "row-tally", "--from", h.sized("tally-fork", 20), "--why", "forked to count blank rows")
+	other.must("update", "row-tally", "--from", other.sized("tally-two", 20), "--why", "counts faster")
+
+	words := h.sized("words-one", 20)
+	h.must("add", "word-count", "--from", words, "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file", "--distinct", "words, not rows")
+	h.must("update", "word-count", "--from", h.sized("words-two", 20), "--why", "faster")
+
+	mark := h.clock.Now()
+	h.clock.Advance(4 * 24 * time.Hour)
+	h.must("update", "word-count", "--from", h.sized("words-three", 20), "--why", "fewer reads")
+
+	h.must("add", "line-count", "--from", h.sized("lines-one", 20), "--summary", "Count the lines of standard input",
+		"--usage", "python3 the script < file", "--distinct", "lines, not words")
+	h.must("update", "line-count", "--from", h.sized("lines-two", 20), "--why", "faster")
+
+	tools.Prune(context.Background(), h.roots(), 500, 90*24*time.Hour, mark.Add(91*24*time.Hour))
+
+	switch {
+	case h.stored("word-count/v1"):
+		t.Error("a version replaced past its lifetime should be pruned")
+	case !h.stored("line-count/v1"):
+		t.Error("a version replaced within its lifetime should stay")
+	case !h.stored("word-count/v2"):
+		t.Error("a version replaced within its lifetime should stay, whatever replaced its own replacement")
+	case !h.stored("word-count/v3") || !h.stored("line-count/v2"):
+		t.Error("a current version should never be pruned by age")
+	case !other.stored("row-tally/v1"):
+		t.Error("a fork's origin should never be pruned by age")
+	}
+
+	h.refused("byte for byte", "add", "word-tally", "--from", words, "--summary", "Tally the words of a text",
+		"--usage", "python3 the script < file", "--distinct", "tally")
+}
+
+func TestAVersionWithNoReadableReplacementKeepsItsPlace(t *testing.T) {
+	h := newHarness(t)
+	h.must("add", "word-count", "--from", h.sized("words-one", 20), "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file")
+	h.must("update", "word-count", "--from", h.sized("words-two", 20), "--why", "faster")
+
+	h.tamperIndex(func(tools map[string]map[string]any) {
+		tools["word-count"]["written"].(map[string]any)["v2"] = "not a time"
+	})
+
+	tools.Prune(context.Background(), h.roots(), 500, 90*24*time.Hour, h.clock.Now().Add(365*24*time.Hour))
+
+	if !h.stored("word-count/v1") {
+		t.Error("a version whose replacement time cannot be read should stay")
+	}
 }
