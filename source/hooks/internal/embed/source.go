@@ -3,6 +3,7 @@ package embed
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -17,21 +18,23 @@ type Sdd interface {
 	EmbeddingConfig(ctx context.Context, dir string) string
 }
 
-// ErrProjectEndpoint refuses sdd's embedder where its endpoint comes from the
-// repository's committed `.sdd/config.yaml`: a clone would choose where every
-// memory entry and prompt is sent.
-var ErrProjectEndpoint = errors.New("sdd's embedding endpoint is set in this repository's .sdd/config.yaml")
+// ErrRepositoryEndpoint refuses sdd's embedder where its endpoint comes from a
+// layer inside the repository: a clone would choose where every memory entry
+// and prompt is sent.
+var ErrRepositoryEndpoint = errors.New("sdd's embedding endpoint is set in this repository's .sdd/")
 
-// projectLayer is the layer sdd names the repository's committed
-// `.sdd/config.yaml`.
-const projectLayer = "project"
+// trustedLayers are sdd's layers living outside any repository: the user's
+// global configuration and sdd's built-in defaults. Every other layer, the
+// committed `.sdd/config.yaml`, the `.sdd/config.local.yaml` a repository can
+// commit as well, and any layer a later sdd adds, is the repository's.
+var trustedLayers = []string{"global", "default"}
 
 // sddLine is one line of `sdd config get embedding`: the key below
 // `embedding.`, its value, then the layer it comes from in parentheses.
 var sddLine = regexp.MustCompile(`^embedding\.(\S+)\s+(.*?)\s+\(([^()]*)\)$`)
 
 // parseSdd is sdd's embedding block by key, and the layer each key comes
-// from.
+// from; nothing where a key is printed twice, which sdd never does.
 func parseSdd(text string) (map[string]string, map[string]string) {
 	block, layers := map[string]string{}, map[string]string{}
 
@@ -39,6 +42,11 @@ func parseSdd(text string) (map[string]string, map[string]string) {
 		parts := sddLine.FindStringSubmatch(strings.TrimSpace(line))
 		if parts == nil {
 			continue
+		}
+
+		_, twice := block[parts[1]]
+		if twice {
+			return nil, nil
 		}
 
 		block[parts[1]], layers[parts[1]] = parts[2], parts[3]
@@ -61,8 +69,10 @@ func Settle(ctx context.Context, own Config, fromSdd bool, sdd Sdd, dir string) 
 	}
 
 	block, layers := parseSdd(sdd.EmbeddingConfig(ctx, dir))
-	if layers["endpoint"] == projectLayer {
-		return Config{}, ErrProjectEndpoint
+
+	layer, set := layers["endpoint"]
+	if set && !slices.Contains(trustedLayers, layer) {
+		return Config{}, fmt.Errorf("%w (layer %s)", ErrRepositoryEndpoint, layer)
 	}
 
 	config := Config{
