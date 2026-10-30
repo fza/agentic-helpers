@@ -20,7 +20,7 @@ how to install it; [`docs/`](docs/index.md) says how each piece is used and how 
 |---|---|
 | `source/hooks/` | one Go module: a binary per hook, `agentic-capture`, `agentic-memory`, `agentic-tools` and `agentic-helpers` (the plugin's own `check`, and `bound` standing in for a missing `timeout`) under `cmd/`, everything else under `internal/`, the pieces and their ties in `internal/pieces` |
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
-| `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` and `tools` MCP servers), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds) and `skills/`, one per hook, shipped as `agentic-helpers:<skill>` |
+| `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` and `tools` MCP servers), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds), `skills/`, one per hook, shipped as `agentic-helpers:<skill>`, and `README.md`, saying what the plugin runs, sends, writes and decides |
 | `docs/` | one folder per piece, each with `usage.md` and `architecture.md` |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 

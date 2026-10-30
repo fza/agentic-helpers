@@ -12,6 +12,7 @@
 | `plugin/.mcp.json` | the `memory` and `tools` MCP servers, each started through the launcher |
 | `plugin/bin/` | the commands the Bash tool finds, each handing its call to the launcher |
 | `plugin/skills/` | one skill per hook |
+| `plugin/README.md` | what the plugin is, and everything it runs, sends, writes and decides, for a user reading the installed plugin |
 | `source/hooks/` | one Go module: a binary per hook and command under `cmd/`, everything else under `internal/` |
 
 Claude Code loads every component it finds at a plugin's root, so nothing but the plugin's own
