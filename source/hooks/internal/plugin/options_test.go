@@ -2,9 +2,11 @@ package plugin_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -94,5 +96,91 @@ func TestNoDeclaredOptionCarriesADefault(t *testing.T) {
 		if declared {
 			t.Errorf("an option should name its default in its description and declare none: %s", key)
 		}
+	}
+}
+
+type boundedOption struct {
+	Type string   `json:"type"`
+	Min  *float64 `json:"min"`
+	Max  *float64 `json:"max"`
+}
+
+// readOption is the value the option reader settles on for key answered
+// with value, and whether it accepted the answer at all.
+func readOption(key string, value float64) (float64, bool) {
+	options, err := pluginconfig.ReadWith(nil, func(name string) string {
+		if name == "CLAUDE_PLUGIN_OPTION_"+strings.ToUpper(key) {
+			return strconv.FormatFloat(value, 'f', -1, 64)
+		}
+
+		return ""
+	})
+	if err != nil {
+		return 0, false
+	}
+
+	read, err := strconv.ParseFloat(options.Value(key), 64)
+
+	return read, err == nil
+}
+
+// The dialog offers only what the option reader keeps: a bound accepted, a
+// value beyond it refused or clamped back inside. A minimum is the static
+// floor: a reader raising one option to another's value (attachments_total_mb
+// to attachment_max_mb) keeps it at least there.
+func TestEveryNumberOptionIsBoundedAsTheReaderBoundsIt(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(pluginRoot, ".claude-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatalf("reading plugin.json: %v", err)
+	}
+
+	var manifest struct {
+		UserConfig map[string]boundedOption `json:"userConfig"`
+	}
+
+	err = json.Unmarshal(raw, &manifest)
+	if err != nil {
+		t.Fatalf("parsing plugin.json: %v", err)
+	}
+
+	for key, declared := range manifest.UserConfig {
+		if declared.Type != "number" {
+			continue
+		}
+
+		t.Run(key, func(t *testing.T) {
+			if declared.Min == nil {
+				t.Fatal("a number option should declare its lower bound")
+			}
+
+			step := 1.0
+			if *declared.Min != math.Trunc(*declared.Min) {
+				step = *declared.Min
+			}
+
+			bounds := []float64{*declared.Min}
+			if declared.Max != nil {
+				bounds = append(bounds, *declared.Max)
+			}
+
+			for index, bound := range bounds {
+				read, accepted := readOption(key, bound)
+				if !accepted || read < *declared.Min || (index == 1 && read != bound) {
+					t.Errorf("the reader should keep a bound the dialog offers, got %v, accepted %t", read, accepted)
+				}
+			}
+
+			read, accepted := readOption(key, *declared.Min-step)
+			if accepted && read < *declared.Min {
+				t.Errorf("the reader should refuse or raise a value below the declared minimum, got %v", read)
+			}
+
+			if declared.Max != nil {
+				read, accepted = readOption(key, *declared.Max+step)
+				if accepted && read > *declared.Max {
+					t.Errorf("the reader should refuse or lower a value above the declared maximum, got %v", read)
+				}
+			}
+		})
 	}
 }
