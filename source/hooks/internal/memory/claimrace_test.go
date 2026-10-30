@@ -163,7 +163,7 @@ func TestAServerSeesAShelfMadeAfterItStarted(t *testing.T) {
 	other.must("", "claim", "impl", "--shelf", "board")
 
 	answer := server.call("who", `{}`)
-	if !strings.Contains(answer, `"shelf":"board"`) {
+	if !strings.Contains(answer, "shelf board") {
 		t.Errorf("a server should name a shelf made after it started: %s", answer)
 	}
 }

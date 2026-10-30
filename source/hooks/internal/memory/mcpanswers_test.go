@@ -139,7 +139,7 @@ func TestNoToolListsTheJSONKey(t *testing.T) {
 }
 
 func TestEveryToolAnswersItsShape(t *testing.T) {
-	reads := []string{"show", "search", "brief", "view", "topics", "who"}
+	reads := []string{"show", "topics"}
 
 	h := newHarness(t)
 	h.must("", "claim", "impl")
@@ -156,8 +156,13 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 		}
 
 		answer := decoded(t, mcpText(t, answers))
-		if _, message := answer["message"]; !slices.Contains(reads, tool) && (!message || len(answer) != 1) {
-			t.Errorf("the %s write should answer its message alone, no fields repeating it: %v", tool, answer)
+		_, message := answer["message"]
+		if !slices.Contains(reads, tool) && (!message || len(answer) != 1) {
+			t.Errorf("the %s call should answer its message alone, no fields repeating it: %v", tool, answer)
+		}
+
+		if slices.Contains(reads, tool) && message {
+			t.Errorf("the %s read should answer its JSON object, not its text: %v", tool, answer)
 		}
 
 		return answer
@@ -253,7 +258,7 @@ func TestAMessageIsTheCommandLineText(t *testing.T) {
 }
 
 func TestTheViewShapeTypesGroupedSections(t *testing.T) {
-	if schema := string(memory.AnswerSchema("view")); !strings.Contains(schema, `"groups"`) || !strings.Contains(schema, `"expanded"`) {
+	if schema := string(memory.JSONSchema("view")); !strings.Contains(schema, `"groups"`) || !strings.Contains(schema, `"expanded"`) {
 		t.Errorf("view's answer shape should type grouped sections and expanded entries: %s", schema)
 	}
 }
@@ -275,4 +280,41 @@ func TestTheViewLayoutKeyNamesEveryRenderWord(t *testing.T) {
 	if !strings.Contains(listed, "ending in "+words+";") {
 		t.Errorf("view's layout key should name the render words its refusal names (%s):\n%s", words, listed)
 	}
+}
+
+func TestReadsAnswerTheirTextOverMCP(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.file("Gate finding read as text", "body", "--kind", "trap")
+	h.file("Gate note read as text", "body")
+
+	reads := []struct {
+		args []string
+		call string
+	}{
+		{[]string{"search", "--term", "Gate", "--again", "--no-heat"}, `{"name":"search","arguments":{"term":["Gate"],"again":true,"no_heat":true}}`},
+		{[]string{"brief", "--again"}, `{"name":"brief","arguments":{"again":true}}`},
+		{[]string{"view", "--layout", "active:as-list", "--again"}, `{"name":"view","arguments":{"layout":"active:as-list","again":true}}`},
+		{[]string{"who", "--all"}, `{"name":"who","arguments":{"all":true}}`},
+	}
+
+	for _, read := range reads {
+		t.Run(read.args[0], func(t *testing.T) {
+			answer := decoded(t, mcpText(t, h.mcp(read.call)))
+			message, _ := answer["message"].(string)
+
+			if len(answer) != 1 || message != strings.TrimRight(h.must("", read.args...), "\n") {
+				t.Errorf("the %s read should answer the text the command prints, as its message alone: %v", read.args[0], answer)
+			}
+		})
+	}
+}
+
+// mcpMessage is the message an MCP answer carries.
+func mcpMessage(t *testing.T, answers string) string {
+	t.Helper()
+
+	message, _ := decoded(t, mcpText(t, answers))["message"].(string)
+
+	return message
 }

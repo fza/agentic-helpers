@@ -355,8 +355,9 @@ func TestViewJSONGroupsAndExpands(t *testing.T) {
 		t.Error("a section without expand should carry no expanded key")
 	}
 
-	if mcp := h.mcp(`{"name":"view","arguments":{"layout":"active:kind(rule,trap):group(by(kind)):as-grouped"}}`); !strings.Contains(mcp, `"groups"`) {
-		t.Errorf("MCP view should answer the groups too, got %s", mcp)
+	layout := "active:kind(rule,trap):group(by(kind)):as-grouped"
+	if mcp := mcpMessage(t, h.mcp(`{"name":"view","arguments":{"layout":"`+layout+`","again":true}}`)); mcp != strings.TrimRight(h.must("", "view", "--layout", layout, "--again"), "\n") {
+		t.Errorf("MCP view should answer the grouped text the command prints, got %s", mcp)
 	}
 }
 

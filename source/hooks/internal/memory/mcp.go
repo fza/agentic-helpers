@@ -81,6 +81,12 @@ func (mem *memory) unofferedByMCP(name string, arguments json.RawMessage) string
 	return ""
 }
 
+// mcpJSONReads are the reads answering their --json object over MCP. The
+// others answer their text, which carries every value an agent acts on at a
+// fraction of the JSON's size; show's JSON is no larger than its text, and
+// topics is a short count.
+var mcpJSONReads = []string{"show", "topics"}
+
 func (mem *memory) callTool(ctx context.Context, held command, arguments json.RawMessage) mcpserver.Result {
 	// Another session mints, renames and shelves seats while this server runs,
 	// so every call reads the registries afresh.
@@ -114,7 +120,7 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 		return mcpserver.Refusal(fmt.Sprintf("%s: the arguments do not fit %s: %v", self, held.name, err))
 	}
 
-	read := slices.Contains(jsonReads, held.name)
+	read := slices.Contains(mcpJSONReads, held.name)
 	req.JSON = read
 
 	if req.ID != "" && len(req.IDs) == 0 {
