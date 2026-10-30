@@ -601,7 +601,8 @@ func TestAnUntouchedDialogSaveResolvesAsNoAnswer(t *testing.T) {
 	config := filepath.Join(dir, "config.yaml")
 	user := filepath.Join(dir, "settings.json")
 
-	test.WriteFile(t, config, "memory_enabled: false\nwriting_style: plain\nshell_guard_secrets: deny\nscratch_sweep: idle\n")
+	test.WriteFile(t, config, "memory_enabled: false\nwriting_style: plain\nshell_guard_secrets: deny\nscratch_sweep: idle\n"+
+		"embedding_provider: off\nembedding_source: own\n")
 	test.WriteFile(t, user, test.Fixture(t, "pluginconfig/untouched-save.json"))
 
 	saved, err := pluginconfig.Resolve([]string{config, user}, nil)

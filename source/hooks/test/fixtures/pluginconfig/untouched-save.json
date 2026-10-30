@@ -3,6 +3,7 @@
     "agentic-helpers@agentic-helpers": {
       "options": {
         "embedding_source": "auto",
+        "embedding_provider": "auto",
         "memory_require_git": true,
         "memory_turns_off_auto": true,
         "writing_style": "terse",

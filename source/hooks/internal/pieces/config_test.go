@@ -51,7 +51,8 @@ func TestConfigListsEveryKeyWithItsLayer(t *testing.T) {
 		"entry_max_words                 600  (config.yaml)\n",
 		"memory_language                 de  (user settings)\n",
 		"retired_body_lifetime           120d  (config.yaml, never a plugin option)\n",
-		"embedding_provider              \"\"  (default)\n",
+		"embedding_provider              auto  (default)\n",
+		"embedding_model                 \"\"  (default)\n",
 		"temporary_seat_lifetime         1d  (default, never a plugin option)\n",
 		"orphan_store_grace              30d  (default, never a plugin option)\n",
 		"problem: " + env.Settings[0] + ": brief_note_limit: not a number",
@@ -168,16 +169,15 @@ func TestConfigYAMLLoosensNoGuardAndSetsNoEmbedderKey(t *testing.T) {
 	}
 }
 
-// sddEmbedding is an sdd printing a fixed embedding block, or none.
-type sddEmbedding string
-
-func (block sddEmbedding) EmbeddingConfig(_ context.Context, _ string) string {
-	return string(block)
-}
-
 const projectEndpointLine = "agentic-helpers: sdd's embedding endpoint is set in this repository's .sdd/ (layer project), " +
 	"which a clone can bring along; search by meaning stays off until `sdd config set` sets it in sdd's global layer, " +
 	"or embedding_provider and embedding_endpoint set one here\n"
+
+// sourceLine is the line naming an embedding_source a layer sets.
+func sourceLine(value string, layer string) string {
+	return "agentic-helpers: embedding_source is " + value + " (" + layer + ") and still applies; " +
+		"embedding_provider replaces it: auto, openai, ollama or off\n"
+}
 
 func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) {
 	const block = "embedding.provider  ollama  (global)\nembedding.model  nomic  (global)\n"
@@ -186,31 +186,61 @@ func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) 
 		name    string
 		config  string
 		options string
-		sdd     sddEmbedding
+		sdd     string
 		want    string
+		asked   int
 	}{
-		{name: "auto says nothing", options: `"embedding_model":"own"`, want: ""},
-		{name: "auto with no sdd block says nothing", options: `"memory_language":"de"`, want: ""},
+		{name: "auto says nothing", options: `"embedding_model":"own"`, want: "", asked: 1},
+		{name: "auto with no sdd block says nothing", options: `"memory_language":"de"`, want: "", asked: 1},
 		{
 			name: "auto on an endpoint the repository sets", options: `"memory_language":"de"`,
-			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: projectEndpointLine,
+			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: projectEndpointLine, asked: 1,
 		},
 		{
 			name: "sdd on an endpoint the repository sets", config: "embedding_source: sdd\n", options: `"memory_language":"de"`,
-			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: projectEndpointLine,
+			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: sourceLine("sdd", "config.yaml") + projectEndpointLine,
+			asked: 1,
 		},
 		{
 			name: "own on an endpoint the repository sets", config: "embedding_source: own\n", options: `"memory_language":"de"`,
-			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: "",
+			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: sourceLine("own", "config.yaml"),
 		},
-		{name: "sdd with sdd's block and no own key", config: "embedding_source: sdd\n", options: `"memory_language":"de"`, sdd: block, want: ""},
+		{
+			name: "sdd with sdd's block and no own key", config: "embedding_source: sdd\n", options: `"memory_language":"de"`, sdd: block,
+			want: sourceLine("sdd", "config.yaml"), asked: 1,
+		},
 		{
 			name: "sdd with own keys set", config: "embedding_source: sdd\nembedding_timeout: 30s\n", options: `"embedding_model":"own"`, sdd: block,
-			want: "agentic-helpers: embedding_source is sdd; embedding_model, embedding_timeout ignored\n",
+			want:  sourceLine("sdd", "config.yaml") + "agentic-helpers: embedding_source is sdd; embedding_model, embedding_timeout ignored\n",
+			asked: 1,
+		},
+		{
+			name: "sdd with an own provider set", config: "embedding_source: sdd\nembedding_provider: openai\n", options: `"memory_language":"de"`,
+			sdd: block, want: sourceLine("sdd", "config.yaml") + "agentic-helpers: embedding_source is sdd; embedding_provider ignored\n",
+			asked: 1,
+		},
+		{
+			name: "sdd with the provider at auto", config: "embedding_source: sdd\nembedding_provider: auto\n", options: `"memory_language":"de"`,
+			sdd: block, want: sourceLine("sdd", "config.yaml"), asked: 1,
 		},
 		{
 			name: "sdd answering no block", config: "embedding_source: sdd\n", options: `"memory_language":"de"`,
-			want: "agentic-helpers: embedding_source is sdd, but sdd sets no embedder here; search by meaning is off\n",
+			want:  sourceLine("sdd", "config.yaml") + "agentic-helpers: embedding_source is sdd, but sdd sets no embedder here; search by meaning is off\n",
+			asked: 1,
+		},
+		{
+			name: "sdd under an off provider", config: "embedding_source: sdd\nembedding_provider: off\n", options: `"embedding_model":"own"`,
+			sdd: block, want: sourceLine("sdd", "config.yaml"),
+		},
+		{
+			name: "an off provider on an endpoint the repository sets", config: "embedding_provider: off\n", options: `"memory_language":"de"`,
+			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: "",
+		},
+		{
+			name: "a source the dialog saved", options: `"embedding_source":"own"`, sdd: block, want: sourceLine("own", "user settings"),
+		},
+		{
+			name: "a source the dialog saved untouched", options: `"embedding_source":"auto"`, sdd: block, want: "", asked: 1,
 		},
 	}
 
@@ -218,7 +248,8 @@ func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) 
 		t.Run(tc.name, func(t *testing.T) {
 			env := layeredEnv(t, tc.config, tc.options)
 			env.Hook = true
-			env.SddConfig = tc.sdd
+			sdd := &test.SddEmbedding{Block: tc.sdd}
+			env.SddConfig = sdd
 
 			var captured test.Captured
 
@@ -228,7 +259,11 @@ func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) 
 			}
 
 			if out := captured.Out.String(); out != tc.want {
-				t.Errorf("a session start should name exactly what an sdd source leaves unused, got %q", out)
+				t.Errorf("a session start should name a set source and exactly what an sdd source leaves unused, got %q", out)
+			}
+
+			if sdd.Asked() != tc.asked {
+				t.Errorf("the session start should run sdd only where its block applies, ran %d times", sdd.Asked())
 			}
 		})
 	}

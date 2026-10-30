@@ -222,7 +222,10 @@ The plugin option `tools_query_floor` sets the cosine a search or a prompt must 
 tool as near, 0.45 unless set; `tools_duplicate_floor` sets the near-duplicate cosine, 0.85 unless
 set. Both depend on the embedder: with `embeddinggemma-300m`, paraphrases of a tool's purpose score
 about 0.50 to 0.63 against it and unrelated needs about 0.35 to 0.38. The embedding options are
-agentic-memory's own.
+agentic-memory's own: `embedding_provider` `auto` (the default) follows sdd's embedder, `openai` and
+`ollama` use the own `embedding_*` options, and `off` uses none and never runs sdd for one. Off, the
+library offers no tools at a prompt, refuses `find --query`, and `add` skips the near-duplicate
+description check; `find --term`, `add`, `update` and the byte-identical file check keep working.
 
 ## Off on the machine
 

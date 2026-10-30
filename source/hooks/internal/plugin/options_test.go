@@ -67,12 +67,27 @@ func TestTheReadmeListsEveryOption(t *testing.T) {
 
 func TestEveryDeclaredOptionIsReadAndNoConfigOnlyOneIsDeclared(t *testing.T) {
 	read := slices.DeleteFunc(slices.Clone(pluginconfig.Keys), func(key string) bool {
-		return slices.Contains(pluginconfig.ConfigOnly, key)
+		return slices.Contains(pluginconfig.ConfigOnly, key) || slices.Contains(pluginconfig.Undeclared, key)
 	})
 	slices.Sort(read)
 
 	if !slices.Equal(read, userConfigKeys(t)) {
-		t.Errorf("the plugin should declare every option it reads but those config.yaml alone sets, read %v", read)
+		t.Errorf("the plugin should declare every option it reads but those config.yaml alone sets and those it no longer offers, read %v", read)
+	}
+}
+
+// embedding_source left the dialog for embedding_provider and is the one key
+// read without being declared. Made ConfigOnly instead, its saved dialog
+// answers would stop applying.
+func TestOnlyTheEmbeddingSourceIsReadWithoutBeingDeclared(t *testing.T) {
+	if !slices.Equal(pluginconfig.Undeclared, []string{"embedding_source"}) {
+		t.Errorf("only embedding_source should be read without being declared, got %v", pluginconfig.Undeclared)
+	}
+
+	for _, key := range pluginconfig.Undeclared {
+		if !slices.Contains(pluginconfig.Keys, key) || slices.Contains(pluginconfig.ConfigOnly, key) {
+			t.Errorf("%s should stay read from every layer, a saved dialog answer included", key)
+		}
 	}
 }
 
@@ -134,6 +149,13 @@ func TestOnlyABooleanOrPickerDeclaresADefaultAndAPickerOffersWhatTheReaderTakes(
 
 				if !offered && err == nil {
 					t.Errorf("the reader should refuse a value outside the picker, got %q", options.Value(key))
+				}
+
+				// The refusal names every value the reader takes, so the picker
+				// offering fewer shows here.
+				_, accepted, named := strings.Cut(fmt.Sprint(err), " is none of ")
+				if !offered && declared.Options != nil && (!named || accepted != strings.Join(declared.Options, ", ")) {
+					t.Errorf("the picker should offer every value the reader takes, the reader said %v", err)
 				}
 			}
 		})

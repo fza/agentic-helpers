@@ -86,8 +86,8 @@ type Env struct {
 	// whether the sdd on the PATH has `export` at all, nil taking it as given.
 	Graph GraphExporter
 	Sdd   *sddcaps.Probe
-	// SddConfig reads sdd's embedding block, which `embedding_source` may
-	// choose; nil reads none.
+	// SddConfig reads sdd's embedding block, which an `auto` provider or an
+	// `sdd` source chooses; nil reads none.
 	SddConfig embed.Sdd
 	// WaitPoll and WaitDeadline pace the idle waiter; zero takes every 5
 	// seconds for 30 minutes.

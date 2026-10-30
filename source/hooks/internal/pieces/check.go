@@ -185,18 +185,26 @@ func listing(options pluginconfig.Options) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// embeddingLines names what an `sdd` embedding source leaves unused: the own
-// embedding keys some layer sets, and sdd answering no embedding block, which
-// leaves search by meaning off. `auto` and `own` say nothing: falling back to
-// no embedder is the state the options describe.
+// embeddingLines names an `embedding_source` some layer still sets, which the
+// plugin's dialog no longer offers, and what an `sdd` embedding source leaves
+// unused: the own embedding keys some layer sets, and sdd answering no
+// embedding block, which leaves search by meaning off. `auto` and `own` say
+// nothing more, nor does an `off` provider: falling back to no embedder is the
+// state the options describe.
 func embeddingLines(ctx context.Context, env Env, resolution pluginconfig.Resolution) []string {
+	var lines []string
+
+	layer := resolution.From["embedding_source"]
+	if layer != "" {
+		lines = append(lines, fmt.Sprintf("embedding_source is %s (%s) and still applies; embedding_provider replaces it: "+
+			"auto, openai, ollama or off", resolution.Options.EmbeddingSource, layer))
+	}
+
 	if !resolution.Options.EmbeddingFromSdd() {
-		return nil
+		return lines
 	}
 
 	underSdd := resolution.Options.EmbeddingSource == pluginconfig.EmbeddingSourceSdd
-
-	var lines []string
 
 	ignored := resolution.IgnoredEmbedding()
 	if underSdd && len(ignored) > 0 {
