@@ -65,6 +65,8 @@ agentic-memory private on|off      # hide this seat from other projects' who --a
   or `private on`. Its `who` line ends `private`; other projects' `who --all` never shows it.
 - Claim turns Claude Code's auto memory off for the project from the next session; relay nothing
   beyond what the claim printed.
+- **`agentic-helpers: release <new> is out, this machine runs <old>`** in a claim → tell the user in
+  prose, in their language: both versions, the update command, the auto-update snippet, the option.
 - **Resumed session → seated at SessionStart; fork → at its first tool call.** A memory write as a
   fork's first call is refused for want of a seat; send it again. No claim either way.
 - **`agentic-memory: seat moved from <old> to <new> (shelf <name>)`** at a hook → a launcher moved

@@ -23,6 +23,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
+	"github.com/fza/agentic-helpers/source/hooks/internal/updates"
 )
 
 var version = "dev"
@@ -87,6 +88,7 @@ func main() {
 		Terminal:  hookio.Terminal{File: os.Stdin},
 		Tmp:       "/tmp",
 		Idle:      migration.Idle(machine),
+		Releases:  &http.Client{Timeout: updates.RequestTimeout},
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

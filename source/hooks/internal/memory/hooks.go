@@ -1141,7 +1141,7 @@ func (mem *memory) inherit(ctx context.Context, payload hookio.Payload) string {
 		mem.env.SessionID = payload.SessionID
 	}
 
-	req := request{}
+	req := request{inherited: true}
 
 	switch {
 	case gone != "":

@@ -96,6 +96,9 @@ type request struct {
 	Clear          bool     `json:"clear,omitempty"`
 
 	given map[string]bool
+	// inherited marks a claim a hook makes for a resumed or forked session,
+	// which the user never asked for.
+	inherited bool
 }
 
 type result struct {

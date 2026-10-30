@@ -236,6 +236,10 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		lines = append(lines, hint)
 	}
 
+	if !req.inherited {
+		lines = append(lines, mem.updateNotice(ctx)...)
+	}
+
 	used := len(strings.Join(lines, "\n"))
 
 	if hadPrevious {

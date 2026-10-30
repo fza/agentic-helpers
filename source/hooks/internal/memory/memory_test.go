@@ -62,6 +62,10 @@ type harness struct {
 	// terminal is the call's standard input; nil counts every call as an
 	// agent's, as a run without one does.
 	terminal memory.Terminal
+	// releases stands for GitHub's releases API and version for the running
+	// build; nil asks nothing, and an empty version is no release.
+	releases *test.Releases
+	version  string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -150,14 +154,20 @@ func (h *harness) cacheDir() string {
 }
 
 func (h *harness) env() memory.Env {
-	return memory.Env{
+	env := memory.Env{
 		Base: cmp.Or(h.base, h.repo), Home: h.home, Roots: h.roots(), CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.config, h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
 		Random: cmp.Or[io.Reader](h.draws, test.Random()), Processes: h.processes, Checkout: h.lookup(),
-		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test",
+		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: cmp.Or(h.version, "test"),
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,
 		CompactWindow: h.compactWindow, Terminal: h.terminal,
 	}
+
+	if h.releases != nil {
+		env.Releases = h.releases
+	}
+
+	return env
 }
 
 type ran struct {

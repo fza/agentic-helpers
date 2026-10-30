@@ -18,6 +18,7 @@
 └── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
 <data>/stores/<id>/identity.json                        the store's checkouts and identifiers (internal/home)
 <data>/sessions/claude/<session>/context.json           the context reading the plugin writes, with the compaction window
+<data>/update-check.json                                the latest release GitHub named, when it was asked, the day the notice showed
 <data>/attachments/<sha256>[.gz]                        every project's attached files, once each
 <data>/attachments/.ledger                              the size ledger: each stored file, its length, crc32c and the size its attach recorded
 <cache>/stores/<id>/memory/                             vectors, heat, the folded log, anchor hashes: rebuilt at will
@@ -439,6 +440,34 @@ Every hook exits at once in a project without a store.
 | Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then, near compaction only, holds it once for a state write when work shipped since the seat's last one; then holds it with the backstop once the nudge has gone unanswered twice and the context crossed the line; every hold is Stop `additionalContext` with exit 0, which continues the turn as exit 2 would without the hook error exit 2 shows the user |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
 | SessionEnd (`session-end`) | removes the session's context reading; writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
+
+## The update check
+
+`internal/updates` decides the claim's notice of a newer release
+([usage](usage.md#a-newer-release)). `claim` asks it last, after the carry-forward hint, only for a
+claim the caller makes for itself: `claimFor` answers a `--session` claim before reaching it, and
+the claim SessionStart, a prompt or a tool call makes for a resumed or forked session carries the
+request's unexported `inherited` mark, which neither the CLI nor the MCP arguments can set.
+
+The check reads in order of cost and stops at the first no: the option, then whether the running
+version is three numbers (a `go install` build or a pre-release is none), then every settings file
+and `known_marketplaces.json` for an `agentic-helpers` entry turning `autoUpdate` on or naming a
+`ref` or `sha`, so a machine that never shows the notice never touches the network. It then takes
+`<data>/.update-check.lock` without waiting; a claim finding it held shows nothing, so two claims at
+once neither ask twice nor both show the notice. Under the lock it reads `<data>/update-check.json`:
+
+```json
+{"checked": "2026-10-30T21:00:00+01:00", "latest": "v2.18.0", "shown": "2026-10-30"}
+```
+
+`shown` equal to today's local date ends the check. A `checked` 24 hours old or more sends one GET,
+bounded by a 3-second context and the client's own 3-second timeout, and records the time and the
+tag, an empty tag for a failed or refused request or an answer naming no `tag_name`, so a failure
+waits a day like an answer. A newer tag sets `shown` and returns the lines. The cache is replaced
+whole through `internal/safefs`; one that does not parse reads as never checked.
+
+The client is an interface (`Do`), `net/http`'s client in the binary and `test.Releases` in the
+tests, and a nil client in memory's `Env` shows nothing, so no test reaches GitHub.
 
 ## MCP answers
 

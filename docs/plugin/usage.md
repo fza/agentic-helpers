@@ -32,6 +32,7 @@ every agent and every worktree of the project shares:
 | `<data>/index.json` | a cache of every identity, rebuilt whenever it is missing or disagrees with one |
 | `<data>/unclaimed/<id>/` | data whose checkout cannot be found, kept under the key an earlier release used |
 | `<data>/sessions/claude/<session>/` | what one session leaves, as its context reading |
+| `<data>/update-check.json` | the latest release GitHub named, when it was asked, and the day the update notice showed ([updates](#updates)) |
 | `<git common dir>/agentic-store` | the id of the checkout's store |
 
 Each component keeps what changes often in binary files: what a session or seat keeps between hook
@@ -258,6 +259,23 @@ Every binary reads `config.yaml`, then `settings.json` under `CLAUDE_CONFIG_DIR`
 then, in a hook, the options Claude Code hands it as `CLAUDE_PLUGIN_OPTION_<KEY>`, then the managed
 settings and their `managed-settings.d/` drop-ins in name order, as Claude Code merges them. The
 managed settings come last, so no environment overrides what a machine locks.
+
+## Updates
+
+Claude Code leaves plugin auto-update off for every third-party marketplace, and a marketplace's
+`marketplace.json` has no field to change that. A machine takes a new release by
+`claude plugin update agentic-helpers@agentic-helpers`, effective from the next session, or turns
+auto-update on for the marketplace in `~/.claude/settings.json`:
+
+```json
+{"extraKnownMarketplaces": {"agentic-helpers": {"source": {"source": "github", "repo": "fza/agentic-helpers"}, "autoUpdate": true}}}
+```
+
+While auto-update is off and the marketplace is not pinned to a ref, a seat claim says once a local
+day that a newer release is out, and the agent relays both ways to the user
+([memory usage](../memory/usage.md#a-newer-release)). The plugin option `update_notice` (boolean,
+`true` unless set) turns that notice off, and with it the once-a-day request to GitHub. The plugin
+never writes `autoUpdate` into any settings file itself.
 
 ## The skills
 

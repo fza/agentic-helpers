@@ -61,9 +61,16 @@ claude plugin install agentic-helpers@agentic-helpers
   `/plugin install agentic-helpers --marketplace fza/agentic-helpers`.
 - **To pin a release**, add the marketplace as `fza/agentic-helpers#v<version>`.
 - **Installed at user scope**, the plugin runs in every project on the machine.
-- **To update**, run `claude plugin update agentic-helpers@agentic-helpers`. The update takes effect
-  in the next session, or after `/reload-plugins`. Auto-update is off by default; turn it on under
-  `/plugin`, Marketplaces.
+- **Turn auto-update on**, so every release arrives by itself. Claude Code leaves it off for this
+  marketplace; add this to `~/.claude/settings.json` (or turn it on under `/plugin`, Marketplaces):
+
+  ```json
+  {"extraKnownMarketplaces": {"agentic-helpers": {"source": {"source": "github", "repo": "fza/agentic-helpers"}, "autoUpdate": true}}}
+  ```
+
+- **To update by hand**, run `claude plugin update agentic-helpers@agentic-helpers`. The update takes
+  effect in the next session, or after `/reload-plugins`. While auto-update is off, a seat claim
+  says once a day that a newer release is out; `update_notice: false` silences it.
 
 ### sdd, for projects with a graph
 
@@ -215,6 +222,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 | `writing_style` | `terse` | How agents write memory entries, the state and tool library notes: `terse` (no articles or filler) or `plain`. Graph entries stay plain prose |
 | `memory_require_git` | `true` | Memory works only inside a git work tree |
 | `memory_turns_off_auto` | `true` | Claiming a seat turns Claude Code's built-in auto memory off for the project, from the next session, through `.claude/settings.local.json` |
+| `update_notice` | `true` | A seat claim says once a day that a newer release is out while auto-update is off; `false` also stops the daily check with GitHub |
 | `temporary_seat_lifetime` | `1d` | `config.yaml` only. How long a closed temporary shelf keeps its entries before they are deleted |
 | `orphan_store_grace` | `30d` | `config.yaml` only. How long a store whose checkout cannot be found waits for one to claim it before it is deleted |
 

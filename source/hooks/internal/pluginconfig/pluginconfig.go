@@ -231,6 +231,9 @@ type Options struct {
 	// ScratchSweep chooses when a seat's scratch folder is removed: at its
 	// release, at its session's end, or only by the week-idle reap.
 	ScratchSweep string
+	// UpdateNotice lets a seat claim say once a day that a newer release
+	// exists which Claude Code will not install by itself.
+	UpdateNotice bool
 }
 
 // Keys is every option the plugin reads, as `config.yaml`, a settings file
@@ -245,7 +248,7 @@ var Keys = []string{
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
 	"shell_guard_secret_output", "shell_guard_secret_output_skip", "shell_guard_alternatives",
 	"memory_enabled", "tools_enabled", "scratch_enabled", "scratch_sweep", "grounding_gate_enabled", "capture_enabled",
-	"shell_guard_enabled",
+	"shell_guard_enabled", "update_notice",
 }
 
 // Undeclared is every key the plugin reads that its `userConfig` no longer
@@ -321,16 +324,23 @@ type settings struct {
 // name order, as Claude Code merges them. Project settings are never among
 // them: one embedder serves every project on the machine.
 func Paths(home string, goos string, getenv func(string) string) []string {
-	config := filepath.Join(home, ".claude")
-	if getenv != nil && getenv("CLAUDE_CONFIG_DIR") != "" {
-		config = getenv("CLAUDE_CONFIG_DIR")
-	}
+	config := ConfigDir(home, getenv)
 
 	managed := map[string]string{
 		"darwin": "/Library/Application Support/ClaudeCode", "linux": "/etc/claude-code",
 	}[goos]
 
 	return append([]string{ConfigPath(home, getenv)}, pathsUnder(config, managed)...)
+}
+
+// ConfigDir is Claude Code's own configuration folder: CLAUDE_CONFIG_DIR where
+// it is set, else `~/.claude`.
+func ConfigDir(home string, getenv func(string) string) string {
+	if getenv != nil && getenv("CLAUDE_CONFIG_DIR") != "" {
+		return getenv("CLAUDE_CONFIG_DIR")
+	}
+
+	return filepath.Join(home, ".claude")
 }
 
 func pathsUnder(config string, managed string) []string {
@@ -614,7 +624,7 @@ func Defaults() Options {
 		ShellGuardAlternatives: true, MemoryLanguage: DefaultMemoryLanguage, TemporarySeatLifetime: DefaultTemporarySeatLifetime,
 		OrphanStoreGrace: DefaultOrphanStoreGrace, ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
 		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, ScratchSweep: ScratchSweepRelease,
-		GroundingGateEnabled: true, CaptureEnabled: true, ShellGuardEnabled: true,
+		GroundingGateEnabled: true, CaptureEnabled: true, ShellGuardEnabled: true, UpdateNotice: true,
 	}
 }
 
@@ -692,6 +702,7 @@ func (options *Options) fields() fields {
 			"grounding_gate_enabled":   &options.GroundingGateEnabled,
 			"capture_enabled":          &options.CaptureEnabled,
 			"shell_guard_enabled":      &options.ShellGuardEnabled,
+			"update_notice":            &options.UpdateNotice,
 		},
 	}
 }
