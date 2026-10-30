@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,6 +85,12 @@ func size(bytes int64) string {
 	return fmt.Sprintf("%d B", bytes)
 }
 
+// sizePast is size in megabytes rounded up, so a file refused for passing a
+// limit never reads as the limit itself.
+func sizePast(bytes int64) string {
+	return fmt.Sprintf("%.1f MB", math.Ceil(float64(bytes)/(1<<20)*10)/10)
+}
+
 // prepareFile reads a file to attach from its path: a regular file once
 // symlinks resolve, within attachment_max_mb, holding no credential.
 func (mem *memory) prepareFile(ctx context.Context, path string) (preparedFile, error) {
@@ -110,7 +117,7 @@ func (mem *memory) prepareFile(ctx context.Context, path string) (preparedFile, 
 
 	if info.Size() > limit {
 		return preparedFile{}, fmt.Errorf("attachment %s is %s, past the %d MB a file may be (attachment_max_mb)",
-			name, size(info.Size()), mem.options().AttachmentMaxMB)
+			name, sizePast(info.Size()), mem.options().AttachmentMaxMB)
 	}
 
 	data, err := os.ReadFile(resolved)
