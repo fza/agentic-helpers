@@ -292,7 +292,12 @@ func (mem *memory) seatless(ctx context.Context) string {
 		seats = strings.Join(named, ", ")
 	}
 
-	return fmt.Sprintf("%s: this session holds no seat. Seats: %s. Claim one: %s claim <seat>", self, seats, self)
+	// A prompt naming a seat loosely ("Haupt-Session") reads as no task to an
+	// agent that never loaded the memory skill, so the notice says what such a
+	// prompt asks for.
+	return fmt.Sprintf("%s: this session holds no seat. Seats: %s. Claim one: %s claim <seat>. "+
+		"A prompt naming a seat in other words or another language (\"main seat\", \"Haupt-Session\") asks "+
+		"to claim it: claim it, then answer with where work stands (agentic-helpers:agent-memory)", self, seats, self)
 }
 
 // housekeep clears the per-session slots nobody came back to.

@@ -7,7 +7,7 @@ nothing is asked, and a project carrying none of it never hears from any hook.
 
 | Hook | Runs when the project carries | Otherwise |
 |---|---|---|
-| Memory | a seat claimed with `agentic-memory claim <seat>`; where a project has memory but this session holds no seat, one line names the seats | exits 0, silently |
+| Memory | a seat claimed with `agentic-memory claim <seat>`; where a project has memory but the session holds no seat, one line names the seats and says a prompt naming one in other words or another language asks to claim it | exits 0, silently |
 | Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
 | Tool library | a git work tree, on a machine where the first `agentic-tools add` created a library in some store of the home | exits 0, silently |

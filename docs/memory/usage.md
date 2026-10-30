@@ -147,7 +147,9 @@ new seat.
 
 An agent asked for a seat in words that are not its exact name ("Haupt-Session") lists the seats
 with `who`, maps the words onto the seat meaning the same, and asks when none or several fit.
-After a claim the user requests, the agent answers with a short overview of where work stands, in
+A session holding no seat hears so at its start, with the seats named and the note that a prompt
+naming one in other words or another language asks to claim it. After a claim the user requests,
+the agent answers with a short overview of where work stands, in
 the user's language and drawn from the brief the claim printed: the state slot, what is due, open
 todos with their next items, and decisions waiting on the user. It states outcomes and names an
 entry only where it marks work the user has to act on. Memory stays quiet otherwise; a claim at a
