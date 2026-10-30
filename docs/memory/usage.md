@@ -128,6 +128,11 @@ agentic-memory search --term mcp --query 'gate blind to tool calls'
 agentic-memory supersede m-7q2k4f --by m-9xq0b1
 ```
 
+With scratch on, a claim also makes the seat's scratch folder, `.tmp/claude/<seat>/` (creating
+`.tmp/` first in a git checkout lacking one, and adding it to git's global excludes), and prints `scratch: .tmp/claude/<seat>/` under its first line; a brief after
+a compaction prints it again. `release`, the end of the session and a rename act on that folder as
+`scratch_sweep` says ([the scratch sweep](../scratch/usage.md)).
+
 A seat name is a word in any script: a letter, then up to 23 letters, combining marks, digits or
 dashes, counted in characters (`main`, `haupt`, `главная`, `メイン`, `मुख्य`). Every name agentic-memory
 reads (`claim`, `release`, `holder`, `--seat`, the MCP keys carrying a seat, `exempt_seats` in

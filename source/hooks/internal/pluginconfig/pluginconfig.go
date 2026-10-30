@@ -54,6 +54,14 @@ const (
 	EmbeddingSourceOwn  = "own"
 )
 
+// ScratchSweepRelease / ScratchSweepSession / ScratchSweepIdle are the
+// settings of `scratch_sweep`: when a seat's scratch folder goes.
+const (
+	ScratchSweepRelease = "release"
+	ScratchSweepSession = "session"
+	ScratchSweepIdle    = "idle"
+)
+
 // DefaultEmbeddingTimeout is sdd's own default for one embedding call.
 const DefaultEmbeddingTimeout = 2 * time.Minute
 
@@ -198,6 +206,9 @@ type Options struct {
 	GroundingGateEnabled bool
 	CaptureEnabled       bool
 	ShellGuardEnabled    bool
+	// ScratchSweep chooses when a seat's scratch folder is removed: at its
+	// release, at its session's end, or only by the week-idle reap.
+	ScratchSweep string
 }
 
 // Keys is every option the plugin reads, as `config.yaml`, a settings file
@@ -211,7 +222,7 @@ var Keys = []string{
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
 	"shell_guard_secret_output", "shell_guard_secret_output_skip", "shell_guard_alternatives",
-	"memory_enabled", "tools_enabled", "scratch_enabled", "grounding_gate_enabled", "capture_enabled",
+	"memory_enabled", "tools_enabled", "scratch_enabled", "scratch_sweep", "grounding_gate_enabled", "capture_enabled",
 	"shell_guard_enabled",
 }
 
@@ -557,8 +568,8 @@ func Defaults() Options {
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
 		ShellGuardAlternatives: true, ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
-		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, GroundingGateEnabled: true, CaptureEnabled: true,
-		ShellGuardEnabled: true,
+		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, ScratchSweep: ScratchSweepRelease,
+		GroundingGateEnabled: true, CaptureEnabled: true, ShellGuardEnabled: true,
 	}
 }
 
@@ -619,6 +630,7 @@ func (options *Options) fields() fields {
 		styles: map[string]*string{
 			"writing_style":    &options.WritingStyle,
 			"embedding_source": &options.EmbeddingSource,
+			"scratch_sweep":    &options.ScratchSweep,
 		},
 		switches: map[string]*bool{
 			"memory_require_git":       &options.MemoryRequireGit,
@@ -903,6 +915,7 @@ func outputMode(raw json.RawMessage, fallback string) (string, error) {
 var choices = map[string][]string{
 	"writing_style":    {StyleTerse, StylePlain},
 	"embedding_source": {EmbeddingSourceAuto, EmbeddingSourceSdd, EmbeddingSourceOwn},
+	"scratch_sweep":    {ScratchSweepRelease, ScratchSweepSession, ScratchSweepIdle},
 }
 
 // style accepts one of the key's choices; an empty string keeps fallback.

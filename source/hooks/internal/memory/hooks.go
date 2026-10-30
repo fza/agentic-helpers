@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
@@ -158,6 +159,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	payload := mem.payload()
 	mem.housekeep(ctx)
 	mem.adopt(ctx, payload)
+	mem.tidyScratch(ctx, payload.TranscriptPath)
 
 	name, held := mem.ownSeat(ctx)
 	if name != "" {
@@ -180,6 +182,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 			folded, err := mem.load(ctx)
 			if err == nil {
 				mem.say(mem.doNow(folded, name, onCompact, held.SessionID))
+				mem.say(mem.seatScratch(name))
 				mem.say(mem.brief(ctx, mem.checkout(ctx), folded, name))
 			}
 		}
@@ -958,6 +961,8 @@ func (mem *memory) closeAtEnd(ctx context.Context, seatName string, payload hook
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
 	_, _, _ = mem.closeSeat(ctx, seatName, mem.seatKey(seatName), owner)
+	mem.sweepSeat(ctx, seatName, pluginconfig.ScratchSweepSession)
+
 	mem.endSession(ctx, seatName)
 	_ = mem.purgeExpired(ctx)
 }

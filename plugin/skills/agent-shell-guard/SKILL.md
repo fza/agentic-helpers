@@ -42,7 +42,7 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 |---|---|
 | `rm runs alone: no command before or after it, no pipe, redirection, subshell or wrapper; run it as its own Bash call with literal targets` | the removal as its own Bash call, absolute literal targets, no `cd` in front |
 | `refusing rm with a shell variable or command substitution` | spell each target out |
-| `mktemp is banned; write scratch files under the project's .tmp/ instead` | `.tmp/claude/<session-id>/` (agentic-helpers:agent-scratch) |
+| `mktemp is banned; write scratch files under the project's .tmp/ instead` | `.tmp/claude/<seat>/`, else `.tmp/claude/<session-id>/` (agentic-helpers:agent-scratch) |
 | `mktemp is banned; create the project's .tmp/ (gitignored) and write scratch files under it` | ask the user before creating `.tmp/` |
 | `code handed to <runner> holds a removal or mktemp; refusing` | no removal inside `eval`, `trap`, `bash -c` or a heredoc fed to a shell; run it directly |
 | `inline code for <interpreter> names a removal or mktemp; refusing` | no removal in `python -c`, `perl -e`, `awk`, `ssh` code; a lone `rm` instead |

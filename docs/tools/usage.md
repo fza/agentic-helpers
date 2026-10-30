@@ -202,7 +202,7 @@ says so once ([memory](../memory/usage.md#prompt-recall-and-credentials)). The t
 | Variable | Effect |
 |---|---|
 | `AGENTIC_TOOLS_ROLE` | the caller's role, recorded in history and takes and printed by no verb; the offer names same-role tools first. Unset, the agentic-memory seat the session holds stands in |
-| `AGENTIC_TOOLS_SCRATCH` | a folder `add` and `update` may register from, and where the turn-end check looks for scripts in place of `.tmp/claude/<session>/` |
+| `AGENTIC_TOOLS_SCRATCH` | a folder `add` and `update` may register from, and where the turn-end check looks for scripts in place of the seat's `.tmp/claude/<seat>/` and `.tmp/claude/<session>/` |
 | `AGENTIC_TOOLS_SCOPE` | `project` keeps every read (find, list, take, the duplicate checks) to the own project's store, as a sandboxed caller's launcher sets it |
 
 The plugin option `tools_query_floor` sets the cosine a search or a prompt must reach to count a

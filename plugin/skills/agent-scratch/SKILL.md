@@ -10,24 +10,30 @@ Work written outside the project → invisible to whoever reviews it. Work piled
 `.tmp/` → nothing tells a throwaway from a draft that still matters, and nothing ever removes
 either.
 
-**Only a project carrying `.tmp/`.** No `.tmp/` → sweep silent, nothing created. None wanted → say
+**Only a project carrying `.tmp/`.** No `.tmp/` → sweep silent, nothing created. A seat claim in a
+git checkout creates it. None wanted → say
 so before reaching for `/tmp`.
 
 ## Layout
 
 ```
 .tmp/
-├── claude/<session-id>/   throwaway. SWEPT when the session ends.
+├── claude/<seat>/         throwaway of a seated session. SWEPT as scratch_sweep says.
+├── claude/<session-id>/   throwaway of a session holding no seat. SWEPT when it ends.
 ├── claude/<name>/         kept. Never swept.
 ├── drafts/                awaiting capture. Never swept.
 └── <the project's own>    never touched
 ```
 
+**Seated → `.tmp/claude/<seat>/`.** The claim and every post-compaction brief name it:
+`scratch: .tmp/claude/<seat>/`. Ends `(a keep, never swept)` → the folder was somebody's before the
+seat: nothing in it is ever swept, delete your own.
+
 ## Rules
 
 - **Project `.tmp/` beats `/tmp`.** Always, where one exists.
-- **Throwaway → `.tmp/claude/<session-id>/`.** Probe, one-off script, captured output, anything the
-  next turn will not read.
+- **Throwaway → the seat's folder, else `.tmp/claude/<session-id>/`.** Probe, one-off script,
+  captured output, anything the next turn will not read.
 - **Never throwaway at the root of `.tmp/`.** Nothing sweeps it there.
 - **Anything a later session reads → a named directory.** `.tmp/claude/<name>/` or `.tmp/<name>/`.
   Same for anything a memory entry or a graph entry points at.
@@ -41,15 +47,21 @@ so before reaching for `/tmp`.
 
 | When | What |
 |---|---|
-| session ends | removes `.tmp/claude/<that session's id>/` |
-| session starts | reaps a session directory nobody came back to after 7 days |
+| `agentic-memory release` | removes the seat's folder (`scratch_sweep: release`, the default) |
+| session ends | removes `.tmp/claude/<that session's id>/`; the seat's folder only under `scratch_sweep: session` |
+| session starts | reaps a seat folder whose newest file is 7 days old, and a session directory untouched 7 days |
+| rename, handover | the seat's folder follows the seat's new name |
 
-**Only a directory named for a session is ever removed.** A name the sweep cannot parse as a session
-identifier is a deliberate keep and survives whatever its age. That is the whole safety of it: to
-keep something, give it a name.
+`scratch_sweep: idle` → a seat's folder goes only by the 7-day reap.
 
-Reaping is by directory mtime. A keep whose name looks like a session id is not a keep.
+**Only a folder proven throwaway is ever removed:** a seat folder whose marker `.agentic-scratch`
+names one of the store's seats, or a directory named for a session. Anything else is a deliberate
+keep and survives whatever its age. To keep something, give it a name. Never write, move or delete
+`.agentic-scratch`.
+
+Session directories reap by directory mtime: a keep whose name looks like a session id is not a keep.
+Old session directories move into their seat's folder once, at a session start.
 
 ## Off on the machine
 
-**Off on the machine** (`scratch_enabled: false`) → nothing swept. Throwaway still goes under `.tmp/claude/<session-id>/`; delete your own. shell-guard's `mktemp` ban is off with it.
+**Off on the machine** (`scratch_enabled: false`) → no seat folder, nothing swept. Throwaway still goes under `.tmp/claude/<session-id>/`; delete your own. shell-guard's `mktemp` ban is off with it.

@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/scratch"
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"os"
 	"path/filepath"
 	"slices"
@@ -445,35 +447,63 @@ type script struct {
 	sum  string
 }
 
-// scratchScripts lists the scripts in the session's scratch folder, top level
-// and below, read with the same hardening as any store.
+// scratchScripts lists the scripts the scratch folders hold, the seat's and
+// the session's own, top level and below, read with the same hardening as any
+// store.
 func (lib *library) scratchScripts(ctx context.Context) []script {
-	at := strings.TrimSpace(lib.getenv("AGENTIC_TOOLS_SCRATCH"))
-	if at == "" {
-		at = filepath.Join(lib.checkout(ctx), ".tmp", "claude", lib.session)
-	}
-
-	root, err := openDir(at)
-	if err != nil {
-		return nil
-	}
-
-	defer root.close()
-
-	files, err := root.walk(toolLimit*4, nil)
-	if err != nil {
-		return nil
-	}
-
 	var found []script
 
-	for _, file := range files {
-		if slices.Contains(scriptExtensions, filepath.Ext(file.name)) {
-			found = append(found, script{path: filepath.Join(at, filepath.FromSlash(file.name)), sum: sum(file.data)})
+	for _, at := range lib.scratchFolders(ctx) {
+		root, err := openDir(at)
+		if err != nil {
+			continue
+		}
+
+		files, err := root.walk(toolLimit*4, nil)
+		root.close()
+
+		if err != nil {
+			continue
+		}
+
+		for _, file := range files {
+			if slices.Contains(scriptExtensions, filepath.Ext(file.name)) {
+				found = append(found, script{path: filepath.Join(at, filepath.FromSlash(file.name)), sum: sum(file.data)})
+			}
 		}
 	}
 
 	return found
+}
+
+// scratchFolders is AGENTIC_TOOLS_SCRATCH where set, else the folder of the
+// seat the caller holds and the caller's own session folder.
+func (lib *library) scratchFolders(ctx context.Context) []string {
+	at := strings.TrimSpace(lib.getenv("AGENTIC_TOOLS_SCRATCH"))
+	if at != "" {
+		return []string{at}
+	}
+
+	root := lib.checkout(ctx)
+	folders := []string{filepath.Join(root, ".tmp", "claude", lib.session)}
+
+	if lib.key == "" {
+		return folders
+	}
+
+	memory := lib.env.Roots.Store(lib.key, home.Memory)
+
+	key, _ := seat.OfSession(seat.Dir(memory), lib.session)
+	if key == "" {
+		return folders
+	}
+
+	registry, found, err := seat.LoadRegistry(memory)
+	if err != nil || !found {
+		return folders
+	}
+
+	return append([]string{scratch.SeatDir(root, registry.NameOf(key))}, folders...)
 }
 
 // knownFiles is every file hash and file name any version of any tool in
