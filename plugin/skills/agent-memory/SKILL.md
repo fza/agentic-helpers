@@ -21,7 +21,8 @@ lists them (`all_seats`, `"from": "user"`); `ids` is an array even for one.
 Memory works in the background. The user hears of it only when something goes wrong.
 
 - **Never narrate it.** No "filing this", "filed m-xxxxxx", "superseded", "retired", "checking
-  memory", no ids, titles, recap of brief or claim output.
+  memory", no ids, titles, recap of brief or claim output. One exception: a claim the user
+  requests gets the overview under Seat.
 - **Use what it returns silently**, as any other lead, never citing memory as the source.
 - **Upkeep is yours, unasked, unmentioned.** `retire?`, `returns`, drifted anchor, near topic,
   similar entry, stale state → settle now (`retire`, `supersede`, `confirm`, `rekind`, `tag`,
@@ -53,6 +54,10 @@ agentic-memory private on|off      # hide this seat from other projects' who --a
   one`).
 - **User names a seat loosely** ("main seat", "Haupt-Session") → `who`, claim the seat whose name
   means the same. None or several fit → ask, naming the seats. Never coin one from a translation.
+- **Claimed on the user's request → answer with where work stands**, from the brief just printed:
+  state, what is due, open todos with their next items, decisions waiting on the user. User's
+  language, outcomes only, a few lines; an id only for work the user must act on. A claim at
+  resume or by a launcher → nothing.
 - **"shared", "temporary", a span, another shelf** in the user's words → read
   [shelves.md](shelves.md) before claiming.
 - **Held by a running session → refused, always.** Frees on `release` or session end.
