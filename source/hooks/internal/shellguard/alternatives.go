@@ -239,7 +239,11 @@ func fill(entry alternatives.Entry, alternative alternatives.Alternative, args [
 	}
 
 	options, duration, command := args[1:index], args[index], args[index+1:]
+
 	words := []*syntax.Word{fixedWord(alternative.Program)}
+	if alternative.Subcommand != "" {
+		words = append(words, fixedWord(alternative.Subcommand))
+	}
 
 	for _, slot := range alternative.Template {
 		switch {
@@ -294,6 +298,9 @@ func wholeSeconds(word *syntax.Word) (string, bool) {
 // rewrite fits exactly.
 func generic(alternative alternatives.Alternative) string {
 	words := []string{alternative.Program}
+	if alternative.Subcommand != "" {
+		words = append(words, alternative.Subcommand)
+	}
 
 	for _, slot := range alternative.Template {
 		switch {

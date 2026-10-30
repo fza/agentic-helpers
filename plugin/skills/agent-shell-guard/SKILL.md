@@ -23,8 +23,9 @@ around that; ask the user.
   text, quotes around plain text, or `$'...'` with no escape but `\n` `\t` `\r` `\\` `\'` `\"` and
   two-digit `\x` (not `\x00`): `$'rm' -rf /` is `rm -rf /`. Any other escape = an expansion.
 - **Text naming `rm`**: a sed script, a grep pattern, a commit message. Quoted text is no command.
-- **A time limit in front keeps it lone**: `timeout`, `gtimeout`, `uu-timeout` (options and
-  duration fixed text: no `$x`, `"$(...)"`, glob or brace, quoted or not) or exactly `perl -e 'alarm N; exec @ARGV'` with the command as separate words
+- **A time limit in front keeps it lone**: `timeout`, `gtimeout`, `uu-timeout`, `agentic-helpers
+  bound` (options and duration fixed text: no `$x`, `"$(...)"`, glob or brace, quoted or not) or
+  exactly `perl -e 'alarm N; exec @ARGV'` with the command as separate words
   after it: the program a plain word (no `-`, no spaces, no shell characters), every word after it
   fixed text or `"$var"` (never `$var`, `"$@"` or a glob). Anything else is inline perl code. They
   bound only how long it runs.
@@ -53,17 +54,20 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 
 A call that would fail on this machine, or silently do the wrong thing, is denied with the command
 that works. Session start already says what the machine needs:
-`agentic-helpers: this machine: timeout -> gtimeout; sed and date are BSD`. Nothing appears where
+`agentic-helpers: this machine: timeout -> agentic-helpers bound; sed and date are BSD`. Nothing appears where
 nothing is needed (Linux with GNU tools).
 
 | Reason (after `agentic-shell-guard: `) | Do |
 |---|---|
-| `timeout is not installed here; use: <rewritten command>` | run the rewritten command as given. The chain: `timeout`, `gtimeout`, `uu-timeout`, then `perl -e 'alarm N; exec @ARGV' <command>` (seconds, rounded up) |
-| `timeout is not installed here; use: perl -e 'alarm <seconds>; exec @ARGV' <command>` | options (`-s`, `-k`) or a duration built at run time have no exact perl form: write it yourself, without them |
+| `timeout is not installed here; use: <rewritten command>` | run the rewritten command as given: `agentic-helpers bound <duration> <command>`, the plugin's own bound, whatever else is installed |
+| `timeout is not installed here; use: agentic-helpers bound <duration> <command>` | options (`-s`, `-k`) have no `bound` form: write it yourself, without them |
 | `<command> here is BSD <command>: <usage>; use: <rewritten command>` | the GNU tool (`gsed`, `gdate`) is installed: run the rewritten command |
 | `<command> here is BSD <command>: <usage>; instead <form>` | no GNU tool installed: rewrite as the form says |
 
-The perl alarm form ends a command that runs out with `SIGALRM`: exit 142, not GNU's 124.
+`agentic-helpers bound` runs the command in a process group of its own; when the duration runs out
+it sends the group `SIGTERM`, then `SIGKILL` 5 seconds later, and exits 124, as GNU `timeout`
+does. Never bound a run with `perl -e 'alarm N; exec @ARGV'`: a Go program (`go test`, any
+`agentic-*` binary) ignores the alarm and runs on.
 
 The usages, `<usage>` → `<form>`:
 

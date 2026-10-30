@@ -33,7 +33,7 @@ type Env struct {
 	Dir       string
 }
 
-const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | dump <file>"
+const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | dump <file> | bound <duration> <command>"
 
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into

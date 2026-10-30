@@ -77,7 +77,7 @@ func namedAlternatives() []string {
 	var names []string
 
 	for _, launcher := range alternatives.Launchers() {
-		if launcher.Prefix == nil {
+		if launcher.Prefix == nil && launcher.Subcommand == "" {
 			names = append(names, launcher.Program)
 		}
 	}
@@ -87,7 +87,7 @@ func namedAlternatives() []string {
 
 func withAlternatives(options map[string]LauncherOptions) map[string]LauncherOptions {
 	for _, launcher := range alternatives.Launchers() {
-		if launcher.Prefix == nil {
+		if launcher.Prefix == nil && launcher.Subcommand == "" {
 			options[launcher.Program] = LauncherOptions{Value: launcher.ValueOptions}
 		}
 	}
@@ -111,7 +111,26 @@ func prefixLaunch(args []*syntax.Word) int {
 }
 
 func isLauncher(args []*syntax.Word) bool {
-	return slices.Contains(Launchers, CommandName(args[0])) || prefixLaunch(args) >= 0
+	return slices.Contains(Launchers, CommandName(args[0])) || prefixLaunch(args) >= 0 || subcommandLaunch(args)
+}
+
+// subcommandLaunch reports whether args open with a launcher's program and
+// its subcommand as fixed text, as `agentic-helpers bound` does.
+func subcommandLaunch(args []*syntax.Word) bool {
+	if len(args) < 2 {
+		return false
+	}
+
+	name := CommandName(args[0])
+	subcommand, isLiteral := Literal(args[1])
+
+	for _, launcher := range alternatives.Launchers() {
+		if launcher.Subcommand != "" && launcher.Program == name && isLiteral && launcher.Subcommand == subcommand {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Certain is the index of every word of a call the shell certainly runs as a
@@ -150,6 +169,14 @@ func TimeLimitRuns(args []*syntax.Word) int {
 
 	for _, launcher := range alternatives.Launchers() {
 		if !launcher.TimeLimit || launcher.Program != name {
+			continue
+		}
+
+		if launcher.Subcommand != "" {
+			if subcommandLaunch(args) {
+				return launchedAt(args)
+			}
+
 			continue
 		}
 
@@ -304,7 +331,12 @@ func launchedAt(args []*syntax.Word) int {
 
 	launcher := CommandName(args[0])
 
-	for index := 1; index < len(args); index++ {
+	first := 1
+	if subcommandLaunch(args) {
+		first = 2
+	}
+
+	for index := first; index < len(args); index++ {
 		value, _ := Literal(args[index])
 
 		switch {

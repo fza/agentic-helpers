@@ -142,6 +142,13 @@ With no binary installed and none fetchable, a command from `bin/` or the MCP se
 says why on stderr, where a hook stays silent. A script outside Claude Code has no plugin on its
 PATH and builds the binaries itself: `go install -C source/hooks ./cmd/...` from a checkout.
 
+`agentic-helpers bound <duration> <command> [argument...]` runs a command for at most a duration,
+standing in for `timeout` where the machine has none, as shell-guard's rewrite of a missing
+`timeout` names it ([command alternatives](../shell-guard/usage.md#command-alternatives)). It reads
+no settings and migrates nothing, so the output is the command's alone. The command runs in a
+process group of its own, which gets `SIGTERM` when the duration runs out and `SIGKILL` 5 seconds
+later; the exit is then 124, else the command's own.
+
 ## Options
 
 Every option is set once per machine; no project overrides one. Each is read in layers, lowest
@@ -236,7 +243,7 @@ feature resting on an off piece goes off with it, and the rest of its piece runs
 [`README.md`](../../README.md#dependencies). At each session start `agentic-helpers check` prints one
 line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`,
 and, where the machine needs a command substitution shell-guard enforces, one naming them, such as
-`agentic-helpers: this machine: timeout -> gtimeout; sed and date are BSD` (see
+`agentic-helpers: this machine: timeout -> agentic-helpers bound; sed and date are BSD` (see
 [shell-guard's command alternatives](../shell-guard/usage.md#command-alternatives)); run as a command
 it lists every piece on or off, with its features off under it.
 

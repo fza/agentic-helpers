@@ -25,7 +25,8 @@ func layeredEnv(t *testing.T, config string, options string) pieces.Env {
 
 	test.WriteFile(t, paths[1], `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{`+options+`}}}}`)
 
-	return pieces.Env{Settings: paths}
+	// timeout installed, so the session start names no substitution.
+	return pieces.Env{Settings: paths, Getenv: test.Getenv(test.Stubs(t, "timeout"))}
 }
 
 func runConfig(t *testing.T, env pieces.Env, args ...string) (int, string, string) {

@@ -153,6 +153,12 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"the test command before another", "{project}", "[ -f x ] && echo y", "allow"},
 		{"the test keyword", "{project}", "[[ -f x ]]", "allow"},
 		{"rm under timeout", "{project}", "timeout 10 rm a", "allow"},
+		{"rm under the plugin's bound", "{project}", "agentic-helpers bound 10 rm -rf ./build", "allow"},
+		{"rm outside under the plugin's bound", "{project}", "agentic-helpers bound 10 rm -rf ~/x", "ask"},
+		{"rm outside under the bound by its path", "{project}", "/opt/plugin/bin/agentic-helpers bound 5m rm -rf ~/x", "ask"},
+		{"rm under the bound's split duration", "{project}", "agentic-helpers bound $d rm -rf ./build", "deny"},
+		{"rm under the bound under sudo", "{project}", "sudo agentic-helpers bound 9 rm a", "deny"},
+		{"another agentic-helpers command naming rm", "{project}", "agentic-helpers check rm -rf ~/x", "allow"},
 		{"a time limit running nothing", "{project}", "timeout --", "allow"},
 		{"a substitution as a time limit's duration", "{project}", `timeout "$(rm -rf ~/x)" 9 rm a`, "deny"},
 		{"a substitution as a time limit's option value", "{project}", "gtimeout -s $(cmd) 9 rm a", "deny"},
@@ -280,6 +286,9 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 	}
 
 	g := newGuard(t, true, "")
+	// timeout installed, so a call naming it is judged for what it runs, not
+	// refused as missing.
+	g.env.Getenv = test.Getenv(test.Stubs(t, "timeout"))
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
