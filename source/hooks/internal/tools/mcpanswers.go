@@ -26,6 +26,7 @@ type takenTool struct {
 	Usage   string `json:"usage,omitempty"`
 	Inputs  string `json:"inputs,omitempty"`
 	Outputs string `json:"outputs,omitempty"`
+	Foreign bool   `json:"foreign,omitempty"`
 }
 
 type mergedFields struct {

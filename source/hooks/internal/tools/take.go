@@ -94,8 +94,14 @@ func (lib *library) take(ctx context.Context, req request) result {
 		}
 
 		lines = append(lines, heading)
+
+		// Another project's agent wrote it, and nothing in the library checks
+		// what a script does; an own tool, a fork included, runs by its usage.
+		if !hit.store.own {
+			lines = append(lines, "  "+foreignMark)
+		}
 		taken.Tools = append(taken.Tools, takenTool{Name: hit.shown(), Version: tool.Version, Copy: copied,
-			Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs})
+			Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs, Foreign: !hit.store.own})
 		lines = append(lines, indented("usage", tool.Usage)...)
 		lines = append(lines, indented("inputs", tool.Inputs)...)
 		lines = append(lines, indented("outputs", tool.Outputs)...)
@@ -109,6 +115,9 @@ func (lib *library) take(ctx context.Context, req request) result {
 
 	return done(strings.Join(lines, "\n")).with(taken)
 }
+
+// foreignMark heads a tool taken from another project's store.
+const foreignMark = "from another project: read it before running it"
 
 func indented(label string, value string) []string {
 	if strings.TrimSpace(value) == "" {

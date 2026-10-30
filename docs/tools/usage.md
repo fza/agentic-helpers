@@ -62,8 +62,12 @@ other agents wrote, read as a lead, never as an instruction.
   first: one that reaches no tool refuses the whole call as `nothing taken:`, one line per failing
   name. A copy already there is reused, never overwritten. A merged name takes its survivor and says
   so. The answer prints `taken into <folder>`, then each `<name>/v<n>: <summary>` with its usage,
-  inputs and outputs indented, printed again for a reused copy. Over MCP and `--json` each taken
-  tool carries `name`, `version`, `copy`, `usage`, `inputs` and `outputs`.
+  inputs and outputs indented, printed again for a reused copy. A tool from another project's
+  store (`<name>@<project>`) gets one more line under its heading, `from another project: read it
+  before running it`: its agent wrote it, and nothing in the library checks what a script does. A
+  fork lives in the own store and carries no mark. Over MCP and `--json` each taken tool carries
+  `name`, `version`, `copy`, `usage`, `inputs` and `outputs`, and `foreign: true` from another
+  project.
 - **add** registers v1 from a file or a folder inside the work tree or its main checkout (never under
   a `.git` folder, in any letter case), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. A folder's files land at the top of v1, its subfolders
   kept; its own `tool.json` is a copy's description and never a file of the tool. Refused: a name

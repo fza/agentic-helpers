@@ -289,3 +289,44 @@ func TestAFindHitIsOneLineAndTakeCarriesTheUsage(t *testing.T) {
 		t.Errorf("the take answer should carry each tool's usage, inputs and outputs, got %+v, %v", answer, err)
 	}
 }
+
+func TestATakeMarksOnlyAnotherProjectsTool(t *testing.T) {
+	h := newHarness(t)
+	other := h.elsewhere(otherRepo)
+	other.tool("row-tally", "Tally the rows of a table")
+	h.tool("word-count", "Count the words of standard input")
+
+	foreign := h.must("take", "row-tally")
+	if !strings.Contains(foreign, "\n  from another project: read it before running it\n") {
+		t.Errorf("a tool from another project should be marked to read before running, got:\n%s", foreign)
+	}
+
+	own := h.must("take", "word-count")
+	if strings.Contains(own, "from another project") {
+		t.Errorf("an own tool should carry no mark, got:\n%s", own)
+	}
+
+	h.must("update", "row-tally", "--from", h.file("row-tally.py", "print('fork')\n"), "--why", "forked to count blank rows")
+
+	if strings.Contains(h.must("take", "row-tally"), "from another project") {
+		t.Error("a fork lives in the own store and should carry no mark")
+	}
+
+	var answer struct {
+		Tools []struct {
+			Name    string `json:"name"`
+			Foreign bool   `json:"foreign"`
+		} `json:"tools"`
+	}
+
+	err := json.Unmarshal([]byte(other.mcpRead("take", `{"names":["word-count","row-tally"]}`)), &answer)
+	if err != nil || len(answer.Tools) != 2 {
+		t.Fatalf("the take answer should list both tools: %v, %+v", err, answer)
+	}
+
+	for _, tool := range answer.Tools {
+		if tool.Foreign != strings.HasPrefix(tool.Name, "word-count") {
+			t.Errorf("only another project's tool should carry foreign, got %+v", answer.Tools)
+		}
+	}
+}
