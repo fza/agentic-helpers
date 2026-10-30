@@ -51,6 +51,8 @@ func TestConfigListsEveryKeyWithItsLayer(t *testing.T) {
 		"memory_language                 de  (user settings)\n",
 		"retired_body_lifetime           120d  (config.yaml, never a plugin option)\n",
 		"embedding_provider              \"\"  (default)\n",
+		"temporary_seat_lifetime         1d  (default, never a plugin option)\n",
+		"orphan_store_grace              30d  (default, never a plugin option)\n",
 		"problem: " + env.Settings[0] + ": brief_note_limit: not a number",
 	} {
 		if !strings.Contains(out, want) {

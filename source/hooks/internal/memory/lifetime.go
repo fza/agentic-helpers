@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/span"
 )
@@ -17,7 +18,7 @@ import (
 const (
 	lifetimeDurable   = "durable"
 	lifetimeTemporary = "temporary"
-	defaultLifetime   = "1d"
+	defaultLifetime   = pluginconfig.DefaultTemporarySeatLifetime
 )
 
 // retention reads a span as every time option reads one.

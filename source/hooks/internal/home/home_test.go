@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -202,6 +203,12 @@ func TestGrace(t *testing.T) {
 				t.Errorf("a grace should read as a span, the default where empty or unreadable, got %v %t", got, valid)
 			}
 		})
+	}
+}
+
+func TestTheGraceDefaultIsTheOneTheOptionListingShows(t *testing.T) {
+	if home.DefaultGrace != pluginconfig.Defaults().OrphanStoreGrace {
+		t.Error("the grace a store waits should be the built-in value `agentic-helpers config` shows")
 	}
 }
 
