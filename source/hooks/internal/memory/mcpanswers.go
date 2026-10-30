@@ -20,31 +20,6 @@ type idsFields struct {
 	IDs []string `json:"ids"`
 }
 
-type filedFields struct {
-	ID          string        `json:"id"`
-	Title       string        `json:"title"`
-	Kind        string        `json:"kind"`
-	Topics      []string      `json:"topics"`
-	Superseded  []string      `json:"superseded"`
-	Attachments []string      `json:"attachments"`
-	NotLinked   []string      `json:"not_linked"`
-	NearTopics  []jsonNear    `json:"near_topics"`
-	Similar     []jsonSimilar `json:"similar"`
-}
-
-// jsonNear is a topic new to the store with the existing topics close to it,
-// closest first.
-type jsonNear struct {
-	Topic string   `json:"topic"`
-	Near  []string `json:"near"`
-}
-
-type jsonSimilar struct {
-	ID    string  `json:"id"`
-	Title string  `json:"title"`
-	Score float64 `json:"score"`
-}
-
 type retainedFields struct {
 	IDs       []string `json:"ids"`
 	Retention string   `json:"retention"`

@@ -262,17 +262,13 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	held := folded.entries[id]
 	mem.warm(folded, 0, id)
 
-	fields := filedFields{ID: id, Title: held.title, Kind: kind, Topics: orEmpty(held.topics),
-		Superseded: orEmpty(slices.Compact(slices.Clone(req.Absorbs))), Attachments: []string{}, NotLinked: orEmpty(unlinked)}
-
-	lines := []string{"filed " + line(here, held)}
+	lines := []string{filedLine(here, held)}
 	for _, file := range prepared {
 		lines = append(lines, attachedLine(id, file.attachPayload))
-		fields.Attachments = append(fields.Attachments, file.Name)
 	}
 
 	if len(req.Absorbs) > 0 {
-		lines = append(lines, fmt.Sprintf("superseded %s by %s", strings.Join(fields.Superseded, ", "), id))
+		lines = append(lines, fmt.Sprintf("superseded %s by %s", strings.Join(slices.Compact(slices.Clone(req.Absorbs)), ", "), id))
 	}
 
 	if len(unlinked) > 0 {
@@ -296,26 +292,29 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		lines = append(lines, fmt.Sprintf("%d list lines in the text; steps go into --item", counted))
 	}
 
-	notes, near, similar := mem.filingNotes(ctx, folded, held, existing, req.Absorbs)
-	fields.NearTopics, fields.Similar = near, similar
-
-	lines = append(lines, notes...)
+	lines = append(lines, mem.filingNotes(ctx, folded, held, existing, req.Absorbs)...)
 	lines = append(lines, mem.forbidden(folded, held, name)...)
 
 	if len(prepared) > 0 {
 		lines = append(lines, space.Line(mem.recordAttached(ctx, prepared)))
 	}
 
-	return done(strings.Join(lines, "\n")).with(fields)
+	return done(strings.Join(lines, "\n"))
+}
+
+// filedLine opens the reply to a filing with the new id and the entry's
+// flags alone: the title, seat, kind, source, time and commit are what the
+// caller just sent or cannot act on, while a flag carries the normalized or
+// computed form of an input, a due time or a link target already closed.
+func filedLine(here tree, held *entry) string {
+	return withFlags("filed "+held.id, append(flagsOf(here, held, held.flags()), declared(held)...))
 }
 
 // absorbed are the entries the filing superseded, which no hint offers again.
 func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, existing map[string]int,
 	absorbed []string,
-) ([]string, []jsonNear, []jsonSimilar) {
+) []string {
 	var notes []string
-
-	nears, similars := []jsonNear{}, []jsonSimilar{}
 
 	limit := mem.options().EntryMaxWords
 
@@ -352,7 +351,6 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 
 		notes = append(notes, fmt.Sprintf("new topic %s; near: %s", topic, strings.Join(named, ", ")),
 			fmt.Sprintf("  → %s merge %s %s", self, topic, near[0]))
-		nears = append(nears, jsonNear{Topic: topic, Near: near})
 	}
 
 	for _, similar := range mem.similar(ctx, folded, held) {
@@ -361,10 +359,9 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 		}
 
 		notes = append(notes, fmt.Sprintf("similar: %s %s (%.2f)", similar.id, similar.title, similar.score))
-		similars = append(similars, jsonSimilar{ID: similar.id, Title: similar.title, Score: similar.score})
 	}
 
-	return notes, nears, similars
+	return notes
 }
 
 type scored struct {

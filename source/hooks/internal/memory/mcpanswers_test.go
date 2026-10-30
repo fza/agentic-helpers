@@ -155,8 +155,14 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 		return decoded(t, mcpText(t, answers))
 	}
 
-	first, _ := call("new", `{"title":"Gate finding filed first","topic":["gate"],"body":"one"}`)["id"].(string)
-	second, _ := call("new", `{"title":"Gate finding filed second","topic":["gate"],"body":"two"}`)["id"].(string)
+	filed := func(arguments string) string {
+		message, _ := call("new", arguments)["message"].(string)
+
+		return idPattern.FindString(message)
+	}
+
+	first := filed(`{"title":"Gate finding filed first","topic":["gate"],"body":"one"}`)
+	second := filed(`{"title":"Gate finding filed second","topic":["gate"],"body":"two"}`)
 
 	calls := []struct{ tool, arguments string }{
 		{"show", `{"ids":["` + first + `"]}`},

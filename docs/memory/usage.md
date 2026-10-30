@@ -327,6 +327,12 @@ tool stamps time, seat, session, branch and commit, and anchors the entry to eve
 content hash: a name of letters, digits and marks of any script holding a dot or a slash, where a
 file exists under it, with a trailing `:<line>` dropped.
 
+A filing answers `filed <id>`, then the entry's flags where it has any (a declared end, a due time, a
+link target already closed), never the title, seat, kind, source, time or commit the caller sent or
+cannot act on. Lines below it name what else the filing did or found: attachments, superseded ids,
+ids that resolved to nothing, todo item ids, notes on the title, body and topics, near topics and
+similar entries.
+
 ### Kinds
 
 What an entry is says how long it matters and where the brief shows it, and the filer knows that at
@@ -1204,12 +1210,13 @@ answer carries are the ones below. The command line keeps its text and its `--js
   `brief` with `kind` or `topic` lists that kind's or those topics' live entries in its sections, as
   `brief --json --kind` and `brief --json --topic` do; `view` with `explain` answers
   `{"message": <the explanation>}`.
+- **`new` answers `{"message": <the text the command prints>}` alone**: the text holds the new id
+  and every hint, and fields beside it would only repeat them.
 - **Every other tool answers `message`, the text the command prints**, beside the fields of what the
   call did:
 
 | Tool | Fields beside `message` |
 |---|---|
-| `new` | `id`, `title`, `kind`, `topics`, `superseded`, `attachments`, `not_linked`, `near_topics` (`topic`, `near`), `similar` (`id`, `title`, `score`) |
 | `confirm`, `retire` | `ids` |
 | `supersede` | `ids`, and `by` or `because` |
 | `retitle` | `id`, `title` |
