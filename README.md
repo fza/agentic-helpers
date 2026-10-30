@@ -114,7 +114,10 @@ under `pluginConfigs` in your user settings, `~/.claude/settings.json` (or the o
 
 An answer given there wins over `config.yaml`. Managed settings (`managed-settings.json` and its
 `managed-settings.d/` drop-ins) take the same block and win over both, so an administrator can lock
-an option. An empty value counts as unset. A project's `.claude/settings.json` and
+an option. An empty value counts as unset, and so does an answer equal to the built-in default:
+Claude Code's dialog, saved untouched, stores every switch and picker at its default, which would
+otherwise hide `config.yaml`. Setting a key back to its default over a different `config.yaml` takes
+editing `config.yaml`. A project's `.claude/settings.json` and
 `.claude/settings.local.json` are never read for plugin options: Claude Code itself ignores them
 there, and one embedder and one set of guards serve every project on the machine.
 

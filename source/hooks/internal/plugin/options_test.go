@@ -2,6 +2,7 @@ package plugin_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -75,10 +76,11 @@ func TestEveryDeclaredOptionIsReadAndNoConfigOnlyOneIsDeclared(t *testing.T) {
 	}
 }
 
-// Claude Code refuses a picker without a default and hands a hook no value for
-// an option nobody answered, so a picker's default is the built-in one and
-// config.yaml still decides; every other option declares none.
-func TestOnlyAPickerDeclaresADefaultAndOffersWhatTheReaderTakes(t *testing.T) {
+// Claude Code refuses a picker without a default, and its dialog saved untouched
+// stores every boolean and picker: false for a boolean declaring no default. A
+// boolean or picker therefore declares the built-in default, which the reader
+// takes as unset; a text or number field is not stored empty and declares none.
+func TestOnlyABooleanOrPickerDeclaresADefaultAndAPickerOffersWhatTheReaderTakes(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(pluginRoot, ".claude-plugin", "plugin.json"))
 	if err != nil {
 		t.Fatalf("reading plugin.json: %v", err)
@@ -86,8 +88,9 @@ func TestOnlyAPickerDeclaresADefaultAndOffersWhatTheReaderTakes(t *testing.T) {
 
 	var manifest struct {
 		UserConfig map[string]struct {
-			Default *string  `json:"default"`
-			Options []string `json:"options"`
+			Type    string          `json:"type"`
+			Default json.RawMessage `json:"default"`
+			Options []string        `json:"options"`
 		} `json:"userConfig"`
 	}
 
@@ -100,16 +103,19 @@ func TestOnlyAPickerDeclaresADefaultAndOffersWhatTheReaderTakes(t *testing.T) {
 
 	for key, declared := range manifest.UserConfig {
 		t.Run(key, func(t *testing.T) {
-			if declared.Options == nil {
+			if declared.Options == nil && declared.Type != "boolean" {
 				if declared.Default != nil {
-					t.Error("an option offering no picker should name its default in its description and declare none")
+					t.Error("a text or number option should name its default in its description and declare none")
 				}
 
 				return
 			}
 
-			if declared.Default == nil || *declared.Default != builtIn.Value(key) {
-				t.Errorf("a picker should declare the reader's built-in default, got %q", declaredText(declared.Default))
+			var value any
+
+			err := json.Unmarshal(declared.Default, &value)
+			if err != nil || value == nil || fmt.Sprint(value) != builtIn.Value(key) {
+				t.Errorf("a boolean or picker should declare the reader's built-in default, got %s", declaredText(declared.Default))
 			}
 
 			for _, value := range append(slices.Clone(declared.Options), "not-a-choice") {
@@ -220,10 +226,10 @@ func TestEveryNumberOptionIsBoundedAsTheReaderBoundsIt(t *testing.T) {
 	}
 }
 
-func declaredText(value *string) string {
+func declaredText(value json.RawMessage) string {
 	if value == nil {
 		return "(none)"
 	}
 
-	return *value
+	return string(value)
 }

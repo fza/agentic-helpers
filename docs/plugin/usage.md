@@ -154,13 +154,18 @@ first:
    hook receives as `CLAUDE_PLUGIN_OPTION_<KEY>`;
 4. Claude Code's managed settings, last, so a machine lock always wins.
 
-An empty value counts as unset at every layer. Each description names its default. Only a picker,
-an option with a fixed value set (`embedding_source`, `writing_style`, `scratch_sweep`,
-`shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets`,
-`shell_guard_secret_output`), declares one, since Claude Code refuses a picker without it; the
-declared default is always the built-in one. Claude Code hands a hook no value for an option nobody
-answered, a declared default included, so `config.yaml` still decides an unanswered picker. Every
-other option declares no default. `embedding_provider` stays a text field: unset, it means no own
+An empty value counts as unset at every layer. Each description names its default. Every switch
+(`type: boolean`) and every picker, an option with a fixed value set (`embedding_source`,
+`writing_style`, `scratch_sweep`, `shell_guard_outside_project`, `shell_guard_find_delete`,
+`shell_guard_secrets`, `shell_guard_secret_output`), declares one, always the built-in one: Claude
+Code refuses a picker without it, and its dialog, saved untouched, stores every switch and picker, a
+switch declaring no default as `false`, which would turn every piece off. Text and number fields
+left empty are not stored and declare no default. Claude Code hands a hook no value for an option
+nobody answered, a declared default included. An answer in user settings or the hook environment
+equal to the built-in default counts as unset, so `config.yaml` still decides that key after an
+untouched save; setting a key back to its default over a different `config.yaml` takes editing
+`config.yaml`, and `agentic-helpers config` names `config.yaml` as its layer. Managed settings are
+exempt: a lock at the default still holds. `embedding_provider` stays a text field: unset, it means no own
 embedder, a state a picker could only hold under an invented value.
 
 **Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:

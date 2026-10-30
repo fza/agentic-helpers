@@ -1,0 +1,29 @@
+{
+  "pluginConfigs": {
+    "agentic-helpers@agentic-helpers": {
+      "options": {
+        "embedding_source": "auto",
+        "memory_require_git": true,
+        "memory_turns_off_auto": true,
+        "writing_style": "terse",
+        "memory_enabled": true,
+        "tools_enabled": true,
+        "scratch_enabled": true,
+        "scratch_sweep": "release",
+        "grounding_gate_enabled": true,
+        "capture_enabled": true,
+        "capture_remove_draft": true,
+        "shell_guard_enabled": true,
+        "shell_guard_outside_project": "ask",
+        "shell_guard_find_delete": "ask",
+        "shell_guard_lone_removal": true,
+        "shell_guard_expansion": true,
+        "shell_guard_nested_code": true,
+        "shell_guard_mktemp": true,
+        "shell_guard_alternatives": true,
+        "shell_guard_secrets": "ask",
+        "shell_guard_secret_output": "all"
+      }
+    }
+  }
+}
