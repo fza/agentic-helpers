@@ -116,12 +116,14 @@
       "type": "boolean",
       "title": "Memory only inside git",
       "description": "Keep agentic-memory to git work trees; off lets a directory outside git keep a store keyed by its own path; default on",
+      "default": true,
       "required": false
     },
     "memory_turns_off_auto": {
       "type": "boolean",
       "title": "Seat claim turns off Claude Code's auto memory",
       "description": "A seat claim writes autoMemoryEnabled: false into the project's .claude/settings.local.json, from the next session; off leaves the file alone; default on",
+      "default": true,
       "required": false
     },
     "memory_language": {
@@ -153,18 +155,21 @@
       "type": "boolean",
       "title": "Switch on agentic-memory",
       "description": "agentic-memory: seats, entries, recall and their hooks; off, its commands refuse and its hooks say nothing; default on",
+      "default": true,
       "required": false
     },
     "tools_enabled": {
       "type": "boolean",
       "title": "Switch on agentic-tools",
       "description": "agentic-tools: the helper tool library and its hooks; off, its commands refuse and its hooks say nothing; default on",
+      "default": true,
       "required": false
     },
     "scratch_enabled": {
       "type": "boolean",
       "title": "Switch on the scratch sweep",
       "description": "agentic-scratch: a scratch folder per seat or session under .tmp/claude/, swept when the work ends; off, shell-guard's mktemp ban goes off with it; default on",
+      "default": true,
       "required": false
     },
     "scratch_sweep": {
@@ -183,24 +188,28 @@
       "type": "boolean",
       "title": "Switch on the grounding gate",
       "description": "agentic-grounding-gate: the sdd reads owed before a question, draft or capture; off, agentic-capture goes off with it; default on",
+      "default": true,
       "required": false
     },
     "capture_enabled": {
       "type": "boolean",
       "title": "Switch on agentic-capture",
       "description": "agentic-capture: capturing sdd entries from drafts; off, it refuses; default on",
+      "default": true,
       "required": false
     },
     "capture_remove_draft": {
       "type": "boolean",
       "title": "agentic-capture: remove the draft",
       "description": "Delete a draft once its entry is captured, unless git tracks it or it lies outside the work tree and /tmp; off keeps every draft; default on",
+      "default": true,
       "required": false
     },
     "shell_guard_enabled": {
       "type": "boolean",
       "title": "Switch on shell-guard",
       "description": "agentic-shell-guard: holding Bash removals to the project and banning mktemp; off, every Bash call runs unjudged; default on",
+      "default": true,
       "required": false
     },
     "shell_guard_outside_project": {
@@ -231,30 +240,35 @@
       "type": "boolean",
       "title": "Shell-guard: removals run alone",
       "description": "Deny a removal that is not the whole Bash command: no other statement, pipe, redirection, subshell or wrapper; default on",
+      "default": true,
       "required": false
     },
     "shell_guard_expansion": {
       "type": "boolean",
       "title": "Shell-guard: literal removal targets",
       "description": "Deny a removal whose target is built from a variable or command substitution; default on",
+      "default": true,
       "required": false
     },
     "shell_guard_nested_code": {
       "type": "boolean",
       "title": "Shell-guard: nested code",
       "description": "Deny a removal or mktemp inside eval, a shell's -c, or inline code for another interpreter; default on",
+      "default": true,
       "required": false
     },
     "shell_guard_mktemp": {
       "type": "boolean",
       "title": "Shell-guard: mktemp",
       "description": "Deny mktemp anywhere in a Bash command; scratch files go under the project's .tmp/; default on",
+      "default": true,
       "required": false
     },
     "shell_guard_alternatives": {
       "type": "boolean",
       "title": "Shell-guard: command alternatives",
       "description": "Refuse a Bash call naming a command missing here (timeout) or a usage its BSD flavour gets wrong (sed -i, date -d), naming the command that works, and say at session start what this machine needs; default on",
+      "default": true,
       "required": false
     },
     "shell_guard_secrets": {

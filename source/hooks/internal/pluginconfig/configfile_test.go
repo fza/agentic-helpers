@@ -72,6 +72,11 @@ func TestEveryLayerResolvesInOrderManagedSettingsLast(t *testing.T) {
 		{name: "an empty config.yaml value is unset", key: "entry_max_words", values: layers{config: `""`}, value: "500"},
 		{name: "a config-only key from user settings has no effect", key: "retired_body_lifetime", values: layers{user: `"120d"`}, value: "90d"},
 		{name: "a config-only key from the hook environment has no effect", key: "retired_body_lifetime", values: layers{config: "100d", env: "120d"}, value: "100d", layer: pluginconfig.LayerConfig},
+		{name: "a user answer at the built-in value leaves config.yaml deciding", key: "memory_enabled", values: layers{config: "false", user: "true"}, value: "false", layer: pluginconfig.LayerConfig},
+		{name: "a hook environment value at the built-in value leaves config.yaml deciding", key: "writing_style", values: layers{config: "plain", env: "terse"}, value: "plain", layer: pluginconfig.LayerConfig},
+		{name: "a user answer at the built-in value leaves a stricter config.yaml guard", key: "shell_guard_secrets", values: layers{config: "deny", user: `"ask"`}, value: "deny", layer: pluginconfig.LayerConfig},
+		{name: "a user answer other than the built-in value decides", key: "memory_enabled", values: layers{config: "true", user: "false"}, value: "false", layer: pluginconfig.LayerUser},
+		{name: "managed settings at the built-in value still lock the key", key: "memory_enabled", values: layers{config: "false", user: "false", managed: "true"}, value: "true", layer: pluginconfig.LayerManaged},
 		{name: "a retired body kept at least the revive window", key: "retired_body_lifetime", values: layers{config: "7d"}, value: "14d", layer: pluginconfig.LayerConfig},
 		{name: "a retired body kept for a span", key: "retired_body_lifetime", values: layers{config: "6w"}, value: "42d", layer: pluginconfig.LayerConfig},
 		{name: "a tool version kept at least two weeks", key: "tools_version_lifetime", values: layers{config: "3d"}, value: "14d", layer: pluginconfig.LayerConfig},
@@ -581,5 +586,31 @@ func TestAnEmbeddingSourceOfAnotherWordIsRefused(t *testing.T) {
 
 	if len(resolution.Problems) != 1 || !strings.Contains(resolution.Problems[0], `"sometimes" is none of auto, sdd, own`) {
 		t.Errorf("an unknown source should be named with the accepted ones, got %v", resolution.Problems)
+	}
+}
+
+// The answers Claude Code's plugin dialog stores when saved without a change.
+func TestAnUntouchedDialogSaveResolvesAsNoAnswer(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config.yaml")
+	user := filepath.Join(dir, "settings.json")
+
+	test.WriteFile(t, config, "memory_enabled: false\nwriting_style: plain\nshell_guard_secrets: deny\nscratch_sweep: idle\n")
+	test.WriteFile(t, user, test.Fixture(t, "pluginconfig/untouched-save.json"))
+
+	saved, err := pluginconfig.Resolve([]string{config, user}, nil)
+	if err != nil {
+		t.Fatalf("resolving with the saved answers should succeed: %v", err)
+	}
+
+	unanswered, err := pluginconfig.Resolve([]string{config}, nil)
+	if err != nil {
+		t.Fatalf("resolving without answers should succeed: %v", err)
+	}
+
+	for _, key := range pluginconfig.Keys {
+		if saved.Options.Value(key) != unanswered.Options.Value(key) || saved.From[key] != unanswered.From[key] {
+			t.Errorf("%s should resolve as if nothing were answered, got %q from %q", key, saved.Options.Value(key), saved.From[key])
+		}
 	}
 }

@@ -433,7 +433,7 @@ func (resolution *Resolution) foldSettings(paths []string, layer string, agent b
 }
 
 // take applies one layer's values, all or none; an agent's layer never sets
-// a ConfigOnly key.
+// a ConfigOnly key, and never one to its built-in value.
 func (resolution *Resolution) take(values map[string]json.RawMessage, layer string, agent bool) error {
 	values, err := resolution.renamed(values, layer, agent)
 	if err != nil {
@@ -443,7 +443,7 @@ func (resolution *Resolution) take(values map[string]json.RawMessage, layer stri
 	set := map[string]json.RawMessage{}
 
 	for key, raw := range values {
-		if unset(raw) || agent && slices.Contains(ConfigOnly, key) {
+		if unset(raw) || agent && (slices.Contains(ConfigOnly, key) || builtIn(key, raw)) {
 			continue
 		}
 
@@ -536,6 +536,21 @@ func (resolution *Resolution) renamed(values map[string]json.RawMessage, layer s
 	}
 
 	return moved, nil
+}
+
+// builtIn reports whether raw sets key to its built-in value. Claude Code's
+// plugin dialog, saved untouched, stores every boolean and picker at its
+// declared default, which is the built-in one; read as an answer, it would
+// hide `config.yaml` for that key.
+func builtIn(key string, raw json.RawMessage) bool {
+	probe := Defaults()
+
+	err := probe.apply(map[string]json.RawMessage{key: raw})
+	if err != nil {
+		return false
+	}
+
+	return probe.Value(key) == Defaults().Value(key)
 }
 
 func unset(raw json.RawMessage) bool {
