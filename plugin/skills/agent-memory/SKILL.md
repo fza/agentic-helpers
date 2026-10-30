@@ -112,7 +112,7 @@ EOF
 
 | Kind | For | Decays |
 |---|---|---|
-| `rule` | a grant or instruction the user gave, `--from user` only, quoting them | never |
+| `rule` | a grant or instruction the user gave, `--from user` only: the instruction alone, verbatim | never |
 | `trap` | cost time already, will again | 90-day half-life |
 | `todo` | work owed later, an owner decision waiting for capture | 3-day half-life |
 | `note` | everything else (default) | 14-day half-life |
@@ -146,6 +146,9 @@ EOF
   - Supersede of a todo with items needs `--items carry` (list moves, ids kept) or `--items leave`.
   - `<n> list lines in the text; steps go into --item` after filing → those lines were steps:
     file a todo with `--item`, supersede the one just filed.
+- **Outcome, never the prompt.** Body = finding, decision, step owed. No playback of the user's
+  prompt or answer, no "owner chose / asked / said": `--from user` already says whose. A rule
+  quotes the instruction alone, nothing around it.
 - **Language → the brief's** (`entries in de`). Domain terms keep the project's spelling.
 - **Style → the brief's** (`entries in de, terse`), titles, bodies and state alike. `terse`: no
   articles, filler or hedging; fragments fine; code, paths, ids, quotes, domain terms exact. `plain`:
