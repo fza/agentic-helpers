@@ -70,8 +70,9 @@ runs no `sdd info`.
 
 Stock sdd has no `--preflight-verified`, so no dry run comes first: one `sdd new`, under the capture
 lock, runs the pre-flight and writes. A high finding writes nothing and exits 2; a provider fault is
-retried as below, since a failed check wrote nothing; a call cut off by `--preflight-limit` is never
-retried, since it may have written, and the capture says to check `git log`. `--force` past a high
+retried as below, since a failed check wrote nothing; a call cut off at its bound (below) is never
+retried, since it may have written, and the capture says to check `git log` rather than to raise
+`--preflight-limit`. `--force` past a high
 finding writes the entry again with `--skip-preflight`, so it records that nothing checked it.
 
 What only the fork writes is refused before anything runs, naming the fork: a draft header carrying
