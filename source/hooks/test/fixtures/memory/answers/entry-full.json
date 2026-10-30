@@ -24,6 +24,7 @@
   "anchors": [{"path": "internal/gate/gate.go", "state": "drifted"}],
   "links": [{"target": "20261025-120000-d-tac-abc", "state": "closed by 20261026-120000-d-tac-def", "by": "main"}],
   "linked_from": ["m-cite01"],
+  "tools": [{"name": "word-count", "state": "merged into tally", "version": 2, "path": ".tmp/tools/tally/v2", "usage": "python3 word_count.py <file>", "foreign": true, "seen": true, "not_taken": "gone from the library"}],
   "attachments": [{"name": "build.log", "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", "size": 0, "stored": true}],
   "body": "the trap body",
   "body_dropped": "body dropped 90 days after the retire",
