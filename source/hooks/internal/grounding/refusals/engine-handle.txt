@@ -1,0 +1,3 @@
+GROUNDING GATE: refused. This `bodyHandle` names `{handle}`, a staged file the gate holds no record of, so the project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) cannot read the body.
+
+Stage the file again with `mcp__sdd__stage_attachment`, or report the body as `body`.

@@ -40,6 +40,12 @@ license: MIT
   reports on the body this call leaves``, named `body:<line>:...`. Fix, report again. A patch the
   gate holds no body for → ``... This `bodyPatch` edits a body the gate holds no record of`` →
   report `body` in full once.
+- **A body by `bodyHandle` is linted too.** `draft_lint` set → the gate records each file staged
+  through `mcp__sdd__stage_attachment` (its `content`, the file its `path` names, `patches` applied
+  as sdd applies them) and lints the body a report or start params name by `bodyHandle`, a
+  leading `---` header block left out; findings refused with the `draft_lint` refusal above. A
+  handle the gate holds no text for → ``GROUNDING GATE: refused. This `bodyHandle` names `<handle>`, a staged file the gate holds no record of, so the project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) cannot read the body.`` →
+  stage the file again, or report the body as `body`. Asked once per handle.
 - **`sdd-engine` is deprecated.** The `sdd` skill is the engine flow.
 
 ## agentic-capture

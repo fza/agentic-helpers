@@ -1,0 +1,1 @@
+{"search": 2, "query": 1, "term": 1, "listings": ["sdd view --layout 'active:as-counts'"], "grounded": [], "graph": "4:26-090000-d-tac-old.md", "noted": "", "captures": {"inst-7": {"body": "One two.", "topics": ["area-hooks"], "asked": false}}, "carried": {"by": "another tool"}}
