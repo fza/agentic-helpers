@@ -1311,7 +1311,7 @@ environment variable to a server the writer picks.
 | `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note` |
 | `attachment_max_mb` | the megabytes one attached file may hold, 10 unless set |
 | `attachments_total_mb` | the megabytes every attachment of every project on the machine may hold together, each file counted once, 2048 unless set, never below `attachment_max_mb` |
-| `tools_total_mb` | `config.yaml` only: the megabytes every agentic-tools library on the machine may hold, 500 unless set; read by the SessionStart pass that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |
+| `tools_total_mb` | `config.yaml` only: the megabytes every agentic-tools library on the machine may hold, 500 unless set; enforced by every `agentic-tools add` and `update`, which prune the oldest prunable version or refuse, and read by the SessionStart pass that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |
 | `writing_style` | how agents write entries, their titles and the state, and the tool library's notes: `terse` (no articles, filler or hedging; code, paths, ids, quotes and domain terms exact) unless set, or `plain`; the brief's first line names it. Graph entries stay plain prose |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
