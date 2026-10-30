@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 	"os"
 	"path/filepath"
@@ -202,5 +203,22 @@ func TestAMachineWithoutALibraryHearsNothing(t *testing.T) {
 
 	if test.Exists(t, h.roots().Data) {
 		t.Error("no hook should create the library")
+	}
+}
+
+func TestTheTurnEndReadsTheSeatsScratchFolderToo(t *testing.T) {
+	h := newHarness(t)
+	h.tool("word-count", "Count the words of standard input")
+
+	memory := h.roots().Store(test.StoreOf(t, h.roots(), h.repo, test.GitDirOf{}, nil), home.Memory)
+	test.ClaimSeatByID(t, memory, "s-abc123", "main", h.session)
+	h.file(".tmp/claude/main/probe.py", "print('probe')\n")
+	h.file(".tmp/claude/"+h.session+"/check.py", "print('check')\n")
+
+	h.hook("stop", nil)
+
+	got := h.hook("prompt", map[string]any{"prompt": "anything"})
+	if !strings.Contains(got, "scripts the library lacks: probe.py, check.py.") {
+		t.Errorf("the nudge should name the seat folder's scripts and the session folder's, got %q", got)
 	}
 }

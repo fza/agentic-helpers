@@ -12,7 +12,7 @@ to the agent. Memory and the tool library are also available as MCP servers, `me
 |---|---|---|
 | memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session |
 | tool library | `agentic-tools` | Shares helper scripts between agents, so none is written twice |
-| scratch sweep | `agentic-scratch` | Gives each session one place for throwaway files, and empties it at the end |
+| scratch sweep | `agentic-scratch` | Gives each seat or session one place for throwaway files, and empties it when the work ends |
 | grounding gate | `agentic-grounding-gate` | Makes the agent read the decision graph before it asks, drafts or captures |
 | capture | `agentic-capture` | Writes new graph entries through one checked path, free of credentials |
 | shell-guard | `agentic-shell-guard` | Keeps deletions inside the project, and credentials out of commands and output |
@@ -143,6 +143,7 @@ in Claude Code's settings, behind its permission prompts.
 | `memory_enabled` | `true` | agentic-memory. Off, its commands refuse, its hooks stay quiet, its MCP server offers no tools |
 | `tools_enabled` | `true` | agentic-tools, the same way |
 | `scratch_enabled` | `true` | The scratch sweep |
+| `scratch_sweep` | `release` | When a seat's scratch folder goes: `release` at `agentic-memory release`, `session` when its session ends, `idle` only after a week unused |
 | `grounding_gate_enabled` | `true` | The grounding gate |
 | `capture_enabled` | `true` | `agentic-capture` |
 | `shell_guard_enabled` | `true` | Shell-guard |

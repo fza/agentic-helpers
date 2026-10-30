@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
 )
@@ -202,6 +203,12 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	here := mem.checkout(ctx)
 
 	lines := []string{fmt.Sprintf("%s: %s (pid %d)", req.Name, short(held.SessionID), held.PID)}
+
+	for _, line := range mem.claimScratch(ctx, req.Name) {
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
 
 	if req.Private {
 		lines = append(lines, privateLine(req.Name))
@@ -459,6 +466,7 @@ func (mem *memory) release(ctx context.Context, req request) result {
 	}
 
 	mem.endSession(ctx, name)
+	mem.sweepSeat(ctx, name, pluginconfig.ScratchSweepRelease)
 	_ = mem.purgeExpired(ctx)
 
 	return done("released " + name).with(releasedFields{Seat: name, Released: true})
@@ -539,6 +547,7 @@ func (mem *memory) rename(ctx context.Context, req request) result {
 
 	mem.forgetRegistry()
 	mem.forgetShelves()
+	mem.moveScratch(own, id, req.Name, id)
 
 	return done(fmt.Sprintf("%s is now %s", own, req.Name)).with(renamedFields{Seat: req.Name, Was: own})
 }

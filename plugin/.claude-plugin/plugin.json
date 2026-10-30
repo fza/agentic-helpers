@@ -143,7 +143,13 @@
     "scratch_enabled": {
       "type": "boolean",
       "title": "Switch on the scratch sweep",
-      "description": "agentic-scratch: sweeping .tmp/claude/<session>/ at session end; off, shell-guard's mktemp ban goes off with it; default on",
+      "description": "agentic-scratch: a scratch folder per seat or session under .tmp/claude/, swept when the work ends; off, shell-guard's mktemp ban goes off with it; default on",
+      "required": false
+    },
+    "scratch_sweep": {
+      "type": "string",
+      "title": "Scratch folder sweep",
+      "description": "When a seat's .tmp/claude/<seat>/ folder goes: release (at agentic-memory release), session (when its session ends) or idle (only after a week unused); default release",
       "required": false
     },
     "grounding_gate_enabled": {

@@ -148,6 +148,10 @@ func (mem *memory) reserve(ctx context.Context, req request, key string) (string
 
 	mem.recordStore(ctx)
 
+	if moving {
+		mem.moveScratch(mem.seatName(fromKey), fromKey, req.Name, key)
+	}
+
 	return reply, moving, "", nil
 }
 

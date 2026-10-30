@@ -68,7 +68,7 @@ hook ask, always about this checkout:
 ## Seat
 
 ```bash
-agentic-memory claim <seat>        # prints brief + last turns of the previous session
+agentic-memory claim <seat>        # prints brief + last turns of the previous session, and the seat's scratch folder
 agentic-memory release [<seat>]
 agentic-memory who [--all] [--unused] # seats, shelves, state, filed / used (14d); frees dead holders
 agentic-memory rename '<new name>' # this seat; id and entries stay

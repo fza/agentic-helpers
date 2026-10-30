@@ -1,12 +1,14 @@
 // Package scratch keeps a project's scratch directory from becoming a
 // graveyard.
 //
-// A session writes its throwaway under `.tmp/claude/<session-id>/`, and that
-// directory goes when the session ends. A directory abandoned by a session that
-// crashed is reaped at a later session start once it is a week old.
+// A session holding no seat writes its throwaway under
+// `.tmp/claude/<session-id>/`, and that directory goes when the session ends. A
+// directory abandoned by a session that crashed is reaped at a later session
+// start once it is a week old. A seated session's `.tmp/claude/<seat>/` is
+// agentic-memory's to make and sweep, through seats.go.
 //
-// Only a directory named for a session is ever removed. A name that does not
-// parse as a session identifier is somebody's deliberate keep, and survives
+// Only a directory named for a session, or a seat folder carrying its marker,
+// is ever removed. Any other name is somebody's deliberate keep, and survives
 // whatever its age.
 package scratch
 
@@ -25,6 +27,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
 // Matching this shape is the whole safety of the sweep.
@@ -79,7 +82,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	if args[0] == "end" {
 		err = end(ctx, root, payload.SessionID, streams.Out)
 	} else {
-		err = start(ctx, env, streams.Out)
+		err = start(ctx, env, options, streams.Out)
 	}
 
 	if err != nil {
@@ -113,12 +116,21 @@ func end(ctx context.Context, root string, session string, out io.Writer) error 
 	return nil
 }
 
-func start(ctx context.Context, env Env, out io.Writer) error {
+func start(ctx context.Context, env Env, options pluginconfig.Options, out io.Writer) error {
 	var said []string
 
 	gone := reap(ctx, env.Root, time.Now())
 	if gone > 0 {
 		said = append(said, fmt.Sprintf("Scratch: reaped %d session directory(s) nobody came back to.", gone))
+	}
+
+	// With memory off nothing else reaps a seat's folder; any marker naming a
+	// seat id then counts, since no store is read to say whose it is.
+	if !pieces.Memory.On(options) {
+		seats := ReapSeats(ctx, env.Root, seat.IsID, time.Now())
+		if seats > 0 {
+			said = append(said, fmt.Sprintf("Scratch: reaped %d seat folder(s) nobody came back to.", seats))
+		}
 	}
 
 	// The scratch directory holds a session's throwaway and drafts, wrong in

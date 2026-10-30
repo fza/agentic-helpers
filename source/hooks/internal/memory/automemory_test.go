@@ -21,6 +21,7 @@ func globalIgnoreOf(h *harness) string {
 
 func TestAClaimTurnsOffAutoMemory(t *testing.T) {
 	h := newHarness(t)
+	h.git.Ignored = []string{".tmp"}
 
 	claimed := h.must("", "claim", "main")
 	if strings.Count(claimed, autoMemoryLine) != 1 {
@@ -83,6 +84,7 @@ func TestAClaimLeavesTheOwnersSettingAlone(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
+			h.git.Ignored = []string{".tmp"}
 			original := test.Fixture(t, tc.fixture)
 			test.WriteFile(t, localSettingsOf(h.repo), original)
 
@@ -124,7 +126,7 @@ func TestAClaimFromAWorktreeWritesTheMainCheckout(t *testing.T) {
 
 func TestAClaimAddsNothingGitIgnoresAlready(t *testing.T) {
 	h := newHarness(t)
-	h.git.Ignored = []string{".claude/settings.local.json"}
+	h.git.Ignored = []string{".claude/settings.local.json", ".tmp"}
 
 	claimed := h.must("", "claim", "main")
 
