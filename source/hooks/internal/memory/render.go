@@ -226,5 +226,9 @@ func plural(count int, noun string) string {
 		return "1 " + noun
 	}
 
+	if strings.HasSuffix(noun, "ry") {
+		return fmt.Sprintf("%d %sies", count, strings.TrimSuffix(noun, "y"))
+	}
+
 	return fmt.Sprintf("%d %ss", count, noun)
 }
