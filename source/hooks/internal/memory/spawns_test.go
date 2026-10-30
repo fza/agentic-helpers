@@ -66,8 +66,9 @@ func TestACheckoutWithoutACommitIsAskedQuestionByQuestion(t *testing.T) {
 	h.git.Unborn = true
 	h.must("", "claim", "main")
 
-	out := h.must("body", "new", "--title", "Finding filed before any commit", "--topic", "gate")
-	if !strings.HasPrefix(out, "filed m-") || strings.Contains(out, h.git.Commit) {
+	filed := h.must("body", "new", "--title", "Finding filed before any commit", "--topic", "gate")
+	out := h.must("", "show", idPattern.FindString(filed))
+	if !strings.HasPrefix(filed, "filed m-") || strings.Contains(out, h.git.Commit) {
 		t.Errorf("a checkout without a commit should still be a work tree, its entry stamped without a commit, got:\n%s",
 			out)
 	}
@@ -78,7 +79,8 @@ func TestTheCommitIsStampedInEightCharacters(t *testing.T) {
 	h.git.Commit = "15af1a8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a"
 	h.must("", "claim", "main")
 
-	out := h.must("body", "new", "--title", "Finding stamped with its commit", "--topic", "gate")
+	filed := h.must("body", "new", "--title", "Finding stamped with its commit", "--topic", "gate")
+	out := h.must("", "show", idPattern.FindString(filed))
 	if !strings.Contains(out, ", 15af1a8c]") {
 		t.Errorf("the full commit git answers should be stamped cut to eight characters, got:\n%s", out)
 	}

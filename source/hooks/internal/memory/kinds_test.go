@@ -30,9 +30,9 @@ func TestNewFilesEachKind(t *testing.T) {
 				args = append(args, "--kind", tc.kind)
 			}
 
-			out := h.must("body", append(args, tc.extra...)...)
+			out := h.must("", "show", idPattern.FindString(h.must("body", append(args, tc.extra...)...)))
 			if !strings.Contains(out, tc.shows) {
-				t.Errorf("the filed line should name the entry's kind:\n%s", out)
+				t.Errorf("the entry should be filed with its kind:\n%s", out)
 			}
 		})
 	}
@@ -58,7 +58,8 @@ func TestRetentionIsRefusedNamingKind(t *testing.T) {
 	}
 
 	answer = h.mcp(`{"name":"new","arguments":{"title":"Gate entry filed as a trap","body":"b","kind":"trap"}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "[main, trap, from agent, ") {
+	if strings.Contains(answer, `"isError":true`) ||
+		!strings.Contains(h.must("", "show", idPattern.FindString(answer)), "[main, trap, from agent, ") {
 		t.Errorf("the MCP key kind should file the entry with its kind: %s", answer)
 	}
 

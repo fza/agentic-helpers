@@ -252,9 +252,15 @@ func TestNewStampsAndAnchors(t *testing.T) {
 	out := h.must("the gate reads internal/gate/gate.go:12 only for Bash",
 		"new", "--title", "Gate ignores MCP reads", "--topic", "Gate", "--about", "README.md")
 
-	if !regexp.MustCompile(`^filed m-[a-z0-9]{6} Gate ignores MCP reads  \[main, note, from agent, ` +
-		`2026-10-25 \d\d:\d\d [A-Z0-9+-]+, 15af1a8c\]`).MatchString(out) {
-		t.Errorf("filing should print the stamped line: %s", out)
+	if !regexp.MustCompile(`^filed m-[a-z0-9]{6}$`).MatchString(strings.TrimSpace(out)) {
+		t.Errorf("filing should answer the new id alone, never echoing the caller's input: %s", out)
+	}
+
+	due := h.must("", "new", "--title", "Port the waiter to Linux", "--topic", "gate", "--kind", "todo",
+		"--until", "claim", "--due", "2027-01-01")
+	if !regexp.MustCompile(`^filed m-[a-z0-9]{6}  .*until: claim`).MatchString(due) ||
+		!strings.Contains(strings.SplitN(due, "\n", 2)[0], "due: 2027-01-01") {
+		t.Errorf("filing should keep the entry's declared end and due time beside the id: %s", due)
 	}
 
 	id := idPattern.FindString(out)
@@ -442,8 +448,9 @@ func TestStampsCarryTheirZone(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
+	filed := h.must("body", "new", "--title", "Gate reads Bash only today", "--topic", "gate")
 	if !regexp.MustCompile(`\[main, note, from agent, 2026-10-2[45] \d\d:\d\d [A-Za-z0-9+-]+,`).MatchString(
-		h.must("body", "new", "--title", "Gate reads Bash only today", "--topic", "gate")) {
+		h.must("", "show", idPattern.FindString(filed))) {
 		t.Error("a stamp should name its zone, so an hour the clocks repeat reads unambiguously")
 	}
 }
@@ -1198,6 +1205,17 @@ func TestMCPServesEveryCommand(t *testing.T) {
 	if !strings.Contains(answers[3], "filed m-") || !strings.Contains(answers[4], "Filed over MCP by main") {
 		t.Errorf("a tool call should answer what the command prints, resolving the same seat:\n%s\n%s",
 			answers[3], answers[4])
+	}
+
+	var filed struct {
+		Result struct {
+			StructuredContent map[string]json.RawMessage `json:"structuredContent"`
+		} `json:"result"`
+	}
+
+	_ = json.Unmarshal([]byte(answers[3]), &filed)
+	if _, found := filed.Result.StructuredContent["message"]; !found || len(filed.Result.StructuredContent) != 1 {
+		t.Errorf("a filing over MCP should answer its message alone, no fields repeating it: %s", answers[3])
 	}
 
 	if !strings.Contains(answers[5], `"isError":true`) {

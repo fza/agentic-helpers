@@ -26,7 +26,7 @@ type jsonViewSection struct {
 // of a message answer. A tool missing here answers its message alone.
 var answerFields = map[string]any{
 	"show": jsonShow{}, "search": jsonSearch{}, "brief": jsonBrief{}, "who": jsonWho{}, "topics": jsonTopics{},
-	"view": jsonView{}, "new": filedFields{}, "confirm": idsFields{}, "ack": ackFields{}, "state": seatFields{},
+	"view": jsonView{}, "confirm": idsFields{}, "ack": ackFields{}, "state": seatFields{},
 	"retire": idsFields{}, "supersede": supersededFields{}, "retitle": retitledFields{}, "tag": topicsFields{},
 	"untag": topicsFields{}, "link": linkFields{}, "claim": seatFields{}, "release": releasedFields{},
 }
