@@ -130,6 +130,10 @@ func TestAckChangesItems(t *testing.T) {
 		t.Errorf("--undo should untick the item:\n%s", shown)
 	}
 
+	if out := h.must("", "ack", id, "--order", items[1]); strings.TrimSpace(out) != "reordered" {
+		t.Errorf("a reorder should say it landed without echoing the order sent, got %q", out)
+	}
+
 	rule := h.must("", "new", "--title", "Owner allows commits", "--topic", "gate", "--kind", "rule", "--from", "user")
 	ruleID := idPattern.FindString(rule)
 

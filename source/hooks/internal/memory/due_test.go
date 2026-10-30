@@ -116,7 +116,9 @@ func TestMovingAndClearingADueTime(t *testing.T) {
 		t.Errorf("show should carry the moved time:\n%s", shown)
 	}
 
-	h.must("", "due", id, "--clear")
+	if out := h.must("", "due", id, "--clear"); strings.TrimSpace(out) != "due cleared" {
+		t.Errorf("clearing should say the due time is gone without echoing the id, got %q", out)
+	}
 
 	if shown := h.must("", "show", id, "--again"); strings.Contains(shown, "due: 2026") || !strings.Contains(shown, "due cleared") {
 		t.Errorf("a cleared due time should leave the line and stand in the events:\n%s", shown)
