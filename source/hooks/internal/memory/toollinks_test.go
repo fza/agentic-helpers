@@ -128,8 +128,8 @@ func TestAToolLinkResolvesOrRefuses(t *testing.T) {
 		t.Error("linking a tool resolving to nothing should be refused")
 	}
 
-	if out := h.must("", "link", id, "--tool", "word-count"); !strings.Contains(out, id+" linked to tool word-count") {
-		t.Errorf("link should name the tool it linked, got %q", out)
+	if out := h.must("", "link", id, "--tool", "word-count"); strings.TrimSpace(out) != "linked" {
+		t.Errorf("link should say the tool link landed without echoing it, got %q", out)
 	}
 
 	if !strings.Contains(h.must("", "search", "--term", "Counting words"), "→ tool word-count") {

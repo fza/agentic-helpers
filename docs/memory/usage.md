@@ -366,7 +366,7 @@ filing time:
 
 Where a seat's work stands is not an entry. Each seat holds one state slot, overwritten by
 `agentic-memory state` (MCP `state`, key `body`) with the body on stdin, and answered
-`state of <seat> written`. The slot keeps its body, time, session, branch and commit, and holds no
+`state written`. The slot keeps its body, time, session, branch and commit, and holds no
 id, no heat and no topics: `search`, recall, `retire` and the live and retired counts never see it.
 The `entry_max_words` limit applies to its body, as to an entry's.
 
@@ -461,8 +461,8 @@ it wakes nothing on its own.
   time, the forms of `--until at:`; anything else is refused naming them:
   `--due takes RFC 3339 or a date (YYYY-MM-DD, its start in local time), not "<text>"`.
 - `due <id> <time>` moves it and `due <id> --clear` drops it (MCP `due`, keys `id`, `due` and
-  `clear`), for any seat on the entry's shelf, as `retitle` is; the reply is `<id> due <time>` or
-  `<id> due cleared`, and the change stands in `show`'s events.
+  `clear`), for any seat on the entry's shelf, as `retitle` is; the reply is `due <time>` or
+  `due cleared`, and the change stands in `show`'s events.
 - `show` and `search` print it as `due: <time>` on the entry's line, and the JSON entry object
   carries it as `due`. `view`'s filter word `due` selects the entries carrying one.
 
@@ -814,8 +814,7 @@ id, with nothing written:
       m-b is already superseded
       m-c is on shelf main
 
-Otherwise every change lands in one append and the reply names each id:
-`superseded m-a, m-b, m-c by m-d`. Over MCP, `supersede`, `confirm` and `retire` take `ids`, an
+Otherwise every change lands in one append and the reply is `superseded`. Over MCP, `supersede`, `confirm` and `retire` take `ids`, an
 array, and refuse `id`.
 
 `new --absorbs <id>`, repeatable (MCP key `absorbs`, an array), files a summary and supersedes each
@@ -1210,27 +1209,16 @@ answer carries are the ones below. The command line keeps its text and its `--js
   `brief` with `kind` or `topic` lists that kind's or those topics' live entries in its sections, as
   `brief --json --kind` and `brief --json --topic` do; `view` with `explain` answers
   `{"message": <the explanation>}`.
-- **`new` answers `{"message": <the text the command prints>}` alone**: the text holds the new id
-  and every hint, and fields beside it would only repeat them.
-- **Every other tool answers `message`, the text the command prints**, beside the fields of what the
-  call did:
-
-| Tool | Fields beside `message` |
-|---|---|
-| `confirm`, `retire` | `ids` |
-| `supersede` | `ids`, and `by` or `because` |
-| `retitle` | `id`, `title` |
-| `due` | `id`, `due` (RFC 3339, empty once cleared) |
-| `tag`, `untag` | `id`, `topics` |
-| `ack` | `ids`, `declined` where declined |
-| `link` | `id`, `target` |
-| `claim`, `state` | `seat`, `shelf` |
-| `release` | `seat`, `released` |
+- **Every other tool answers `{"message": <the text the command prints>}` alone.** The text holds
+  what the call produced and every hint; fields beside it would only repeat them. A write's text
+  never echoes the ids, topics, title or seat the caller sent: `state written`, `retired`,
+  `superseded`, `linked`, `tagged`, `untagged`, `retitled`, `done` (or `undone`, `dropped`,
+  `removed`), `reordered`, `due <time>`, `filed <id>`, each followed by any line naming what else
+  the call did or found. `ack --add` names the new items, `confirm` the anchors it re-hashed.
 
 - **A refusal is an error result carrying `{"error": <the refusal text>}`** and nothing else.
 - A read answer leaves out every key holding an empty value, as `--json` does (see
-  [Other tools](#other-tools)). The fields beside `message` keep every key, an empty list as `[]`,
-  and keys are only ever added.
+  [Other tools](#other-tools)).
 
 ## Seats of the project, and of the machine
 

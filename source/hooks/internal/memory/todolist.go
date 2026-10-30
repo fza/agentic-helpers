@@ -496,9 +496,8 @@ func (mem *memory) ackItems(ctx context.Context, req request) result {
 	}
 
 	var (
-		failures  []string
-		addressed []string
-		todos     []string
+		failures []string
+		todos    []string
 	)
 
 	byTodo := map[string][]itemPayload{}
@@ -516,7 +515,6 @@ func (mem *memory) ackItems(ctx context.Context, req request) result {
 		}
 
 		byTodo[held.id] = append(byTodo[held.id], itemPayload{Op: op, ID: id, Reason: because})
-		addressed = append(addressed, held.id+"#"+id)
 	}
 
 	if len(failures) > 0 {
@@ -540,15 +538,9 @@ func (mem *memory) ackItems(ctx context.Context, req request) result {
 	}
 
 	verb := map[string]string{itemCheck: "done", itemUncheck: "undone", itemDrop: "dropped", itemRemove: "removed"}[op]
-	line := verb + " " + strings.Join(addressed, ", ")
+	lines := append([]string{verb}, mem.itemEnds(ctx, todos, name)...)
 
-	if because != "" {
-		line += ": " + because
-	}
-
-	lines := append([]string{line}, mem.itemEnds(ctx, todos, name)...)
-
-	return done(strings.Join(lines, "\n")).with(ackFields{IDs: addressed, Declined: because})
+	return done(strings.Join(lines, "\n"))
 }
 
 // listChange adds items to one todo's end, or puts the named items first.
@@ -606,10 +598,10 @@ func (mem *memory) listChange(ctx context.Context, folded *state, name string, r
 			ids = append(ids, held.id+"#"+change.ID)
 		}
 
-		return done("added " + strings.Join(ids, ", ")).with(ackFields{IDs: ids})
+		return done("added " + strings.Join(ids, ", "))
 	}
 
-	return done("reordered " + held.id + ": " + strings.Join(changes[0].Order, ", ")).with(ackFields{IDs: []string{held.id}})
+	return done("reordered")
 }
 
 // itemTodo is the todo id names, where the seat may change its items.

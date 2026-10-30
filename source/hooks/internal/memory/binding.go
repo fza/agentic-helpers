@@ -148,11 +148,7 @@ func (mem *memory) bind(ctx context.Context, req request) result {
 			strings.Join(moved.Identifiers, ", "), moved.From.ID, moved.From.Name(), self, moved.From.ID, bound.Store.ID))
 	}
 
-	return done(strings.Join(lines, "\n")).with(boundFields{Store: bound.Store.ID})
-}
-
-type boundFields struct {
-	Store string `json:"store"`
+	return done(strings.Join(lines, "\n"))
 }
 
 // mergeStores joins the store from into the store into: memory's entries,
@@ -171,7 +167,7 @@ func (mem *memory) mergeStores(ctx context.Context, from string, into string) re
 	}
 
 	return done(fmt.Sprintf("joined the store %s into %s (%s): checkouts %s", from, joined.ID, joined.Name(),
-		strings.Join(joined.Paths(), ", "))).with(boundFields{Store: joined.ID})
+		strings.Join(joined.Paths(), ", ")))
 }
 
 // joinMemory joins one store's memory into another's, both brought to the

@@ -64,8 +64,7 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 	}
 
 	if reply == "" {
-		return done(fmt.Sprintf("session %s already holds %s", short(req.Session), req.Name)).
-			with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
+		return done(fmt.Sprintf("session %s already holds %s", short(req.Session), req.Name))
 	}
 
 	lines := []string{reply}
@@ -89,7 +88,7 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 		_ = mem.purgeExpired(ctx)
 	}
 
-	return done(strings.Join(lines, "\n")).with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOfKey(key))})
+	return done(strings.Join(lines, "\n"))
 }
 
 // reserve writes the claim for req.Session on the seat filed under key, under

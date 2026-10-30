@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -138,6 +139,8 @@ func TestNoToolListsTheJSONKey(t *testing.T) {
 }
 
 func TestEveryToolAnswersItsShape(t *testing.T) {
+	reads := []string{"show", "search", "brief", "view", "topics", "who"}
+
 	h := newHarness(t)
 	h.must("", "claim", "impl")
 
@@ -152,7 +155,12 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 			t.Fatalf("the %s call should succeed, got %s", tool, answers)
 		}
 
-		return decoded(t, mcpText(t, answers))
+		answer := decoded(t, mcpText(t, answers))
+		if _, message := answer["message"]; !slices.Contains(reads, tool) && (!message || len(answer) != 1) {
+			t.Errorf("the %s write should answer its message alone, no fields repeating it: %v", tool, answer)
+		}
+
+		return answer
 	}
 
 	filed := func(arguments string) string {

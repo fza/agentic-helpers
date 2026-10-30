@@ -79,11 +79,6 @@ func duePositional(req *request) error {
 	return nil
 }
 
-type dueFields struct {
-	ID  string `json:"id"`
-	Due string `json:"due"`
-}
-
 // dueCommand moves an entry's due time, or clears it.
 func (mem *memory) dueCommand(ctx context.Context, req request) result {
 	given := strings.TrimSpace(req.Due.text)
@@ -118,10 +113,10 @@ func (mem *memory) dueCommand(ctx context.Context, req request) result {
 	}
 
 	if at.IsZero() {
-		return done(req.ID + " due cleared").with(dueFields{ID: req.ID})
+		return done("due cleared")
 	}
 
-	return done(fmt.Sprintf("%s due %s", req.ID, stamp(at))).with(dueFields{ID: req.ID, Due: at.Format(time.RFC3339)})
+	return done("due " + stamp(at))
 }
 
 // dueFlag is how a short line says when its entry comes due.

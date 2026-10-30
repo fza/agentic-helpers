@@ -246,7 +246,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		}
 	}
 
-	return done(strings.Join(lines, "\n")).with(seatFields{Seat: req.Name, Shelf: mem.shelfName(mem.shelfOf(req.Name))})
+	return done(strings.Join(lines, "\n"))
 }
 
 // closeSeat closes the claim on the seat filed under key, under the seats
@@ -462,14 +462,14 @@ func (mem *memory) release(ctx context.Context, req request) result {
 	}
 
 	if !released {
-		return done(name + " is free").with(releasedFields{Seat: name})
+		return done(name + " is free")
 	}
 
 	mem.endSession(ctx, name)
 	mem.sweepSeat(ctx, name, pluginconfig.ScratchSweepRelease)
 	_ = mem.purgeExpired(ctx)
 
-	return done("released " + name).with(releasedFields{Seat: name, Released: true})
+	return done("released " + name)
 }
 
 // rename gives the seat the calling session holds a new name. Entries, claims
@@ -486,7 +486,7 @@ func (mem *memory) rename(ctx context.Context, req request) result {
 	}
 
 	if req.Name == own {
-		return done(own + " keeps its name").with(renamedFields{Seat: own, Was: own})
+		return done(own + " keeps its name")
 	}
 
 	unlock, err := mem.lockStore(ctx)
@@ -549,5 +549,5 @@ func (mem *memory) rename(ctx context.Context, req request) result {
 	mem.forgetShelves()
 	mem.moveScratch(own, id, req.Name, id)
 
-	return done(fmt.Sprintf("%s is now %s", own, req.Name)).with(renamedFields{Seat: req.Name, Was: own})
+	return done(fmt.Sprintf("%s is now %s", own, req.Name))
 }

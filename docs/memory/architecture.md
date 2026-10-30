@@ -444,8 +444,8 @@ Every hook exits at once in a project without a store.
 
 Every tool of the `memory` server answers a JSON object (`internal/mcpserver`): the value goes out
 as `structuredContent` and, serialized, as the text block MCP asks of a structured result for
-clients reading only text. A read answers what its `--json` builds; any other command its text as
-`message` beside a fields struct, the `with` a command's result carries (`mcpanswers.go`). A refusal
+clients reading only text. A read answers what its `--json` builds; any other command `{"message": <its text>}` alone, since
+the text already names what the call produced and typed fields beside it would only repeat it. A refusal
 answers `{"error": <text>}` as an error result.
 
 No tool lists an `outputSchema`. The listing loads into every session's context, and the schemas,

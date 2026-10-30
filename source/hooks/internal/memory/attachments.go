@@ -436,7 +436,7 @@ func (mem *memory) attach(ctx context.Context, req request) result {
 
 	lines = append(lines, space.Line(mem.recordAttached(ctx, prepared)))
 
-	return done(strings.Join(lines, "\n")).with(attachedFields{ID: held.id, Attachments: names})
+	return done(strings.Join(lines, "\n"))
 }
 
 // readStored is an attachment's original bytes, checked against the hash the
@@ -528,7 +528,7 @@ func (mem *memory) read(ctx context.Context, req request) result {
 	}
 
 	if req.To != "" {
-		return mem.readTo(ctx, *chosen, data, req.To).with(readFields{ID: held.id, Name: chosen.Name, Path: req.To})
+		return mem.readTo(ctx, *chosen, data, req.To)
 	}
 
 	if !utf8.Valid(data) {
@@ -536,9 +536,7 @@ func (mem *memory) read(ctx context.Context, req request) result {
 			chosen.Name, self, held.id, chosen.Name)
 	}
 
-	text, next := page(held.id, *chosen, data, req.Offset, req.MaxBytes)
-
-	return done(text).with(readFields{ID: held.id, Name: chosen.Name, NextOffset: next})
+	return done(page(held.id, *chosen, data, req.Offset, req.MaxBytes))
 }
 
 func attachmentNames(held *entry) []string {
@@ -553,7 +551,7 @@ func attachmentNames(held *entry) []string {
 // page is one page of a text attachment, cut on a character boundary, framed
 // as data and closed with where the next page starts, and that offset, nil on
 // the last page.
-func page(id string, held attachPayload, data []byte, offset int, maxBytes int) (string, *int) {
+func page(id string, held attachPayload, data []byte, offset int, maxBytes int) string {
 	offset = min(max(offset, 0), len(data))
 
 	for offset > 0 && offset < len(data) && !utf8.RuneStart(data[offset]) {
@@ -578,12 +576,12 @@ func page(id string, held attachPayload, data []byte, offset int, maxBytes int) 
 	if end < len(data) {
 		lines = append(lines, fmt.Sprintf("--- next page: %s read %s %s --offset %d ---", self, id, held.Name, end))
 
-		return strings.Join(lines, "\n"), &end
+		return strings.Join(lines, "\n")
 	}
 
 	lines = append(lines, fmt.Sprintf("--- end of %s ---", held.Name))
 
-	return strings.Join(lines, "\n"), nil
+	return strings.Join(lines, "\n")
 }
 
 func (mem *memory) readTo(ctx context.Context, held attachPayload, data []byte, path string) result {

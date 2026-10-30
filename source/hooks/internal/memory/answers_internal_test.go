@@ -22,13 +22,11 @@ type jsonViewSection struct {
 	Groups  map[string]jsonGroup      `json:"groups,omitempty"`
 }
 
-// answerFields are the answers per tool: a read's JSON object, or the fields
-// of a message answer. A tool missing here answers its message alone.
+// answerFields are the reads' JSON objects; every other tool answers its
+// message alone.
 var answerFields = map[string]any{
 	"show": jsonShow{}, "search": jsonSearch{}, "brief": jsonBrief{}, "who": jsonWho{}, "topics": jsonTopics{},
-	"view": jsonView{}, "confirm": idsFields{}, "ack": ackFields{}, "state": seatFields{},
-	"retire": idsFields{}, "supersede": supersededFields{}, "retitle": retitledFields{}, "tag": topicsFields{},
-	"untag": topicsFields{}, "link": linkFields{}, "claim": seatFields{}, "release": releasedFields{},
+	"view": jsonView{},
 }
 
 // AnswerSchema is the shape a tool's answer keeps, derived from the types the

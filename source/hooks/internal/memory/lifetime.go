@@ -149,7 +149,5 @@ func (mem *memory) lifetime(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
-	temporary, _, _, _ := mem.retention(held)
-
-	return done(mem.describeLifetime(held)).with(lifetimeFields{Shelf: held.Name, Temporary: temporary})
+	return done(mem.describeLifetime(held))
 }

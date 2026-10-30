@@ -108,7 +108,7 @@ func TestMovingAndClearingADueTime(t *testing.T) {
 	id := h.file("Rerun the gate measurement", "body", "--kind", "todo")
 	trap := h.file("Gate trips on heredocs", "body", "--kind", "trap")
 
-	if out := h.must("", "due", id, "2026-11-02"); !strings.Contains(out, id+" due 2026-11-0") {
+	if out := h.must("", "due", id, "2026-11-02"); !strings.HasPrefix(out, "due 2026-11-0") {
 		t.Errorf("due should say the new time, got %q", out)
 	}
 
@@ -141,7 +141,7 @@ func TestMovingAndClearingADueTime(t *testing.T) {
 	}
 
 	out := h.mcp(`{"name":"due","arguments":{"id":"` + id + `","due":"2026-11-03"}}`)
-	if !strings.Contains(out, id+` due 2026-11-0`) || !strings.Contains(out, `"due":"2026-11-0`) {
+	if !strings.Contains(out, `"structuredContent":{"message":"due 2026-11-0`) {
 		t.Errorf("the due tool should move the time and answer it:\n%s", out)
 	}
 }

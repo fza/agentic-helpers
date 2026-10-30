@@ -175,7 +175,7 @@ func (mem *memory) simpleEvent(kind memorylog.Kind, target string, payload any) 
 }
 
 func (mem *memory) retire(ctx context.Context, req request) result {
-	_, ids, failure, ok := mem.batch(ctx, "retired", req.IDs, true, func(_ *state, held *entry) error {
+	_, _, failure, ok := mem.batch(ctx, "retired", req.IDs, true, func(_ *state, held *entry) error {
 		if held.status != statusLive {
 			return fmt.Errorf("%s is already %s", held.id, held.status)
 		}
@@ -186,7 +186,7 @@ func (mem *memory) retire(ctx context.Context, req request) result {
 		return failure
 	}
 
-	return done("retired " + strings.Join(ids, ", ")).with(idsFields{IDs: ids})
+	return done("retired")
 }
 
 // retirement is a retire's payload: its reason where one is given, and no
@@ -236,7 +236,7 @@ func (mem *memory) supersede(ctx context.Context, req request) result {
 		return failure
 	}
 
-	lines := []string{"superseded " + strings.Join(ids, ", ") + supersession(req.By, req.Because)}
+	lines := []string{"superseded"}
 
 	if req.ItemsMode == itemsCarry {
 		moved, err := mem.carryOnto(ctx, folded, ids, req.By)
@@ -247,7 +247,7 @@ func (mem *memory) supersede(ctx context.Context, req request) result {
 		lines = append(lines, moved...)
 	}
 
-	return done(strings.Join(lines, "\n")).with(supersededFields{IDs: ids, By: req.By, Because: req.Because})
+	return done(strings.Join(lines, "\n"))
 }
 
 // carryOnto moves every item of the todos ids onto successor, keeping ids
@@ -363,7 +363,7 @@ func (mem *memory) revive(ctx context.Context, req request) result {
 		return failure
 	}
 
-	return done("revived " + req.ID).with(idFields{ID: req.ID})
+	return done("revived " + req.ID)
 }
 
 func (mem *memory) retain(ctx context.Context, req request) result {
@@ -377,8 +377,7 @@ func (mem *memory) retain(ctx context.Context, req request) result {
 		return failure
 	}
 
-	return done(fmt.Sprintf("%s retained %s", strings.Join(ids, ", "), req.Level)).
-		with(retainedFields{IDs: ids, Retention: req.Level})
+	return done(fmt.Sprintf("%s retained %s", strings.Join(ids, ", "), req.Level))
 }
 
 func (mem *memory) retitle(ctx context.Context, req request) result {
@@ -388,14 +387,14 @@ func (mem *memory) retitle(ctx context.Context, req request) result {
 		return failure
 	}
 
-	text := fmt.Sprintf("%s retitled %q", req.ID, title)
+	text := "retitled"
 
 	count := words(title)
 	if count < 3 || count > 10 {
 		text += fmt.Sprintf("\nnote: title has %s, a title takes 3-10", plural(count, "word"))
 	}
 
-	return done(text).with(retitledFields{ID: req.ID, Title: title})
+	return done(text)
 }
 
 func (mem *memory) tag(ctx context.Context, req request) result {
@@ -417,8 +416,7 @@ func (mem *memory) tag(ctx context.Context, req request) result {
 		return failure
 	}
 
-	return done(fmt.Sprintf("%s tagged %s", req.ID, strings.Join(topics, ", "))).
-		with(topicsFields{ID: req.ID, Topics: topics})
+	return done("tagged")
 }
 
 // untag removes topics as the entry reads them now, through topic merges: the
@@ -470,8 +468,7 @@ func (mem *memory) untag(ctx context.Context, req request) result {
 		return failure
 	}
 
-	return done(fmt.Sprintf("%s untagged %s", req.ID, strings.Join(named, ", "))).
-		with(topicsFields{ID: req.ID, Topics: named})
+	return done("untagged")
 }
 
 func (mem *memory) merge(ctx context.Context, req request) result {
@@ -512,5 +509,5 @@ func (mem *memory) merge(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
-	return done(fmt.Sprintf("topic %s merged into %s", from, into)).with(mergedFields{From: from, Into: into})
+	return done(fmt.Sprintf("topic %s merged into %s", from, into))
 }

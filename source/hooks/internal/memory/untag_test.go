@@ -11,8 +11,8 @@ func TestUntagRemovesTopics(t *testing.T) {
 	h.must("", "claim", "main")
 	id := h.file("Gate finding under three topics", "the finding", "--topic", "mcp", "--topic", "stale")
 
-	if out := h.must("", "untag", id, "stale", "MCP"); !strings.Contains(out, id+" untagged stale, mcp") {
-		t.Errorf("untag should name the topics it removed, got:\n%s", out)
+	if out := h.must("", "untag", id, "stale", "MCP"); strings.TrimSpace(out) != "untagged" {
+		t.Errorf("untag should say it landed without echoing the topics sent, got:\n%s", out)
 	}
 
 	shown := h.must("", "show", id, "--no-heat")
@@ -36,7 +36,7 @@ func TestUntagRemovesTopics(t *testing.T) {
 	h.must("", "tag", id, "wire")
 
 	answer = h.mcp(`{"name":"untag","arguments":{"id":"` + id + `","topics":["gate"]}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, id+" untagged gate") {
+	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, `"structuredContent":{"message":"untagged"}`) {
 		t.Errorf("the MCP untag should take id and topics and remove the topic: %s", answer)
 	}
 

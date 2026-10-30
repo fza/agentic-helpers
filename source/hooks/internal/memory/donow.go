@@ -284,11 +284,10 @@ func (mem *memory) ack(ctx context.Context, req request) result {
 	}
 
 	if because != "" {
-		return done(fmt.Sprintf("declined %s: %s", strings.Join(unique, ", "), because)).
-			with(ackFields{IDs: unique, Declined: because})
+		return done(fmt.Sprintf("declined %s: %s", strings.Join(unique, ", "), because))
 	}
 
-	return done("done " + strings.Join(unique, ", ")).with(ackFields{IDs: unique})
+	return done("done")
 }
 
 // holdForDoNow is what Stop says while do-now items are pending, at most
