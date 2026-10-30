@@ -89,12 +89,12 @@ func TestAListedToolKeepsEveryKeyHoldingAValue(t *testing.T) {
 		own, other = other, own
 	}
 
-	if !slices.Equal(own, []string{"inputs", "name", "outputs", "own", "score", "summary", "takers", "usage", "version"}) {
-		t.Errorf("the own tool should keep every key holding a value, a zero takers among them, and no label, got %v", own)
+	if !slices.Equal(own, []string{"name", "score", "summary", "version"}) {
+		t.Errorf("an own hit should carry its name, version, summary and score alone, got %v", own)
 	}
 
-	if !slices.Equal(other, []string{"label", "name", "score", "summary", "takers", "usage", "version"}) {
-		t.Errorf("another project's tool should carry its label and leave out own, inputs and outputs it lacks, got %v", other)
+	if !slices.Equal(other, []string{"label", "name", "score", "summary", "version"}) {
+		t.Errorf("another project's hit should add its label and nothing else, got %v", other)
 	}
 }
 

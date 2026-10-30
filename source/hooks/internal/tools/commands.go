@@ -84,7 +84,7 @@ func commands() []command {
 		{
 			name:        "find",
 			usage:       "find [--query '<need>'] [--term '<literal>']... [--limit <n>] [--page <n>] [--again] [--json]",
-			description: "search the tool library of every project on the machine, the own project first",
+			description: "search the tool library of every project on the machine, the own project first; one line per tool, its usage comes with take",
 			flags: []flagSpec{{"query", flagText}, {"term", flagList}, {"limit", flagNumber}, {"page", flagNumber},
 				{"json", flagSwitch}, {"again", flagSwitch}},
 			run: (*library).find,
@@ -99,7 +99,7 @@ func commands() []command {
 			schema: `{"type":"object","properties":{"again":` + described(boolean, "print tools already seen in full") + `}}`,
 		},
 		{
-			name: "take", usage: "take <name>...", description: "copy the current version of each named tool into the checkout, all or none",
+			name: "take", usage: "take <name>...", description: "copy the current version of each named tool into the checkout, all or none, printing each one's usage",
 			positional: func(req *request, values []string) error {
 				if len(values) == 0 {
 					return errors.New("take needs at least one tool name")

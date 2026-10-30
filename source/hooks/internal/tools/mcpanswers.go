@@ -23,6 +23,9 @@ type takenTool struct {
 	Name    string `json:"name"`
 	Version int    `json:"version"`
 	Copy    string `json:"copy"`
+	Usage   string `json:"usage,omitempty"`
+	Inputs  string `json:"inputs,omitempty"`
+	Outputs string `json:"outputs,omitempty"`
 }
 
 type mergedFields struct {

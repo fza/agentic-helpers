@@ -94,7 +94,8 @@ func (lib *library) take(ctx context.Context, req request) result {
 		}
 
 		lines = append(lines, heading)
-		taken.Tools = append(taken.Tools, takenTool{Name: hit.shown(), Version: tool.Version, Copy: copied})
+		taken.Tools = append(taken.Tools, takenTool{Name: hit.shown(), Version: tool.Version, Copy: copied,
+			Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs})
 		lines = append(lines, indented("usage", tool.Usage)...)
 		lines = append(lines, indented("inputs", tool.Inputs)...)
 		lines = append(lines, indented("outputs", tool.Outputs)...)
