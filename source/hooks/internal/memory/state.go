@@ -198,12 +198,13 @@ type explicitLink struct {
 	seat   string
 }
 
-// links is every id the entry links to, text links first.
+// links is every id the entry links to, text links first; a tool it names is
+// no entry, and toolLinks holds it.
 func (held *entry) links() []string {
 	links := slices.Clone(held.textLinks)
 
 	for _, link := range held.explicit {
-		if !slices.Contains(links, link.target) {
+		if !isToolLink(link.target) && !slices.Contains(links, link.target) {
 			links = append(links, link.target)
 		}
 	}
@@ -494,10 +495,10 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 			held.explicit = append(held.explicit, explicitLink{target: row.Target, seat: row.Seat})
 		}
 
-		note("linked to " + row.Target)
+		note("linked to " + linkNote(row.Target))
 	case memorylog.KindUnlink:
 		held.explicit = slices.DeleteFunc(held.explicit, func(link explicitLink) bool { return link.target == row.Target })
-		note("unlinked from " + row.Target)
+		note("unlinked from " + linkNote(row.Target))
 	case memorylog.KindRevive:
 		var revived revivePayload
 

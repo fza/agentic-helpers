@@ -33,6 +33,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
+	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -101,6 +102,9 @@ const agent = "claude"
 type memory struct {
 	env     Env
 	streams hookio.Streams
+	// tools is the tool library an entry's tool links reach, opened on first
+	// use.
+	tools *tools.Linked
 	// key is the id of the store the checkout works on.
 	key string
 	// facts is the checkout as the home matches it; unbound says no store

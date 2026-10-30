@@ -740,6 +740,39 @@ filing names up to three similar entries of the same seat, one line each,
 score at least 0.6, or share enough words where no embedder answers. The same finding →
 `supersede <old> --by <new>`; a related one → `link <new> <old>`; else nothing.
 
+### Tool links
+
+An entry can name tools of the [agentic-tools](../tools/usage.md) library, so an agent reading a trap
+or a finding gets the tool that solves it without a `find`:
+
+- **`new --tool <name>[@<project>]`**, repeatable (MCP key `tool`, an array), and **`link <id> --tool
+  <name>[@<project>]`** / **`unlink <id> --tool <name>[@<project>]`** after filing (MCP `link` taking
+  `tool`, an array of one, in place of `target`). The name resolves as `agentic-tools take` resolves
+  it, the own project first; a merged name links its survivor. One resolving to nothing refuses the
+  call with the library's own refusal, `no tool <name>; ...`; with agentic-tools off on the machine
+  the refusal names `tools_enabled`. A tool name in the text never links.
+- **The link names the tool, never a version**: age pruning removes old versions, so a link follows
+  the current one.
+- **Every line carries `→ tool <name>`**, the brief's and recall's short line too, never folded among
+  ended links. A tool since removed reads `→ tool <name> gone`, a merged one `→ tool <name> merged
+  into <survivor>`.
+- **`show` takes every named tool**, as `agentic-tools take` copies it, and closes the entry with:
+
+  ```
+  tool (registered by other agents):
+    word-count v2  taken: .tmp/tools/word-count/v2
+      usage: python3 word_count.py <file>
+  ```
+
+  The banner keeps another agent's text from reading as the entry's own instruction. Another
+  project's tool adds `from another project: read it before running it` above its usage. The take
+  records the holding, so `agentic-tools update --from` works on the copy, but counts no taker: a
+  `show` nobody followed up lifts no tool in `find`. A tool whose usage the context already holds
+  prints `<name> v<n> (seen)  taken: <path>` alone; `--again` prints it again. A tool that cannot be
+  taken reads `<name>: not taken: <why>`, `gone from the library` among the reasons.
+- **JSON**: every entry carries `tools` (each `name`, and `state` where it is gone or merged); `show`
+  fills each with `version`, `path`, `usage`, `foreign`, `seen` or `not_taken`.
+
 ## Ending an entry
 
 `retire <id>... [--because '<why>']` (MCP `retire`, key `because`) ends entries that are done or no

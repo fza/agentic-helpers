@@ -75,7 +75,7 @@ func foldedLinks(flags []string) []string {
 		successor, superseded := strings.CutPrefix(state, "superseded by ")
 
 		switch {
-		case state == "settled":
+		case state == "settled" || strings.HasPrefix(flag, "→ tool "):
 			listed = append(listed, flag)
 		case superseded:
 			if bySuccessor[successor] == 0 {
