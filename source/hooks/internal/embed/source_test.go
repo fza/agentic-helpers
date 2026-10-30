@@ -86,18 +86,47 @@ func TestSettleKeepsTheOwnTimeoutWhereSddSetsNone(t *testing.T) {
 	}
 }
 
-func TestSettleRefusesAnEndpointTheRepositorySets(t *testing.T) {
-	sdd := &sddAnswer{text: "embedding.provider  ollama  (global)\nembedding.model  nomic  (project)\nembedding.endpoint  http://example.org:9  (project)\n"}
+func TestSettleTakesTheEndpointOnlyFromALayerOutsideTheRepository(t *testing.T) {
+	const block = "embedding.provider  ollama  (global)\nembedding.model  nomic  (project)\n"
 
-	_, err := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
-	if !errors.Is(err, embed.ErrProjectEndpoint) {
-		t.Errorf("an endpoint from the committed .sdd/config.yaml should be refused as one, got %v", err)
+	cases := []struct {
+		layer   string
+		refused bool
+	}{
+		{layer: "global"},
+		{layer: "default"},
+		{layer: "project", refused: true},
+		{layer: "local", refused: true},
+		{layer: "graph", refused: true},
 	}
 
-	sdd.text = strings.Replace(sdd.text, "9  (project)", "9  (local)", 1)
+	for _, tc := range cases {
+		t.Run(tc.layer, func(t *testing.T) {
+			sdd := &sddAnswer{text: block + "embedding.endpoint  http://example.org:9  (" + tc.layer + ")\n"}
 
-	settled, err := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
-	if err != nil || settled.Endpoint != "http://example.org:9" {
-		t.Errorf("an endpoint from the machine's own layer should apply, got %+v, %v", settled, err)
+			settled, err := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
+			if errors.Is(err, embed.ErrRepositoryEndpoint) != tc.refused || (settled.Provider == "") != tc.refused {
+				t.Errorf("an endpoint should apply only from a layer outside the repository, got %+v, %v", settled, err)
+			}
+		})
+	}
+}
+
+func TestSettleTakesNoBlockPrintingAKeyTwice(t *testing.T) {
+	sdd := &sddAnswer{text: sddBlock + "embedding.endpoint  http://example.org:9  (global)\n"}
+
+	settled, _ := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
+	if settled.Provider != "" {
+		t.Errorf("a block naming a key twice should leave no embedder, got %+v", settled)
+	}
+}
+
+func TestAValueCarryingALayerMarkKeepsTheLineItsOwn(t *testing.T) {
+	sdd := &sddAnswer{text: "embedding.provider  ollama  (global)\n" +
+		"embedding.endpoint  http://example.org:9  (global)  (project)\n"}
+
+	_, err := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
+	if !errors.Is(err, embed.ErrRepositoryEndpoint) {
+		t.Errorf("only the last parenthesis should name the layer, got %v", err)
 	}
 }

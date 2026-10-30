@@ -172,8 +172,8 @@ func (block sddEmbedding) EmbeddingConfig(_ context.Context, _ string) string {
 	return string(block)
 }
 
-const projectEndpointLine = "agentic-helpers: sdd's embedding endpoint is set in this repository's .sdd/config.yaml, " +
-	"which a clone brings along; search by meaning stays off until `sdd config set` sets it in sdd's own layer, " +
+const projectEndpointLine = "agentic-helpers: sdd's embedding endpoint is set in this repository's .sdd/ (layer project), " +
+	"which a clone can bring along; search by meaning stays off until `sdd config set` sets it in sdd's global layer, " +
 	"or embedding_provider and embedding_endpoint set one here\n"
 
 func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) {

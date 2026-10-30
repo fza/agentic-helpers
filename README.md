@@ -178,10 +178,11 @@ per process in the project and takes sdd's provider, model, endpoint, dimensions
 templates together, never mixed with its own. No API key is sent then: sdd prints its keys masked,
 and its configuration is a file any agent can write, so a key sent to an endpoint read from it could
 go anywhere. sdd's embedder therefore serves a server needing no key, such as a local one; a hosted one
-is set in the options above. An endpoint set in the repository's committed `.sdd/config.yaml`
-(sdd's `project` layer) is refused, since a clone would choose where every memory entry and prompt
-goes: the session start says so, and search by meaning stays off until sdd's own global or local
-layer sets the endpoint. Without sdd, or with sdd setting no embedder, search by meaning is off.
+is set in the options above. sdd's endpoint is taken only from its global configuration or its
+built-in default: one from the repository's `.sdd/config.yaml` or `.sdd/config.local.yaml`, either of
+which a clone can carry, is refused, since the clone would choose where every memory entry and prompt
+goes. The session start says so, and search by meaning stays off until `sdd config set` sets the
+endpoint globally. Without sdd, or with sdd setting no embedder, search by meaning is off.
 
 Changing the provider, the model, the dimensions or a template starts a fresh vector index, since vectors from
 two models cannot be compared. Memory embeds its entries again on its next search by meaning;
