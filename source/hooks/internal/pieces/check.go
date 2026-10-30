@@ -2,6 +2,7 @@ package pieces
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -189,19 +190,26 @@ func listing(options pluginconfig.Options) string {
 // leaves search by meaning off. `auto` and `own` say nothing: falling back to
 // no embedder is the state the options describe.
 func embeddingLines(ctx context.Context, env Env, resolution pluginconfig.Resolution) []string {
-	if resolution.Options.EmbeddingSource != pluginconfig.EmbeddingSourceSdd {
+	if !resolution.Options.EmbeddingFromSdd() {
 		return nil
 	}
+
+	underSdd := resolution.Options.EmbeddingSource == pluginconfig.EmbeddingSourceSdd
 
 	var lines []string
 
 	ignored := resolution.IgnoredEmbedding()
-	if len(ignored) > 0 {
+	if underSdd && len(ignored) > 0 {
 		lines = append(lines, "embedding_source is sdd; "+strings.Join(ignored, ", ")+" ignored")
 	}
 
-	settled := embed.Settle(ctx, embed.Config{}, true, env.SddConfig, env.Dir)
-	if settled.Provider == "" {
+	settled, err := embed.Settle(ctx, embed.Config{}, true, env.SddConfig, env.Dir)
+
+	switch {
+	case errors.Is(err, embed.ErrProjectEndpoint):
+		lines = append(lines, err.Error()+", which a clone brings along; search by meaning stays off until "+
+			"`sdd config set` sets it in sdd's own layer, or embedding_provider and embedding_endpoint set one here")
+	case underSdd && settled.Provider == "":
 		lines = append(lines, "embedding_source is sdd, but sdd sets no embedder here; search by meaning is off")
 	}
 

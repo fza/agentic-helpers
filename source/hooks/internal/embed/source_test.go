@@ -2,6 +2,8 @@ package embed_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,7 +35,7 @@ func TestSettleTakesSddsWholeBlockWithoutAKey(t *testing.T) {
 	sdd := &sddAnswer{text: sddBlock}
 	own := embed.Config{Provider: "ollama", Model: "own", APIKey: "own-key", Timeout: 2 * time.Minute}
 
-	settled := embed.Settle(context.Background(), own, true, sdd, "/project")
+	settled, _ := embed.Settle(context.Background(), own, true, sdd, "/project")
 
 	want := embed.Config{
 		Provider: "openai", Model: "embeddinggemma-300m-6bit", Endpoint: "http://127.0.0.1:1235", Timeout: 90 * time.Second,
@@ -48,7 +50,7 @@ func TestSettleKeepsOwnKeysAndAsksSddNothing(t *testing.T) {
 	sdd := &sddAnswer{text: sddBlock}
 	own := embed.Config{Provider: "ollama", Model: "own", APIKey: "own-key"}
 
-	settled := embed.Settle(context.Background(), own, false, sdd, "/project")
+	settled, _ := embed.Settle(context.Background(), own, false, sdd, "/project")
 	if settled != own || sdd.asked != 0 {
 		t.Errorf("own keys should apply unchanged without running sdd, got %+v after %d calls", settled, sdd.asked)
 	}
@@ -62,11 +64,12 @@ func TestSettleFindsNoEmbedderWhereSddSetsNone(t *testing.T) {
 		{name: "no sdd", sdd: nil},
 		{name: "sdd answers nothing", sdd: &sddAnswer{}},
 		{name: "a provider agentic-helpers cannot use", sdd: &sddAnswer{text: "embedding.provider  voyage  (global)\nembedding.model  v3  (global)\n"}},
+		{name: "an endpoint the repository sets", sdd: &sddAnswer{text: strings.Replace(sddBlock, "1235                (global)", "1235                (project)", 1)}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			settled := embed.Settle(context.Background(), embed.Config{Timeout: time.Minute}, true, tc.sdd, "/project")
+			settled, _ := embed.Settle(context.Background(), embed.Config{Timeout: time.Minute}, true, tc.sdd, "/project")
 			if settled.Provider != "" {
 				t.Errorf("no usable block should leave no embedder, got %+v", settled)
 			}
@@ -77,8 +80,24 @@ func TestSettleFindsNoEmbedderWhereSddSetsNone(t *testing.T) {
 func TestSettleKeepsTheOwnTimeoutWhereSddSetsNone(t *testing.T) {
 	sdd := &sddAnswer{text: "embedding.provider  ollama  (global)\nembedding.model  nomic  (global)\n"}
 
-	settled := embed.Settle(context.Background(), embed.Config{Timeout: 45 * time.Second}, true, sdd, "/project")
+	settled, _ := embed.Settle(context.Background(), embed.Config{Timeout: 45 * time.Second}, true, sdd, "/project")
 	if settled.Timeout != 45*time.Second {
 		t.Errorf("a block without a timeout should keep the configured one, got %v", settled.Timeout)
+	}
+}
+
+func TestSettleRefusesAnEndpointTheRepositorySets(t *testing.T) {
+	sdd := &sddAnswer{text: "embedding.provider  ollama  (global)\nembedding.model  nomic  (project)\nembedding.endpoint  http://example.org:9  (project)\n"}
+
+	_, err := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
+	if !errors.Is(err, embed.ErrProjectEndpoint) {
+		t.Errorf("an endpoint from the committed .sdd/config.yaml should be refused as one, got %v", err)
+	}
+
+	sdd.text = strings.Replace(sdd.text, "9  (project)", "9  (local)", 1)
+
+	settled, err := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
+	if err != nil || settled.Endpoint != "http://example.org:9" {
+		t.Errorf("an endpoint from the machine's own layer should apply, got %+v, %v", settled, err)
 	}
 }

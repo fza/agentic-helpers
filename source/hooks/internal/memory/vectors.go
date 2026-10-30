@@ -38,7 +38,7 @@ type legacyRow struct {
 func (mem *memory) embedder(ctx context.Context) (embed.Templated, error) {
 	if mem.embedding == nil {
 		options := mem.options()
-		config := embed.Settle(ctx, options.OwnEmbedding(mem.env.Getenv), options.EmbeddingFromSdd(), mem.env.SddConfig, mem.env.Base)
+		config, _ := embed.Settle(ctx, options.OwnEmbedding(mem.env.Getenv), options.EmbeddingFromSdd(), mem.env.SddConfig, mem.env.Base)
 		mem.embedding = &config
 	}
 

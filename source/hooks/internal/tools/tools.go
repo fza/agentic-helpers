@@ -364,7 +364,7 @@ func (lib *library) readOptions() pluginconfig.Options {
 // sdd's block that costs one `sdd config get`.
 func (lib *library) embedder(ctx context.Context) (embed.Templated, error) {
 	if lib.embedding == nil {
-		config := embed.Settle(ctx, lib.options.OwnEmbedding(lib.getenv), lib.options.EmbeddingFromSdd(), lib.env.SddConfig, lib.env.Base)
+		config, _ := embed.Settle(ctx, lib.options.OwnEmbedding(lib.getenv), lib.options.EmbeddingFromSdd(), lib.env.SddConfig, lib.env.Base)
 		lib.embedding = &config
 	}
 
