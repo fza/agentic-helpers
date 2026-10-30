@@ -100,11 +100,12 @@ func (lib *library) named() vectorseg.Live {
 // keepVector files a tool's vector once the own index names its description,
 // so no merge running meanwhile finds it named by no store.
 func (lib *library) keepVector(described string, vector []float32) {
-	if len(vector) == 0 {
+	// A vector exists only where an embedder was settled to make it.
+	if len(vector) == 0 || lib.embedding == nil {
 		return
 	}
 
-	embedder, err := lib.embedder()
+	embedder, err := lib.embedder(context.Background())
 	if err != nil {
 		return
 	}
@@ -138,7 +139,7 @@ func (lib *library) rebuild(ctx context.Context, at string) (*index, error) {
 		return nil, err
 	}
 
-	embedder, err := lib.embedder()
+	embedder, err := lib.embedder(ctx)
 	if err != nil {
 		return built, nil
 	}
@@ -173,10 +174,10 @@ func (lib *library) rebuild(ctx context.Context, at string) (*index, error) {
 		return built, nil
 	}
 
-	bounded, cancel := context.WithTimeout(ctx, embedLimit)
+	bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Embed(bounded, texts)
+	vectors, err := embedder.Documents(bounded, texts)
 	if err != nil || len(vectors) != len(missing) {
 		return built, nil
 	}

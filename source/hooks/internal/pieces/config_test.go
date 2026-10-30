@@ -164,3 +164,52 @@ func TestConfigYAMLLoosensNoGuardAndSetsNoEmbedderKey(t *testing.T) {
 		t.Error("a refused config set should leave config.yaml as it was")
 	}
 }
+
+// sddEmbedding is an sdd printing a fixed embedding block, or none.
+type sddEmbedding string
+
+func (block sddEmbedding) EmbeddingConfig(_ context.Context, _ string) string {
+	return string(block)
+}
+
+func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) {
+	const block = "embedding.provider  ollama  (global)\nembedding.model  nomic  (global)\n"
+
+	cases := []struct {
+		name    string
+		config  string
+		options string
+		sdd     sddEmbedding
+		want    string
+	}{
+		{name: "auto says nothing", options: `"embedding_model":"own"`, want: ""},
+		{name: "sdd with sdd's block and no own key", config: "embedding_source: sdd\n", options: `"memory_language":"de"`, sdd: block, want: ""},
+		{
+			name: "sdd with own keys set", config: "embedding_source: sdd\nembedding_timeout: 30s\n", options: `"embedding_model":"own"`, sdd: block,
+			want: "agentic-helpers: embedding_source is sdd; embedding_model, embedding_timeout ignored\n",
+		},
+		{
+			name: "sdd answering no block", config: "embedding_source: sdd\n", options: `"memory_language":"de"`,
+			want: "agentic-helpers: embedding_source is sdd, but sdd sets no embedder here; search by meaning is off\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := layeredEnv(t, tc.config, tc.options)
+			env.Hook = true
+			env.SddConfig = tc.sdd
+
+			var captured test.Captured
+
+			code := pieces.Main(context.Background(), []string{"check"}, env, captured.Streams(""))
+			if code != 0 {
+				t.Fatalf("check should exit 0, got %d", code)
+			}
+
+			if out := captured.Out.String(); out != tc.want {
+				t.Errorf("a session start should name exactly what an sdd source leaves unused, got %q", out)
+			}
+		})
+	}
+}

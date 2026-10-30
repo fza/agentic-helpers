@@ -247,6 +247,12 @@ func (fake *Embedder) Fingerprint() string {
 	return "fake/64"
 }
 
+// Space is the fingerprint memory and the tool library file the fake's
+// vectors under, with no template set.
+func (fake *Embedder) Space() string {
+	return embed.Template(fake, embed.Config{}).Fingerprint()
+}
+
 func bagOfWords(text string) []float32 {
 	vector := make([]float32, embedDims)
 

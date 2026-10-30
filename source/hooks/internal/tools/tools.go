@@ -67,6 +67,9 @@ type Env struct {
 	Checkout  project.CommonDirLookup
 	Git       Git
 	Embedders EmbedderFactory
+	// SddConfig reads sdd's embedding block, which `embedding_source` may
+	// choose; nil reads none.
+	SddConfig embed.Sdd
 	Version   string
 	// Idle is the work the MCP server runs while its client is quiet: the
 	// sweep of the old layout.
@@ -91,6 +94,10 @@ type library struct {
 	outsideGit bool
 	session    string
 	options    pluginconfig.Options
+	// embedding is the embedder configuration, settled on first use; inHook
+	// says a hook runs, whose embedding calls keep a short deadline.
+	embedding *embed.Config
+	inHook    bool
 	// reach is every store a read may use, the own one first, once listed.
 	reach []*store
 }
@@ -113,6 +120,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 	hook, isHook := hooks[verb]
 	if isHook {
+		lib.inHook = true
 		lib.locate(ctx)
 		lib.prepare(ctx)
 
@@ -341,28 +349,35 @@ func (lib *library) readOptions() pluginconfig.Options {
 	return options
 }
 
-func (lib *library) embedder() (embed.Embedder, error) {
-	config := embed.Config{
-		Provider:   lib.options.EmbeddingProvider,
-		Model:      lib.options.EmbeddingModel,
-		Endpoint:   lib.options.EmbeddingEndpoint,
-		Dimensions: lib.options.EmbeddingDimensions,
-	}
-
-	if lib.options.EmbeddingAPIKeyEnv != "" {
-		config.APIKey = lib.getenv(lib.options.EmbeddingAPIKeyEnv)
+// embedder is the embedder the options choose, settled once per run: under
+// sdd's block that costs one `sdd config get`.
+func (lib *library) embedder(ctx context.Context) (embed.Templated, error) {
+	if lib.embedding == nil {
+		config := embed.Settle(ctx, lib.options.OwnEmbedding(lib.getenv), lib.options.EmbeddingFromSdd(), lib.env.SddConfig, lib.env.Base)
+		lib.embedding = &config
 	}
 
 	if lib.env.Embedders == nil {
-		return nil, embed.ErrNotConfigured
+		return embed.Templated{}, embed.ErrNotConfigured
 	}
 
-	embedder, err := lib.env.Embedders(config)
+	embedder, err := lib.env.Embedders(*lib.embedding)
 	if err != nil {
-		return nil, fmt.Errorf("no embedder answers: %w", err)
+		return embed.Templated{}, fmt.Errorf("no embedder answers: %w", err)
 	}
 
-	return embedder, nil
+	return embed.Template(embedder, *lib.embedding), nil
+}
+
+// embedLimitFor bounds one embedding call: a hook keeps its own short
+// deadline, never longer than the configured timeout a command waits.
+func (lib *library) embedLimitFor() time.Duration {
+	timeout := cmp.Or(lib.embedding.Timeout, pluginconfig.DefaultEmbeddingTimeout)
+	if lib.inHook {
+		return min(embedLimit, timeout)
+	}
+
+	return timeout
 }
 
 func (lib *library) promptVectors() string {

@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
@@ -14,12 +15,13 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
 )
 
-// embedLimit bounds one call to the embedder, so a hook never hangs on a model
-// server that accepts the connection and never answers.
+// embedLimit bounds one call to the embedder in a hook, so a hook never hangs
+// on a model server that accepts the connection and never answers.
 const embedLimit = 20 * time.Second
 
 var ErrNoEmbedder = errors.New("semantic search needs an embedder")
@@ -31,26 +33,32 @@ type legacyRow struct {
 	Chunks [][]float32
 }
 
-func (mem *memory) embedder() (embed.Embedder, error) {
-	options := mem.options()
-
-	config := embed.Config{
-		Provider:   options.EmbeddingProvider,
-		Model:      options.EmbeddingModel,
-		Endpoint:   options.EmbeddingEndpoint,
-		Dimensions: options.EmbeddingDimensions,
+// embedder is the embedder the options choose, settled once per run: under
+// sdd's block that costs one `sdd config get`.
+func (mem *memory) embedder(ctx context.Context) (embed.Templated, error) {
+	if mem.embedding == nil {
+		options := mem.options()
+		config := embed.Settle(ctx, options.OwnEmbedding(mem.env.Getenv), options.EmbeddingFromSdd(), mem.env.SddConfig, mem.env.Base)
+		mem.embedding = &config
 	}
 
-	if options.EmbeddingAPIKeyEnv != "" && mem.env.Getenv != nil {
-		config.APIKey = mem.env.Getenv(options.EmbeddingAPIKeyEnv)
-	}
-
-	embedder, err := mem.env.Embedders(config)
+	embedder, err := mem.env.Embedders(*mem.embedding)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
+		return embed.Templated{}, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
 	}
 
-	return embedder, nil
+	return embed.Template(embedder, *mem.embedding), nil
+}
+
+// embedLimitFor bounds one embedding call: a hook keeps its own short
+// deadline, never longer than the configured timeout a command waits.
+func (mem *memory) embedLimitFor() time.Duration {
+	timeout := cmp.Or(mem.embedding.Timeout, pluginconfig.DefaultEmbeddingTimeout)
+	if mem.inHook {
+		return min(embedLimit, timeout)
+	}
+
+	return timeout
 }
 
 func contentHash(held *entry) string {
@@ -61,7 +69,7 @@ func contentHash(held *entry) string {
 
 // vectors opens the vector store of one embedder: a changed embedder starts a
 // fresh store instead of mixing two vector spaces.
-func (mem *memory) vectors(embedder embed.Embedder) *vectorseg.Store {
+func (mem *memory) vectors(embedder embed.Templated) *vectorseg.Store {
 	sum := sha256.Sum256([]byte(embedder.Fingerprint()))
 
 	return vectorseg.Open(filepath.Join(mem.cacheDir(), hex.EncodeToString(sum[:])[:12], "segments"))
@@ -134,7 +142,7 @@ func migrate(store *vectorseg.Store, live vectorseg.Live) error {
 // fill embeds every entry the snapshot holds no rows of for its current
 // content, and returns the snapshot to search: filing never waits on the
 // embedder, so the next call reaching it catches up.
-func (mem *memory) fill(ctx context.Context, embedder embed.Embedder, store *vectorseg.Store, folded *state, live vectorseg.Live) (*vectorseg.Snapshot, error) {
+func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *vectorseg.Store, folded *state, live vectorseg.Live) (*vectorseg.Snapshot, error) {
 	snapshot, err := store.Snapshot()
 	if err != nil {
 		return nil, err
@@ -171,10 +179,10 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Embedder, store *vec
 
 	_ = snapshot.Close()
 
-	bounded, cancel := context.WithTimeout(ctx, embedLimit)
+	bounded, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Embed(bounded, texts)
+	vectors, err := embedder.Documents(bounded, texts)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
 	}
@@ -208,7 +216,7 @@ func (mem *memory) semantic(ctx context.Context, folded *state, phrase string) (
 // session: the prompt's vector then comes from, or goes to, the slot
 // agentic-tools shares, so the prompt is embedded once between them.
 func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string, session string) (map[string]float32, error) {
-	embedder, err := mem.embedder()
+	embedder, err := mem.embedder(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -234,10 +242,10 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 
 	query := [][]float32{cached}
 	if !hit {
-		bounded, cancel := context.WithTimeout(ctx, embedLimit)
+		bounded, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
 		defer cancel()
 
-		query, err = embedder.Embed(bounded, []string{phrase})
+		query, err = embedder.Queries(bounded, []string{phrase})
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
 		}

@@ -8,6 +8,12 @@
   "homepage": "https://github.com/fza/agentic-helpers",
   "license": "MIT",
   "userConfig": {
+    "embedding_source": {
+      "type": "string",
+      "title": "Embedder source",
+      "description": "Where the embedder comes from: auto uses the own embedding options where embedding_provider is set, else sdd's embedding configuration; sdd always uses sdd's; own never reads sdd. Under sdd's configuration no API key is sent; default auto",
+      "required": false
+    },
     "embedding_provider": {
       "type": "string",
       "title": "Embedding provider",
@@ -36,6 +42,24 @@
       "type": "string",
       "title": "API key variable",
       "description": "Name of the environment variable holding a hosted embedder's key; the key itself is never stored",
+      "required": false
+    },
+    "embedding_timeout": {
+      "type": "string",
+      "title": "Embedding timeout",
+      "description": "How long one embedding call of a command may take, a span such as 30s or 2m; hooks keep a shorter limit; default 2m",
+      "required": false
+    },
+    "embedding_query_template": {
+      "type": "string",
+      "title": "Embedding query template",
+      "description": "Wraps a search query or prompt before it is embedded, {text} marking where it goes, e.g. \"task: search result | query: {text}\"; default none",
+      "required": false
+    },
+    "embedding_document_template": {
+      "type": "string",
+      "title": "Embedding document template",
+      "description": "Wraps a memory entry or tool description before it is embedded, {text} marking where it goes, e.g. \"title: none | text: {text}\"; default none",
       "required": false
     },
     "entry_max_words": {

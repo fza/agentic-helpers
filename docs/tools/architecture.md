@@ -101,7 +101,7 @@ cap (a helper tool is a script, and 1 MiB holds any reasonable one).
 ## Vectors
 
 Vectors live outside every store, in `<cache>/tools/vectors/<embedder>/`, one directory
-per embedder fingerprint, as segments of `internal/vectorseg`, the store agentic-memory keeps its
+per embedder fingerprint (provider, model, dimensions, template hash, as memory's), as segments of `internal/vectorseg`, the store agentic-memory keeps its
 entry vectors in (`docs/memory/architecture.md`, "The vector store"). A row is one description's
 vector, keyed by the description's hash, so one vector serves every store naming that description
 and a rebuild embeds only a description no row is held for. `add`, `update`, `merge` and a rebuild

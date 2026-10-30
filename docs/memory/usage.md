@@ -1255,7 +1255,7 @@ environment variable to a server the writer picks.
 
 | Option | Sets |
 |---|---|
-| `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env` | the embedder search by meaning and prompt recall run on |
+| `embedding_source`, `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, `embedding_timeout`, `embedding_query_template`, `embedding_document_template` | the embedder search by meaning and prompt recall run on, its own or sdd's (see README `Embedder`) |
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
 | `retired_body_lifetime` | `config.yaml` only: how long a retired entry keeps its body, a span (`90d`, `6w`); `90d` unless set, never under `14d`. The older `retired_body_days` (a number of days) is still read for one release, and `agentic-helpers check` names it |

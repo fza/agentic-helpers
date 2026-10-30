@@ -66,7 +66,7 @@ func TestThePromptReusesAVectorAgenticMemoryLeft(t *testing.T) {
 	prompt := "count the words of standard input"
 	vector, _ := h.embedder.Embed(t.Context(), []string{prompt})
 
-	err := promptvector.Save(context.Background(), promptvector.Dir(h.roots().Cache), h.session, prompt, h.embedder.Fingerprint(), vector[0])
+	err := promptvector.Save(context.Background(), promptvector.Dir(h.roots().Cache), h.session, prompt, h.embedder.Space(), vector[0])
 	if err != nil {
 		t.Fatalf("saving the slot: %v", err)
 	}

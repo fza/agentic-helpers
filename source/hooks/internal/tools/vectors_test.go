@@ -18,7 +18,7 @@ import (
 // vectorDir is where the fake embedder's vectors live, named by its
 // fingerprint's hash.
 func (h *harness) vectorDir() string {
-	digest := sha256.Sum256([]byte(h.embedder.Fingerprint()))
+	digest := sha256.Sum256([]byte(h.embedder.Space()))
 
 	return filepath.Join(h.roots().SharedCache(home.Tools), "vectors", hex.EncodeToString(digest[:])[:32])
 }

@@ -85,6 +85,9 @@ type Env struct {
 	// whether the sdd on the PATH has `export` at all, nil taking it as given.
 	Graph GraphExporter
 	Sdd   *sddcaps.Probe
+	// SddConfig reads sdd's embedding block, which `embedding_source` may
+	// choose; nil reads none.
+	SddConfig embed.Sdd
 	// WaitPoll and WaitDeadline pace the idle waiter; zero takes every 5
 	// seconds for 30 minutes.
 	WaitPoll     time.Duration
@@ -106,6 +109,10 @@ type memory struct {
 	facts    home.Checkout
 	unbound  bool
 	question *home.Question
+	// embedding is the embedder configuration, settled on first use; inHook
+	// says a hook runs, whose embedding calls keep a short deadline.
+	embedding *embed.Config
+	inHook    bool
 	// seen is what the calling session's context already holds of each entry,
 	// for the read running now; nil where no seated session calls.
 	seen *presented
@@ -473,6 +480,8 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 	hookEvent := hookEvents[name]
 	if isHook {
+		mem.inHook = true
+
 		if mem.outsideGit || mem.unreadable != "" {
 			return 0
 		}

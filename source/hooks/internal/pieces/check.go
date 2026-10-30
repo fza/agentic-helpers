@@ -7,6 +7,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
 	"github.com/fza/agentic-helpers/source/hooks/internal/dump"
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
@@ -25,6 +26,10 @@ type Env struct {
 	Hook      bool
 	Migration migration.Env
 	CacheRoot string
+	// SddConfig reads sdd's embedding block in Dir, the project the session
+	// works in, for the line saying an `sdd` embedding source finds none.
+	SddConfig embed.Sdd
+	Dir       string
 }
 
 const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | dump <file>"
@@ -73,6 +78,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		for _, problem := range resolution.Problems {
 			_, _ = fmt.Fprintln(streams.Out, self+": "+problem)
+		}
+
+		for _, line := range embeddingLines(ctx, env, resolution) {
+			_, _ = fmt.Fprintln(streams.Out, self+": "+line)
 		}
 
 		line := machineLine(ctx, env, resolution.Options)
@@ -173,4 +182,28 @@ func listing(options pluginconfig.Options) string {
 	}
 
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// embeddingLines names what an `sdd` embedding source leaves unused: the own
+// embedding keys some layer sets, and sdd answering no embedding block, which
+// leaves search by meaning off. `auto` and `own` say nothing: falling back to
+// no embedder is the state the options describe.
+func embeddingLines(ctx context.Context, env Env, resolution pluginconfig.Resolution) []string {
+	if resolution.Options.EmbeddingSource != pluginconfig.EmbeddingSourceSdd {
+		return nil
+	}
+
+	var lines []string
+
+	ignored := resolution.IgnoredEmbedding()
+	if len(ignored) > 0 {
+		lines = append(lines, "embedding_source is sdd; "+strings.Join(ignored, ", ")+" ignored")
+	}
+
+	settled := embed.Settle(ctx, embed.Config{}, true, env.SddConfig, env.Dir)
+	if settled.Provider == "" {
+		lines = append(lines, "embedding_source is sdd, but sdd sets no embedder here; search by meaning is off")
+	}
+
+	return lines
 }

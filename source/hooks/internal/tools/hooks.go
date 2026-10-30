@@ -89,7 +89,7 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 		return ""
 	}
 
-	embedder, err := lib.embedder()
+	embedder, err := lib.embedder(ctx)
 	if err != nil {
 		return ""
 	}
@@ -213,7 +213,7 @@ func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, 
 		return nil, "", ErrPromptWithheld
 	}
 
-	embedder, err := lib.embedder()
+	embedder, err := lib.embedder(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -225,7 +225,7 @@ func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, 
 		return cached, fingerprint, nil
 	}
 
-	vectors, err := embedder.Embed(ctx, []string{prompt})
+	vectors, err := embedder.Queries(ctx, []string{prompt})
 	if err != nil || len(vectors) != 1 {
 		return nil, "", fmt.Errorf("embedding the prompt: %w", cmp.Or(err, fmt.Errorf("no vector answered")))
 	}
@@ -236,15 +236,15 @@ func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, 
 }
 
 func (lib *library) embedText(ctx context.Context, phrase string) ([]float32, string, error) {
-	embedder, err := lib.embedder()
+	embedder, err := lib.embedder(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
-	bounded, cancel := context.WithTimeout(ctx, embedLimit)
+	bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Embed(bounded, []string{phrase})
+	vectors, err := embedder.Queries(bounded, []string{phrase})
 	if err != nil {
 		return nil, "", fmt.Errorf("embedding the query: %w", err)
 	}

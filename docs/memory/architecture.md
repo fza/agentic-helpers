@@ -231,7 +231,10 @@ plus `n` entries in a bounded heap rather than sorting all it kept.
 
 `internal/vectorseg` keeps every entry's chunk vectors in immutable segment files under
 `<cache>/stores/<id>/memory/<sha256(fingerprint)[:12]>/segments/`, one store per embedder, so
-a changed embedder starts a fresh store instead of mixing two vector spaces. The layout follows sdd's
+a changed embedder starts a fresh store instead of mixing two vector spaces. The fingerprint names the
+provider, the model, the dimensions and a hash of the query and document templates
+(`openai/<model>/<dims>/t<hash>`), every one of which changes the vectors; the endpoint stays out, so
+moving a local server to another port keeps the store. The layout follows sdd's
 search segments:
 
 ```

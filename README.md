@@ -163,13 +163,24 @@ OpenAI-compatible server) or as a hosted service.
 
 | Option | Default | What it controls |
 |---|---|---|
+| `embedding_source` | `auto` | Where the embedder comes from. `auto`: the options below where `embedding_provider` is set, else sdd's embedding configuration. `sdd`: always sdd's, the options below ignored (named at session start). `own`: never sdd's |
 | `embedding_provider` | none | `openai` for any OpenAI-compatible API, or `ollama`. Empty turns search by meaning off |
 | `embedding_model` | none | The model the endpoint serves, such as `embeddinggemma-300m` |
 | `embedding_endpoint` | the provider's | Claude Code's settings only. The server's base URL. Empty means `https://api.openai.com` or `http://localhost:11434` |
-| `embedding_dimensions` | `0` | Vector size to ask an `openai` provider for. `0` keeps the model's own; `ollama` ignores it |
+| `embedding_dimensions` | `0` | Vector size to ask the provider for. `0` keeps the model's own |
 | `embedding_api_key_env` | none | Claude Code's settings only. Name of the environment variable holding a hosted service's API key. The key itself is never stored |
+| `embedding_timeout` | `2m` | How long one embedding call of a command or MCP tool may take, a span. Hooks keep a shorter limit of their own (20s), never longer than this |
+| `embedding_query_template` | none | Wraps a search query or a prompt before it is embedded, `{text}` marking where it goes, as sdd's `embedding.query_template` does (`task: search result \| query: {text}`) |
+| `embedding_document_template` | none | Wraps a memory entry or a tool description before it is embedded (`title: none \| text: {text}`) |
 
-Changing the provider, the model or the dimensions starts a fresh vector index, since vectors from
+**sdd's embedder.** Under sdd's configuration, agentic-helpers runs `sdd config get embedding` once
+per process in the project and takes sdd's provider, model, endpoint, dimensions, timeout and both
+templates together, never mixed with its own. No API key is sent then: sdd prints its keys masked,
+and its configuration is a file any agent can write, so a key sent to an endpoint read from it could
+go anywhere. sdd's embedder therefore serves a server needing no key, such as a local one; a hosted one
+is set in the options above. Without sdd, or with sdd setting no embedder, search by meaning is off.
+
+Changing the provider, the model, the dimensions or a template starts a fresh vector index, since vectors from
 two models cannot be compared. Memory embeds its entries again on its next search by meaning;
 `agentic-tools reindex` does the same for the tool library.
 
