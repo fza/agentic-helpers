@@ -1,6 +1,6 @@
 {
   "name": "agentic-helpers",
-  "version": "2.18.0",
+  "version": "2.19.0",
   "description": "Memory that survives compaction, a shared helper-script library, a scratch sweep, a decision-graph grounding gate, checked graph captures and a Bash guard, each with a skill",
   "author": {
     "name": "Felix Zandanel"
