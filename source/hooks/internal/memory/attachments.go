@@ -742,4 +742,9 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 	}
 
 	mem.recordSizes(ctx, known)
+
+	// The ledger replaces the JSON file of sizes a release before it kept.
+	for _, legacy := range []string{".space.json", ".space.json.lock"} {
+		removeIfThere(filepath.Join(mem.attachmentsRoot(), legacy))
+	}
 }

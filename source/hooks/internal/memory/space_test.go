@@ -2,14 +2,16 @@ package memory_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"github.com/fza/agentic-helpers/source/hooks/internal/space"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -204,7 +206,18 @@ func TestTheAttachmentSpaceComesFromRecordedSizes(t *testing.T) {
 	}
 
 	test.WriteLedger(t, h.roots().Shared("attachments"), test.Fixture(t, "memory/space/attachments-stale.json"))
+
+	for _, legacy := range []string{".space.json", ".space.json.lock"} {
+		test.WriteFile(t, filepath.Join(h.roots().Shared("attachments"), legacy), "{}")
+	}
+
 	h.must(hookPayload("startup", "", ""), "session-start")
+
+	for _, legacy := range []string{".space.json", ".space.json.lock"} {
+		if _, err := os.Lstat(filepath.Join(h.roots().Shared("attachments"), legacy)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the SessionStart pass should remove %s, which the ledger replaces", legacy)
+		}
+	}
 
 	if out := h.must("", "attach", id, h.sizedFile("three.log", 'c', 1<<10)); lastLine(out) != "space left: attachments 1021.0 KB of 1.0 MB" {
 		t.Errorf("the SessionStart pass should recompute the ledger from every log, dropping a file no longer stored, got %q",
