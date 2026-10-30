@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
@@ -36,7 +37,7 @@ func TestTheLedgerMatchesTheFilesAfterEveryWriteAndPrune(t *testing.T) {
 			h.must("add", "line-count", "--from", h.sized("lines", 500), "--summary", "Count the lines of a file",
 				"--usage", "python3 the script < file", "--distinct", "lines, not words")
 		}},
-		{name: "the SessionStart pass", run: func() { tools.Prune(context.Background(), h.roots(), 1) }},
+		{name: "the SessionStart pass", run: func() { tools.Prune(context.Background(), h.roots(), 1, 90*24*time.Hour, h.clock.Now()) }},
 	}
 
 	for _, step := range steps {

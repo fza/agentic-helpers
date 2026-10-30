@@ -214,6 +214,7 @@ two models cannot be compared. Memory embeds its entries again on its next searc
 | `tools_query_floor` | `0.45` | Similarity (cosine) from which a tool counts as a match for a search or a prompt |
 | `tools_duplicate_floor` | `0.85` | Similarity from which a new tool is refused as a duplicate of another |
 | `tools_total_mb` | `500` | `config.yaml` only. Size limit for every stored version of every tool library on the machine, in MB. Past it, versions that are neither current nor a fork's origin are removed oldest first; never below the fixed 1 MB a tool may hold |
+| `tools_version_lifetime` | `90d` | `config.yaml` only. How long a tool version stays once a newer one replaced it, whatever space is left (at least `14d`); a current version or a fork's origin never goes |
 
 ### Capture
 

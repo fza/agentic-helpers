@@ -107,6 +107,12 @@ prunable version would not make room: `the tool library would hold <size> on thi
 tools_total_mb`. A pruned version's file hashes stay with its tool, so a byte-identical `add` is
 still refused; a copy a session took of it stays in the checkout's `.tmp/tools/`.
 
+A prunable version also goes by age, whatever space is left: once its tool replaced it longer ago
+than `tools_version_lifetime` (set in `config.yaml` only, a span), 90 days unless set, never below 14
+days. Age counts from the replacement, the recorded write of the next version, so a version current
+for a year keeps its way back for the full window after an update. A tool's current version never
+goes by age, so every tool stays findable however long nobody takes it.
+
 Space left is the limit less the bytes of the versions that cannot be pruned. Every `add` and
 `update` reply ends with it, `space left: tools <left> of <limit>`; the agentic-memory brief
 names it only while under a tenth of the limit is left. `agentic-tools --help` lists every verb
