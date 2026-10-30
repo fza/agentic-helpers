@@ -137,6 +137,10 @@ func TestTheGateSeesSddsMCPTools(t *testing.T) {
 			t.Errorf("the gate should record %s as a read", tool)
 		}
 	}
+
+	if !slices.Contains(matched("PostToolUse", "record"), "mcp__sdd__stage_attachment") {
+		t.Error("the gate should record the text of every file staged for the engine")
+	}
 }
 
 func TestShellGuardScansEveryToolsOutput(t *testing.T) {

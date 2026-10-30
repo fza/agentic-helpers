@@ -201,6 +201,11 @@ func engineCaptureRefusal(ctx context.Context, env Env, payload hookio.Payload, 
 		return ""
 	}
 
+	handle, named := call.handle()
+	if named {
+		return handleRefusal(ctx, env, config.DraftLint, ledger, path, handle)
+	}
+
 	text, carried, unheld := call.body(held.Body)
 	if unheld {
 		if payload.ToolName != mcpNext || held.Asked || err != nil {
@@ -278,26 +283,32 @@ type serve struct {
 // itself, the MCP result carrying it as structured content or as JSON in a
 // text block, or the bare list of blocks.
 func serveOf(raw json.RawMessage) serve {
+	return answerOf(raw, func(served serve) bool { return served.Instance != "" })
+}
+
+// answerOf reads an engine tool's answer in each of those forms, the first
+// one valid accepts.
+func answerOf[Answer any](raw json.RawMessage, valid func(Answer) bool) Answer {
 	var text string
 
 	if json.Unmarshal(raw, &text) == nil {
 		raw = json.RawMessage(text)
 	}
 
-	var direct serve
+	var direct Answer
 
 	err := json.Unmarshal(raw, &direct)
-	if err == nil && direct.Instance != "" {
+	if err == nil && valid(direct) {
 		return direct
 	}
 
 	var wrapped struct {
-		Structured serve       `json:"structuredContent"`
+		Structured Answer      `json:"structuredContent"`
 		Content    []textBlock `json:"content"`
 	}
 
 	err = json.Unmarshal(raw, &wrapped)
-	if err == nil && wrapped.Structured.Instance != "" {
+	if err == nil && valid(wrapped.Structured) {
 		return wrapped.Structured
 	}
 
@@ -307,14 +318,16 @@ func serveOf(raw json.RawMessage) serve {
 	}
 
 	for _, block := range blocks {
-		var served serve
+		var answered Answer
 
-		if json.Unmarshal([]byte(block.Text), &served) == nil && served.Instance != "" {
-			return served
+		if json.Unmarshal([]byte(block.Text), &answered) == nil && valid(answered) {
+			return answered
 		}
 	}
 
-	return serve{}
+	var none Answer
+
+	return none
 }
 
 type textBlock struct {
@@ -369,6 +382,15 @@ func recordEngineCapture(ctx context.Context, env Env, payload hookio.Payload) {
 	text, carried, unheld := call.body(held.Body)
 	if carried && !unheld {
 		held.Body, held.Asked = text, false
+	}
+
+	// A body taken by handle is the one a later `bodyPatch` edits, once the
+	// capture drops the handle. A handle the gate holds no text for leaves no
+	// body, so that patch asks for the whole body rather than editing an older
+	// one.
+	handle, named := call.handle()
+	if named {
+		held.Body, held.Asked = stagedBody(ledger.Staged[handle].Text), false
 	}
 
 	topics, reported := call.topics()

@@ -161,12 +161,27 @@ a capture it saw start, reading the `params` or `report` and the `fields` of a c
   patch sdd would refuse passes the gate unlinted, since sdd refuses the report itself. A patch to a
   capture whose body the gate holds no record of is refused once, asking for the whole body:
   ``GROUNDING GATE: refused. This `bodyPatch` edits a body the gate holds no record of, so the project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) cannot read the result.``
+- **A `bodyHandle`**, a file staged through `mcp__sdd__stage_attachment` named as the body, has
+  the text the gate recorded for that handle linted, after a leading header block opened and
+  closed by a `---` line, as sdd reads it. The gate records each staging that went through, where
+  `draft_lint` is set: the `content` given, the file a `path` names, or `patches` applied by sdd's
+  edit rule to the file staged under that `name`; a staging it cannot follow (a patch it cannot
+  apply, a file it cannot read, bytes whose sha256 differs from the one sdd answered with) drops
+  what it held. A handle the gate holds no text for (staged before the hook ran, or the ledger
+  lost) is refused once, asking to stage the file again or report the body as `body`:
+  ``GROUNDING GATE: refused. This `bodyHandle` names `<handle>`, a staged file the gate holds no record of, so the project's draft lint (`draft_lint` in `.sdd/grounding.yaml`) cannot read the body.``
 
 The gate learns a capture from its start, and keeps its body and topics per instance in its ledger
 from every call that went through; neither a compaction nor a graph change clears them. A capture
 that completed or was abandoned is dropped. A report to an instance the gate never saw start
 passes, since it cannot be told from another procedure's. A seat `exempt_seats` names passes these
 checks as it passes every other.
+
+The staged text sits in the same ledger, by handle, and goes with it at session end. A project
+without `draft_lint` records none, and a capture by `bodyHandle` passes there as any other. A
+staging answer naming no handle records nothing; only a report or start params naming
+`bodyHandle` can be refused. An sdd whose capture takes no `bodyHandle` never names one, so
+nothing changes there.
 
 ## Grounded drafts
 

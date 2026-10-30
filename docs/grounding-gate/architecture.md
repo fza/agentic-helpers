@@ -21,6 +21,7 @@ through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code 
 |---|---|---|
 | SessionStart | `start` | removes the ledgers of sessions that left a week ago without ending cleanly; with `source: compact`, forgets this session's reads and keeps its grounded drafts |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__start_procedure`, `mcp__sdd__next` | `record` | credits the reads the call performed; after the session's own capture (`agentic-capture` printing `<id>.md`, or a `next` result carrying `produced.entryId`), moves the ledger to the new graph state when that entry is the only change, keeping the reads; keeps the body and topics an engine capture's start or report left it with (`recordEngineCapture`) |
+| PostToolUse on `mcp__sdd__stage_attachment` | `record` | where `.sdd/grounding.yaml` sets `draft_lint`: keeps the text the staging left under the handle sdd answered with (`recordStaged`) |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`, its first line saying the call went ahead and, for reads owed, that they are owed before the next question or draft (`letThrough`); for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
 | SessionEnd | `end` | removes the session's ledger |
@@ -51,6 +52,18 @@ went through is recorded, a `bodyPatch` applied by sdd's own rule (`applyPatch`)
 reporting the capture `completed` or `abandoned` drops it. Neither a graph change nor a compaction
 clears `captures`: it mirrors the engine's state, not a read.
 
+`staged` holds, where the project sets `draft_lint`, the text of each file the session staged
+through `mcp__sdd__stage_attachment`, by the handle sdd answered with, read in each form a serve
+is (`answerOf`). A staging that went through records the `content` given, the file a `path` names
+(`readNamed`, as the credential scan reads it), or the held text with the `patches` applied by
+`applyPatch`: sdd edits the file staged under `name` in place and answers with its handle. Text
+whose sha256 differs from the `sha256` sdd answered with, a patch the gate cannot apply, or a path
+it cannot read drops the record: the gate no longer knows the file. A failed staging, or an
+answer naming no handle, changes nothing. An entry with no text marks a handle already refused
+once. A ledger written without `staged` reads as holding none, and every key the ledger carries
+survives a record. Like `captures`, `staged` mirrors the engine's state and neither a graph change
+nor a compaction clears it.
+
 `noted` holds the missing reads the last let-through note named (`firstNote`). A gated call whose
 missing reads match it gets no note. A different graph state clears it with the reads, a compaction
 clears it with them, and a different set of missing reads no longer matches, so each of the three
@@ -79,6 +92,13 @@ the file as `body` (`engine-lint.txt`); a run that fails silently refuses (`engi
 A patch with no held body refuses once (`engine-body.txt`) and passes after. The capture procedure's
 field names, its `playback` step and sdd's edit rule are restated here, so a change to either in sdd
 needs one here.
+
+A call naming `bodyHandle` has the text held under that handle in `staged` linted the same way,
+after a leading header block opened and closed by a `---` line (`stagedBody`, sdd's
+`SplitStagedBody` restated: a leading byte order mark dropped, the body everything after the
+closing line, a file with no closing line all body). A handle with no text held refuses once
+(`engine-handle.txt`) and passes after. A report naming the handle also leaves its body as the
+capture's held body, the one a later `bodyPatch` edits once the capture drops the handle.
 
 ## The engine refusal
 

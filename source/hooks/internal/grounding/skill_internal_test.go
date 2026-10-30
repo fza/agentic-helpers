@@ -27,3 +27,22 @@ func TestTheSkillQuotesEveryCredentialRefusal(t *testing.T) {
 		}
 	}
 }
+
+func TestTheSkillsAndDocsQuoteTheStagedBodyRefusal(t *testing.T) {
+	quoted, _, _ := strings.Cut(refusal("engine-handle.txt", "{handle}", "<handle>"), "\n")
+
+	for _, path := range []string{
+		"../../../../plugin/skills/agent-capture/SKILL.md",
+		"../../../../plugin/skills/agent-grounding/SKILL.md",
+		"../../../../docs/grounding-gate/usage.md",
+	} {
+		text, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+
+		if !strings.Contains(strings.Join(strings.Fields(string(text)), " "), quoted) {
+			t.Errorf("%s should quote the staged body refusal as the gate prints it", path)
+		}
+	}
+}

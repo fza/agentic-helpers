@@ -34,6 +34,10 @@ type evidence struct {
 	// instance handle. Neither a graph change nor a compaction clears it: it
 	// is the body and topics the engine holds, not a read.
 	Captures map[string]engineDraft `json:"captures"`
+	// Staged holds the text of each file staged through sdd's engine by its
+	// handle, where the project lints captures: the file a `bodyHandle`
+	// names. Like Captures it mirrors the engine's state, not a read.
+	Staged map[string]stagedFile `json:"staged"`
 
 	rest map[string]json.RawMessage
 }
@@ -46,7 +50,7 @@ type groundedDraft struct {
 }
 
 func freshEvidence() evidence {
-	return evidence{Listings: []string{}, Grounded: []groundedDraft{}, Captures: map[string]engineDraft{}}
+	return evidence{Listings: []string{}, Grounded: []groundedDraft{}, Captures: map[string]engineDraft{}, Staged: map[string]stagedFile{}}
 }
 
 // against holds the reads to the graph as it stands now: reads recorded while
@@ -116,7 +120,7 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("reading the ledger: %w", err)
 	}
 
-	for _, name := range []string{"search", "query", "term", "listings", "grounded", "graph", "noted", "captures"} {
+	for _, name := range []string{"search", "query", "term", "listings", "grounded", "graph", "noted", "captures", "staged"} {
 		delete(fields, name)
 	}
 
@@ -133,6 +137,10 @@ func (held *evidence) UnmarshalJSON(data []byte) error {
 
 	if held.Captures == nil {
 		held.Captures = map[string]engineDraft{}
+	}
+
+	if held.Staged == nil {
+		held.Staged = map[string]stagedFile{}
 	}
 
 	return nil
@@ -152,6 +160,7 @@ func (held evidence) MarshalJSON() ([]byte, error) {
 	fields["graph"] = held.Graph
 	fields["noted"] = held.Noted
 	fields["captures"] = held.Captures
+	fields["staged"] = held.Staged
 
 	data, err := json.Marshal(fields)
 	if err != nil {
