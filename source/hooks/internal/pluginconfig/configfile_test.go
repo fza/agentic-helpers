@@ -121,6 +121,8 @@ func TestAnInvalidConfigValueFallsBackAndIsNamed(t *testing.T) {
 		{name: "a writing style of another word", config: "writing_style: florid\n", value: "500", problem: `writing_style: "florid" is none of terse, plain`},
 		{name: "a key that is no option", config: "entry_max_word: 600\n", value: "500", problem: "entry_max_word is no option; the nearest is entry_max_words"},
 		{name: "a file that is no YAML map", config: "- entry_max_words\n", value: "500", problem: "is no YAML map of options"},
+		{name: "a file YAML cannot parse", config: "entry_max_words: [600\n", value: "500", problem: "is no YAML map of options: [1:18]"},
+		{name: "a key given twice", config: "entry_max_words: 600\nentry_max_words: 700\n", value: "500", problem: "is no YAML map of options: [2:1]"},
 		{name: "a file past the size every hook reads", config: "entry_max_words: 600\n#" + strings.Repeat("x", 64<<10), value: "500", problem: "is over 64 KiB"},
 	}
 
@@ -141,6 +143,10 @@ func TestAnInvalidConfigValueFallsBackAndIsNamed(t *testing.T) {
 
 			if len(resolution.Problems) != 1 || !strings.Contains(resolution.Problems[0], tc.problem) {
 				t.Errorf("the problem should name the key and why, got %v", resolution.Problems)
+			}
+
+			if len(resolution.Problems) == 1 && strings.Contains(resolution.Problems[0], "\n") {
+				t.Errorf("the problem should stay the one line a hook prints, got %q", resolution.Problems[0])
 			}
 		})
 	}
@@ -373,8 +379,8 @@ func TestSetRefusesWhatTheReaderWould(t *testing.T) {
 	config := filepath.Join(t.TempDir(), "config.yaml")
 
 	err := pluginconfig.Set(config, "entry_max_word", "600")
-	if !errors.Is(err, pluginconfig.ErrUnknownKey) || !strings.Contains(err.Error(), "the nearest is entry_max_words") {
-		t.Errorf("an unknown key should be refused naming the nearest, got %v", err)
+	if !errors.Is(err, pluginconfig.ErrUnknownKey) || !strings.Contains(err.Error(), "entry_max_word is no option; the nearest is entry_max_words") {
+		t.Errorf("an unknown key should be refused naming the nearest, as `config get` and the reader word it, got %v", err)
 	}
 
 	err = pluginconfig.Set(config, "shell_guard_secrets", "sometimes")
