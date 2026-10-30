@@ -110,7 +110,9 @@ SessionStart pass agentic-memory runs over every store. A write is refused only 
 prunable version would not make room: `the tool library would hold <size> on this machine, past the
 <n> MB limit (tools_total_mb), and no version is left to prune: merge tools, or raise
 tools_total_mb`. A pruned version's file hashes stay with its tool, so a byte-identical `add` is
-still refused; a copy a session took of it stays in the checkout's `.tmp/tools/`.
+still refused, as `` <file> is <tool> v<n> byte for byte: `agentic-tools take <tool>` copies its
+current version, this one being pruned for space ``; a copy a session took of it stays in the
+checkout's `.tmp/tools/`.
 
 A prunable version also goes by age, whatever space is left: once its tool replaced it longer ago
 than `tools_version_lifetime` (set in `config.yaml` only, a span), 90 days unless set, never below 14
