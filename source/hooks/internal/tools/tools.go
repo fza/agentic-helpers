@@ -92,6 +92,9 @@ type library struct {
 	// outsideGit is set where the session works outside a git work tree and
 	// the plugin keeps the library to git: nothing is read or written.
 	outsideGit bool
+	// unreadable says why no store can be found: a home of a newer format
+	// than this release reads, or one it cannot read.
+	unreadable string
 	session    string
 	options    pluginconfig.Options
 	// embedding is the embedder configuration, settled on first use; inHook
@@ -190,6 +193,8 @@ func (lib *library) callRefusal() string {
 	switch {
 	case lib.outsideGit:
 		return fmt.Sprintf("%s is not inside a git work tree; the tool library works only in one", lib.env.Base)
+	case lib.unreadable != "":
+		return lib.unreadable
 	case lib.session == "":
 		return ErrNoCaller.Error()
 	}
@@ -204,7 +209,7 @@ func (lib *library) locate(ctx context.Context) {
 		checkout, err := home.Inspect(ctx, lib.env.Base, lib.env.Checkout, lib.env.Git)
 		if err == nil {
 			lib.facts = checkout
-			lib.locateStore(ctx, false)
+			lib.found(lib.locateStore(ctx, false))
 
 			return
 		}
@@ -212,7 +217,7 @@ func (lib *library) locate(ctx context.Context) {
 
 	if !lib.options.MemoryRequireGit {
 		lib.facts = home.InspectDirectory(lib.env.Base)
-		lib.locateStore(ctx, false)
+		lib.found(lib.locateStore(ctx, false))
 
 		return
 	}
@@ -239,6 +244,12 @@ func (lib *library) locateStore(ctx context.Context, create bool) error {
 	lib.forget()
 
 	return nil
+}
+
+func (lib *library) found(err error) {
+	if err != nil {
+		lib.unreadable = err.Error()
+	}
 }
 
 func (lib *library) insideWorkTree(ctx context.Context) bool {

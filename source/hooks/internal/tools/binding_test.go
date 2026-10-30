@@ -142,3 +142,29 @@ func TestNothingLandsUnderTheClaudeHome(t *testing.T) {
 		}
 	}
 }
+
+func TestANewerHomeIsRefusedAndKeptAsItIs(t *testing.T) {
+	h := newHarness(t)
+	test.WriteFile(t, filepath.Join(h.roots().Data, "format.json"), `{"format": 9}`)
+	before := test.Tree(t, h.roots().Data)
+	from := h.file("word-count.py", "print(1)\n")
+
+	for _, args := range [][]string{
+		{"add", "word-count", "--from", from, "--summary", "Count the words of standard input", "--usage", "u"},
+		{"list"},
+	} {
+		h.refused("has format 9; this release reads up to 1", args...)
+	}
+
+	h.file(".tmp/claude/"+h.session+"/line-count.py", "print(1)\n")
+
+	for _, verb := range []string{"prompt", "notice", "stop", "end"} {
+		if h.hook(verb, map[string]any{"prompt": "count the words of standard input"}) != "" {
+			t.Errorf("%s should stay silent on a home of a newer format", verb)
+		}
+	}
+
+	if test.Tree(t, h.roots().Data) != before {
+		t.Error("a home of a newer format should be left byte-identical")
+	}
+}
