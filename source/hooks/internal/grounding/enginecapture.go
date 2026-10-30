@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/draftlint"
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // A capture through sdd's engine never passes through `agentic-capture`, so
@@ -171,7 +172,7 @@ func engineCaptureRefusal(ctx context.Context, env Env, payload hookio.Payload, 
 
 	held := engineDraft{}
 
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 
 	ledger := freshEvidence()
 	if err == nil {
@@ -208,7 +209,7 @@ func engineCaptureRefusal(ctx context.Context, env Env, payload hookio.Payload, 
 
 		held.Asked = true
 		ledger.Captures[call.instance] = held
-		_ = saveEvidence(ctx, path, ledger)
+		_ = saveEvidence(ctx, env.graphRoot(), path, ledger)
 
 		return refusal("engine-body.txt")
 	}
@@ -225,19 +226,19 @@ func engineCaptureRefusal(ctx context.Context, env Env, payload hookio.Payload, 
 // runs it. A finding names the body by `body` and its line from the body's
 // first.
 func lintBody(ctx context.Context, env Env, command string, text string) string {
-	dir := env.ledgerDir()
-
-	err := os.MkdirAll(dir, 0o755)
+	folder, err := safefs.EnsureAt(env.graphRoot(), env.ledgerDir(), 0o755)
 	if err != nil {
 		return refusal("engine-lint-unread.txt", "{error}", fmt.Sprintf("writing the body for the lint: %v", err))
 	}
 
-	file, err := os.CreateTemp(dir, ".body-*.md")
+	defer folder.Close()
+
+	file, name, err := folder.CreateTemp(".body-*.md", 0o600)
 	if err != nil {
 		return refusal("engine-lint-unread.txt", "{error}", fmt.Sprintf("writing the body for the lint: %v", err))
 	}
 
-	defer func() { _ = os.Remove(file.Name()) }()
+	defer func() { _ = folder.Remove(name) }()
 
 	_, err = file.WriteString(text + "\n")
 	closeErr := file.Close()
@@ -246,7 +247,9 @@ func lintBody(ctx context.Context, env Env, command string, text string) string 
 		return refusal("engine-lint-unread.txt", "{error}", fmt.Sprintf("writing the body for the lint: %v", cmp.Or(err, closeErr)))
 	}
 
-	alerts, err := draftlint.Run(ctx, env.Runner, env.project(), command, file.Name())
+	body := filepath.Join(env.ledgerDir(), name)
+
+	alerts, err := draftlint.Run(ctx, env.Runner, env.project(), command, body)
 	if err != nil {
 		return refusal("engine-lint-unread.txt", "{error}", err.Error())
 	}
@@ -256,7 +259,7 @@ func lintBody(ctx context.Context, env Env, command string, text string) string 
 	}
 
 	for index, alert := range alerts {
-		alerts[index] = "  " + strings.Replace(alert, file.Name(), "body", 1)
+		alerts[index] = "  " + strings.Replace(alert, body, "body", 1)
 	}
 
 	return refusal("engine-lint.txt", "{findings}", strings.Join(alerts, "\n"))
@@ -342,7 +345,7 @@ func recordEngineCapture(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
 		return
 	}
@@ -358,7 +361,7 @@ func recordEngineCapture(ctx context.Context, env Env, payload hookio.Payload) {
 
 	if ownServe && (served.Status == "completed" || served.Status == "abandoned") {
 		delete(ledger.Captures, instance)
-		_ = saveEvidence(ctx, path, ledger)
+		_ = saveEvidence(ctx, env.graphRoot(), path, ledger)
 
 		return
 	}
@@ -374,5 +377,5 @@ func recordEngineCapture(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 
 	ledger.Captures[instance] = held
-	_ = saveEvidence(ctx, path, ledger)
+	_ = saveEvidence(ctx, env.graphRoot(), path, ledger)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // LedgerName is a component's size ledger, in the component's own directory:
@@ -173,7 +174,7 @@ func LedgerTotal(files []LedgerFile) Record {
 // time are those the ledger last listed, and computed for the rest. Lock
 // files, temp files and links are no data files and stay out. A directory
 // that does not exist keeps no ledger.
-func Refresh(ctx context.Context, dir string, classify Classify) error {
+func Refresh(ctx context.Context, root string, dir string, classify Classify) error {
 	info, err := os.Lstat(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
@@ -187,7 +188,7 @@ func Refresh(ctx context.Context, dir string, classify Classify) error {
 		return fmt.Errorf("refreshing the ledger of %s: not a directory", dir)
 	}
 
-	lock, err := os.OpenFile(filepath.Join(dir, LedgerName+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	lock, err := safefs.Lock(root, filepath.Join(dir, LedgerName+".lock"), 0o600)
 	if err != nil {
 		return fmt.Errorf("opening the ledger lock of %s: %w", dir, err)
 	}
@@ -216,7 +217,7 @@ func Refresh(ctx context.Context, dir string, classify Classify) error {
 		records = append(records, LedgerRecord(file))
 	}
 
-	err = atomicfile.Write(filepath.Join(dir, LedgerName), memorylog.EncodeJournal(records...), 0o600)
+	err = atomicfile.Write(root, filepath.Join(dir, LedgerName), memorylog.EncodeJournal(records...), 0o600)
 	if err != nil {
 		return fmt.Errorf("writing the ledger of %s: %w", dir, err)
 	}

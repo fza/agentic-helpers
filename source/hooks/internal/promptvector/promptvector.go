@@ -124,9 +124,10 @@ func Adopt(ctx context.Context, dir string) error {
 }
 
 // open is the slot file of dir, once the per-session files an earlier
-// release kept there are taken in.
+// release kept there are taken in. dir is Dir of the cache root, so its
+// folder is the root its writes walk from.
 func open(ctx context.Context, dir string) (*slots.File, error) {
-	file := slots.Open(filepath.Join(dir, slotsName), slotWidth)
+	file := slots.Open(filepath.Dir(dir), filepath.Join(dir, slotsName), slotWidth)
 
 	err := file.Adopt(ctx, dir, format, func() []slots.Legacy {
 		paths, _ := filepath.Glob(filepath.Join(dir, "*.json"))

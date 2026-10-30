@@ -72,7 +72,7 @@ func contentHash(held *entry) string {
 func (mem *memory) vectors(embedder embed.Templated) *vectorseg.Store {
 	sum := sha256.Sum256([]byte(embedder.Fingerprint()))
 
-	return vectorseg.Open(filepath.Join(mem.cacheDir(), hex.EncodeToString(sum[:])[:12], "segments"))
+	return vectorseg.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), hex.EncodeToString(sum[:])[:12], "segments"))
 }
 
 // counted is which rows a search counts: an entry's rows embedded from its

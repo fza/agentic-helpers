@@ -53,7 +53,7 @@ func event(entry string, payload string) memorylog.Event {
 func TestEveryFileKindDumpsToJSONLines(t *testing.T) {
 	dir := t.TempDir()
 
-	slotFile := slots.Open(filepath.Join(dir, "sessions.slots"), 4096)
+	slotFile := slots.Open(dir, filepath.Join(dir, "sessions.slots"), 4096)
 	slotFile.Now = func() time.Time { return filed }
 
 	for _, pair := range [][2]string{{"shown/s1", `{"ids":["m-1@ab"]}`}, {"fork/s2", "plain bytes"}} {
@@ -65,7 +65,7 @@ func TestEveryFileKindDumpsToJSONLines(t *testing.T) {
 
 	logDir := filepath.Join(dir, "log")
 
-	log, err := memorylog.Open(logDir)
+	log, err := memorylog.Open(logDir, logDir)
 	if err != nil {
 		t.Fatalf("opening the log: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestEveryFileKindDumpsToJSONLines(t *testing.T) {
 
 	built := filepath.Join(dir, "built")
 
-	err = memorylog.Build(context.Background(), built, []memorylog.Event{event("m-000002", `{"title":"Sealed"}`)})
+	err = memorylog.Build(context.Background(), built, built, []memorylog.Event{event("m-000002", `{"title":"Sealed"}`)})
 	if err != nil {
 		t.Fatalf("building a log: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestEveryFileKindDumpsToJSONLines(t *testing.T) {
 	component := filepath.Join(dir, "component")
 	test.WriteFile(t, filepath.Join(component, "index.json"), `{"tools":{}}`)
 
-	err = space.Refresh(context.Background(), component, nil)
+	err = space.Refresh(context.Background(), dir, component, nil)
 	if err != nil {
 		t.Fatalf("refreshing a ledger: %v", err)
 	}

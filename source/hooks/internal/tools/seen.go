@@ -46,7 +46,7 @@ const (
 // release kept there are taken in.
 func (lib *library) seenSlots(ctx context.Context) (*slots.File, error) {
 	dir := lib.env.Roots.SharedCache(home.Tools)
-	file := slots.Open(filepath.Join(dir, "sessions.slots"), seenSlotWidth)
+	file := slots.Open(lib.env.Roots.Cache, filepath.Join(dir, "sessions.slots"), seenSlotWidth)
 	file.Now = lib.now
 
 	err := file.Adopt(ctx, dir, seenFormat, func() []slots.Legacy {

@@ -33,8 +33,8 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
-	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
 
 const self = "agentic-memory"
@@ -316,7 +316,7 @@ func (mem *memory) ownSeat(ctx context.Context) (string, seat.Claim) {
 }
 
 func (mem *memory) openLog() (*memorylog.Log, error) {
-	log, err := memorylog.Open(mem.logDir())
+	log, err := memorylog.Open(mem.env.Roots.Data, mem.logDir())
 	if err != nil {
 		return nil, fmt.Errorf("opening the log: %w", err)
 	}

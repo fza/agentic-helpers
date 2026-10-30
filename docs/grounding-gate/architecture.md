@@ -34,7 +34,9 @@ reads recorded under another state as none.
 
 The gate keeps each session's credited reads and grounded drafts under
 `.sdd/tmp/grounding-gate/`, one ledger per session. A ledger is replaced through a temporary file of
-its writer's own, renamed over it (`internal/atomicfile`), so the parallel hooks of one call never
+its writer's own, renamed over it (`internal/atomicfile`), each folder from the one holding the graph
+down walked through `internal/safefs` ([plugin architecture](../plugin/architecture.md#writes)), so
+a `.sdd/tmp` committed as a link is never written through, and the parallel hooks of one call never
 leave it half written; a torn ledger would refuse reads the session made. A ledger that cannot be
 written holds the reads nowhere, so the gate refuses, the safe side. A grounded draft is recorded with the graph's
 entry count and newest entry at the time it was saved; a capture of it passes only while the draft

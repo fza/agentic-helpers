@@ -91,7 +91,7 @@ func TestTheMigrationScanTellsTheOwningSeatOnce(t *testing.T) {
 		"title": "Deploy notes with a token", "body": credential, "topics": []string{"deploy"}, "retention": "normal", "from": "agent",
 	})
 
-	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	log, err := memorylog.Open(h.store(), filepath.Join(h.store(), "log"))
 	if err != nil {
 		t.Fatal(err)
 	}

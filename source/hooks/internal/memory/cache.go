@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // Heat increments per use. Displaying an entry adds nothing, in the brief or
@@ -49,18 +50,18 @@ func readJSON(path string, target any) bool {
 	return json.Unmarshal(data, target) == nil
 }
 
-func writeJSON(path string, value any) error {
+func writeJSON(root string, path string, value any) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("encoding %s: %w", filepath.Base(path), err)
 	}
 
-	err = os.MkdirAll(filepath.Dir(path), 0o700)
+	err = safefs.MkdirAll(root, filepath.Dir(path), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
-	return atomicfile.Write(path, data, 0o600)
+	return atomicfile.Write(root, path, data, 0o600)
 }
 
 func removeIfThere(path string) {
@@ -135,5 +136,5 @@ func (mem *memory) warm(folded *state, amount float64, ids ...string) {
 		heats[id] = warmed
 	}
 
-	_ = writeJSON(mem.heatPath(), heats)
+	_ = writeJSON(mem.env.Roots.Cache, mem.heatPath(), heats)
 }

@@ -125,7 +125,7 @@ func (mem *memory) setLifetime(ctx context.Context, shelf string, value string) 
 	held.Lifetime = stored
 	shelves.Shelves[shelf] = held
 
-	err = shelves.Save()
+	err = shelves.Save(mem.env.Roots.Data)
 	if err != nil {
 		return seat.Shelf{}, err
 	}

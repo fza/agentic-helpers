@@ -497,7 +497,7 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Dur
 	var stores []*store
 
 	for _, key := range ids {
-		held := &store{key: key, path: roots.Store(key, home.Tools)}
+		held := &store{key: key, root: roots.Data, path: roots.Store(key, home.Tools)}
 
 		loaded, found := loadIndex(held.path)
 		if !found {
@@ -542,7 +542,7 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Dur
 	// writers recorded.
 	for _, held := range stores {
 		if ledgerMissing(held.path) {
-			ledgerLocked(ctx, held, named, roots.StoreCache(held.key, home.Tools))
+			ledgerLocked(ctx, roots, held, named, roots.StoreCache(held.key, home.Tools))
 		}
 	}
 }
@@ -591,7 +591,7 @@ func replacedAt(tool *indexed, v int) (time.Time, bool) {
 
 // ledgerLocked refreshes a store's size ledger holding its lock, passing over
 // a store another process is writing.
-func ledgerLocked(ctx context.Context, held *store, named map[forkOrigin]bool, cache string) {
+func ledgerLocked(ctx context.Context, roots home.Roots, held *store, named map[forkOrigin]bool, cache string) {
 	root, err := safefs.OpenDir(held.path)
 	if err != nil {
 		return
@@ -606,7 +606,7 @@ func ledgerLocked(ctx context.Context, held *store, named map[forkOrigin]bool, c
 
 	defer unlock()
 
-	err = prepareStore(ctx, root, held.path, cache)
+	err = prepareStore(ctx, root, roots, held.path, cache)
 	if err == nil {
 		refreshLedger(ctx, held, named)
 	}

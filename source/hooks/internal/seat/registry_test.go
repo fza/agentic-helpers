@@ -40,7 +40,7 @@ func TestARegistryMintsRenamesAndSaves(t *testing.T) {
 		t.Fatalf("a rename to a free name should succeed: %v", err)
 	}
 
-	if err := registry.Save(); err != nil {
+	if err := registry.Save(store); err != nil {
 		t.Fatal(err)
 	}
 
@@ -80,7 +80,7 @@ func TestShelvesMintRenameAndSave(t *testing.T) {
 		t.Errorf("a rename should not take another shelf's name, got %v", err)
 	}
 
-	if err := shelves.Save(); err != nil {
+	if err := shelves.Save(store); err != nil {
 		t.Fatal(err)
 	}
 

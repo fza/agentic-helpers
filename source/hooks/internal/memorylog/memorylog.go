@@ -15,6 +15,7 @@
 package memorylog
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 type Kind string
@@ -111,20 +114,21 @@ type Row struct {
 type Policy func(rows []Row, payload func(index int) ([]byte, error)) (kept []Event, err error)
 
 type Log struct {
-	dir string
+	root string
+	dir  string
 	// writing serializes the writers sharing this Log: flock is held per open
 	// file description, so it alone does not exclude a goroutine of the same
 	// process holding the same descriptor.
 	writing sync.Mutex
 }
 
-func Open(dir string) (*Log, error) {
-	err := os.MkdirAll(dir, 0o700)
+func Open(root string, dir string) (*Log, error) {
+	err := safefs.MkdirAll(root, dir, 0o700)
 	if err != nil {
 		return nil, fmt.Errorf("creating the log directory: %w", err)
 	}
 
-	return &Log{dir: dir}, nil
+	return &Log{root: root, dir: dir}, nil
 }
 
 func (l *Log) Append(ctx context.Context, events ...Event) error {
@@ -165,13 +169,13 @@ func (l *Log) AppendWith(ctx context.Context, policy Policy, events ...Event) er
 
 // Build writes events as a whole new log into dir, which must hold no log yet:
 // one segment carrying every event, listed by a manifest, and an empty tail.
-func Build(ctx context.Context, dir string, events []Event) error {
+func Build(ctx context.Context, root string, dir string, events []Event) error {
 	entries, err := os.ReadDir(dir)
 	if err == nil && len(entries) > 0 {
 		return fmt.Errorf("building a log into %s, which already holds one", dir)
 	}
 
-	l, err := Open(dir)
+	l, err := Open(root, dir)
 	if err != nil {
 		return err
 	}
@@ -229,7 +233,7 @@ func (l *Log) locked(ctx context.Context, write func(current manifest) error) er
 	l.writing.Lock()
 	defer l.writing.Unlock()
 
-	lock, err := os.OpenFile(l.path(lockName), os.O_CREATE|os.O_RDWR, 0o600)
+	lock, err := safefs.Lock(l.root, l.path(lockName), 0o600)
 	if err != nil {
 		return fmt.Errorf("opening the log lock: %w", err)
 	}
@@ -269,7 +273,7 @@ func (l *Log) appendTail(framed []byte) (int64, error) {
 	_, err := os.Stat(l.path(tailName))
 	created := errors.Is(err, os.ErrNotExist)
 
-	tail, err := os.OpenFile(l.path(tailName), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	tail, err := safefs.Append(l.root, l.path(tailName), 0o600)
 	if err != nil {
 		return 0, fmt.Errorf("opening the tail: %w", err)
 	}
@@ -431,9 +435,16 @@ func (l *Log) cutTornTail() error {
 		end = 0
 	}
 
-	err = os.Truncate(l.path(tailName), int64(end))
+	opened, err := safefs.OpenChecked(l.root, l.path(tailName), os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("cutting a torn tail record: %w", err)
+	}
+
+	err = opened.Truncate(int64(end))
+	closeErr := opened.Close()
+
+	if err != nil || closeErr != nil {
+		return fmt.Errorf("cutting a torn tail record: %w", cmp.Or(err, closeErr))
 	}
 
 	return nil
@@ -504,28 +515,22 @@ func statSize(path string) (int64, error) {
 // replaceFile swaps content in under name: a temp file in the log directory,
 // synced, renamed over name, then the directory synced.
 func (l *Log) replaceFile(name string, content []byte) error {
-	temp, err := os.CreateTemp(l.dir, tempPrefix+"*")
+	folder, err := safefs.At(l.root, l.dir)
 	if err != nil {
-		return fmt.Errorf("creating a temp file: %w", err)
+		return fmt.Errorf("writing %s: %w", name, err)
 	}
 
-	_, err = temp.Write(content)
-	if err == nil {
-		err = temp.Sync()
-	}
+	defer folder.Close()
 
-	closeErr := temp.Close()
-	if err == nil {
-		err = closeErr
-	}
+	err = folder.ReplaceWith(name, tempPrefix+"*", 0o600, func(temp *os.File) error {
+		_, err := temp.Write(content)
+		if err == nil {
+			err = temp.Sync()
+		}
 
-	if err == nil {
-		err = os.Rename(temp.Name(), l.path(name))
-	}
-
+		return err
+	})
 	if err != nil {
-		_ = os.Remove(temp.Name())
-
 		return fmt.Errorf("writing %s: %w", name, err)
 	}
 

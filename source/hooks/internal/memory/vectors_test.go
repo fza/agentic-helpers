@@ -110,7 +110,7 @@ func TestAChangedEntryIsTheOnlyOneEmbeddedAgain(t *testing.T) {
 
 	stale := sha256.Sum256([]byte("Gate reads Bash only today\nthe hook matches the Bash tool"))
 
-	snapshot, err := vectorseg.Open(filepath.Join(h.storeDir(), "segments")).Snapshot()
+	snapshot, err := vectorseg.Open(h.storeDir(), filepath.Join(h.storeDir(), "segments")).Snapshot()
 	if err != nil {
 		t.Fatalf("reading the segments: %v", err)
 	}

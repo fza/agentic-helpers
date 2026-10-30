@@ -10,6 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const journalName = ".migration.journal"
@@ -65,6 +68,7 @@ type step struct {
 type journal struct {
 	file   *os.File
 	steps  []step
+	data   string
 	rename func(string, string) error
 	halt   func() bool
 }
@@ -72,17 +76,37 @@ type journal struct {
 func (env Env) journalPath() string { return filepath.Join(env.Roots.Data, journalName) }
 
 func (env Env) openJournal() (*journal, error) {
-	file, err := os.OpenFile(env.journalPath(), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_APPEND, 0o600)
+	file, err := safefs.OpenChecked(env.Roots.Data, env.journalPath(), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_APPEND,
+		0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening the migration journal: %w", err)
 	}
 
+	data := env.Roots.Data
+
 	rename := env.rename
 	if rename == nil {
-		rename = os.Rename
+		rename = func(from string, to string) error { return moveEntry(data, from, to) }
 	}
 
-	return &journal{file: file, rename: rename, halt: env.halt}, nil
+	return &journal{file: file, data: data, rename: rename, halt: env.halt}, nil
+}
+
+// rootOf is the root a write to path walks from: the data home for a path
+// in it, else the path's own folder, the owner's: the old layout under
+// `.claude` and a checkout's git common directory.
+func rootOf(data string, path string) string {
+	relative, err := filepath.Rel(data, path)
+	if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return data
+	}
+
+	return filepath.Dir(path)
+}
+
+// moveEntry renames from to to, each side walked from its own root.
+func moveEntry(data string, from string, to string) error {
+	return safefs.Move(rootOf(data, from), from, rootOf(data, to), to)
 }
 
 // checkpoint is where a kill may land; halt stops a run there.
@@ -133,11 +157,11 @@ func (log *journal) created(path string) error {
 func (log *journal) close() { _ = log.file.Close() }
 
 // rollback undoes every step, newest first.
-func rollback(steps []step) error {
+func rollback(data string, steps []step) error {
 	var errs []error
 
 	for _, done := range slices.Backward(steps) {
-		errs = append(errs, undo(done))
+		errs = append(errs, undo(data, done))
 	}
 
 	return errors.Join(errs...)
@@ -152,7 +176,7 @@ func finish(steps []step) {
 	}
 }
 
-func undo(done step) error {
+func undo(data string, done step) error {
 	switch done.Kind {
 	case stepData:
 		return removeCreated(done.Path, done.Names)
@@ -161,7 +185,7 @@ func undo(done step) error {
 			return nil
 		}
 
-		return os.Rename(done.To, done.From)
+		return moveEntry(data, done.To, done.From)
 	case stepCreated:
 		return os.RemoveAll(done.Path)
 	case stepStub:
@@ -182,7 +206,7 @@ func undo(done step) error {
 		return nil
 	case stepPointer:
 		if done.Existed {
-			return os.WriteFile(done.Path, done.Content, 0o644)
+			return safefs.WriteFile(filepath.Dir(done.Path), done.Path, done.Content, 0o644)
 		}
 
 		err := os.Remove(done.Path)
@@ -252,7 +276,7 @@ func (env Env) recoverJournal() error {
 		return os.Remove(env.journalPath())
 	}
 
-	err = rollback(steps)
+	err = rollback(env.Roots.Data, steps)
 	if err != nil {
 		return fmt.Errorf("undoing an interrupted migration: %w", err)
 	}

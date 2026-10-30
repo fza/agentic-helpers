@@ -27,7 +27,7 @@ func format1Store(t *testing.T, h *harness) {
 		Payload: []byte(`{"title":"An older drive finding sealed","body":"sealed in a segment","topics":["release"],"retention":"normal","from":"agent"}`),
 	}}
 
-	err := memorylog.Build(context.Background(), filepath.Join(h.store(), "log"), sealed)
+	err := memorylog.Build(context.Background(), h.store(), filepath.Join(h.store(), "log"), sealed)
 	if err != nil {
 		t.Fatalf("building the segment: %v", err)
 	}
@@ -55,7 +55,7 @@ func format1Store(t *testing.T, h *harness) {
 func storeEvents(t *testing.T, h *harness) []memorylog.Row {
 	t.Helper()
 
-	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	log, err := memorylog.Open(h.store(), filepath.Join(h.store(), "log"))
 	if err != nil {
 		t.Fatalf("opening the log: %v", err)
 	}
@@ -362,7 +362,7 @@ func format3Store(t *testing.T, h *harness) (string, string, string) {
 	main := seatID(t, h.store(), "main")
 	at := h.clock.Now()
 
-	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	log, err := memorylog.Open(h.store(), filepath.Join(h.store(), "log"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -34,7 +34,9 @@ start tries it again.
 **The marker, not the name, is the safety.** A folder is removed only where `.agentic-scratch` is a
 plain file naming a seat id of the checkout's store; a link, a folder without the marker or one
 naming another seat is a keep. A reap reads at most 10,000 entries of one folder to date it, and
-leaves a larger one alone.
+leaves a larger one alone. Every folder, marker and move is written from the checkout's top folder
+down through `internal/safefs`, so a `.tmp` committed as a link gets no write through it
+([plugin architecture](../plugin/architecture.md#writes)).
 
 **Migration.** A session folder's seat comes from the seat claims and last claims in the store, else
 from the session's transcript beside the current one (`<session-id>.jsonl`), read up to 64 MiB for

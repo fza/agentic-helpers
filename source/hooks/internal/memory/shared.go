@@ -214,7 +214,7 @@ func (mem *memory) setFollows(ctx context.Context, req request, add bool) result
 	slices.Sort(held.Follows)
 	shelves.Shelves[shelf] = held
 
-	err = shelves.Save()
+	err = shelves.Save(mem.env.Roots.Data)
 	if err != nil {
 		return refused("%v", err)
 	}

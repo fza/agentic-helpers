@@ -223,12 +223,12 @@ func (scan *credentialScan) pass(events []memorylog.Event) error {
 
 // save keeps what the scan found in the store, beside the log, until each
 // owning seat's next brief tells it.
-func (scan *credentialScan) save(store string) error {
+func (scan *credentialScan) save(root string, store string) error {
 	if len(scan.found) == 0 {
 		return nil
 	}
 
-	return writeJSON(filepath.Join(store, credentialsFound), scan.found)
+	return writeJSON(root, filepath.Join(store, credentialsFound), scan.found)
 }
 
 // credentialLines tells the seat, once, which of its entries the migration
@@ -266,7 +266,7 @@ func (mem *memory) credentialLines(ctx context.Context, seatName string) []strin
 	if len(found) == 0 {
 		removeIfThere(mem.credentialsPath())
 	} else {
-		_ = writeJSON(mem.credentialsPath(), found)
+		_ = writeJSON(mem.env.Roots.Data, mem.credentialsPath(), found)
 	}
 
 	return lines

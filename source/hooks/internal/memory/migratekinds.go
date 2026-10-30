@@ -31,14 +31,14 @@ func (mem *memory) kindPasses(scan *credentialScan) []migrationPass {
 func (mem *memory) migrateFormat3(ctx context.Context) error {
 	backup := filepath.Join(mem.store(), "backup", "format-3-"+mem.now().Format("20060102T150405.000000000Z"))
 
-	err := copyTree(mem.logDir(), filepath.Join(backup, "log"))
+	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
 	if err != nil {
 		return fmt.Errorf("backing up the store's log: %w", err)
 	}
 
 	_, err = os.Stat(mem.logDir())
 	if errors.Is(err, fs.ErrNotExist) {
-		return writeFormat(mem.store(), itemsFormat)
+		return writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
 	}
 
 	events, err := mem.allEvents(ctx)
@@ -67,7 +67,7 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 
 	undo := &rollback{}
 
-	err = scan.save(mem.store())
+	err = scan.save(mem.env.Roots.Data, mem.store())
 	if err != nil {
 		return fmt.Errorf("migrating the store failed: keeping what the credential scan found: %w; "+
 			"the store is unchanged and the next call tries again", err)
@@ -77,7 +77,7 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 
 	// A log no pass changed stays as it is, byte for byte.
 	if !changed {
-		err = writeFormat(mem.store(), itemsFormat)
+		err = writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
 		if err != nil {
 			undo.run()
 		}
@@ -105,7 +105,7 @@ func (mem *memory) rebuildLog(ctx context.Context, events []memorylog.Event, und
 
 	undo.add(func() { _ = os.RemoveAll(building) })
 
-	err = memorylog.Build(ctx, building, events)
+	err = memorylog.Build(ctx, mem.env.Roots.Data, building, events)
 	if err != nil {
 		return fmt.Errorf("writing the migrated log: %w", err)
 	}
@@ -115,7 +115,7 @@ func (mem *memory) rebuildLog(ctx context.Context, events []memorylog.Event, und
 		return err
 	}
 
-	err = writeFormat(mem.store(), itemsFormat)
+	err = writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
 	if err != nil {
 		return err
 	}

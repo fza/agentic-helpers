@@ -23,6 +23,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // How far up the process tree to look for the owner. A hook runs through a
@@ -125,38 +126,38 @@ func readClaim(path string) (Claim, bool) {
 	return held, true
 }
 
-func Write(dir string, name string, held Claim) error {
+func Write(root string, dir string, name string, held Claim) error {
 	if !ValidName(name) {
 		return fmt.Errorf("%w, %q is not one", ErrBadName, name)
 	}
 
-	return writeClaim(Path(dir, name), held)
+	return writeClaim(root, Path(dir, name), held)
 }
 
-func writeClaim(path string, held Claim) error {
+func writeClaim(root string, path string, held Claim) error {
 	data, err := json.MarshalIndent(held, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding the claim: %w", err)
 	}
 
-	err = os.MkdirAll(filepath.Dir(path), 0o700)
+	err = safefs.MkdirAll(root, filepath.Dir(path), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
-	return atomicfile.Write(path, append(data, '\n'), 0o600)
+	return atomicfile.Write(root, path, append(data, '\n'), 0o600)
 }
 
 // Lock holds the seats directory's lock until the returned function runs. A
 // claim is read, judged and written as one step under it: two sessions judging
 // one free seat apart would both write it, and both be told they hold it.
-func Lock(ctx context.Context, dir string) (func(), error) {
-	err := os.MkdirAll(dir, 0o700)
+func Lock(ctx context.Context, root string, dir string) (func(), error) {
+	err := safefs.MkdirAll(root, dir, 0o700)
 	if err != nil {
 		return nil, fmt.Errorf("creating %s: %w", dir, err)
 	}
 
-	file, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	file, err := safefs.Lock(root, filepath.Join(dir, ".lock"), 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening the seats lock: %w", err)
 	}
@@ -183,14 +184,14 @@ func Lock(ctx context.Context, dir string) (func(), error) {
 }
 
 // Remove frees a seat, keeping what its holder left as the seat's last claim.
-func Remove(dir string, name string) error {
+func Remove(root string, dir string, name string) error {
 	if !ValidName(name) {
 		return fmt.Errorf("%w, %q is not one", ErrBadName, name)
 	}
 
 	held, found := Read(dir, name)
 	if found {
-		err := writeClaim(LastPath(dir, name), held)
+		err := writeClaim(root, LastPath(dir, name), held)
 		if err != nil {
 			return err
 		}
@@ -205,7 +206,7 @@ func Remove(dir string, name string) error {
 }
 
 // Close frees a seat as Remove does, recording on its last claim when it closed.
-func Close(dir string, name string, at string) error {
+func Close(root string, dir string, name string, at string) error {
 	if !ValidName(name) {
 		return fmt.Errorf("%w, %q is not one", ErrBadName, name)
 	}
@@ -214,7 +215,7 @@ func Close(dir string, name string, at string) error {
 	if found {
 		held.Closed = at
 
-		err := writeClaim(LastPath(dir, name), held)
+		err := writeClaim(root, LastPath(dir, name), held)
 		if err != nil {
 			return err
 		}

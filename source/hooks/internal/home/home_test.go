@@ -678,7 +678,7 @@ func TestMergeJoinsTwoStores(t *testing.T) {
 	test.WriteFile(t, filepath.Join(m.roots.Store(from, home.Tools), "count", "current"), "1\n")
 
 	joined := map[string]string{}
-	joiners := map[string]home.Joiner{home.Memory: func(_ context.Context, source string, target string) error {
+	joiners := map[string]home.Joiner{home.Memory: func(_ context.Context, _ string, source string, target string) error {
 		joined[source] = target
 
 		return nil

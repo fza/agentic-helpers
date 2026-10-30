@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 var (
@@ -54,11 +55,12 @@ type Row struct {
 type Live func(id string, hash string) bool
 
 type Store struct {
-	dir string
+	root string
+	dir  string
 }
 
-func Open(dir string) *Store {
-	return &Store{dir: dir}
+func Open(root string, dir string) *Store {
+	return &Store{root: root, dir: dir}
 }
 
 func (store *Store) Dir() string {
@@ -103,7 +105,7 @@ func (store *Store) Write(rows []Row, live Live) error {
 		return nil
 	}
 
-	err := os.MkdirAll(store.dir, 0o700)
+	err := safefs.MkdirAll(store.root, store.dir, 0o700)
 	if err != nil {
 		return fmt.Errorf("creating the vector segments: %w", err)
 	}
@@ -123,7 +125,7 @@ func (store *Store) Write(rows []Row, live Live) error {
 }
 
 func (store *Store) lock() (func(), error) {
-	file, err := os.OpenFile(filepath.Join(store.dir, lockName), os.O_CREATE|os.O_RDWR, 0o600)
+	file, err := safefs.Lock(store.root, filepath.Join(store.dir, lockName), 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening the vector segment lock: %w", err)
 	}
@@ -152,25 +154,19 @@ func (store *Store) writeSegment(dims int, rows []Row) (string, error) {
 	sum := sha256.Sum256(data)
 	name := hex.EncodeToString(sum[:8]) + segmentExt
 
-	temporary, err := os.CreateTemp(store.dir, tempPrefix+"*")
+	folder, err := safefs.At(store.root, store.dir)
 	if err != nil {
-		return "", fmt.Errorf("creating a vector segment: %w", err)
+		return "", fmt.Errorf("writing a vector segment: %w", err)
 	}
 
-	_, err = temporary.Write(data)
+	defer folder.Close()
 
-	closed := temporary.Close()
-	if err == nil {
-		err = closed
-	}
+	err = folder.ReplaceWith(name, tempPrefix+"*", 0o600, func(temporary *os.File) error {
+		_, err := temporary.Write(data)
 
-	if err == nil {
-		err = os.Rename(temporary.Name(), filepath.Join(store.dir, name))
-	}
-
+		return err
+	})
 	if err != nil {
-		_ = os.Remove(temporary.Name())
-
 		return "", fmt.Errorf("writing a vector segment: %w", err)
 	}
 

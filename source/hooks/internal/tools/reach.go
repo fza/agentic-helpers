@@ -38,13 +38,13 @@ func (lib *library) stores(ctx context.Context) []*store {
 
 	named := labels(lib.storeNames(keys))
 
-	own := &store{key: lib.key, label: named[lib.key], path: lib.ownDir(), own: true}
+	own := &store{key: lib.key, root: lib.env.Roots.Data, label: named[lib.key], path: lib.ownDir(), own: true}
 	reach := []*store{own}
 
 	for _, key := range keys {
 		at := lib.env.Roots.Store(key, home.Tools)
 		if key != lib.key && newer(at) == "" {
-			reach = append(reach, &store{key: key, label: named[key], path: at})
+			reach = append(reach, &store{key: key, root: lib.env.Roots.Data, label: named[key], path: at})
 		}
 	}
 
@@ -165,7 +165,7 @@ func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) er
 
 	defer unlock()
 
-	err = prepareStore(ctx, store, lib.ownDir(), lib.env.Roots.StoreCache(lib.key, home.Tools))
+	err = prepareStore(ctx, store, lib.env.Roots, lib.ownDir(), lib.env.Roots.StoreCache(lib.key, home.Tools))
 	if err != nil {
 		return fmt.Errorf("bringing the store to this release's format: %w", err)
 	}

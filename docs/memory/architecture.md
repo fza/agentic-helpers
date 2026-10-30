@@ -50,7 +50,9 @@ store.
 Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
 `shelves.json`, a claim, `.ledger`, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
 a temporary file named for that one writer, `.<name>.<random>.tmp` beside it, then renamed over it
-(`internal/atomicfile`). The hooks of one event run in parallel, and a temporary name every writer
+(`internal/atomicfile`), each folder from the data or cache home down walked through `internal/safefs`,
+which refuses a planted link or a file with a second name
+([plugin architecture](../plugin/architecture.md#writes)). The hooks of one event run in parallel, and a temporary name every writer
 shares would let two of them interleave in it and the second rename publish the mix; a reader sees
 the old file or the new one. Unlike the log, these files are not synced: a sync on darwin is a full
 flush of the drive, paid inside hook calls.

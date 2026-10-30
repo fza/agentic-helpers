@@ -72,6 +72,33 @@ The home is bookkeeping, not a boundary: any process able to write it can edit a
 identity, which decides which store a call works on, never whether it may. `<data>/format.json`
 versions the layout; each component keeps its own format beside its data.
 
+## Writes
+
+A process allowed to write part of the home, or a repository's committed files, can plant a link
+where the owner's next write goes. So every file agentic-helpers creates, opens for writing, appends
+to, renames or makes a folder for below a root goes through `internal/safefs`. The roots are the
+data home (`$XDG_DATA_HOME/agentic-helpers` or `AGENTIC_HELPERS_HOME`), the cache home
+(`$XDG_CACHE_HOME/agentic-helpers`), a checkout's top folder (`.tmp/` and its seat folders, a
+draft's lint body), the folder holding a graph's directory (`.sdd/tmp/capture.lock`, the grounding
+gate's ledgers) and a git common dir (the `agentic-store` pointer). The migration walks the old
+layout under `.claude` from each path's own folder, and `agentic-memory read --to` from the resolved
+work tree or `/tmp`. A root and every folder above it are the owner's and may be links: a symlinked
+`~/.local/share` keeps working.
+
+Below the root no path is opened whole. Each component is lstat-checked, refused as a link, opened
+relative to its parent's descriptor through `os.Root` and held to the checked folder, so a folder
+swapped for a link in between is caught; `os.Root` alone follows a link that stays inside its tree.
+A new file is created with `O_EXCL`; a replaced file is written under a fresh random name and renamed
+over the old one, so a link at the old name is replaced, never written through; an appended or
+locked file must be the regular file of one name its folder names before a byte is written. A file
+with a second name, a hard link, is refused wherever it is written. A refusal names the path:
+`<path> is a link`, `<path> changed while it was opened`, `<path> is no regular file`,
+`<path> has a second name, a hard link; register a copy of it`.
+
+What stays on plain `os` lies outside every root: git's global excludes file, Claude Code's
+`settings.local.json`, and the folder of `config.yaml` under the XDG config home (the file itself is
+replaced through `safefs`, its folder as the root).
+
 ## The migration
 
 `internal/migration` moves the layout of the releases before the home into it

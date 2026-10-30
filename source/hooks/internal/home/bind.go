@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 var (
@@ -91,7 +93,7 @@ func (resolver Resolver) bind(ctx context.Context, checkout Checkout, target str
 				continue
 			}
 
-			writeErr := writeIdentity(held.roots.storeDir(other), *identity)
+			writeErr := writeIdentity(held.roots.Data, held.roots.storeDir(other), *identity)
 			if writeErr != nil {
 				return writeErr
 			}
@@ -106,7 +108,7 @@ func (resolver Resolver) bind(ctx context.Context, checkout Checkout, target str
 			identity.KeptApart = append(identity.KeptApart, checkout.Graph.CommonDir)
 		}
 
-		writeErr := writeIdentity(held.roots.storeDir(id), *identity)
+		writeErr := writeIdentity(held.roots.Data, held.roots.storeDir(id), *identity)
 		if writeErr != nil {
 			return writeErr
 		}
@@ -155,8 +157,9 @@ func release(identity *Identity, checkout Checkout) []string {
 }
 
 // Joiner joins a component's data of one store into another's, from and into
-// being the component's folders. It runs holding the home's lock.
-type Joiner func(ctx context.Context, from string, into string) error
+// being the component's folders below root, the data home. It runs holding
+// the home's lock.
+type Joiner func(ctx context.Context, root string, from string, into string) error
 
 // Merge joins the store from into the store into: each component's data, by
 // its joiner where both hold some and by a move where only from does, then
@@ -209,7 +212,7 @@ func (resolver Resolver) Merge(ctx context.Context, from string, into string, jo
 		target, _ := held.store(intoID)
 		absorb(target, *source)
 
-		writeErr := writeIdentity(held.roots.storeDir(intoID), *target)
+		writeErr := writeIdentity(held.roots.Data, held.roots.storeDir(intoID), *target)
 		if writeErr != nil {
 			return writeErr
 		}
@@ -256,7 +259,7 @@ func joinComponent(ctx context.Context, roots Roots, fromID string, intoID strin
 
 	_, err := os.Stat(into)
 	if err != nil {
-		err = os.Rename(from, into)
+		err = safefs.Rename(roots.Data, from, into)
 		if err != nil {
 			return fmt.Errorf("moving %s into %s: %w", component, intoID, err)
 		}
@@ -264,7 +267,7 @@ func joinComponent(ctx context.Context, roots Roots, fromID string, intoID strin
 		return nil
 	}
 
-	err = join(ctx, from, into)
+	err = join(ctx, roots.Data, from, into)
 	if err != nil {
 		return fmt.Errorf("joining %s into %s: %w", component, intoID, err)
 	}
@@ -319,7 +322,7 @@ func (resolver Resolver) Adopt(ctx context.Context, checkouts []Checkout, legacy
 			held.admit(identity, checkout, true)
 		}
 
-		err = writeIdentity(held.roots.storeDir(created), *identity)
+		err = writeIdentity(held.roots.Data, held.roots.storeDir(created), *identity)
 		if err != nil {
 			return err
 		}
@@ -356,7 +359,7 @@ func (resolver Resolver) Unclaim(ctx context.Context, legacyKey string, lastKnow
 			identity.Checkouts = append(identity.Checkouts, Admitted{Path: filepath.Dir(commonDir), CommonDir: commonDir})
 		}
 
-		err = writeIdentity(resolver.Roots.unclaimedStore(created), identity)
+		err = writeIdentity(resolver.Roots.Data, resolver.Roots.unclaimedStore(created), identity)
 		if err != nil {
 			return err
 		}

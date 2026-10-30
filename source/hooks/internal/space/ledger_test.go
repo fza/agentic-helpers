@@ -41,7 +41,7 @@ func TestARefreshListsEveryDataFileWithItsLengthAndChecksum(t *testing.T) {
 		test.WriteFile(t, filepath.Join(dir, filepath.FromSlash(name)), content)
 	}
 
-	err := space.Refresh(context.Background(), dir, func(name string) space.Account {
+	err := space.Refresh(context.Background(), dir, dir, func(name string) space.Account {
 		if name == "word-count/v1/wc.py" {
 			return space.Account{Counted: true, Held: true, Bytes: 7}
 		}
@@ -75,7 +75,7 @@ func TestARefreshCarriesWhatTheLedgerCountedBefore(t *testing.T) {
 	dir := t.TempDir()
 	test.WriteFile(t, filepath.Join(dir, "a1b2.gz"), "compressed")
 
-	err := space.Refresh(context.Background(), dir, func(string) space.Account {
+	err := space.Refresh(context.Background(), dir, dir, func(string) space.Account {
 		return space.Account{Counted: true, Held: true, Bytes: 600}
 	})
 	if err != nil {
@@ -84,7 +84,7 @@ func TestARefreshCarriesWhatTheLedgerCountedBefore(t *testing.T) {
 
 	test.WriteFile(t, filepath.Join(dir, "planted"), strings.Repeat("y", 512))
 
-	err = space.Refresh(context.Background(), dir, func(string) space.Account { return space.Account{Carry: true} })
+	err = space.Refresh(context.Background(), dir, dir, func(string) space.Account { return space.Account{Carry: true} })
 	if err != nil {
 		t.Fatalf("refreshing: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestConcurrentRefreshesLeaveEveryWritersFile(t *testing.T) {
 		group.Go(func() {
 			test.WriteFile(t, filepath.Join(dir, fmt.Sprintf("file-%d", writer)), fmt.Sprint(writer))
 
-			err := space.Refresh(context.Background(), dir, nil)
+			err := space.Refresh(context.Background(), dir, dir, nil)
 			if err != nil {
 				t.Errorf("refreshing: %v", err)
 			}
@@ -135,7 +135,7 @@ func TestReadLedgerIgnoresAnUnusableLedger(t *testing.T) {
 			other := t.TempDir()
 			test.WriteFile(t, filepath.Join(other, "data"), "x")
 
-			err := space.Refresh(context.Background(), other, nil)
+			err := space.Refresh(context.Background(), other, other, nil)
 			if err != nil {
 				t.Fatalf("refreshing: %v", err)
 			}

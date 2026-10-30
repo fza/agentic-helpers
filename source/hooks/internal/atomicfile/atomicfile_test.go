@@ -17,7 +17,7 @@ func TestWriteReplacesTheFileWhole(t *testing.T) {
 	path := filepath.Join(dir, "ledger.json")
 	test.WriteFile(t, path, "old")
 
-	err := atomicfile.Write(path, []byte("new"), 0o644)
+	err := atomicfile.Write(dir, path, []byte("new"), 0o644)
 	if err != nil {
 		t.Fatalf("writing: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestAFailedWriteLeavesNothingBehind(t *testing.T) {
 	path := filepath.Join(dir, "heat.json")
 	test.WriteFile(t, filepath.Join(path, "occupied"), "a directory stands where the file goes")
 
-	err := atomicfile.Write(path, []byte("{}"), 0o600)
+	err := atomicfile.Write(dir, path, []byte("{}"), 0o600)
 	if err == nil {
 		t.Error("a file that cannot be put in place should be an error")
 	}
@@ -55,14 +55,15 @@ func TestAFailedWriteLeavesNothingBehind(t *testing.T) {
 }
 
 func TestParallelWritersNeverPublishAMix(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "vectors.gob")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "vectors.gob")
 
 	payloads := make([][]byte, 8)
 	for index := range payloads {
 		payloads[index] = bytes.Repeat([]byte{byte('a' + index)}, (index+1)<<16)
 	}
 
-	err := atomicfile.Write(path, payloads[0], 0o600)
+	err := atomicfile.Write(dir, path, payloads[0], 0o600)
 	if err != nil {
 		t.Fatalf("writing the first content: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestParallelWritersNeverPublishAMix(t *testing.T) {
 	for _, payload := range payloads {
 		writers.Go(func() {
 			for range 50 {
-				_ = atomicfile.Write(path, payload, 0o600)
+				_ = atomicfile.Write(dir, path, payload, 0o600)
 			}
 		})
 	}
@@ -109,5 +110,45 @@ func TestParallelWritersNeverPublishAMix(t *testing.T) {
 	final, err := os.ReadFile(path)
 	if err != nil || !slices.ContainsFunc(payloads, func(payload []byte) bool { return bytes.Equal(final, payload) }) {
 		t.Error("the last rename should leave one writer's whole content")
+	}
+}
+
+func TestAWriteNeverLandsAtAPlantedLink(t *testing.T) {
+	for _, planting := range test.Plantings() {
+		t.Run(planting.Name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "state", "ledger.json")
+			outside := test.Outside(t)
+			planting.Plant(t, path, outside)
+
+			err := atomicfile.Write(root, path, []byte("written"), 0o600)
+
+			if !test.Untouched(t, outside) {
+				t.Error("a write should never land outside its root")
+			}
+
+			if err == nil && planting.Name != test.Plantings()[0].Name {
+				t.Error("a write through a planted folder link or onto a hard link should be refused")
+			}
+
+			if err == nil && test.ReadFile(t, path) != "written" {
+				t.Error("a write past a link at the file should replace the link")
+			}
+		})
+	}
+}
+
+func TestARootThatIsALinkKeepsWorking(t *testing.T) {
+	real := t.TempDir()
+	root := filepath.Join(t.TempDir(), "share")
+
+	err := os.Symlink(real, root)
+	if err != nil {
+		t.Fatalf("linking the root: %v", err)
+	}
+
+	err = atomicfile.Write(root, filepath.Join(root, "index.json"), []byte("{}"), 0o600)
+	if err != nil || test.ReadFile(t, filepath.Join(real, "index.json")) != "{}" {
+		t.Errorf("a root that is a link should be written through, got %v", err)
 	}
 }

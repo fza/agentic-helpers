@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -127,7 +128,7 @@ func sameHolder(held seat.Claim) func(seat.Claim) bool {
 func (mem *memory) rewriteClaim(ctx context.Context, key string, still func(seat.Claim) bool, change func(*seat.Claim)) {
 	dir := mem.seatsDir()
 
-	unlock, err := seat.Lock(ctx, dir)
+	unlock, err := seat.Lock(ctx, mem.env.Roots.Data, dir)
 	if err != nil {
 		return
 	}
@@ -140,7 +141,7 @@ func (mem *memory) rewriteClaim(ctx context.Context, key string, still func(seat
 	}
 
 	change(&current)
-	_ = seat.Write(dir, key, current)
+	_ = seat.Write(mem.env.Roots.Data, dir, key, current)
 	mem.recordStore(ctx)
 }
 
@@ -941,7 +942,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	}
 
 	content := "session " + held.SessionID + "\n" + transcript.Tail(text, claimBudget)
-	_ = os.WriteFile(mem.slicePath(name), []byte(content), 0o600)
+	_ = safefs.WriteFile(mem.env.Roots.Data, mem.slicePath(name), []byte(content), 0o600)
 
 	mem.closeAtEnd(ctx, name, payload)
 

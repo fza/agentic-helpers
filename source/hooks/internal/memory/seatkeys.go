@@ -3,10 +3,10 @@ package memory
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -61,12 +61,12 @@ func (mem *memory) seatName(key string) string {
 // lockStore holds the store's lock until the returned function runs: the
 // registry and the format migration are written under it.
 func (mem *memory) lockStore(ctx context.Context) (func(), error) {
-	err := os.MkdirAll(mem.store(), 0o700)
+	err := safefs.MkdirAll(mem.env.Roots.Data, mem.store(), 0o700)
 	if err != nil {
 		return nil, fmt.Errorf("creating the store: %w", err)
 	}
 
-	file, err := os.OpenFile(filepath.Join(mem.store(), ".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	file, err := safefs.Lock(mem.env.Roots.Data, filepath.Join(mem.store(), ".lock"), 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening the store lock: %w", err)
 	}

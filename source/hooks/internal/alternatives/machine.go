@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const (
@@ -195,12 +196,12 @@ func (machine *Machine) save() {
 		return
 	}
 
-	err = os.MkdirAll(filepath.Dir(machine.CacheFile), 0o755)
+	err = safefs.MkdirAll(filepath.Dir(machine.CacheFile), filepath.Dir(machine.CacheFile), 0o700)
 	if err != nil {
 		return
 	}
 
-	_ = atomicfile.Write(machine.CacheFile, append(raw, '\n'), 0o644)
+	_ = atomicfile.Write(filepath.Dir(machine.CacheFile), machine.CacheFile, append(raw, '\n'), 0o644)
 }
 
 // Line is what the SessionStart check says the machine needs: each missing

@@ -167,7 +167,7 @@ func Set(path string, key string, value string) error {
 		return fmt.Errorf("making the folder of %s: %w", path, err)
 	}
 
-	err = atomicfile.Write(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	err = atomicfile.Write(filepath.Dir(path), path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
 	if err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}

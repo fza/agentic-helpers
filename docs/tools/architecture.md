@@ -143,7 +143,9 @@ store holds another project's agents' text.
   is created with `O_EXCL`, which opens no existing name; a replaced file (`current`, `index.json`,
   a journal cut short) is written under a fresh random name and renamed over the old one; an appended
   file (`history.jnl`, `takes.jnl`, `.lock`) must be the regular file of one name its folder's
-  lstat names.
+  lstat names. The walk is `internal/safefs`, which every writer of agentic-helpers shares, the
+  library's own store walked from the data home
+  ([plugin architecture](../plugin/architecture.md#writes)).
 - **Every printed field is stripped of control characters**, an index row whose name is not its key
   is dropped, and every listing opens with the framing lead.
 - **Pushed lines carry names, paths and commands only.**

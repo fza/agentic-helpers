@@ -197,12 +197,12 @@ func (mem *memory) purge(ctx context.Context, shelfIDs []string) (int, int, erro
 		delete(shelves.Shelves, shelf)
 	}
 
-	err = shelves.Save()
+	err = shelves.Save(mem.env.Roots.Data)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	err = registry.Save()
+	err = registry.Save(mem.env.Roots.Data)
 	if err != nil {
 		return 0, 0, err
 	}

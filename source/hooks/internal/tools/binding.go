@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // The own store is the one the home maps the checkout to (internal/home), as
@@ -56,7 +58,7 @@ func (lib *library) recorder(ctx context.Context) error {
 // with the store it was kept for. A tool name both hold refuses
 // the join before anything moves; the target's index is rebuilt from its
 // folders at its next read.
-func Join(_ context.Context, from string, into string) error {
+func Join(_ context.Context, root string, from string, into string) error {
 	listed, err := os.ReadDir(from)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", from, err)
@@ -86,7 +88,7 @@ func Join(_ context.Context, from string, into string) error {
 	}
 
 	for _, name := range tools {
-		err = os.Rename(filepath.Join(from, name), filepath.Join(into, name))
+		err = safefs.Rename(root, filepath.Join(from, name), filepath.Join(into, name))
 		if err != nil {
 			return fmt.Errorf("moving the tool %s: %w", name, err)
 		}

@@ -133,7 +133,7 @@ func TestRemoveKeepsTheLastClaim(t *testing.T) {
 	test.ClaimSeat(t, store, "main", test.Session)
 	dir := seat.Dir(store)
 
-	err := seat.Remove(dir, "main")
+	err := seat.Remove(store, dir, "main")
 	if err != nil {
 		t.Fatalf("removing a claim should succeed: %v", err)
 	}
@@ -207,11 +207,11 @@ func TestANameOutsideTheSeatsDirectoryIsRefused(t *testing.T) {
 		t.Error("a name escaping the seats directory should read as no claim")
 	}
 
-	if seat.Write(dir, "../outside", seat.Claim{SessionID: "y"}) == nil {
+	if seat.Write(store, dir, "../outside", seat.Claim{SessionID: "y"}) == nil {
 		t.Error("a name escaping the seats directory should not be written")
 	}
 
-	if seat.Remove(dir, "../outside") == nil || !test.Exists(t, filepath.Join(store, "outside.json")) {
+	if seat.Remove(store, dir, "../outside") == nil || !test.Exists(t, filepath.Join(store, "outside.json")) {
 		t.Error("a name escaping the seats directory should not remove anything")
 	}
 }

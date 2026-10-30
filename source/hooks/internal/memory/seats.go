@@ -255,7 +255,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 func (mem *memory) closeSeat(ctx context.Context, name string, key string, owner int) (bool, string, error) {
 	dir := mem.seatsDir()
 
-	unlock, err := seat.Lock(ctx, dir)
+	unlock, err := seat.Lock(ctx, mem.env.Roots.Data, dir)
 	if err != nil {
 		return false, "", err
 	}
@@ -271,7 +271,7 @@ func (mem *memory) closeSeat(ctx context.Context, name string, key string, owner
 			short(held.SessionID), held.PID), nil
 	}
 
-	err = seat.Close(dir, key, mem.now().Format(time.RFC3339Nano))
+	err = seat.Close(mem.env.Roots.Data, dir, key, mem.now().Format(time.RFC3339Nano))
 	if err != nil {
 		return false, "", err
 	}
@@ -293,7 +293,7 @@ type taken struct {
 func (mem *memory) take(ctx context.Context, name string, key string, own bool, owner int) (taken, string, error) {
 	dir := mem.seatsDir()
 
-	unlock, err := seat.Lock(ctx, dir)
+	unlock, err := seat.Lock(ctx, mem.env.Roots.Data, dir)
 	if err != nil {
 		return taken{}, "", err
 	}
@@ -324,7 +324,7 @@ func (mem *memory) take(ctx context.Context, name string, key string, own bool, 
 		took.held = existing
 		took.previous, took.hadPrevious = seat.ReadLast(dir, key)
 	} else if found {
-		err = seat.Remove(dir, key)
+		err = seat.Remove(mem.env.Roots.Data, dir, key)
 		if err != nil {
 			return taken{}, "", err
 		}
@@ -337,7 +337,7 @@ func (mem *memory) take(ctx context.Context, name string, key string, own bool, 
 		took.held.Started = seat.FormatStarted(started)
 	}
 
-	err = seat.Write(dir, key, took.held)
+	err = seat.Write(mem.env.Roots.Data, dir, key, took.held)
 	if err != nil {
 		return taken{}, "", err
 	}
@@ -534,13 +534,13 @@ func (mem *memory) rename(ctx context.Context, req request) result {
 			return refused("%v", err)
 		}
 
-		err = shelves.Save()
+		err = shelves.Save(mem.env.Roots.Data)
 		if err != nil {
 			return refused("%v", err)
 		}
 	}
 
-	err = registry.Save()
+	err = registry.Save(mem.env.Roots.Data)
 	if err != nil {
 		return refused("%v", err)
 	}
