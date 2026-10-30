@@ -34,14 +34,20 @@ var trustedLayers = []string{"global", "default"}
 var sddLine = regexp.MustCompile(`^embedding\.(\S+)\s+(.*?)\s+\(([^()]*)\)$`)
 
 // parseSdd is sdd's embedding block by key, and the layer each key comes
-// from; nothing where a key is printed twice, which sdd never does.
+// from; nothing where a line reads otherwise or a key is printed twice, which
+// sdd never does, so a value can never pass for a line of its own.
 func parseSdd(text string) (map[string]string, map[string]string) {
 	block, layers := map[string]string{}, map[string]string{}
 
 	for _, line := range strings.Split(text, "\n") {
-		parts := sddLine.FindStringSubmatch(strings.TrimSpace(line))
-		if parts == nil {
+		line = strings.TrimSpace(line)
+		if line == "" {
 			continue
+		}
+
+		parts := sddLine.FindStringSubmatch(line)
+		if parts == nil {
+			return nil, nil
 		}
 
 		_, twice := block[parts[1]]

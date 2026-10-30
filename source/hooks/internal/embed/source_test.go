@@ -121,6 +121,15 @@ func TestSettleTakesNoBlockPrintingAKeyTwice(t *testing.T) {
 	}
 }
 
+func TestSettleTakesNoBlockHoldingALineOfAnotherShape(t *testing.T) {
+	sdd := &sddAnswer{text: sddBlock + "embedding.endpoint\n"}
+
+	settled, _ := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
+	if settled.Provider != "" {
+		t.Errorf("a block holding a line sdd never prints should leave no embedder, got %+v", settled)
+	}
+}
+
 func TestAValueCarryingALayerMarkKeepsTheLineItsOwn(t *testing.T) {
 	sdd := &sddAnswer{text: "embedding.provider  ollama  (global)\n" +
 		"embedding.endpoint  http://example.org:9  (global)  (project)\n"}
