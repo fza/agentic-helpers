@@ -62,10 +62,11 @@ func main() {
 		Checkout:  project.GitCommonDir{},
 		Git:       process.Git{},
 		Embedders: func(config embed.Config) (embed.Embedder, error) {
-			return embed.New(config, &http.Client{Timeout: 30 * time.Second})
+			return embed.New(config, &http.Client{Timeout: config.Timeout})
 		},
-		Version: version,
-		Idle:    migration.Idle(machine),
+		SddConfig: process.SddConfig{},
+		Version:   version,
+		Idle:      migration.Idle(machine),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

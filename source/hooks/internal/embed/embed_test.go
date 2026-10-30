@@ -69,10 +69,10 @@ func TestRequestShape(t *testing.T) {
 			body:    `{"model":"nomic","input":["a","b"],"encoding_format":"float"}`,
 		},
 		{
-			name:    "ollama on its default endpoint ignores a key and dimensions",
+			name:    "ollama on its default endpoint ignores a key and asks for dimensions",
 			cfg:     embed.Config{Provider: "ollama", Model: "nomic-embed-text", APIKey: "secret", Dimensions: 256},
 			address: "http://localhost:11434/api/embed",
-			body:    `{"model":"nomic-embed-text","input":["a","b"]}`,
+			body:    `{"model":"nomic-embed-text","input":["a","b"],"dimensions":256}`,
 		},
 		{
 			name:    "ollama endpoint with a trailing slash",
@@ -397,16 +397,16 @@ func TestFingerprint(t *testing.T) {
 		cfg         embed.Config
 		fingerprint string
 	}{
-		{name: "openai at the model's own size", cfg: embed.Config{Provider: "openai", Model: "text-embedding-3-small"}, fingerprint: "openai/text-embedding-3-small"},
+		{name: "openai at the model's own size", cfg: embed.Config{Provider: "openai", Model: "text-embedding-3-small"}, fingerprint: "openai/text-embedding-3-small/0"},
 		{name: "openai with dimensions", cfg: embed.Config{Provider: "openai", Model: "text-embedding-3-small", Dimensions: 512}, fingerprint: "openai/text-embedding-3-small/512"},
-		{name: "ollama", cfg: embed.Config{Provider: "ollama", Model: "nomic-embed-text"}, fingerprint: "ollama/nomic-embed-text"},
-		{name: "ollama ignores dimensions", cfg: embed.Config{Provider: "ollama", Model: "nomic-embed-text", Dimensions: 512}, fingerprint: "ollama/nomic-embed-text"},
+		{name: "ollama", cfg: embed.Config{Provider: "ollama", Model: "nomic-embed-text"}, fingerprint: "ollama/nomic-embed-text/0"},
+		{name: "ollama with dimensions", cfg: embed.Config{Provider: "ollama", Model: "nomic-embed-text", Dimensions: 512}, fingerprint: "ollama/nomic-embed-text/512"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			embedder := newEmbedder(t, testCase.cfg, nil)
 			if embedder.Fingerprint() != testCase.fingerprint {
-				t.Errorf("the fingerprint should name provider, model and any chosen size, got %q", embedder.Fingerprint())
+				t.Errorf("the fingerprint should name provider, model and size, got %q", embedder.Fingerprint())
 			}
 		})
 	}

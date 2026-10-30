@@ -80,12 +80,13 @@ func main() {
 		Graph:         process.SddExport{},
 		Sdd:           &sddcaps.Probe{Runner: process.Runner{}, CacheDir: sddcaps.CacheDir(cacheRoot), LookPath: exec.LookPath},
 		Embedders: func(config embed.Config) (embed.Embedder, error) {
-			return embed.New(config, &http.Client{Timeout: 30 * time.Second})
+			return embed.New(config, &http.Client{Timeout: config.Timeout})
 		},
-		Version:  version,
-		Terminal: hookio.Terminal{File: os.Stdin},
-		Tmp:      "/tmp",
-		Idle:     migration.Idle(machine),
+		SddConfig: process.SddConfig{},
+		Version:   version,
+		Terminal:  hookio.Terminal{File: os.Stdin},
+		Tmp:       "/tmp",
+		Idle:      migration.Idle(machine),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

@@ -537,3 +537,49 @@ func TestMigrationLeavesARenamedAnswerTheFileHoldsUnderItsNewName(t *testing.T) 
 		t.Errorf("an answer the file already holds under the new name should not be copied, got %v:\n%s", copied, written)
 	}
 }
+
+func TestTheEmbeddingSourceDecidesWhetherSddIsRead(t *testing.T) {
+	cases := []struct {
+		name    string
+		config  string
+		fromSdd bool
+	}{
+		{name: "auto without an own provider", config: "", fromSdd: true},
+		{name: "auto with an own provider", config: "embedding_provider: ollama\n", fromSdd: false},
+		{name: "sdd with an own provider", config: "embedding_source: sdd\nembedding_provider: ollama\n", fromSdd: true},
+		{name: "own without a provider", config: "embedding_source: own\n", fromSdd: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			config := filepath.Join(dir, "config.yaml")
+			test.WriteFile(t, config, tc.config+"embedding_timeout: 45s\n")
+
+			resolution, err := pluginconfig.Resolve([]string{config}, nil)
+			if err != nil || len(resolution.Problems) != 0 {
+				t.Fatalf("resolving should succeed without a problem: %v %v", err, resolution.Problems)
+			}
+
+			if resolution.Options.EmbeddingFromSdd() != tc.fromSdd {
+				t.Errorf("the source should decide whether sdd's block applies, got %v", resolution.Options.EmbeddingFromSdd())
+			}
+
+			if resolution.Options.OwnEmbedding(nil).Timeout.String() != "45s" {
+				t.Error("the own embedder should carry the configured timeout")
+			}
+		})
+	}
+}
+
+func TestAnEmbeddingSourceOfAnotherWordIsRefused(t *testing.T) {
+	resolution := layered(t, "embedding_source", layers{config: "sometimes"})
+
+	if got := resolution.Options.Value("embedding_source"); got != "auto" {
+		t.Errorf("an unknown source should leave the layer below, got %q", got)
+	}
+
+	if len(resolution.Problems) != 1 || !strings.Contains(resolution.Problems[0], `"sometimes" is none of auto, sdd, own`) {
+		t.Errorf("an unknown source should be named with the accepted ones, got %v", resolution.Problems)
+	}
+}

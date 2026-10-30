@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"runtime"
@@ -13,6 +14,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 )
 
 func main() {
@@ -38,8 +40,19 @@ func main() {
 		Hook:      os.Getenv("CLAUDE_PLUGIN_ROOT") != "",
 		Migration: machine,
 		CacheRoot: cacheRoot,
+		SddConfig: process.SddConfig{},
+		Dir:       cmp.Or(os.Getenv("CLAUDE_PROJECT_DIR"), workingDir()),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
 	os.Exit(pieces.Main(ctx, os.Args[1:], env, streams))
+}
+
+func workingDir() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	return dir
 }

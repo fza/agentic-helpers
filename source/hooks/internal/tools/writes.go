@@ -162,15 +162,15 @@ func (lib *library) stamp() string { return lib.now().Format("2006-01-02T15:04:0
 // embedOne embeds a tool's description, or answers nothing where no embedder
 // does: the tool still lands, unranked by meaning until a rebuild embeds it.
 func (lib *library) embedOne(ctx context.Context, described spec) ([]float32, string) {
-	embedder, err := lib.embedder()
+	embedder, err := lib.embedder(ctx)
 	if err != nil {
 		return nil, ""
 	}
 
-	bounded, cancel := context.WithTimeout(ctx, embedLimit)
+	bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Embed(bounded, []string{describe(described)})
+	vectors, err := embedder.Documents(bounded, []string{describe(described)})
 	if err != nil || len(vectors) != 1 {
 		return nil, ""
 	}

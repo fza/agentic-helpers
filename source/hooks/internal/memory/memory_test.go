@@ -1746,14 +1746,14 @@ func TestRecallLeavesThePromptVectorForAgenticTools(t *testing.T) {
 	question := "how does the tail seal manifest rename work"
 	h.must(hookPayload("", "", question), "prompt")
 
-	_, held := promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
+	_, held := promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Space())
 	if !held {
 		t.Error("recall should leave the prompt's vector in the session's slot")
 	}
 
 	h.must(hookPayload("", "", ""), "session-end")
 
-	_, held = promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Fingerprint())
+	_, held = promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Space())
 	if held {
 		t.Error("the session's end should empty its slot")
 	}

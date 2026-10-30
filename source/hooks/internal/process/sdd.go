@@ -37,3 +37,31 @@ func (SddExport) Export(ctx context.Context, dir string) ([]byte, error) {
 
 	return output, nil
 }
+
+// sddConfigLimit bounds one `sdd config get`, which only reads files.
+const sddConfigLimit = 5 * time.Second
+
+// SddConfig reads sdd's configuration as sdd layers it for a directory.
+type SddConfig struct{}
+
+// EmbeddingConfig is what `sdd config get embedding` prints in dir, or nothing
+// where sdd is missing or fails.
+func (SddConfig) EmbeddingConfig(ctx context.Context, dir string) string {
+	_, err := exec.LookPath("sdd")
+	if err != nil {
+		return ""
+	}
+
+	bounded, cancel := context.WithTimeout(ctx, sddConfigLimit)
+	defer cancel()
+
+	command := exec.CommandContext(bounded, "sdd", "config", "get", "embedding")
+	command.Dir = dir
+
+	output, err := command.Output()
+	if err != nil {
+		return ""
+	}
+
+	return string(output)
+}

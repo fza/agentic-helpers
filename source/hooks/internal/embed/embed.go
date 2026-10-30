@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -21,6 +22,12 @@ type Config struct {
 	Endpoint   string
 	Dimensions int
 	APIKey     string
+	// Timeout bounds one embedding call of a command or MCP tool.
+	Timeout time.Duration
+	// QueryTemplate / DocumentTemplate wrap a query and a document, `{text}`
+	// marking where the text goes; Template applies them.
+	QueryTemplate    string
+	DocumentTemplate string
 }
 
 var ErrNotConfigured = errors.New("no embedding provider configured")

@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/span"
 )
 
@@ -44,6 +45,17 @@ const (
 	SecretOutputAll   = "all"
 	SecretOutputFiles = "files"
 )
+
+// EmbeddingSourceAuto / EmbeddingSourceSdd / EmbeddingSourceOwn are the
+// settings of `embedding_source`.
+const (
+	EmbeddingSourceAuto = "auto"
+	EmbeddingSourceSdd  = "sdd"
+	EmbeddingSourceOwn  = "own"
+)
+
+// DefaultEmbeddingTimeout is sdd's own default for one embedding call.
+const DefaultEmbeddingTimeout = 2 * time.Minute
 
 // StyleTerse / StylePlain are the settings of `writing_style`: how agents
 // write what only agents read, memory entries and tool library notes.
@@ -115,12 +127,22 @@ const (
 )
 
 type Options struct {
+	// EmbeddingSource chooses where the embedder comes from: own keys, sdd's
+	// embedding block, or (auto) sdd's only where no own provider is set.
+	EmbeddingSource     string
 	EmbeddingProvider   string
 	EmbeddingModel      string
 	EmbeddingEndpoint   string
 	EmbeddingDimensions int
 	EmbeddingAPIKeyEnv  string
-	EntryMaxWords       int
+	// EmbeddingTimeout bounds one embedding call of a command or MCP tool;
+	// a hook's own shorter deadline never exceeds it.
+	EmbeddingTimeout time.Duration
+	// EmbeddingQueryTemplate / EmbeddingDocumentTemplate wrap a query and a
+	// document before they are embedded, `{text}` marking where the text goes.
+	EmbeddingQueryTemplate    string
+	EmbeddingDocumentTemplate string
+	EntryMaxWords             int
 	// StateStaleAfterWrites is how many file writes since a seat's last state
 	// write hold the session's Stop for a new one.
 	StateStaleAfterWrites int
@@ -181,7 +203,8 @@ type Options struct {
 // Keys is every option the plugin reads, as `config.yaml`, a settings file
 // and the hook environment spell it.
 var Keys = []string{
-	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
+	"embedding_source", "embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions",
+	"embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
 	"entry_max_words", "state_stale_after_writes", "retired_body_lifetime", "tools_version_lifetime", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
@@ -526,7 +549,8 @@ func (options *Options) clamp() {
 
 func Defaults() Options {
 	return Options{
-		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime, EntryIDLength: DefaultEntryIDLength,
+		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime,
+		EmbeddingSource: EmbeddingSourceAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true, WritingStyle: StyleTerse,
@@ -557,6 +581,8 @@ func (options *Options) fields() fields {
 			"embedding_model":                &options.EmbeddingModel,
 			"embedding_endpoint":             &options.EmbeddingEndpoint,
 			"embedding_api_key_env":          &options.EmbeddingAPIKeyEnv,
+			"embedding_query_template":       &options.EmbeddingQueryTemplate,
+			"embedding_document_template":    &options.EmbeddingDocumentTemplate,
 			"memory_language":                &options.MemoryLanguage,
 			"temporary_seat_lifetime":        &options.TemporarySeatLifetime,
 			"orphan_store_grace":             &options.OrphanStoreGrace,
@@ -575,6 +601,7 @@ func (options *Options) fields() fields {
 		spans: map[string]*time.Duration{
 			"retired_body_lifetime":   &options.RetiredBodyLifetime,
 			"tools_version_lifetime":  &options.ToolsVersionLifetime,
+			"embedding_timeout":       &options.EmbeddingTimeout,
 			"shell_guard_ask_timeout": &options.ShellGuardAskTimeout,
 		},
 		fractions: map[string]*float64{
@@ -590,7 +617,8 @@ func (options *Options) fields() fields {
 			"shell_guard_secret_output": &options.ShellGuardSecretOutput,
 		},
 		styles: map[string]*string{
-			"writing_style": &options.WritingStyle,
+			"writing_style":    &options.WritingStyle,
+			"embedding_source": &options.EmbeddingSource,
 		},
 		switches: map[string]*bool{
 			"memory_require_git":       &options.MemoryRequireGit,
@@ -771,7 +799,7 @@ func (options *Options) apply(values map[string]json.RawMessage) error {
 			continue
 		}
 
-		value, err := style(raw, *target)
+		value, err := style(raw, *target, choices[key])
 		if err != nil {
 			return fmt.Errorf("%s: %w", key, err)
 		}
@@ -870,8 +898,15 @@ func outputMode(raw json.RawMessage, fallback string) (string, error) {
 	return "", fmt.Errorf("%q is none of all, files, off", value)
 }
 
-// style accepts `terse` or `plain`; an empty string keeps fallback.
-func style(raw json.RawMessage, fallback string) (string, error) {
+// choices is the values each picker key takes, in the order a refusal names
+// them.
+var choices = map[string][]string{
+	"writing_style":    {StyleTerse, StylePlain},
+	"embedding_source": {EmbeddingSourceAuto, EmbeddingSourceSdd, EmbeddingSourceOwn},
+}
+
+// style accepts one of the key's choices; an empty string keeps fallback.
+func style(raw json.RawMessage, fallback string, accepted []string) (string, error) {
 	var value string
 
 	err := json.Unmarshal(raw, &value)
@@ -879,14 +914,15 @@ func style(raw json.RawMessage, fallback string) (string, error) {
 		return "", fmt.Errorf("%s is not a string", raw)
 	}
 
-	switch value {
-	case "":
+	if value == "" {
 		return fallback, nil
-	case StyleTerse, StylePlain:
+	}
+
+	if slices.Contains(accepted, value) {
 		return value, nil
 	}
 
-	return "", fmt.Errorf("%q is none of terse, plain", value)
+	return "", fmt.Errorf("%q is none of %s", value, strings.Join(accepted, ", "))
 }
 
 // boolean accepts a JSON boolean or the string the dialog may store for one.
@@ -966,4 +1002,52 @@ func number(raw json.RawMessage) (int, error) {
 	}
 
 	return parsed, nil
+}
+
+// embeddingKeys is every own embedding option an `sdd` source ignores, in
+// the order the options list them.
+var embeddingKeys = []string{
+	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
+	"embedding_timeout", "embedding_query_template", "embedding_document_template",
+}
+
+// EmbeddingFromSdd says whether the embedder comes from sdd's embedding block:
+// always under `sdd`, and under `auto` where no own provider is set.
+func (options Options) EmbeddingFromSdd() bool {
+	return options.EmbeddingSource == EmbeddingSourceSdd ||
+		options.EmbeddingSource == EmbeddingSourceAuto && options.EmbeddingProvider == ""
+}
+
+// OwnEmbedding is the embedder the own keys set, its key read from the
+// variable `embedding_api_key_env` names.
+func (options Options) OwnEmbedding(getenv func(string) string) embed.Config {
+	config := embed.Config{
+		Provider:         options.EmbeddingProvider,
+		Model:            options.EmbeddingModel,
+		Endpoint:         options.EmbeddingEndpoint,
+		Dimensions:       options.EmbeddingDimensions,
+		Timeout:          options.EmbeddingTimeout,
+		QueryTemplate:    options.EmbeddingQueryTemplate,
+		DocumentTemplate: options.EmbeddingDocumentTemplate,
+	}
+
+	if options.EmbeddingAPIKeyEnv != "" && getenv != nil {
+		config.APIKey = getenv(options.EmbeddingAPIKeyEnv)
+	}
+
+	return config
+}
+
+// IgnoredEmbedding is every own embedding key some layer sets, which the
+// session-start check names while `embedding_source` is `sdd`.
+func (resolution Resolution) IgnoredEmbedding() []string {
+	var ignored []string
+
+	for _, key := range embeddingKeys {
+		if resolution.From[key] != "" {
+			ignored = append(ignored, key)
+		}
+	}
+
+	return ignored
 }

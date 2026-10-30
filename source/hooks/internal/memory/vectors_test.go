@@ -15,7 +15,7 @@ import (
 // storeDir is the fake embedder's vector store: the first 12 hex digits of its
 // fingerprint's sha256.
 func (h *harness) storeDir() string {
-	sum := sha256.Sum256([]byte("fake/64"))
+	sum := sha256.Sum256([]byte(h.embedder.Space()))
 
 	return filepath.Join(h.cacheDir(), hex.EncodeToString(sum[:])[:12])
 }

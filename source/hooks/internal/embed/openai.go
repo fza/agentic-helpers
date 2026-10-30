@@ -53,10 +53,7 @@ func (embedder *openAI) Embed(ctx context.Context, texts []string) ([][]float32,
 }
 
 func (embedder *openAI) Fingerprint() string {
-	if embedder.dimensions > 0 {
-		return fmt.Sprintf("openai/%s/%d", embedder.model, embedder.dimensions)
-	}
-	return "openai/" + embedder.model
+	return fmt.Sprintf("openai/%s/%d", embedder.model, embedder.dimensions)
 }
 
 func (embedder *openAI) address() string {
