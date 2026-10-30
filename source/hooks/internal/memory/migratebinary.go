@@ -38,12 +38,12 @@ func (mem *memory) migrateFormat5(ctx context.Context) error {
 		return fmt.Errorf("taking in the per-session files: %w", err)
 	}
 
-	mem.recordStore(ctx)
-
 	err = writeFormat(mem.env.Roots.Data, mem.store(), slotsFormat)
 	if err != nil {
 		return err
 	}
+
+	mem.recordStore(ctx)
 
 	mem.removeLegacyCache()
 

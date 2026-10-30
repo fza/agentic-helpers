@@ -105,9 +105,14 @@ func (mem *memory) migrateFormat6(ctx context.Context) error {
 		return fmt.Errorf("backing up the store's log: %w", err)
 	}
 
+	err = writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
+	if err != nil {
+		return err
+	}
+
 	mem.recordStore(ctx)
 
-	return writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
+	return nil
 }
 
 // migrateFormat4 moves a format-4 store to format 5, whose log may hold

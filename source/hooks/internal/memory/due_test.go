@@ -353,6 +353,12 @@ func TestAFormatSixStoreMovesToSevenWithABackup(t *testing.T) {
 	test.WriteFile(t, formatPath, `{"format":6}`+"\n")
 
 	h.must("", "search", "--term", "Gate", "--no-heat")
+
+	mismatches := test.LedgerMismatches(t, h.store())
+	if len(mismatches) > 0 {
+		t.Errorf("the ledger should match the files right after the move: %s", strings.Join(mismatches, "; "))
+	}
+
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
 	if written, _ := os.ReadFile(formatPath); !strings.Contains(string(written), `"format":7`) {

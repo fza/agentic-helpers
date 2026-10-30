@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/fza/agentic-helpers/source/hooks/internal/space"
+	"hash/crc32"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/dump"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
 // Dumped is the data file at path as `agentic-helpers dump` prints it, one
@@ -115,9 +116,9 @@ func WriteLedger(t testing.TB, dir string, listing string) {
 func LedgerMismatches(t testing.TB, dir string) []string {
 	t.Helper()
 
-	listed := map[string]int64{}
+	listed := map[string]space.LedgerFile{}
 	for _, file := range space.ReadLedger(dir) {
-		listed[file.Name] = file.Length
+		listed[file.Name] = file
 	}
 
 	var mismatches []string
@@ -140,13 +141,15 @@ func LedgerMismatches(t testing.TB, dir string) []string {
 		rel, _ := filepath.Rel(dir, path)
 		rel = filepath.ToSlash(rel)
 
-		length, found := listed[rel]
+		file, found := listed[rel]
 
 		switch {
 		case !found:
 			mismatches = append(mismatches, rel+" is not listed")
-		case length != info.Size():
-			mismatches = append(mismatches, fmt.Sprintf("%s is listed at %d bytes, holds %d", rel, length, info.Size()))
+		case file.Length != info.Size():
+			mismatches = append(mismatches, fmt.Sprintf("%s is listed at %d bytes, holds %d", rel, file.Length, info.Size()))
+		case file.CRC != 0 && file.CRC != fileCRC(t, path):
+			mismatches = append(mismatches, rel+" is listed with a checksum its bytes no longer have")
 		}
 
 		delete(listed, rel)
@@ -162,4 +165,15 @@ func LedgerMismatches(t testing.TB, dir string) []string {
 	}
 
 	return mismatches
+}
+
+func fileCRC(t testing.TB, path string) uint32 {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+
+	return crc32.Checksum(data, crc32.MakeTable(crc32.Castagnoli))
 }
