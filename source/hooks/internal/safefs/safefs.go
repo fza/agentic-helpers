@@ -1,4 +1,14 @@
-package tools
+// Package safefs reads and writes below a root without following a link.
+//
+// A process allowed to write part of the data home, or a repository's
+// committed files, can plant a link where the owner's next write goes, or swap
+// a checked folder for one before the write opens it. So a path below a root
+// is never opened whole: each component is lstat-checked, refused as a link,
+// opened relative to its parent's descriptor through os.Root, and held to the
+// checked folder, so a link swapped in between is caught rather than followed.
+// os.Root alone follows a link that stays inside its tree. The root and every
+// folder above it are the owner's and may be links.
+package safefs
 
 import (
 	"errors"
@@ -9,8 +19,6 @@ import (
 	"path"
 	"strings"
 	"syscall"
-
-	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 )
 
 var (
@@ -20,32 +28,24 @@ var (
 	ErrTooMany    = errors.New("holds more files than a walk reads")
 	ErrMoved      = errors.New("changed while it was opened")
 	ErrHardLinked = errors.New("has a second name, a hard link; register a copy of it")
+	ErrOutside    = errors.New("lies outside its root")
 )
 
-// Read limits. Every store is untrusted text, so no read is unbounded.
+// A walk reads at most WalkDepth folders deep and WalkFiles files.
 const (
-	toolLimit     = pluginconfig.ToolMaxMB << 20
-	versionLimit  = toolLimit + 64<<10
-	indexLimit    = 4 << 20
-	lineFileLimit = 4 << 20
-	sessionLimit  = 1 << 20
-	currentLimit  = 64
-	walkDepth     = 6
-	walkFiles     = 2000
+	WalkDepth = 6
+	WalkFiles = 2000
 )
 
-// dir is a directory opened by descriptor. Every component below it is
-// checked with lstat before it is opened relative to its parent, and the
-// opened descriptor is held to the checked file, so a link swapped in between
-// is caught rather than followed. os.Root alone follows links inside its tree.
-type dir struct {
+// Dir is a directory opened by descriptor.
+type Dir struct {
 	root *os.Root
 	path string
 }
 
-// openDir opens a directory the caller names in full, refusing a link at its
+// OpenDir opens a directory the caller names in full, refusing a link at its
 // last component.
-func openDir(at string) (*dir, error) {
+func OpenDir(at string) (*Dir, error) {
 	checked, err := os.Lstat(at)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", at, err)
@@ -67,7 +67,7 @@ func openDir(at string) (*dir, error) {
 		return nil, fmt.Errorf("%s %w", at, ErrMoved)
 	}
 
-	return &dir{root: root, path: at}, nil
+	return &Dir{root: root, path: at}, nil
 }
 
 // A link's own lstat is never a folder or a regular file, so the type checks
@@ -88,7 +88,11 @@ func notARegularFile(at string, checked fs.FileInfo) error {
 	return fmt.Errorf("%s %w", at, ErrNotRegular)
 }
 
-func (held *dir) close() {
+func (held *Dir) Path() string {
+	return held.path
+}
+
+func (held *Dir) Close() {
 	if held != nil {
 		_ = held.root.Close()
 	}
@@ -98,8 +102,8 @@ func singleName(name string) bool {
 	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, "/\\\x00")
 }
 
-// sub opens one named directory below held.
-func (held *dir) sub(name string) (*dir, error) {
+// Sub opens one named directory below held.
+func (held *Dir) Sub(name string) (*Dir, error) {
 	at := path.Join(held.path, name)
 	if !singleName(name) {
 		return nil, fmt.Errorf("%s names no single entry", at)
@@ -126,17 +130,17 @@ func (held *dir) sub(name string) (*dir, error) {
 		return nil, fmt.Errorf("%s %w", at, ErrMoved)
 	}
 
-	return &dir{root: child, path: at}, nil
+	return &Dir{root: child, path: at}, nil
 }
 
-// subPath opens a slash-separated path below held, one component at a time.
-func (held *dir) subPath(relative string) (*dir, error) {
+// SubPath opens a slash-separated path below held, one component at a time.
+func (held *Dir) SubPath(relative string) (*Dir, error) {
 	current := held
 
 	for _, name := range strings.Split(relative, "/") {
-		next, err := current.sub(name)
+		next, err := current.Sub(name)
 		if current != held {
-			current.close()
+			current.Close()
 		}
 
 		if err != nil {
@@ -153,8 +157,8 @@ func (held *dir) subPath(relative string) (*dir, error) {
 	return current, nil
 }
 
-// fileInfo is a regular file below held, checked without opening it.
-func (held *dir) fileInfo(name string) (fs.FileInfo, error) {
+// FileInfo is a regular file below held, checked without opening it.
+func (held *Dir) FileInfo(name string) (fs.FileInfo, error) {
 	at := path.Join(held.path, name)
 	if !singleName(name) {
 		return nil, fmt.Errorf("%s names no single entry", at)
@@ -170,7 +174,7 @@ func (held *dir) fileInfo(name string) (fs.FileInfo, error) {
 	}
 
 	// A second name can be an outside file linked in: reading it would hand
-	// that file out, and appending to it would write there.
+	// that file out, and writing it would write there.
 	if hardLinked(checked) {
 		return nil, fmt.Errorf("%s %w", at, ErrHardLinked)
 	}
@@ -178,12 +182,12 @@ func (held *dir) fileInfo(name string) (fs.FileInfo, error) {
 	return checked, nil
 }
 
-// read reads one regular file below held, at most limit bytes. The open never
+// Read reads one regular file below held, at most limit bytes. The open never
 // blocks on a pipe, and the descriptor must be the file lstat saw.
-func (held *dir) read(name string, limit int64) ([]byte, error) {
+func (held *Dir) Read(name string, limit int64) ([]byte, error) {
 	at := path.Join(held.path, name)
 
-	checked, err := held.fileInfo(name)
+	checked, err := held.FileInfo(name)
 	if err != nil {
 		return nil, err
 	}
@@ -216,9 +220,9 @@ func (held *dir) read(name string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-// readOptional is read, with a missing file read as empty.
-func (held *dir) readOptional(name string, limit int64) ([]byte, error) {
-	data, err := held.read(name, limit)
+// ReadOptional is Read, with a missing file read as empty.
+func (held *Dir) ReadOptional(name string, limit int64) ([]byte, error) {
+	data, err := held.Read(name, limit)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -226,7 +230,7 @@ func (held *dir) readOptional(name string, limit int64) ([]byte, error) {
 	return data, err
 }
 
-func (held *dir) entries() ([]fs.DirEntry, error) {
+func (held *Dir) Entries() ([]fs.DirEntry, error) {
 	opened, err := held.root.Open(".")
 	if err != nil {
 		return nil, fmt.Errorf("listing %s: %w", held.path, err)
@@ -234,37 +238,38 @@ func (held *dir) entries() ([]fs.DirEntry, error) {
 
 	defer func() { _ = opened.Close() }()
 
-	listed, err := opened.ReadDir(walkFiles + 1)
+	listed, err := opened.ReadDir(WalkFiles + 1)
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("listing %s: %w", held.path, err)
 	}
 
-	if len(listed) > walkFiles {
+	if len(listed) > WalkFiles {
 		return nil, fmt.Errorf("%s %w", held.path, ErrTooMany)
 	}
 
 	return listed, nil
 }
 
-// walked is one regular file a walk found, by its slash path below the walk's
+// Walked is one regular file a walk found, by its slash path below the walk's
 // start.
-type walked struct {
-	name string
-	data []byte
+type Walked struct {
+	Name string
+	Data []byte
 }
 
-// walk reads every regular file below held, at most walkDepth folders deep,
-// walkFiles files and limit bytes in all. A link, a pipe or any other
-// non-regular entry refuses the whole walk: a tool is files and folders only.
-func (held *dir) walk(limit int64, skipTop func(name string) bool) ([]walked, error) {
-	var found []walked
+// Walk reads every regular file below held, at most WalkDepth folders deep,
+// WalkFiles files and limit bytes in all. A link, a pipe or any other
+// non-regular entry refuses the whole walk: what it reads is files and folders
+// only.
+func (held *Dir) Walk(limit int64, skipTop func(name string) bool) ([]Walked, error) {
+	var found []Walked
 
 	total := int64(0)
 
-	var descend func(current *dir, prefix string, depth int) error
+	var descend func(current *Dir, prefix string, depth int) error
 
-	descend = func(current *dir, prefix string, depth int) error {
-		listed, err := current.entries()
+	descend = func(current *Dir, prefix string, depth int) error {
+		listed, err := current.Entries()
 		if err != nil {
 			return err
 		}
@@ -278,17 +283,17 @@ func (held *dir) walk(limit int64, skipTop func(name string) bool) ([]walked, er
 			relative := path.Join(prefix, name)
 
 			if entry.IsDir() && entry.Type()&fs.ModeSymlink == 0 {
-				if depth >= walkDepth {
-					return fmt.Errorf("%s is deeper than %d folders", path.Join(held.path, relative), walkDepth)
+				if depth >= WalkDepth {
+					return fmt.Errorf("%s is deeper than %d folders", path.Join(held.path, relative), WalkDepth)
 				}
 
-				child, err := current.sub(name)
+				child, err := current.Sub(name)
 				if err != nil {
 					return err
 				}
 
 				err = descend(child, relative, depth+1)
-				child.close()
+				child.Close()
 
 				if err != nil {
 					return err
@@ -297,17 +302,17 @@ func (held *dir) walk(limit int64, skipTop func(name string) bool) ([]walked, er
 				continue
 			}
 
-			if len(found) >= walkFiles {
+			if len(found) >= WalkFiles {
 				return fmt.Errorf("%s %w", held.path, ErrTooMany)
 			}
 
-			data, err := current.read(name, limit-total)
+			data, err := current.Read(name, limit-total)
 			if err != nil {
 				return err
 			}
 
 			total += int64(len(data))
-			found = append(found, walked{name: relative, data: data})
+			found = append(found, Walked{Name: relative, Data: data})
 		}
 
 		return nil

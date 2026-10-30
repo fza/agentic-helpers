@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
@@ -26,7 +27,7 @@ const libraryFormat = 2
 // lock. Every journal is written beside its legacy file first, the sessions
 // go into the slot file, format.json is written, and only then do the legacy
 // files go, so a run failing before format.json leaves the store as it was.
-func prepareStore(ctx context.Context, store *dir, at string, cache string) error {
+func prepareStore(ctx context.Context, store *safefs.Dir, at string, cache string) error {
 	version, err := home.CheckComponent(at, libraryFormat)
 	if err != nil || version == libraryFormat {
 		return err
@@ -42,7 +43,7 @@ func prepareStore(ctx context.Context, store *dir, at string, cache string) erro
 		if err != nil {
 			closeAll(folders)
 
-			return fmt.Errorf("converting %s: %w", folder.path, err)
+			return fmt.Errorf("converting %s: %w", folder.Path(), err)
 		}
 	}
 
@@ -70,25 +71,25 @@ func prepareStore(ctx context.Context, store *dir, at string, cache string) erro
 
 	closeAll(folders)
 
-	_ = store.root.RemoveAll("sessions")
+	_ = store.RemoveAll("sessions")
 
 	return nil
 }
 
-func closeAll(folders []*dir) {
+func closeAll(folders []*safefs.Dir) {
 	for _, folder := range folders {
-		folder.close()
+		folder.Close()
 	}
 }
 
 // toolFolders opens every tool folder of the store.
-func toolFolders(store *dir) ([]*dir, error) {
-	listed, err := store.entries()
+func toolFolders(store *safefs.Dir) ([]*safefs.Dir, error) {
+	listed, err := store.Entries()
 	if err != nil {
 		return nil, err
 	}
 
-	var folders []*dir
+	var folders []*safefs.Dir
 
 	for _, entry := range listed {
 		name := entry.Name()
@@ -96,7 +97,7 @@ func toolFolders(store *dir) ([]*dir, error) {
 			continue
 		}
 
-		folder, err := store.sub(name)
+		folder, err := store.Sub(name)
 		if err != nil {
 			continue
 		}
@@ -183,12 +184,12 @@ func (lib *library) prepare(ctx context.Context) {
 		return
 	}
 
-	store, err := openDir(lib.ownDir())
+	store, err := safefs.OpenDir(lib.ownDir())
 	if err != nil {
 		return
 	}
 
-	defer store.close()
+	defer store.Close()
 
 	unlock, err := lockStore(ctx, store, cmp.Or(lib.env.LockWait, 2*time.Second))
 	if err != nil {

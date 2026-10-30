@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/scratch"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"os"
@@ -454,21 +455,21 @@ func (lib *library) scratchScripts(ctx context.Context) []script {
 	var found []script
 
 	for _, at := range lib.scratchFolders(ctx) {
-		root, err := openDir(at)
+		root, err := safefs.OpenDir(at)
 		if err != nil {
 			continue
 		}
 
-		files, err := root.walk(toolLimit*4, nil)
-		root.close()
+		files, err := root.Walk(toolLimit*4, nil)
+		root.Close()
 
 		if err != nil {
 			continue
 		}
 
 		for _, file := range files {
-			if slices.Contains(scriptExtensions, filepath.Ext(file.name)) {
-				found = append(found, script{path: filepath.Join(at, filepath.FromSlash(file.name)), sum: sum(file.data)})
+			if slices.Contains(scriptExtensions, filepath.Ext(file.Name)) {
+				found = append(found, script{path: filepath.Join(at, filepath.FromSlash(file.Name)), sum: sum(file.Data)})
 			}
 		}
 	}
@@ -528,14 +529,14 @@ func (lib *library) knownFiles(ctx context.Context) (map[string]bool, map[string
 // copyChanged says whether a taken copy's files differ from the version taken,
 // and a digest of how they stand now.
 func copyChanged(held holding) (bool, string) {
-	root, err := openDir(held.Copy)
+	root, err := safefs.OpenDir(held.Copy)
 	if err != nil {
 		return false, ""
 	}
 
-	defer root.close()
+	defer root.Close()
 
-	files, err := root.walk(versionLimit, func(name string) bool { return name == "tool.json" })
+	files, err := root.Walk(versionLimit, func(name string) bool { return name == "tool.json" })
 	if err != nil {
 		return false, ""
 	}
@@ -545,7 +546,7 @@ func copyChanged(held holding) (bool, string) {
 	var digest strings.Builder
 
 	for _, file := range files {
-		now[file.name] = sum(file.data)
+		now[file.Name] = sum(file.Data)
 	}
 
 	for _, name := range sortedKeys(now) {

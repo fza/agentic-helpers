@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -18,7 +19,7 @@ func TestEveryVersionWrittenIsScanned(t *testing.T) {
 		next  version
 		where string
 	}{
-		{name: "a file", next: version{name: "leak", number: 1, files: []walked{{name: "leak.sh", data: []byte(credential)}}}, where: "leak.sh"},
+		{name: "a file", next: version{name: "leak", number: 1, files: []safefs.Walked{{Name: "leak.sh", Data: []byte(credential)}}}, where: "leak.sh"},
 		{name: "a description field", next: version{name: "leak", number: 1, spec: spec{Usage: credential}}, where: "--usage"},
 		{name: "the history line", next: version{name: "leak", number: 1, why: credential}, where: "--why"},
 	}

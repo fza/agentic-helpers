@@ -9,19 +9,20 @@ import (
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
 
 // source is what --from named, read: its files, and whether it is a taken copy.
 type source struct {
-	files []walked
+	files []safefs.Walked
 	copy  string
 }
 
 // readSource reads --from, refusing it past the size a tool may hold.
 func (lib *library) readSource(ctx context.Context, given string) (source, error) {
 	from, err := lib.readFrom(ctx, given)
-	if errors.Is(err, ErrTooLarge) {
+	if errors.Is(err, safefs.ErrTooLarge) {
 		return source{}, fmt.Errorf("%s holds more than the %d MB a tool may hold, every file together",
 			given, pluginconfig.ToolMaxMB)
 	}
@@ -51,20 +52,20 @@ func (lib *library) readFrom(ctx context.Context, given string) (source, error) 
 		return source{}, fmt.Errorf("%s lies outside the checkout, AGENTIC_TOOLS_SCRATCH and the taken copies; register from inside one", given)
 	}
 
-	root, err := openDir(base)
+	root, err := safefs.OpenDir(base)
 	if err != nil {
 		return source{}, err
 	}
 
-	defer root.close()
+	defer root.Close()
 
 	parent := root
 	components := strings.Split(filepath.ToSlash(relative), "/")
 
 	for _, name := range components[:len(components)-1] {
-		next, err := parent.sub(name)
+		next, err := parent.Sub(name)
 		if parent != root {
-			parent.close()
+			parent.Close()
 		}
 
 		if err != nil {
@@ -75,16 +76,16 @@ func (lib *library) readFrom(ctx context.Context, given string) (source, error) 
 	}
 
 	if parent != root {
-		defer parent.close()
+		defer parent.Close()
 	}
 
 	last := components[len(components)-1]
 
-	folder, err := parent.sub(last)
+	folder, err := parent.Sub(last)
 	if err == nil {
-		defer folder.close()
+		defer folder.Close()
 
-		files, err := folder.walk(toolLimit, func(name string) bool { return name == "tool.json" })
+		files, err := folder.Walk(toolLimit, func(name string) bool { return name == "tool.json" })
 		if err != nil {
 			return source{}, err
 		}
@@ -92,17 +93,17 @@ func (lib *library) readFrom(ctx context.Context, given string) (source, error) 
 		return source{files: files, copy: at}, lib.checkFiles(folder, files)
 	}
 
-	data, err := parent.read(last, toolLimit)
+	data, err := parent.Read(last, toolLimit)
 	if err != nil {
 		return source{}, err
 	}
 
-	return source{files: []walked{{name: last, data: data}}}, nil
+	return source{files: []safefs.Walked{{Name: last, Data: data}}}, nil
 }
 
-func (lib *library) checkFiles(folder *dir, files []walked) error {
+func (lib *library) checkFiles(folder *safefs.Dir, files []safefs.Walked) error {
 	if len(files) == 0 {
-		return fmt.Errorf("%s holds no file", folder.path)
+		return fmt.Errorf("%s holds no file", folder.Path())
 	}
 
 	return nil
@@ -259,10 +260,10 @@ func (lib *library) add(ctx context.Context, req request) result {
 
 // identical names the first file byte-identical to a file of any version of
 // any tool in reach, or nothing.
-func (lib *library) identical(ctx context.Context, files []walked) string {
+func (lib *library) identical(ctx context.Context, files []safefs.Walked) string {
 	sums := map[string]string{}
 	for _, file := range files {
-		sums[sum(file.data)] = file.name
+		sums[sum(file.Data)] = file.Name
 	}
 
 	for _, held := range lib.stores(ctx) {

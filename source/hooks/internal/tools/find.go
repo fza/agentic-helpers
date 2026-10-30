@@ -222,7 +222,7 @@ func (lib *library) matchesTerms(hit found, terms []string) bool {
 			}
 
 			for _, file := range read {
-				files = append(files, bytes.ToLower(file.data)...)
+				files = append(files, bytes.ToLower(file.Data)...)
 				files = append(files, '\n')
 			}
 		}

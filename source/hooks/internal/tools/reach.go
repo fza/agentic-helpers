@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 var ErrLocked = errors.New("the store is locked")
@@ -106,14 +107,14 @@ func (lib *library) writeIndex(held *index) error {
 		return err
 	}
 
-	defer store.close()
+	defer store.Close()
 
 	return writeIndexInto(store, held)
 }
 
 // writeIndexInto replaces a store's index. Only a write to the own store and
 // a prune to make room write one.
-func writeIndexInto(store *dir, held *index) error {
+func writeIndexInto(store *safefs.Dir, held *index) error {
 	data, err := json.Marshal(held)
 	if err != nil {
 		return fmt.Errorf("encoding the index: %w", err)
@@ -123,7 +124,7 @@ func writeIndexInto(store *dir, held *index) error {
 		return fmt.Errorf("the index would pass %d bytes; merge tools before adding more", indexLimit)
 	}
 
-	return store.replace("index.json", data)
+	return store.Replace("index.json", data, 0o600)
 }
 
 // locked runs write holding the own store's lock, waiting at most LockWait.
@@ -150,7 +151,7 @@ func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) er
 		return fmt.Errorf("creating the store: %w", err)
 	}
 
-	defer store.close()
+	defer store.Close()
 
 	wait := lib.env.LockWait
 	if wait == 0 {
@@ -184,8 +185,8 @@ func (lib *library) lockedAs(ctx context.Context, admit func(context.Context) er
 
 // lockStore takes a store's lock, waiting at most wait, and answers how to let
 // it go.
-func lockStore(ctx context.Context, store *dir, wait time.Duration) (func(), error) {
-	file, err := store.appendTo(".lock")
+func lockStore(ctx context.Context, store *safefs.Dir, wait time.Duration) (func(), error) {
+	file, err := store.Append(".lock", 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening the store lock: %w", err)
 	}
@@ -216,8 +217,8 @@ func lockStore(ctx context.Context, store *dir, wait time.Duration) (func(), err
 	}, nil
 }
 
-func lockRefusal(store *dir) error {
-	data, err := store.read(".lock", currentLimit)
+func lockRefusal(store *safefs.Dir) error {
+	data, err := store.Read(".lock", currentLimit)
 	if err == nil {
 		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 		if err == nil && pid > 0 {
