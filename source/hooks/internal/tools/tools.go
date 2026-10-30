@@ -67,8 +67,8 @@ type Env struct {
 	Checkout  project.CommonDirLookup
 	Git       Git
 	Embedders EmbedderFactory
-	// SddConfig reads sdd's embedding block, which `embedding_source` may
-	// choose; nil reads none.
+	// SddConfig reads sdd's embedding block, which an `auto` provider or an
+	// `sdd` source chooses; nil reads none.
 	SddConfig embed.Sdd
 	Version   string
 	// Idle is the work the MCP server runs while its client is quiet: the

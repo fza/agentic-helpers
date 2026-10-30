@@ -162,7 +162,7 @@ first:
 4. Claude Code's managed settings, last, so a machine lock always wins.
 
 An empty value counts as unset at every layer. Each description names its default. Every switch
-(`type: boolean`) and every picker, an option with a fixed value set (`embedding_source`,
+(`type: boolean`) and every picker, an option with a fixed value set (`embedding_provider`,
 `writing_style`, `scratch_sweep`, `shell_guard_outside_project`, `shell_guard_find_delete`,
 `shell_guard_secrets`, `shell_guard_secret_output`), declares one, always the built-in one: Claude
 Code refuses a picker without it, and its dialog, saved untouched, stores every switch and picker, a
@@ -172,8 +172,15 @@ nobody answered, a declared default included. An answer in user settings or the 
 equal to the built-in default counts as unset, so `config.yaml` still decides that key after an
 untouched save; setting a key back to its default over a different `config.yaml` takes editing
 `config.yaml`, and `agentic-helpers config` names `config.yaml` as its layer. Managed settings are
-exempt: a lock at the default still holds. `embedding_provider` stays a text field: unset, it means no own
-embedder, a state a picker could only hold under an invented value.
+exempt: a lock at the default still holds.
+
+`embedding_provider` is a picker: `auto` (default) follows sdd's embedder, `openai` and `ollama` use
+the own `embedding_*` options, `off` uses no embedder and never runs sdd for one. A value outside the
+four is refused like one outside any picker. `embedding_source` left the dialog but is still read
+from every layer that sets it: `sdd` takes sdd's embedder whatever the provider, `own` never runs
+sdd, `auto` changes nothing, and an `off` provider wins over it. While a layer sets it,
+`agentic-helpers check` names it at session start, pointing at `embedding_provider`. A dialog answer
+saved for it stays in effect until removed from `pluginConfigs` by hand.
 
 **Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:
 `retired_body_lifetime`, `tools_version_lifetime`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value

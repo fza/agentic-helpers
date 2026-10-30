@@ -1310,7 +1310,9 @@ environment variable to a server the writer picks.
 
 | Option | Sets |
 |---|---|
-| `embedding_source`, `embedding_provider`, `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, `embedding_timeout`, `embedding_query_template`, `embedding_document_template` | the embedder search by meaning and prompt recall run on, its own or sdd's (see README `Embedder`) |
+| `embedding_provider` | where the embedder comes from: `auto` (sdd's, where sdd sets one) unless set, `openai` or `ollama` (the own options below), or `off` (none, and sdd never run for one) |
+| `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, `embedding_timeout`, `embedding_query_template`, `embedding_document_template` | the own embedder search by meaning and prompt recall run on (see README `Embedder`) |
+| `embedding_source` | no longer in the plugin's dialog, still read where a layer sets it, and named at session start: `sdd` always takes sdd's embedder, `own` never runs sdd, `auto` changes nothing; an `off` provider wins over it |
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
 | `retired_body_lifetime` | `config.yaml` only: how long a retired entry keeps its body, a span (`90d`, `6w`); `90d` unless set, never under `14d`. The older `retired_body_days` (a number of days) is still read for one release, and `agentic-helpers check` names it |
@@ -1328,6 +1330,8 @@ environment variable to a server the writer picks.
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.
+`embedding_provider: off` leaves memory without one on purpose: search by meaning and the entries
+each prompt brings up stay off, while keyword search and filing keep working.
 
 ## Off on the machine
 

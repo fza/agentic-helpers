@@ -63,6 +63,16 @@ const (
 	EmbeddingSourceOwn  = "own"
 )
 
+// EmbeddingProviderAuto / EmbeddingProviderOpenAI / EmbeddingProviderOllama /
+// EmbeddingProviderOff are the settings of `embedding_provider`: no own
+// embedder, following sdd's; one of the two own providers; or none at all.
+const (
+	EmbeddingProviderAuto   = "auto"
+	EmbeddingProviderOpenAI = "openai"
+	EmbeddingProviderOllama = "ollama"
+	EmbeddingProviderOff    = "off"
+)
+
 // ScratchSweepRelease / ScratchSweepSession / ScratchSweepIdle are the
 // settings of `scratch_sweep`: when a seat's scratch folder goes.
 const (
@@ -145,8 +155,11 @@ const (
 
 type Options struct {
 	// EmbeddingSource chooses where the embedder comes from: own keys, sdd's
-	// embedding block, or (auto) sdd's only where no own provider is set.
-	EmbeddingSource     string
+	// embedding block, or (auto) as EmbeddingProvider says. The plugin's
+	// dialog no longer offers it; a layer setting it still applies.
+	EmbeddingSource string
+	// EmbeddingProvider is `auto` (sdd's embedder), an own provider, or `off`
+	// (none, sdd never run for one).
 	EmbeddingProvider   string
 	EmbeddingModel      string
 	EmbeddingEndpoint   string
@@ -234,6 +247,11 @@ var Keys = []string{
 	"memory_enabled", "tools_enabled", "scratch_enabled", "scratch_sweep", "grounding_gate_enabled", "capture_enabled",
 	"shell_guard_enabled",
 }
+
+// Undeclared is every key the plugin reads that its `userConfig` no longer
+// declares: a layer setting one, a saved dialog answer among them, keeps
+// applying. It is no ConfigOnly key, which would drop those answers.
+var Undeclared = []string{"embedding_source"}
 
 // ConfigOnly is every key that decides when stored data every agent shares is
 // deleted. An agent's own option layer never sets one: two agents set apart
@@ -587,7 +605,7 @@ func (options *Options) clamp() {
 func Defaults() Options {
 	return Options{
 		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime,
-		EmbeddingSource: EmbeddingSourceAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
+		EmbeddingSource: EmbeddingSourceAuto, EmbeddingProvider: EmbeddingProviderAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
 		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true, WritingStyle: StyleTerse,
@@ -615,7 +633,6 @@ type fields struct {
 func (options *Options) fields() fields {
 	return fields{
 		texts: map[string]*string{
-			"embedding_provider":             &options.EmbeddingProvider,
 			"embedding_model":                &options.EmbeddingModel,
 			"embedding_endpoint":             &options.EmbeddingEndpoint,
 			"embedding_api_key_env":          &options.EmbeddingAPIKeyEnv,
@@ -655,9 +672,10 @@ func (options *Options) fields() fields {
 			"shell_guard_secret_output": &options.ShellGuardSecretOutput,
 		},
 		styles: map[string]*string{
-			"writing_style":    &options.WritingStyle,
-			"embedding_source": &options.EmbeddingSource,
-			"scratch_sweep":    &options.ScratchSweep,
+			"writing_style":      &options.WritingStyle,
+			"embedding_source":   &options.EmbeddingSource,
+			"embedding_provider": &options.EmbeddingProvider,
+			"scratch_sweep":      &options.ScratchSweep,
 		},
 		switches: map[string]*bool{
 			"memory_require_git":       &options.MemoryRequireGit,
@@ -942,7 +960,10 @@ func outputMode(raw json.RawMessage, fallback string) (string, error) {
 var choices = map[string][]string{
 	"writing_style":    {StyleTerse, StylePlain},
 	"embedding_source": {EmbeddingSourceAuto, EmbeddingSourceSdd, EmbeddingSourceOwn},
-	"scratch_sweep":    {ScratchSweepRelease, ScratchSweepSession, ScratchSweepIdle},
+	"embedding_provider": {
+		EmbeddingProviderAuto, EmbeddingProviderOpenAI, EmbeddingProviderOllama, EmbeddingProviderOff,
+	},
+	"scratch_sweep": {ScratchSweepRelease, ScratchSweepSession, ScratchSweepIdle},
 }
 
 // style accepts one of the key's choices; an empty string keeps fallback.
@@ -1052,17 +1073,33 @@ var embeddingKeys = []string{
 }
 
 // EmbeddingFromSdd says whether the embedder comes from sdd's embedding block:
-// always under `sdd`, and under `auto` where no own provider is set.
+// never where the provider is `off`, always under an `sdd` source, and under
+// an `auto` source where the provider is `auto`.
 func (options Options) EmbeddingFromSdd() bool {
+	if options.EmbeddingProvider == EmbeddingProviderOff {
+		return false
+	}
+
 	return options.EmbeddingSource == EmbeddingSourceSdd ||
-		options.EmbeddingSource == EmbeddingSourceAuto && options.EmbeddingProvider == ""
+		options.EmbeddingSource == EmbeddingSourceAuto && options.followsSdd()
+}
+
+// followsSdd says the provider names no own embedder and asks for sdd's.
+func (options Options) followsSdd() bool {
+	return options.EmbeddingProvider == EmbeddingProviderAuto
 }
 
 // OwnEmbedding is the embedder the own keys set, its key read from the
-// variable `embedding_api_key_env` names.
+// variable `embedding_api_key_env` names. Its Provider is empty, no embedder,
+// where the provider is `auto` or `off`.
 func (options Options) OwnEmbedding(getenv func(string) string) embed.Config {
+	provider := options.EmbeddingProvider
+	if options.followsSdd() || provider == EmbeddingProviderOff {
+		provider = ""
+	}
+
 	config := embed.Config{
-		Provider:         options.EmbeddingProvider,
+		Provider:         provider,
 		Model:            options.EmbeddingModel,
 		Endpoint:         options.EmbeddingEndpoint,
 		Dimensions:       options.EmbeddingDimensions,
@@ -1079,11 +1116,16 @@ func (options Options) OwnEmbedding(getenv func(string) string) embed.Config {
 }
 
 // IgnoredEmbedding is every own embedding key some layer sets, which the
-// session-start check names while `embedding_source` is `sdd`.
+// session-start check names while `embedding_source` is `sdd`. A provider set
+// to `auto` asks for sdd's embedder too and is not among them.
 func (resolution Resolution) IgnoredEmbedding() []string {
 	var ignored []string
 
 	for _, key := range embeddingKeys {
+		if key == "embedding_provider" && resolution.Options.followsSdd() {
+			continue
+		}
+
 		if resolution.From[key] != "" {
 			ignored = append(ignored, key)
 		}

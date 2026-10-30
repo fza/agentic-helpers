@@ -170,8 +170,8 @@ OpenAI-compatible server) or as a hosted service.
 
 | Option | Default | What it controls |
 |---|---|---|
-| `embedding_source` | `auto` | Where the embedder comes from. `auto`: the options below where `embedding_provider` is set, else sdd's embedding configuration. `sdd`: always sdd's, the options below ignored (named at session start). `own`: never sdd's |
-| `embedding_provider` | none | `openai` for any OpenAI-compatible API, or `ollama`. Empty turns search by meaning off |
+| `embedding_provider` | `auto` | Where the embedder comes from. `auto`: sdd's embedding configuration, where sdd sets one. `openai` for any OpenAI-compatible API, or `ollama`: the options below. `off`: no embedder, and sdd is never run for one. Empty reads as `auto` |
+| `embedding_source` | `auto` | No longer in the plugin's dialog, still read where `config.yaml` or Claude Code's settings set it, and named at session start. `sdd`: always sdd's configuration, the options below ignored. `own`: never sdd's, so `embedding_provider` `auto` means no embedder. `auto` changes nothing. An `embedding_provider` of `off` wins over it |
 | `embedding_model` | none | The model the endpoint serves, such as `embeddinggemma-300m` |
 | `embedding_endpoint` | the provider's | Claude Code's settings only. The server's base URL. Empty means `https://api.openai.com` or `http://localhost:11434` |
 | `embedding_dimensions` | `0` | Vector size to ask the provider for. `0` keeps the model's own |
@@ -190,6 +190,11 @@ built-in default: one from the repository's `.sdd/config.yaml` or `.sdd/config.l
 which a clone can carry, is refused, since the clone would choose where every memory entry and prompt
 goes. The session start says so, and search by meaning stays off until `sdd config set` sets the
 endpoint globally. Without sdd, or with sdd setting no embedder, search by meaning is off.
+
+**`off`.** `embedding_provider: off` turns every use of an embedder off: search by meaning
+(`agentic-memory search --query`), the memory entries each prompt brings up, the tools offered at a
+prompt, `agentic-tools find --query`, and the near-duplicate description check on `agentic-tools add`.
+Keyword search, filing entries and tools, and the byte-identical duplicate check keep working.
 
 Changing the provider, the model, the dimensions or a template starts a fresh vector index, since vectors from
 two models cannot be compared. Memory embeds its entries again on its next search by meaning;

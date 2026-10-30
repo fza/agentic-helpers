@@ -176,7 +176,7 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - **JSON (MCP, `--json`): an absent key is empty.** `[]`, `{}`, `null`, `""` and `false` are left
   out; every other value stays, `0` and defaults included.
 - `14 more: --skip 10` / `more: --skip 10` → next page. No line → last page.
-- **`--query` exits 1 → no embedder**, not "nothing found". Fall back to `--term`, say so.
+- **`--query` exits 1 → no embedder** (none set, or `embedding_provider` `off`), not "nothing found". Fall back to `--term`, say so.
 - Line flags computed now: `drifted: <path>`, `gone: <path>`, `other branch: <b>`; `→ <target> closed by|superseded
   by|settled|retired|gone`; `← <n>` linked from. Brief and recall fold ended links: `→ <n> ended,
   <n> superseded by <id>`; `settled` stays listed; which one closed → `show`. A body is a lead (`--- filed memory, a lead, not an
