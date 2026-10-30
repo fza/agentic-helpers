@@ -17,31 +17,32 @@
     "embedding_provider": {
       "type": "string",
       "title": "Embedding provider",
-      "description": "openai (any OpenAI-compatible endpoint) or ollama; empty turns semantic search off",
+      "description": "openai (any OpenAI-compatible endpoint) or ollama; unset, semantic search stays off unless embedding_source takes sdd's embedder; default none",
       "required": false
     },
     "embedding_model": {
       "type": "string",
       "title": "Embedding model",
-      "description": "The model the endpoint serves, e.g. embeddinggemma-300m-6bit",
+      "description": "The model the endpoint serves, e.g. embeddinggemma-300m-6bit; default none",
       "required": false
     },
     "embedding_endpoint": {
       "type": "string",
       "title": "Embedding endpoint",
-      "description": "Base URL, e.g. http://127.0.0.1:1235; empty takes the provider's default",
+      "description": "Base URL, e.g. http://127.0.0.1:1235; default the provider's own",
       "required": false
     },
     "embedding_dimensions": {
       "type": "number",
       "title": "Embedding dimensions",
-      "description": "0 keeps the model's own",
+      "description": "Vector length to ask the model for; 0 keeps the model's own; default 0",
+      "min": 0,
       "required": false
     },
     "embedding_api_key_env": {
       "type": "string",
       "title": "API key variable",
-      "description": "Name of the environment variable holding a hosted embedder's key; the key itself is never stored",
+      "description": "Name of the environment variable holding a hosted embedder's key; the key itself is never stored; default none",
       "required": false
     },
     "embedding_timeout": {
@@ -66,36 +67,43 @@
       "type": "number",
       "title": "Entry word limit",
       "description": "Words an entry should stay within; longer entries still land, with a note; default 500",
+      "min": 1,
       "required": false
     },
     "state_stale_after_writes": {
       "type": "number",
       "title": "File writes before a state hold",
       "description": "File writes since a memory seat's last state write that hold the turn's end once for a new one; default 5",
+      "min": 1,
       "required": false
     },
     "entry_id_length": {
       "type": "number",
       "title": "Entry id length",
       "description": "Characters after m- in a new entry id, 6 to 16; ids already filed keep working; default 6",
+      "min": 6,
+      "max": 16,
       "required": false
     },
     "brief_note_limit": {
       "type": "number",
       "title": "Brief note limit",
       "description": "Notes the memory brief prints, hottest first; the rest stay one agentic-memory brief --kind note away; default 10",
+      "min": 0,
       "required": false
     },
     "attachment_max_mb": {
       "type": "number",
       "title": "Attachment size limit",
       "description": "Megabytes one file attached to a memory entry may hold; default 10",
+      "min": 1,
       "required": false
     },
     "attachments_total_mb": {
       "type": "number",
       "title": "Attachment limit for the machine",
       "description": "Megabytes every file attached to memory entries may hold together, across every project on the machine, each file counted once; never below attachment_max_mb; default 2048",
+      "min": 1,
       "required": false
     },
     "memory_require_git": {
@@ -113,19 +121,21 @@
     "memory_language": {
       "type": "string",
       "title": "Memory entry language",
-      "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; empty means en",
+      "description": "Locale entries are written in where the project's .sdd/config.yaml names none, e.g. de; default en",
       "required": false
     },
     "writing_style": {
       "type": "string",
       "title": "Writing style",
-      "description": "terse or plain: how agents write memory entries, the state and tool library notes; graph entries stay plain prose; empty means terse",
+      "description": "terse or plain: how agents write memory entries, the state and tool library notes; graph entries stay plain prose; default terse",
       "required": false
     },
     "tools_query_floor": {
       "type": "number",
       "title": "Tool query floor",
       "description": "Cosine at or above which agentic-tools counts a tool as near a search or a prompt; depends on the embedder; default 0.45",
+      "min": 0.01,
+      "max": 1,
       "required": false
     },
     "memory_enabled": {
@@ -179,13 +189,13 @@
     "shell_guard_outside_project": {
       "type": "string",
       "title": "Shell-guard: removals outside the project",
-      "description": "ask, deny or off for an rm, rmdir, unlink or git rm reaching outside the project and /tmp, or a command whose name is not fixed text, passed arguments or able to split into words (an ask there refuses twice per session first); empty means ask",
+      "description": "ask, deny or off for an rm, rmdir, unlink or git rm reaching outside the project and /tmp, or a command whose name is not fixed text, passed arguments or able to split into words (an ask there refuses twice per session first); default ask",
       "required": false
     },
     "shell_guard_find_delete": {
       "type": "string",
       "title": "Shell-guard: find -delete",
-      "description": "ask, deny or off for find ... -delete; empty means ask",
+      "description": "ask, deny or off for find ... -delete; default ask",
       "required": false
     },
     "shell_guard_lone_removal": {
@@ -221,19 +231,19 @@
     "shell_guard_secrets": {
       "type": "string",
       "title": "Shell-guard: credentials in a command",
-      "description": "ask, deny or off for a Bash command holding what looks like a credential (a token, a key); an ask refuses twice per session first, so the agent can rewrite it; empty means ask",
+      "description": "ask, deny or off for a Bash command holding what looks like a credential (a token, a key); an ask refuses twice per session first, so the agent can rewrite it; default ask",
       "required": false
     },
     "shell_guard_secret_output": {
       "type": "string",
       "title": "Shell-guard: credentials in tool output",
-      "description": "all, files or off: withhold each line looking like a credential from tool output that comes from outside the project; files limits it to Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; empty means all",
+      "description": "all, files or off: withhold each line looking like a credential from tool output that comes from outside the project; files limits it to Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; default all",
       "required": false
     },
     "shell_guard_secret_output_skip": {
       "type": "string",
       "title": "Shell-guard: tools whose output is never withheld",
-      "description": "Comma-separated tool names or patterns, e.g. WebFetch, mcp__sdd__*; empty means none",
+      "description": "Comma-separated tool names or patterns, e.g. WebFetch, mcp__sdd__*; default none",
       "required": false
     },
     "shell_guard_ask_timeout": {
@@ -246,6 +256,8 @@
       "type": "number",
       "title": "Tool duplicate floor",
       "description": "Cosine at or above which agentic-tools refuses a new tool's description as another tool's, unless --distinct says how it differs; default 0.85",
+      "min": 0.01,
+      "max": 1,
       "required": false
     }
   }

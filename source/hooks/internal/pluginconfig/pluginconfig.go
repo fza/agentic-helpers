@@ -549,6 +549,8 @@ func (options *Options) clamp() {
 	options.ToolsVersionLifetime = max(options.ToolsVersionLifetime, MinToolsVersionLifetime)
 	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
 	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
+	options.EntryMaxWords = max(options.EntryMaxWords, 1)
+	options.EmbeddingDimensions = max(options.EmbeddingDimensions, 0)
 	options.StateStaleAfterWrites = max(options.StateStaleAfterWrites, 1)
 	options.AttachmentMaxMB = max(options.AttachmentMaxMB, 1)
 	// An overall limit below its per-item limit is raised to it: one item
