@@ -2,6 +2,7 @@ package embed
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"slices"
 	"strconv"
@@ -16,13 +17,23 @@ type Sdd interface {
 	EmbeddingConfig(ctx context.Context, dir string) string
 }
 
+// ErrProjectEndpoint refuses sdd's embedder where its endpoint comes from the
+// repository's committed `.sdd/config.yaml`: a clone would choose where every
+// memory entry and prompt is sent.
+var ErrProjectEndpoint = errors.New("sdd's embedding endpoint is set in this repository's .sdd/config.yaml")
+
+// projectLayer is the layer sdd names the repository's committed
+// `.sdd/config.yaml`.
+const projectLayer = "project"
+
 // sddLine is one line of `sdd config get embedding`: the key below
 // `embedding.`, its value, then the layer it comes from in parentheses.
-var sddLine = regexp.MustCompile(`^embedding\.(\S+)\s+(.*?)\s+\([^()]*\)$`)
+var sddLine = regexp.MustCompile(`^embedding\.(\S+)\s+(.*?)\s+\(([^()]*)\)$`)
 
-// parseSdd is sdd's embedding block by key.
-func parseSdd(text string) map[string]string {
-	block := map[string]string{}
+// parseSdd is sdd's embedding block by key, and the layer each key comes
+// from.
+func parseSdd(text string) (map[string]string, map[string]string) {
+	block, layers := map[string]string{}, map[string]string{}
 
 	for _, line := range strings.Split(text, "\n") {
 		parts := sddLine.FindStringSubmatch(strings.TrimSpace(line))
@@ -30,26 +41,30 @@ func parseSdd(text string) map[string]string {
 			continue
 		}
 
-		block[parts[1]] = parts[2]
+		block[parts[1]], layers[parts[1]] = parts[2], parts[3]
 	}
 
-	return block
+	return block, layers
 }
 
 // Settle is own, or where fromSdd says so, sdd's whole embedding block read
 // in dir. Under sdd's block no API key is sent: sdd prints its keys masked,
 // and its configuration is a file any agent can write. An empty Provider
-// means no embedder.
-func Settle(ctx context.Context, own Config, fromSdd bool, sdd Sdd, dir string) Config {
+// means no embedder, the error saying why where sdd sets one it refuses.
+func Settle(ctx context.Context, own Config, fromSdd bool, sdd Sdd, dir string) (Config, error) {
 	if !fromSdd {
-		return own
+		return own, nil
 	}
 
 	if sdd == nil {
-		return Config{}
+		return Config{}, nil
 	}
 
-	block := parseSdd(sdd.EmbeddingConfig(ctx, dir))
+	block, layers := parseSdd(sdd.EmbeddingConfig(ctx, dir))
+	if layers["endpoint"] == projectLayer {
+		return Config{}, ErrProjectEndpoint
+	}
+
 	config := Config{
 		Provider:         block["provider"],
 		Model:            block["model"],
@@ -67,8 +82,8 @@ func Settle(ctx context.Context, own Config, fromSdd bool, sdd Sdd, dir string) 
 	}
 
 	if !slices.Contains([]string{"openai", "ollama"}, config.Provider) {
-		return Config{}
+		return Config{}, nil
 	}
 
-	return config
+	return config, nil
 }

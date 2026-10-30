@@ -172,6 +172,10 @@ func (block sddEmbedding) EmbeddingConfig(_ context.Context, _ string) string {
 	return string(block)
 }
 
+const projectEndpointLine = "agentic-helpers: sdd's embedding endpoint is set in this repository's .sdd/config.yaml, " +
+	"which a clone brings along; search by meaning stays off until `sdd config set` sets it in sdd's own layer, " +
+	"or embedding_provider and embedding_endpoint set one here\n"
+
 func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) {
 	const block = "embedding.provider  ollama  (global)\nembedding.model  nomic  (global)\n"
 
@@ -183,6 +187,19 @@ func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) 
 		want    string
 	}{
 		{name: "auto says nothing", options: `"embedding_model":"own"`, want: ""},
+		{name: "auto with no sdd block says nothing", options: `"memory_language":"de"`, want: ""},
+		{
+			name: "auto on an endpoint the repository sets", options: `"memory_language":"de"`,
+			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: projectEndpointLine,
+		},
+		{
+			name: "sdd on an endpoint the repository sets", config: "embedding_source: sdd\n", options: `"memory_language":"de"`,
+			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: projectEndpointLine,
+		},
+		{
+			name: "own on an endpoint the repository sets", config: "embedding_source: own\n", options: `"memory_language":"de"`,
+			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: "",
+		},
 		{name: "sdd with sdd's block and no own key", config: "embedding_source: sdd\n", options: `"memory_language":"de"`, sdd: block, want: ""},
 		{
 			name: "sdd with own keys set", config: "embedding_source: sdd\nembedding_timeout: 30s\n", options: `"embedding_model":"own"`, sdd: block,
