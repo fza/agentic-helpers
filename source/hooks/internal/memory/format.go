@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -55,13 +56,13 @@ func readFormat(store string) (int, error) {
 	return held.Format, nil
 }
 
-func writeFormat(store string, version int) error {
+func writeFormat(root string, store string, version int) error {
 	data, err := json.Marshal(formatFile{Format: version})
 	if err != nil {
 		return fmt.Errorf("encoding the store's format: %w", err)
 	}
 
-	err = atomicfile.Write(filepath.Join(store, formatName), append(data, '\n'), 0o600)
+	err = atomicfile.Write(root, filepath.Join(store, formatName), append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("placing the store's format: %w", err)
 	}
@@ -72,7 +73,7 @@ func writeFormat(store string, version int) error {
 // initStore creates a fresh store at the current format, so it never needs
 // migrating.
 func (mem *memory) initStore() error {
-	err := os.MkdirAll(mem.store(), 0o700)
+	err := safefs.MkdirAll(mem.env.Roots.Data, mem.store(), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating the store: %w", err)
 	}
@@ -83,7 +84,7 @@ func (mem *memory) initStore() error {
 	}
 
 	if !found {
-		err = registry.Save()
+		err = registry.Save(mem.env.Roots.Data)
 		if err != nil {
 			return err
 		}
@@ -95,7 +96,7 @@ func (mem *memory) initStore() error {
 	}
 
 	if !found {
-		err = shelves.Save()
+		err = shelves.Save(mem.env.Roots.Data)
 		if err != nil {
 			return err
 		}
@@ -104,5 +105,5 @@ func (mem *memory) initStore() error {
 	mem.forgetRegistry()
 	mem.forgetShelves()
 
-	return writeFormat(mem.store(), storeFormat)
+	return writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
 }

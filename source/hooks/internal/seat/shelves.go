@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const shelvesName = "shelves.json"
@@ -136,18 +137,18 @@ func (shelves *Shelves) Rename(id string, name string) error {
 }
 
 // Save writes the shelves through a temporary file renamed into place.
-func (shelves Shelves) Save() error {
+func (shelves Shelves) Save(root string) error {
 	data, err := json.MarshalIndent(shelves.Shelves, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding the shelves: %w", err)
 	}
 
-	err = os.MkdirAll(filepath.Dir(shelves.path), 0o700)
+	err = safefs.MkdirAll(root, filepath.Dir(shelves.path), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating the store: %w", err)
 	}
 
-	err = atomicfile.Write(shelves.path, append(data, '\n'), 0o600)
+	err = atomicfile.Write(root, shelves.path, append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("placing the shelves: %w", err)
 	}

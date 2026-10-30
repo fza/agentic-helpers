@@ -188,5 +188,5 @@ func (roots Roots) ensureFormat() error {
 		return fmt.Errorf("encoding the home's format: %w", err)
 	}
 
-	return atomicfile.Write(path, append(data, '\n'), 0o600)
+	return atomicfile.Write(roots.Data, path, append(data, '\n'), 0o600)
 }

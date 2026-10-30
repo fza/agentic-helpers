@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // Marker is the file inside a seat's folder naming the id of the seat it
@@ -49,12 +51,12 @@ func Seat(root string, name string, id string) string {
 		return ""
 	}
 
-	err = os.MkdirAll(dir, 0o700)
+	err = safefs.MkdirAll(root, dir, 0o700)
 	if err != nil {
 		return ""
 	}
 
-	err = os.WriteFile(filepath.Join(dir, Marker), []byte(id+"\n"), 0o600)
+	err = safefs.WriteFile(root, filepath.Join(dir, Marker), []byte(id+"\n"), 0o600)
 	if err != nil {
 		return ""
 	}
@@ -75,19 +77,19 @@ func RemoveSeat(ctx context.Context, root string, name string, id string) bool {
 
 // MoveSeat carries a renamed or moved seat's folder to its new name, marked
 // for the seat it now belongs to, where the folder is the old seat's own and
-// nothing holds the new name yet: os.Rename refuses a directory there.
+// nothing holds the new name yet: a rename refuses a directory there.
 func MoveSeat(root string, from string, fromID string, to string, toID string) {
 	source, target := SeatDir(root, from), SeatDir(root, to)
 	if from == to || fromID == "" || toID == "" || markOf(source) != fromID {
 		return
 	}
 
-	err := os.Rename(source, target)
+	err := safefs.Rename(root, source, target)
 	if err != nil || fromID == toID {
 		return
 	}
 
-	_ = os.WriteFile(filepath.Join(target, Marker), []byte(toID+"\n"), 0o600)
+	_ = safefs.WriteFile(root, filepath.Join(target, Marker), []byte(toID+"\n"), 0o600)
 }
 
 // ReapSeats removes every marked folder whose marker names a seat owned
@@ -161,7 +163,7 @@ func Migrate(root string, seatOf func(session string) (name string, id string, f
 			continue
 		}
 
-		if moveInto(filepath.Join(sessionsDir(root), entry.Name()), SeatDir(root, name), entry.Name()[:8]) {
+		if moveInto(root, filepath.Join(sessionsDir(root), entry.Name()), SeatDir(root, name), entry.Name()[:8]) {
 			moved++
 		}
 	}
@@ -169,7 +171,7 @@ func Migrate(root string, seatOf func(session string) (name string, id string, f
 	return moved
 }
 
-func moveInto(source string, target string, clash string) bool {
+func moveInto(root string, source string, target string, clash string) bool {
 	entries, err := os.ReadDir(source)
 	if err != nil {
 		return false
@@ -180,7 +182,7 @@ func moveInto(source string, target string, clash string) bool {
 
 		_, err = os.Lstat(at)
 		if err == nil {
-			err = os.MkdirAll(filepath.Join(target, clash), 0o700)
+			err = safefs.MkdirAll(root, filepath.Join(target, clash), 0o700)
 			if err != nil {
 				continue
 			}
@@ -193,7 +195,7 @@ func moveInto(source string, target string, clash string) bool {
 			}
 		}
 
-		_ = os.Rename(filepath.Join(source, entry.Name()), at)
+		_ = safefs.Rename(root, filepath.Join(source, entry.Name()), at)
 	}
 
 	return os.Remove(source) == nil

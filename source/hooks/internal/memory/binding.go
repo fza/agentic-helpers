@@ -12,6 +12,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
@@ -178,7 +179,7 @@ func (mem *memory) mergeStores(ctx context.Context, from string, into string) re
 // under their own ids, a name both stores use numbered apart, claims and
 // attachment refs carried over. An entry id both logs hold refuses the join
 // before anything changes.
-func (mem *memory) joinMemory(ctx context.Context, fromDir string, intoDir string) error {
+func (mem *memory) joinMemory(ctx context.Context, _ string, fromDir string, intoDir string) error {
 	source, target := mem.sibling(storeIDOf(fromDir)), mem.sibling(storeIDOf(intoDir))
 
 	for _, held := range []*memory{source, target} {
@@ -217,17 +218,17 @@ func (mem *memory) joinMemory(ctx context.Context, fromDir string, intoDir strin
 		return err
 	}
 
-	err = joinRegistries(source.store(), target.store())
+	err = joinRegistries(target.env.Roots.Data, source.store(), target.store())
 	if err != nil {
 		return err
 	}
 
-	err = carrySeatFiles(source.seatsDir(), target.seatsDir())
+	err = carrySeatFiles(target.env.Roots.Data, source.seatsDir(), target.seatsDir())
 	if err != nil {
 		return err
 	}
 
-	err = joinRefs(source.refsPath(), target.refsPath())
+	err = joinRefs(target.env.Roots.Data, source.refsPath(), target.refsPath())
 	if err != nil {
 		return err
 	}
@@ -283,7 +284,7 @@ func sharedEntries(existing []memorylog.Event, joining []memorylog.Event) error 
 
 // joinRegistries adds the source's seats and shelves to the target's under
 // their own ids; a name the target already uses gets the first free `-<n>`.
-func joinRegistries(source string, target string) error {
+func joinRegistries(root string, source string, target string) error {
 	from, _, err := seat.LoadRegistry(source)
 	if err != nil {
 		return err
@@ -332,7 +333,7 @@ func joinRegistries(source string, target string) error {
 		intoShelves.Shelves[id] = shelf
 	}
 
-	return errors.Join(into.Save(), intoShelves.Save())
+	return errors.Join(into.Save(root), intoShelves.Save(root))
 }
 
 func freeName(name string, used func(string) bool) string {
@@ -349,13 +350,13 @@ func freeName(name string, used func(string) bool) string {
 }
 
 // carrySeatFiles copies each claim and slice the target lacks.
-func carrySeatFiles(source string, target string) error {
+func carrySeatFiles(root string, source string, target string) error {
 	listed, err := os.ReadDir(source)
 	if err != nil {
 		return nil
 	}
 
-	err = os.MkdirAll(target, 0o700)
+	err = safefs.MkdirAll(root, target, 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", target, err)
 	}
@@ -375,7 +376,7 @@ func carrySeatFiles(source string, target string) error {
 			return fmt.Errorf("reading %s: %w", entry.Name(), readErr)
 		}
 
-		writeErr := os.WriteFile(filepath.Join(target, entry.Name()), data, 0o600)
+		writeErr := safefs.WriteFile(root, filepath.Join(target, entry.Name()), data, 0o600)
 		if writeErr != nil {
 			return fmt.Errorf("writing %s: %w", entry.Name(), writeErr)
 		}
@@ -384,7 +385,7 @@ func carrySeatFiles(source string, target string) error {
 	return nil
 }
 
-func joinRefs(source string, target string) error {
+func joinRefs(root string, source string, target string) error {
 	var from, into []string
 
 	readJSON(source, &from)
@@ -397,5 +398,5 @@ func joinRefs(source string, target string) error {
 	joined := append(into, from...)
 	slices.Sort(joined)
 
-	return writeJSON(target, slices.Compact(joined))
+	return writeJSON(root, target, slices.Compact(joined))
 }

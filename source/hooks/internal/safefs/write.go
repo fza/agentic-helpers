@@ -255,6 +255,13 @@ func (held *Dir) OpenChecked(name string, flag int, perm fs.FileMode) (*os.File,
 	}
 
 	file, err := held.root.OpenFile(name, flag|syscall.O_NONBLOCK, perm)
+
+	// darwin answers an openat with O_CREAT|O_NOFOLLOW racing another creating
+	// the same name with ENOENT now and then; the name exists by the next try.
+	for attempt := 0; flag&os.O_CREATE != 0 && errors.Is(err, fs.ErrNotExist) && attempt < 16; attempt++ {
+		file, err = held.root.OpenFile(name, flag|syscall.O_NONBLOCK, perm)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("opening %s: %w", at, err)
 	}
@@ -298,6 +305,16 @@ func (held *Dir) Rename(from string, into *Dir, to string) error {
 		return fmt.Errorf("moving %s to %s: names no single entry", source, target)
 	}
 
+	// As os.Rename does, a folder already at the new name is refused, where
+	// rename(2) would replace an empty one.
+	existing, err := into.root.Lstat(to)
+	if err == nil && existing.IsDir() {
+		moving, err := held.root.Lstat(from)
+		if err == nil && !os.SameFile(existing, moving) {
+			return fmt.Errorf("moving %s to %s: %w", source, target, syscall.EEXIST)
+		}
+	}
+
 	if into == held {
 		err := held.root.Rename(from, to)
 		if err != nil {
@@ -324,6 +341,22 @@ func (held *Dir) Rename(from string, into *Dir, to string) error {
 	err = unix.Renameat(int(sourceDir.Fd()), from, int(targetDir.Fd()), to)
 	if err != nil {
 		return fmt.Errorf("moving %s to %s: %w", source, target, err)
+	}
+
+	return nil
+}
+
+// Symlink makes name below held a link holding target, refusing a name
+// already there. Nothing written follows the link: it is copied as it stands.
+func (held *Dir) Symlink(target string, name string) error {
+	at := path.Join(held.path, name)
+	if !singleName(name) {
+		return fmt.Errorf("%s names no single entry", at)
+	}
+
+	err := held.root.Symlink(target, name)
+	if err != nil {
+		return fmt.Errorf("linking %s: %w", at, err)
 	}
 
 	return nil

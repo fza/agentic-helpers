@@ -13,6 +13,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 var ErrNoStore = errors.New("no such store")
@@ -178,12 +179,12 @@ func (resolver Resolver) locked(ctx context.Context, change func() error) error 
 		return err
 	}
 
-	err = os.MkdirAll(resolver.Roots.Data, 0o700)
+	err = safefs.MkdirAll(resolver.Roots.Data, resolver.Roots.Data, 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", resolver.Roots.Data, err)
 	}
 
-	file, err := os.OpenFile(filepath.Join(resolver.Roots.Data, lockName), os.O_CREATE|os.O_RDWR, 0o600)
+	file, err := safefs.Lock(resolver.Roots.Data, filepath.Join(resolver.Roots.Data, lockName), 0o600)
 	if err != nil {
 		return fmt.Errorf("opening the home's lock: %w", err)
 	}
@@ -581,7 +582,7 @@ func (resolver Resolver) apply(held *mapping, checkout Checkout, next decision) 
 	}
 
 	if changed {
-		err := writeIdentity(held.roots.storeDir(id), *identity)
+		err := writeIdentity(held.roots.Data, held.roots.storeDir(id), *identity)
 		if err != nil {
 			return Resolution{}, err
 		}
@@ -626,7 +627,7 @@ func (resolver Resolver) create(held *mapping, suffix string) (string, error) {
 
 	identity := Identity{ID: id, Created: resolver.now()}
 
-	err = writeIdentity(held.roots.storeDir(id), identity)
+	err = writeIdentity(held.roots.Data, held.roots.storeDir(id), identity)
 	if err != nil {
 		return "", err
 	}
@@ -639,12 +640,12 @@ func (resolver Resolver) create(held *mapping, suffix string) (string, error) {
 func (resolver Resolver) promote(held *mapping, id string) error {
 	identity := held.unclaimed[id]
 
-	err := os.MkdirAll(held.roots.Stores(), 0o700)
+	err := safefs.MkdirAll(held.roots.Data, held.roots.Stores(), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", held.roots.Stores(), err)
 	}
 
-	err = os.Rename(held.roots.unclaimedStore(id), held.roots.storeDir(id))
+	err = safefs.Rename(held.roots.Data, held.roots.unclaimedStore(id), held.roots.storeDir(id))
 	if err != nil {
 		return fmt.Errorf("promoting the unclaimed store %s: %w", id, err)
 	}
@@ -652,7 +653,7 @@ func (resolver Resolver) promote(held *mapping, id string) error {
 	identity.Unclaimed = nil
 	held.stores[id] = identity
 
-	return writeIdentity(held.roots.storeDir(id), *identity)
+	return writeIdentity(held.roots.Data, held.roots.storeDir(id), *identity)
 }
 
 // admit records the checkout in the store: an admitted checkout of the same
@@ -704,5 +705,5 @@ func writePointer(checkout Checkout, id string) {
 		return
 	}
 
-	_ = atomicfile.Write(filepath.Join(checkout.CommonDir, PointerName), []byte(id+"\n"), 0o644)
+	_ = atomicfile.Write(checkout.CommonDir, filepath.Join(checkout.CommonDir, PointerName), []byte(id+"\n"), 0o644)
 }

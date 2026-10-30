@@ -127,7 +127,7 @@ func (roots Roots) writeIndex(held index) error {
 		return err
 	}
 
-	return atomicfile.Write(roots.index(), append(data, '\n'), 0o600)
+	return atomicfile.Write(roots.Data, roots.index(), append(data, '\n'), 0o600)
 }
 
 // RebuildIndex rebuilds `<data>/index.json` from every identity.

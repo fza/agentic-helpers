@@ -14,6 +14,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/gitignore"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/scratch"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
@@ -58,7 +59,7 @@ func (mem *memory) claimScratch(ctx context.Context, name string) []string {
 	}
 
 	root := mem.scratchRoot()
-	_ = os.Mkdir(filepath.Join(root, ".tmp"), 0o755)
+	_ = safefs.Mkdir(root, filepath.Join(root, ".tmp"), 0o755)
 
 	lines := []string{mem.seatScratch(name)}
 
@@ -152,9 +153,9 @@ func (mem *memory) seatOfSession(registry seat.Registry, session string, transcr
 		return id
 	}
 
-	_ = os.MkdirAll(filepath.Dir(unmapped), 0o700)
+	_ = safefs.MkdirAll(mem.env.Roots.Cache, filepath.Dir(unmapped), 0o700)
 
-	file, err := os.OpenFile(unmapped, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	file, err := safefs.Append(mem.env.Roots.Cache, unmapped, 0o600)
 	if err == nil {
 		_, _ = file.WriteString(session + "\n")
 		_ = file.Close()

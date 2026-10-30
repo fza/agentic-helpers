@@ -26,7 +26,7 @@ func TestACopyAcrossVolumesKeepsEveryFileFolderAndLink(t *testing.T) {
 		t.Fatalf("changing a mode: %v", err)
 	}
 
-	err = copyChecked(from, to, func() error { return nil })
+	err = copyChecked(filepath.Dir(to), from, to, func() error { return nil })
 	if err != nil {
 		t.Fatalf("copying: %v", err)
 	}

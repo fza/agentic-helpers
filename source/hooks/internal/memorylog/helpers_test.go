@@ -39,7 +39,7 @@ func events(from int, count int, padding int) []memorylog.Event {
 func openLog(t *testing.T, dir string) *memorylog.Log {
 	t.Helper()
 
-	log, err := memorylog.Open(dir)
+	log, err := memorylog.Open(dir, dir)
 	if err != nil {
 		t.Fatalf("opening the log: %v", err)
 	}

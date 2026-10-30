@@ -27,7 +27,7 @@ const libraryFormat = 2
 // lock. Every journal is written beside its legacy file first, the sessions
 // go into the slot file, format.json is written, and only then do the legacy
 // files go, so a run failing before format.json leaves the store as it was.
-func prepareStore(ctx context.Context, store *safefs.Dir, at string, cache string) error {
+func prepareStore(ctx context.Context, store *safefs.Dir, roots home.Roots, at string, cache string) error {
 	version, err := home.CheckComponent(at, libraryFormat)
 	if err != nil || version == libraryFormat {
 		return err
@@ -49,14 +49,14 @@ func prepareStore(ctx context.Context, store *safefs.Dir, at string, cache strin
 
 	legacy := legacySessions(at)
 
-	err = slots.Open(filepath.Join(cache, "sessions.slots"), sessionSlotWidth).Import(ctx, legacy)
+	err = slots.Open(roots.Cache, filepath.Join(cache, "sessions.slots"), sessionSlotWidth).Import(ctx, legacy)
 	if err != nil {
 		closeAll(folders)
 
 		return fmt.Errorf("taking in the session files of %s: %w", at, err)
 	}
 
-	err = home.WriteComponentFormat(at, libraryFormat)
+	err = home.WriteComponentFormat(roots.Data, at, libraryFormat)
 	if err != nil {
 		closeAll(folders)
 
@@ -148,7 +148,7 @@ func refreshLedger(ctx context.Context, held *store, named map[forkOrigin]bool) 
 		}
 	}
 
-	_ = space.Refresh(ctx, held.path, func(name string) space.Account {
+	_ = space.Refresh(ctx, held.root, held.path, func(name string) space.Account {
 		account, counted := files[name]
 		if !counted {
 			return space.Account{Bytes: -1}
@@ -198,5 +198,5 @@ func (lib *library) prepare(ctx context.Context) {
 
 	defer unlock()
 
-	_ = prepareStore(ctx, store, lib.ownDir(), lib.env.Roots.StoreCache(lib.key, home.Tools))
+	_ = prepareStore(ctx, store, lib.env.Roots, lib.ownDir(), lib.env.Roots.StoreCache(lib.key, home.Tools))
 }

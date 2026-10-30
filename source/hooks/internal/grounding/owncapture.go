@@ -38,7 +38,7 @@ func keepAcrossOwnCapture(ctx context.Context, env Env, payload hookio.Payload) 
 		return
 	}
 
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
 		return
 	}
@@ -51,7 +51,7 @@ func keepAcrossOwnCapture(ctx context.Context, env Env, payload hookio.Payload) 
 	}
 
 	held.Graph = now
-	_ = saveEvidence(ctx, path, held)
+	_ = saveEvidence(ctx, env.graphRoot(), path, held)
 }
 
 func ownEntry(env Env, payload hookio.Payload) string {

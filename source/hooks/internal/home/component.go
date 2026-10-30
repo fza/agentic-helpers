@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // ErrNewerFormat is a component's directory written by a newer release.
@@ -54,18 +55,18 @@ func CheckComponent(dir string, current int) (int, error) {
 
 // WriteComponentFormat records version as the component's format: a
 // migration's last step, so a run that failed before it is run again.
-func WriteComponentFormat(dir string, version int) error {
+func WriteComponentFormat(root string, dir string, version int) error {
 	data, err := json.Marshal(formatFile{Format: version})
 	if err != nil {
 		return fmt.Errorf("encoding the format of %s: %w", dir, err)
 	}
 
-	err = os.MkdirAll(dir, 0o700)
+	err = safefs.MkdirAll(root, dir, 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", dir, err)
 	}
 
-	err = atomicfile.Write(filepath.Join(dir, formatName), append(data, '\n'), 0o600)
+	err = atomicfile.Write(root, filepath.Join(dir, formatName), append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("writing the format of %s: %w", dir, err)
 	}

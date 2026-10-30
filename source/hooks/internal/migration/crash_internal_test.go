@@ -394,7 +394,7 @@ func TestAnUndoReversesOnlyAChangeThatHappened(t *testing.T) {
 			dir := t.TempDir()
 			tc.layout(dir)
 
-			err := undo(tc.step(dir))
+			err := undo(dir, tc.step(dir))
 			if (err != nil) != tc.fails {
 				t.Errorf("the undo should refuse only where it would remove data, got %v", err)
 			}

@@ -11,6 +11,7 @@ import (
 // a stamp that does not match costs a hash, never a wrong flag the tree
 // itself would not give.
 type hashCache struct {
+	root    string
 	path    string
 	stamps  map[string]fileStamp
 	loaded  bool
@@ -25,7 +26,7 @@ type fileStamp struct {
 
 func (mem *memory) hashes() *hashCache {
 	if mem.hashCache == nil {
-		mem.hashCache = &hashCache{path: filepath.Join(mem.cacheDir(), "anchor-hashes.json")}
+		mem.hashCache = &hashCache{root: mem.env.Roots.Cache, path: filepath.Join(mem.cacheDir(), "anchor-hashes.json")}
 	}
 
 	return mem.hashCache
@@ -65,7 +66,7 @@ func (cache *hashCache) save() {
 		return
 	}
 
-	_ = writeJSON(cache.path, cache.stamps)
+	_ = writeJSON(cache.root, cache.path, cache.stamps)
 	cache.changed = false
 }
 

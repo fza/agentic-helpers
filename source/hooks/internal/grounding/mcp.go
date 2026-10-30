@@ -65,7 +65,7 @@ func recordMCP(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
 		return
 	}
@@ -102,7 +102,7 @@ func recordMCP(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 
 	if changed {
-		_ = saveEvidence(ctx, path, held)
+		_ = saveEvidence(ctx, env.graphRoot(), path, held)
 	}
 }
 

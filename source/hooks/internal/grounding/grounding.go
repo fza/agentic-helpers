@@ -98,7 +98,7 @@ var (
 // forgetReads drops the session's reads after a compaction: the reads' output
 // is gone from the context, so their credit goes too. Grounded drafts stay.
 func forgetReads(ctx context.Context, env Env, payload hookio.Payload) {
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
 		return
 	}
@@ -106,7 +106,7 @@ func forgetReads(ctx context.Context, env Env, payload hookio.Payload) {
 	held := loadEvidence(ctx, path)
 	held.forget()
 
-	err = saveEvidence(ctx, path, held)
+	err = saveEvidence(ctx, env.graphRoot(), path, held)
 	if err != nil {
 		_ = os.Remove(path)
 	}
@@ -178,6 +178,13 @@ func (env Env) project() string {
 // directory, which sdd ignores.
 func (env Env) ledgerDir() string {
 	return filepath.Join(env.graphDir(), "tmp", "grounding-gate")
+}
+
+// graphRoot is the folder holding the graph's directory: every write below
+// the graph walks from it, so a graph directory committed as a link is never
+// written through.
+func (env Env) graphRoot() string {
+	return filepath.Dir(env.graphDir())
 }
 
 func (env Env) graphDir() string {
@@ -280,7 +287,7 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 
 	calls := spokenIn(command, false)[0].calls
 
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
 		return
 	}
@@ -319,7 +326,7 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 	if changed {
 		// A ledger that cannot be written holds the reads nowhere, and
 		// the gate then refuses: the safe side.
-		_ = saveEvidence(ctx, path, held)
+		_ = saveEvidence(ctx, env.graphRoot(), path, held)
 	}
 }
 
@@ -373,7 +380,7 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
 		return
 	}
@@ -394,7 +401,7 @@ func recordDraft(ctx context.Context, env Env, payload hookio.Payload) {
 	}
 
 	held.addGrounded(draft)
-	_ = saveEvidence(ctx, path, held)
+	_ = saveEvidence(ctx, env.graphRoot(), path, held)
 }
 
 // gate returns the refusal this call earns, or nothing. A graph write holding
@@ -459,7 +466,7 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 
 	prefix := config.ListingPrefix
 
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 
 	held := freshEvidence()
 	if err == nil {
@@ -544,7 +551,7 @@ func letThrough(payload hookio.Payload, refusal string) string {
 // so a graph change, a compaction or a changed set names them again. A ledger
 // that cannot be written leaves the note firing: the safe side.
 func firstNote(ctx context.Context, env Env, payload hookio.Payload) bool {
-	path, err := ledgerPath(env.ledgerDir(), payload)
+	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
 		return true
 	}
@@ -558,7 +565,7 @@ func firstNote(ctx context.Context, env Env, payload hookio.Payload) bool {
 	}
 
 	held.Noted = cause
-	_ = saveEvidence(ctx, path, held)
+	_ = saveEvidence(ctx, env.graphRoot(), path, held)
 
 	return true
 }

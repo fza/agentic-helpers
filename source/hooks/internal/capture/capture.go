@@ -50,6 +50,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 )
 
@@ -1060,14 +1061,16 @@ func within(target string, directory string) bool {
 }
 
 func (run *capture) lock() (func(), error) {
-	dir := filepath.Join(run.graph, "tmp")
+	// The folder holding the graph is the root: a graph's `tmp` committed as a
+	// link is never written through.
+	root, dir := filepath.Dir(run.graph), filepath.Join(run.graph, "tmp")
 
-	err := os.MkdirAll(dir, 0o755)
+	err := safefs.MkdirAll(root, dir, 0o755)
 	if err != nil {
 		return nil, fmt.Errorf("creating the lock directory: %w", err)
 	}
 
-	file, err := os.OpenFile(filepath.Join(dir, "capture.lock"), os.O_CREATE|os.O_RDWR, 0o644)
+	file, err := safefs.Lock(root, filepath.Join(dir, "capture.lock"), 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("opening the capture lock: %w", err)
 	}
@@ -1092,7 +1095,14 @@ func (run *capture) lock() (func(), error) {
 func (run *capture) lint(ctx context.Context, lint string, held draft) ([]string, error) {
 	body := filepath.Join(filepath.Dir(run.path), "."+filepath.Base(run.path)+".body.md")
 
-	err := os.WriteFile(body, []byte(held.body+"\n"), 0o644)
+	// A draft inside the project walks from its root; one elsewhere sits in a
+	// folder its writer named.
+	root := filepath.Dir(body)
+	if within(body, run.root) {
+		root = run.root
+	}
+
+	err := safefs.WriteFile(root, body, []byte(held.body+"\n"), 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("writing the body for the lint: %w", err)
 	}

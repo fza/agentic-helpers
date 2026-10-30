@@ -13,6 +13,14 @@ import (
 
 func everything(string, string) bool { return true }
 
+func openStore(t *testing.T) *vectorseg.Store {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	return vectorseg.Open(dir, dir)
+}
+
 func unit(dims int, axis int) []float32 {
 	vector := make([]float32, dims)
 	vector[axis%dims] = 1
@@ -53,7 +61,7 @@ func snapshot(t *testing.T, store *vectorseg.Store) *vectorseg.Snapshot {
 }
 
 func TestARowWrittenIsHeldAndScoredByItsBestChunk(t *testing.T) {
-	store := vectorseg.Open(t.TempDir())
+	store := openStore(t)
 
 	err := store.Write([]vectorseg.Row{
 		{ID: "m-one", Hash: "h1", Chunks: [][]float32{unit(4, 0), unit(4, 1)}},
@@ -80,7 +88,7 @@ func TestARowWrittenIsHeldAndScoredByItsBestChunk(t *testing.T) {
 }
 
 func TestARowOfAnotherHashIsNotCounted(t *testing.T) {
-	store := vectorseg.Open(t.TempDir())
+	store := openStore(t)
 	current := func(id string, hash string) bool { return hash == "new" }
 
 	err := store.Write([]vectorseg.Row{{ID: "m-one", Hash: "old", Chunks: [][]float32{unit(4, 0)}}}, everything)
@@ -108,7 +116,7 @@ func TestARowOfAnotherHashIsNotCounted(t *testing.T) {
 }
 
 func TestASegmentMostlyStaleIsRewrittenToItsLiveRows(t *testing.T) {
-	store := vectorseg.Open(t.TempDir())
+	store := openStore(t)
 
 	err := store.Write([]vectorseg.Row{
 		{ID: "m-one", Hash: "h1", Chunks: [][]float32{unit(4, 0)}},
@@ -138,7 +146,7 @@ func TestASegmentMostlyStaleIsRewrittenToItsLiveRows(t *testing.T) {
 
 func TestAWriterLeftTornIsIgnoredThenSwept(t *testing.T) {
 	dir := t.TempDir()
-	store := vectorseg.Open(dir)
+	store := vectorseg.Open(dir, dir)
 
 	err := store.Write([]vectorseg.Row{{ID: "m-one", Hash: "h1", Chunks: [][]float32{unit(4, 0)}}}, everything)
 	if err != nil {
@@ -180,7 +188,7 @@ func TestAWriterLeftTornIsIgnoredThenSwept(t *testing.T) {
 }
 
 func TestARowWrittenTwiceScoresOnceAndMergesAway(t *testing.T) {
-	store := vectorseg.Open(t.TempDir())
+	store := openStore(t)
 	row := vectorseg.Row{ID: "m-one", Hash: "h1", Chunks: [][]float32{unit(4, 0)}}
 
 	for _, chunks := range [][][]float32{{unit(4, 0)}, {unit(4, 0), unit(4, 3)}} {
@@ -203,7 +211,7 @@ func TestARowWrittenTwiceScoresOnceAndMergesAway(t *testing.T) {
 }
 
 func TestSegmentsStayFewAsEntriesAreFiledOneAtATime(t *testing.T) {
-	store := vectorseg.Open(t.TempDir())
+	store := openStore(t)
 
 	const entries = 2000
 
@@ -237,7 +245,7 @@ func TestSegmentsStayFewAsEntriesAreFiledOneAtATime(t *testing.T) {
 
 func TestASnapshotOutlivesTheUnlinkOfItsFiles(t *testing.T) {
 	dir := t.TempDir()
-	store := vectorseg.Open(dir)
+	store := vectorseg.Open(dir, dir)
 
 	err := store.Write([]vectorseg.Row{{ID: "m-one", Hash: "h1", Chunks: [][]float32{unit(4, 0)}}}, everything)
 	if err != nil {
@@ -264,7 +272,7 @@ func TestASnapshotOutlivesTheUnlinkOfItsFiles(t *testing.T) {
 }
 
 func TestAVectorOfOtherDimensionsIsRefused(t *testing.T) {
-	store := vectorseg.Open(t.TempDir())
+	store := openStore(t)
 
 	err := store.Write([]vectorseg.Row{{ID: "m-one", Hash: "h1", Chunks: [][]float32{unit(4, 0), unit(3, 0)}}}, everything)
 	if !errors.Is(err, vectorseg.ErrDims) {

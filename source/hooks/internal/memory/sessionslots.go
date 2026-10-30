@@ -27,7 +27,7 @@ const (
 var sessionPurposes = []string{"shown/", "ladder/", "graph-seen/", "fork/", "waiter/", "migration-failed/"}
 
 func (mem *memory) slotFile() *slots.File {
-	file := slots.Open(filepath.Join(mem.cacheDir(), sessionSlotsName), sessionSlotWidth)
+	file := slots.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), sessionSlotsName), sessionSlotWidth)
 	file.Now = mem.now
 
 	return file
@@ -136,6 +136,6 @@ func (shown *shownSet) trim() bool {
 // ledger keeps what each of its files holds checkable without reading them.
 func (mem *memory) recordStore(ctx context.Context) {
 	if mem.key != "" && mem.storeExists() {
-		_ = space.Refresh(ctx, mem.store(), nil)
+		_ = space.Refresh(ctx, mem.env.Roots.Data, mem.store(), nil)
 	}
 }

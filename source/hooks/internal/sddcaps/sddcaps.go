@@ -17,7 +17,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const (
@@ -246,17 +248,10 @@ func (probe Probe) save(key string, found Caps) {
 		return
 	}
 
-	err = os.MkdirAll(probe.CacheDir, 0o755)
+	err = safefs.MkdirAll(probe.CacheDir, probe.CacheDir, 0o700)
 	if err != nil {
 		return
 	}
 
-	temporary := filepath.Join(probe.CacheDir, fmt.Sprintf(".%s.%d", cacheFile, os.Getpid()))
-
-	err = os.WriteFile(temporary, raw, 0o644)
-	if err != nil {
-		return
-	}
-
-	_ = os.Rename(temporary, filepath.Join(probe.CacheDir, cacheFile))
+	_ = atomicfile.Write(probe.CacheDir, filepath.Join(probe.CacheDir, cacheFile), raw, 0o644)
 }

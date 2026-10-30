@@ -103,7 +103,7 @@ func TestJoinMovesEveryToolAndRefusesASharedName(t *testing.T) {
 	test.WriteFile(t, filepath.Join(into, "line-count", "current"), "1\n")
 	test.WriteFile(t, filepath.Join(into, "index.json"), "{}")
 
-	err := tools.Join(context.Background(), from, into)
+	err := tools.Join(context.Background(), filepath.Dir(from), from, into)
 	if err != nil {
 		t.Fatalf("joining two libraries: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestJoinMovesEveryToolAndRefusesASharedName(t *testing.T) {
 
 	test.WriteFile(t, filepath.Join(from, "line-count", "current"), "2\n")
 
-	err = tools.Join(context.Background(), from, into)
+	err = tools.Join(context.Background(), filepath.Dir(from), from, into)
 	if err == nil || !strings.Contains(err.Error(), "both libraries hold the tools line-count") {
 		t.Errorf("a tool name both libraries hold should refuse the join, got %v", err)
 	}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // The folded log is cached in the cache directory, keyed by everything the
@@ -235,12 +236,12 @@ func (mem *memory) writeFold(key foldKey, folded *state) {
 		return
 	}
 
-	err = os.MkdirAll(mem.cacheDir(), 0o700)
+	err = safefs.MkdirAll(mem.env.Roots.Cache, mem.cacheDir(), 0o700)
 	if err != nil {
 		return
 	}
 
-	_ = atomicfile.Write(mem.foldCachePath(), data.Bytes(), 0o600)
+	_ = atomicfile.Write(mem.env.Roots.Cache, mem.foldCachePath(), data.Bytes(), 0o600)
 }
 
 func cacheOf(key foldKey, folded *state) cachedFold {

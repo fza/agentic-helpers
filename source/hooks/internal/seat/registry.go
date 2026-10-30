@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const (
@@ -157,18 +158,18 @@ func (registry *Registry) Rename(id string, name string) error {
 
 // Save writes the registry through a temporary file renamed into place, so a
 // reader sees the old registry or the new, never half of one.
-func (registry Registry) Save() error {
+func (registry Registry) Save(root string) error {
 	data, err := json.MarshalIndent(registry.Seats, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding the seat registry: %w", err)
 	}
 
-	err = os.MkdirAll(filepath.Dir(registry.path), 0o700)
+	err = safefs.MkdirAll(root, filepath.Dir(registry.path), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating the store: %w", err)
 	}
 
-	err = atomicfile.Write(registry.path, append(data, '\n'), 0o600)
+	err = atomicfile.Write(root, registry.path, append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("placing the seat registry: %w", err)
 	}

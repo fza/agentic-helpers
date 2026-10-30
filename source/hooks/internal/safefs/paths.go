@@ -109,6 +109,18 @@ func Mkdir(root string, dir string, perm fs.FileMode) error {
 	return held.Mkdir(name, perm)
 }
 
+// Symlink makes the link below root holding target; its folder must exist.
+func Symlink(root string, target string, link string) error {
+	held, name, err := Parent(root, link)
+	if err != nil {
+		return err
+	}
+
+	defer held.Close()
+
+	return held.Symlink(target, name)
+}
+
 // WriteFile replaces target below root with data, through a fresh name renamed
 // over it; its folder must exist.
 func WriteFile(root string, target string, data []byte, perm fs.FileMode) error {
@@ -161,17 +173,14 @@ func OpenChecked(root string, target string, flag int, perm fs.FileMode) (*os.Fi
 	return held.OpenChecked(name, flag, perm)
 }
 
-// Append opens target below root for appending, creating it where missing.
 func Append(root string, target string, perm fs.FileMode) (*os.File, error) {
 	return OpenChecked(root, target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, perm)
 }
 
-// Lock opens the lock file target below root, creating it where missing.
 func Lock(root string, target string, perm fs.FileMode) (*os.File, error) {
 	return OpenChecked(root, target, os.O_CREATE|os.O_RDWR, perm)
 }
 
-// Rename moves from to to, both below root.
 func Rename(root string, from string, to string) error {
 	return Move(root, from, root, to)
 }

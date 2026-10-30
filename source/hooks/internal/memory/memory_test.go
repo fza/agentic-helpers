@@ -566,7 +566,7 @@ func TestARetiredBodyDroppedByAMerge(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	log, err := memorylog.Open(h.store(), filepath.Join(h.store(), "log"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -618,7 +618,7 @@ func TestAnIDFromAShorterLengthStillServes(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	log, err := memorylog.Open(h.store(), filepath.Join(h.store(), "log"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1277,7 +1277,7 @@ func TestARetireFromAnEarlierReleaseReadsWithoutAReason(t *testing.T) {
 	h.must("", "claim", "main")
 	id := h.file("An entry retired long ago", "retired by a release writing no payload")
 
-	log, err := memorylog.Open(filepath.Join(h.store(), "log"))
+	log, err := memorylog.Open(h.store(), filepath.Join(h.store(), "log"))
 	if err != nil {
 		t.Fatalf("opening the log: %v", err)
 	}

@@ -49,7 +49,7 @@ const sessionSlotWidth = 128 << 10
 // sessionSlots is the own store's slot file in the cache: one slot per
 // session, `session/<id>` (internal/slots).
 func (lib *library) sessionSlots() *slots.File {
-	file := slots.Open(filepath.Join(lib.env.Roots.StoreCache(lib.key, home.Tools), "sessions.slots"), sessionSlotWidth)
+	file := slots.Open(lib.env.Roots.Cache, filepath.Join(lib.env.Roots.StoreCache(lib.key, home.Tools), "sessions.slots"), sessionSlotWidth)
 	file.Now = lib.now
 
 	return file

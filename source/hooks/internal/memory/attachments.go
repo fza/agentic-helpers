@@ -23,6 +23,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
@@ -219,7 +220,7 @@ func (mem *memory) ledgerSizes() map[string]int64 {
 // it knows; a file it names none for keeps what the ledger recorded, and one
 // the ledger never listed, which no attach recorded, counts nothing.
 func (mem *memory) recordSizes(ctx context.Context, sizes map[string]int64) {
-	_ = space.Refresh(ctx, mem.attachmentsRoot(), func(name string) space.Account {
+	_ = space.Refresh(ctx, mem.env.Roots.Data, mem.attachmentsRoot(), func(name string) space.Account {
 		if strings.Contains(name, "/") || strings.HasPrefix(name, ".") {
 			return space.Account{Bytes: -1}
 		}
@@ -341,12 +342,12 @@ func (mem *memory) storeFile(file *preparedFile) error {
 		file.Form, content = formGzip, packed.Bytes()
 	}
 
-	err = os.MkdirAll(mem.attachmentsRoot(), 0o700)
+	err = safefs.MkdirAll(mem.env.Roots.Data, mem.attachmentsRoot(), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating the attachment store: %w", err)
 	}
 
-	err = atomicfile.Write(mem.attachmentPath(file.attachPayload), content, 0o600)
+	err = atomicfile.Write(mem.env.Roots.Data, mem.attachmentPath(file.attachPayload), content, 0o600)
 	if err != nil {
 		return fmt.Errorf("storing attachment %s: %w", file.Name, err)
 	}
@@ -579,12 +580,12 @@ func page(id string, held attachPayload, data []byte, offset int, maxBytes int) 
 }
 
 func (mem *memory) readTo(ctx context.Context, held attachPayload, data []byte, path string) result {
-	target, err := mem.writableTarget(ctx, path)
+	place, target, err := mem.writableTarget(ctx, path)
 	if err != nil {
 		return refused("%v", err)
 	}
 
-	file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	file, err := safefs.CreateFile(place, target, 0o600)
 	if errors.Is(err, fs.ErrExist) {
 		return refused("%s exists; name a new path", path)
 	}
@@ -608,8 +609,9 @@ func (mem *memory) readTo(ctx context.Context, held attachPayload, data []byte, 
 // the places shell-guard holds removals to, so a stored file is never
 // restored as a missing ~/.ssh/authorized_keys or a shell's rc file. The new
 // file does not exist yet, so its parent is resolved through every symlink
-// before the place is checked.
-func (mem *memory) writableTarget(ctx context.Context, path string) (string, error) {
+// before the place is checked. It answers the resolved place, the root the
+// write walks from, and the target.
+func (mem *memory) writableTarget(ctx context.Context, path string) (string, string, error) {
 	absolute := path
 	if !filepath.IsAbs(absolute) {
 		absolute = filepath.Join(mem.env.Base, absolute)
@@ -617,7 +619,7 @@ func (mem *memory) writableTarget(ctx context.Context, path string) (string, err
 
 	parent, err := filepath.EvalSymlinks(filepath.Dir(absolute))
 	if err != nil {
-		return "", fmt.Errorf("--to %s: its folder does not exist", path)
+		return "", "", fmt.Errorf("--to %s: its folder does not exist", path)
 	}
 
 	target := filepath.Join(parent, filepath.Base(absolute))
@@ -633,11 +635,11 @@ func (mem *memory) writableTarget(ctx context.Context, path string) (string, err
 
 		inside, err := filepath.Rel(resolved, target)
 		if err == nil && inside != "." && inside != ".." && !strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
-			return target, nil
+			return resolved, target, nil
 		}
 	}
 
-	return "", fmt.Errorf("--to writes only inside this work tree (%s) or %s, not %s", root, tmp, path)
+	return "", "", fmt.Errorf("--to writes only inside this work tree (%s) or %s, not %s", root, tmp, path)
 }
 
 // writeRefs keeps, beside the log, the hashes this project's entries still
@@ -650,7 +652,7 @@ func (mem *memory) writeRefs(folded *state) {
 
 	slices.Sort(hashes)
 
-	_ = writeJSON(mem.refsPath(), hashes)
+	_ = writeJSON(mem.env.Roots.Data, mem.refsPath(), hashes)
 }
 
 // sweepAttachments removes, under the attachment store's lock, every stored
@@ -688,7 +690,7 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 		}
 	}
 
-	lock, err := os.OpenFile(filepath.Join(mem.attachmentsRoot(), ".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	lock, err := safefs.Lock(mem.env.Roots.Data, filepath.Join(mem.attachmentsRoot(), ".lock"), 0o600)
 	if err != nil {
 		return
 	}

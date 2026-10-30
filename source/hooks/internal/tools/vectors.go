@@ -19,7 +19,7 @@ import (
 // store, one row per description keyed by its hash, so one vector serves every
 // store naming a description and a rebuild never embeds an unchanged one.
 func (lib *library) vectorStore(fingerprint string) *vectorseg.Store {
-	store := vectorseg.Open(filepath.Join(lib.env.Roots.SharedCache(home.Tools), "vectors", describedSum(fingerprint)))
+	store := vectorseg.Open(lib.env.Roots.Cache, filepath.Join(lib.env.Roots.SharedCache(home.Tools), "vectors", describedSum(fingerprint)))
 	_ = lib.migrateVectors(store)
 
 	return store

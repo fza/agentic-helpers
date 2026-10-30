@@ -161,7 +161,7 @@ func (mem *memory) mintSeat(name string, shelfName string) (string, error) {
 			return "", fmt.Errorf("making the shelf %s: %w", shelfName, err)
 		}
 
-		err = shelves.Save()
+		err = shelves.Save(mem.env.Roots.Data)
 		if err != nil {
 			return "", err
 		}
@@ -182,7 +182,7 @@ func (mem *memory) mintOnto(registry seat.Registry, name string, shelf string) (
 	held.Shelf = shelf
 	registry.Seats[id] = held
 
-	err = registry.Save()
+	err = registry.Save(mem.env.Roots.Data)
 	if err != nil {
 		return "", err
 	}

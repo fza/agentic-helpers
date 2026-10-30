@@ -170,7 +170,7 @@ const (
 
 // StateSlots is shell-guard's slot file below the cache root.
 func StateSlots(cache string) *slots.File {
-	return slots.Open(filepath.Join(cache, stateDir, slotsName), slotWidth)
+	return slots.Open(cache, filepath.Join(cache, stateDir, slotsName), slotWidth)
 }
 
 func stateOf(ctx context.Context, env Env, session string) *sessionState {

@@ -49,6 +49,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const (
@@ -77,18 +78,20 @@ var (
 
 var castagnoli = crc32.MakeTable(crc32.Castagnoli)
 
-// File is a slot file at Path. Width is the slot width a file created by a
-// write gets; a file on disk keeps the width its header names.
+// File is a slot file at Path, written through safefs from Root down. Width
+// is the slot width a file created by a write gets; a file on disk keeps the
+// width its header names.
 type File struct {
+	Root  string
 	Path  string
 	Width int
 	Now   func() time.Time
 }
 
-// Open is the slot file at path, created by the first write with slots of
-// width bytes.
-func Open(path string, width int) *File {
-	return &File{Path: path, Width: max(width, MinWidth)}
+// Open is the slot file at path below root, created by the first write with
+// slots of width bytes.
+func Open(root string, path string, width int) *File {
+	return &File{Root: root, Path: path, Width: max(width, MinWidth)}
 }
 
 // Slot is one key's value as its newest valid twin holds it.
@@ -582,7 +585,7 @@ func (f *File) grow(file io.ReaderAt, header Header, added Slot) error {
 
 	held = append(held, added)
 
-	return replace(f.Path, Header{Width: header.Width, Count: 1 + 2*pairsFor(len(held))}, held)
+	return replace(f.Root, f.Path, Header{Width: header.Width, Count: 1 + 2*pairsFor(len(held))}, held)
 }
 
 // pairsFor is the pairs a file holding held keys gets: twice as many, at
@@ -593,26 +596,16 @@ func pairsFor(held int) int {
 
 // replace writes a file of header holding held in its first pairs beside path,
 // then renames it over path.
-func replace(path string, header Header, held []Slot) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
+func replace(root string, path string, header Header, held []Slot) error {
+	folder, name, err := safefs.Parent(root, path)
 	if err != nil {
-		return fmt.Errorf("creating a slot file: %w", err)
+		return fmt.Errorf("writing %s: %w", path, err)
 	}
 
-	err = fill(temp, header, held)
+	defer folder.Close()
 
-	closeErr := temp.Close()
-	if err == nil {
-		err = closeErr
-	}
-
-	if err == nil {
-		err = os.Rename(temp.Name(), path)
-	}
-
+	err = folder.ReplaceWith(name, "", 0o600, func(file *os.File) error { return fill(file, header, held) })
 	if err != nil {
-		_ = os.Remove(temp.Name())
-
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 
@@ -678,12 +671,12 @@ func writeTwin(file *os.File, header Header, pair int, twins [2]twin, key string
 // locked runs write on the file holding the writers' lock, creating the file
 // where it does not exist.
 func (f *File) locked(ctx context.Context, write func(file *os.File, header Header) error) error {
-	err := os.MkdirAll(filepath.Dir(f.Path), 0o700)
+	err := safefs.MkdirAll(f.Root, filepath.Dir(f.Path), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(f.Path), err)
 	}
 
-	lock, err := os.OpenFile(f.Path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	lock, err := safefs.Lock(f.Root, f.Path+".lock", 0o600)
 	if err != nil {
 		return fmt.Errorf("opening the lock of %s: %w", f.Path, err)
 	}
@@ -703,13 +696,13 @@ func (f *File) locked(ctx context.Context, write func(file *os.File, header Head
 	}
 
 	if !exists(f.Path) {
-		err = replace(f.Path, Header{Width: f.Width, Count: 1 + 2*initialPairs}, nil)
+		err = replace(f.Root, f.Path, Header{Width: f.Width, Count: 1 + 2*initialPairs}, nil)
 		if err != nil {
 			return err
 		}
 	}
 
-	file, err := os.OpenFile(f.Path, os.O_RDWR|syscall.O_NOFOLLOW, 0o600)
+	file, err := safefs.OpenChecked(f.Root, f.Path, os.O_RDWR, 0o600)
 	if err != nil {
 		return fmt.Errorf("opening %s: %w", f.Path, err)
 	}
@@ -769,7 +762,7 @@ func (f *File) Adopt(ctx context.Context, dir string, version int, legacy func()
 			return err
 		}
 
-		err = home.WriteComponentFormat(dir, version)
+		err = home.WriteComponentFormat(f.Root, dir, version)
 		if err != nil {
 			return err
 		}
@@ -842,7 +835,7 @@ func (f *File) importLocked(opened *os.File, header Header, legacy []Legacy) err
 				return err
 			}
 
-			grown, grownHeader, err := reopen(f.Path)
+			grown, grownHeader, err := reopen(f.Root, f.Path)
 			if err != nil {
 				return err
 			}
@@ -866,8 +859,8 @@ func (f *File) importLocked(opened *os.File, header Header, legacy []Legacy) err
 }
 
 // reopen opens the file a grow renamed over path.
-func reopen(path string) (*os.File, Header, error) {
-	file, err := os.OpenFile(path, os.O_RDWR|syscall.O_NOFOLLOW, 0o600)
+func reopen(root string, path string) (*os.File, Header, error) {
+	file, err := safefs.OpenChecked(root, path, os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, Header{}, fmt.Errorf("opening %s: %w", path, err)
 	}

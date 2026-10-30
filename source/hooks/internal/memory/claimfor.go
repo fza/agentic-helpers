@@ -99,7 +99,7 @@ func (mem *memory) claimFor(ctx context.Context, req request) result {
 func (mem *memory) reserve(ctx context.Context, req request, key string) (string, bool, string, error) {
 	dir := mem.seatsDir()
 
-	unlock, err := seat.Lock(ctx, dir)
+	unlock, err := seat.Lock(ctx, mem.env.Roots.Data, dir)
 	if err != nil {
 		return "", false, "", err
 	}
@@ -135,13 +135,13 @@ func (mem *memory) reserve(ctx context.Context, req request, key string) (string
 				req.Name, mem.shelfName(mem.shelfOfKey(key)))
 		}
 
-		err = seat.Close(dir, fromKey, now)
+		err = seat.Close(mem.env.Roots.Data, dir, fromKey, now)
 		if err != nil {
 			return "", false, "", err
 		}
 	}
 
-	err = seat.Write(dir, key, held)
+	err = seat.Write(mem.env.Roots.Data, dir, key, held)
 	if err != nil {
 		return "", false, "", err
 	}

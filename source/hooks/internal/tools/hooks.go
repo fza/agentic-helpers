@@ -201,7 +201,7 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 // ownOnly is the own store with its index, without listing any other store:
 // the offer names own tools alone.
 func (lib *library) ownOnly() *store {
-	held := &store{key: lib.key, path: lib.ownDir(), own: true}
+	held := &store{key: lib.key, root: lib.env.Roots.Data, path: lib.ownDir(), own: true}
 	held.index = lib.indexOf(context.Background(), held)
 
 	return held

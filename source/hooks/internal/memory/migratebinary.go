@@ -40,7 +40,7 @@ func (mem *memory) migrateFormat5(ctx context.Context) error {
 
 	mem.recordStore(ctx)
 
-	err = writeFormat(mem.store(), slotsFormat)
+	err = writeFormat(mem.env.Roots.Data, mem.store(), slotsFormat)
 	if err != nil {
 		return err
 	}

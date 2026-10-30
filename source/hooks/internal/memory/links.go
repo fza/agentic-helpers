@@ -309,7 +309,7 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 		return nil, false
 	}
 
-	_ = writeJSON(cachePath, graphStatus{Key: mem.statusKey(local, repos), Repos: repos, Statuses: statuses})
+	_ = writeJSON(mem.env.Roots.Cache, cachePath, graphStatus{Key: mem.statusKey(local, repos), Repos: repos, Statuses: statuses})
 	mem.graphKnown = statuses
 
 	return statuses, true

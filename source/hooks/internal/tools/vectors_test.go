@@ -61,7 +61,7 @@ func (h *harness) described(name string) string {
 func (h *harness) holds(described string) bool {
 	h.t.Helper()
 
-	snapshot, err := vectorseg.Open(h.vectorDir()).Snapshot()
+	snapshot, err := vectorseg.Open(h.vectorDir(), h.vectorDir()).Snapshot()
 	if err != nil {
 		h.t.Fatalf("taking a snapshot: %v", err)
 	}

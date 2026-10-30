@@ -29,6 +29,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const (
@@ -220,12 +221,12 @@ func Run(ctx context.Context, env Env) (bool, error) {
 }
 
 func (env Env) openLock() (*os.File, error) {
-	err := os.MkdirAll(env.Roots.Data, 0o700)
+	err := safefs.MkdirAll(env.Roots.Data, env.Roots.Data, 0o700)
 	if err != nil {
 		return nil, fmt.Errorf("creating %s: %w", env.Roots.Data, err)
 	}
 
-	file, err := os.OpenFile(filepath.Join(env.Roots.Data, lockName), os.O_CREATE|os.O_RDWR, 0o600)
+	file, err := safefs.Lock(env.Roots.Data, filepath.Join(env.Roots.Data, lockName), 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening the migration lock: %w", err)
 	}
@@ -246,9 +247,9 @@ func (env Env) reportOnce(stderr io.Writer, cause error) {
 	_, _ = fmt.Fprintf(stderr, "%s: migrating to %s failed: %v; nothing moved, and the next call tries again\n", self,
 		env.Roots.Data, cause)
 
-	err = os.MkdirAll(filepath.Dir(marker), 0o700)
+	err = safefs.MkdirAll(env.Roots.Cache, filepath.Dir(marker), 0o700)
 	if err == nil {
-		_ = os.WriteFile(marker, nil, 0o600)
+		_ = safefs.WriteFile(env.Roots.Cache, marker, nil, 0o600)
 	}
 }
 

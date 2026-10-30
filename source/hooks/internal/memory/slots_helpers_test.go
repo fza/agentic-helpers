@@ -11,7 +11,7 @@ import (
 )
 
 func slotFileIn(cacheDir string) *slots.File {
-	return slots.Open(filepath.Join(cacheDir, "sessions.slots"), 128<<10)
+	return slots.Open(cacheDir, filepath.Join(cacheDir, "sessions.slots"), 128<<10)
 }
 
 // slots is every key of the store's slot file under prefix with its value

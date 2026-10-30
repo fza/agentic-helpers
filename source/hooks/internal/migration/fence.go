@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // StubFormat is the memory store format a stub declares. Every release
@@ -57,9 +59,9 @@ func (log *journal) placeStub(dir string) error {
 		return err
 	}
 
-	err = os.Mkdir(dir, 0o700)
+	err = safefs.Mkdir(filepath.Dir(dir), dir, 0o700)
 	if err == nil {
-		err = os.WriteFile(filepath.Join(dir, formatName), stubText(), 0o600)
+		err = safefs.Create(dir, filepath.Join(dir, formatName), stubText(), 0o600)
 	}
 
 	if err != nil {
@@ -83,7 +85,7 @@ func (log *journal) placeFence(root string, aside string, data string) error {
 			return err
 		}
 
-		err = os.Rename(root, aside)
+		err = moveEntry(log.data, root, aside)
 		if err != nil {
 			return fmt.Errorf("setting %s aside: %w", root, err)
 		}
@@ -99,7 +101,7 @@ func (log *journal) placeFence(root string, aside string, data string) error {
 		return err
 	}
 
-	err = os.WriteFile(root, fenceText(data), 0o600)
+	err = safefs.WriteFile(filepath.Dir(root), root, fenceText(data), 0o600)
 	if err != nil {
 		return fmt.Errorf("fencing %s: %w", root, err)
 	}

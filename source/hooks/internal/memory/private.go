@@ -63,7 +63,7 @@ func (mem *memory) markPrivate(ctx context.Context, name string, on bool) error 
 	held.Private = on
 	registry.Seats[id] = held
 
-	err = registry.Save()
+	err = registry.Save(mem.env.Roots.Data)
 	if err != nil {
 		return err
 	}

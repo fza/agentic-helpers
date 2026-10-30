@@ -281,7 +281,7 @@ func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 func (mem *memory) sweep(ctx context.Context, key string, gone seat.Claim) {
 	dir := mem.seatsDir()
 
-	unlock, err := seat.Lock(ctx, dir)
+	unlock, err := seat.Lock(ctx, mem.env.Roots.Data, dir)
 	if err != nil {
 		return
 	}
@@ -289,7 +289,7 @@ func (mem *memory) sweep(ctx context.Context, key string, gone seat.Claim) {
 
 	current, found := seat.Read(dir, key)
 	if found && current == gone {
-		_ = seat.Remove(dir, key)
+		_ = seat.Remove(mem.env.Roots.Data, dir, key)
 	}
 }
 

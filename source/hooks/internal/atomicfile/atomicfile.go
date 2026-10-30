@@ -7,38 +7,32 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
-// Write puts data at path through a temporary file of its own in the same
-// directory, renamed over path. A temporary name shared by every writer would
-// let two writers interleave in it, and the second rename publish the mix.
+// Write puts data at path below root through a temporary file of its own in
+// the same directory, renamed over path. A temporary name shared by every
+// writer would let two writers interleave in it, and the second rename publish
+// the mix. The folders from root down are walked through safefs, so a planted
+// link is refused, and a link at path is replaced, never written through.
 //
 // The file is not synced: a sync on darwin is a full flush of the drive, paid
 // inside hook calls.
-func Write(path string, data []byte, perm fs.FileMode) error {
-	temporary, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+func Write(root string, path string, data []byte, perm fs.FileMode) error {
+	folder, name, err := safefs.Parent(root, path)
 	if err != nil {
-		return fmt.Errorf("creating a temporary file for %s: %w", path, err)
+		return fmt.Errorf("writing %s: %w", path, err)
 	}
 
-	_, err = temporary.Write(data)
-	if err == nil {
-		err = temporary.Chmod(perm)
-	}
+	defer folder.Close()
 
-	closed := temporary.Close()
-	if err == nil {
-		err = closed
-	}
+	err = folder.ReplaceWith(name, "."+name+".*.tmp", perm, func(file *os.File) error {
+		_, err := file.Write(data)
 
-	if err == nil {
-		err = os.Rename(temporary.Name(), path)
-	}
-
+		return err
+	})
 	if err != nil {
-		_ = os.Remove(temporary.Name())
-
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 

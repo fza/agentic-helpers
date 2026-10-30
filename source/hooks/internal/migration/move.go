@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 var ErrCopyDiffers = errors.New("the copy differs from its source")
@@ -19,7 +21,7 @@ var ErrCopyDiffers = errors.New("the copy differs from its source")
 // place, under aside, until the run completes, so an undo never needs what
 // only a half-written copy holds.
 func (log *journal) move(from string, to string, aside string) error {
-	err := os.MkdirAll(filepath.Dir(to), 0o700)
+	err := safefs.MkdirAll(rootOf(log.data, to), filepath.Dir(to), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(to), err)
 	}
@@ -43,7 +45,7 @@ func (log *journal) move(from string, to string, aside string) error {
 		return err
 	}
 
-	err = os.Rename(from, aside)
+	err = moveEntry(log.data, from, aside)
 	if err != nil {
 		return fmt.Errorf("moving %s aside: %w", from, err)
 	}
@@ -53,7 +55,7 @@ func (log *journal) move(from string, to string, aside string) error {
 		return err
 	}
 
-	err = copyChecked(aside, to, log.checkpoint)
+	err = copyChecked(rootOf(log.data, to), aside, to, log.checkpoint)
 	if err != nil {
 		return fmt.Errorf("copying %s to %s: %w", from, to, err)
 	}
@@ -63,8 +65,8 @@ func (log *journal) move(from string, to string, aside string) error {
 
 // copyChecked copies the tree at from to to, then reads both back and
 // refuses where any file, folder or link differs.
-func copyChecked(from string, to string, tick func() error) error {
-	err := copyTree(from, to, tick)
+func copyChecked(root string, from string, to string, tick func() error) error {
+	err := copyTree(root, from, to, tick)
 	if err != nil {
 		return err
 	}
@@ -87,7 +89,7 @@ func copyChecked(from string, to string, tick func() error) error {
 }
 
 // copyTree copies the tree at from to to, calling tick after each file.
-func copyTree(from string, to string, tick func() error) error {
+func copyTree(root string, from string, to string, tick func() error) error {
 	return filepath.WalkDir(from, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -107,16 +109,16 @@ func copyTree(from string, to string, tick func() error) error {
 
 		switch {
 		case entry.IsDir():
-			return os.Mkdir(target, info.Mode().Perm()|0o700)
+			return safefs.Mkdir(root, target, info.Mode().Perm()|0o700)
 		case info.Mode()&fs.ModeSymlink != 0:
 			link, linkErr := os.Readlink(path)
 			if linkErr != nil {
 				return linkErr
 			}
 
-			return os.Symlink(link, target)
+			return safefs.Symlink(root, link, target)
 		case info.Mode().IsRegular():
-			copyErr := copyFile(path, target, info.Mode().Perm())
+			copyErr := copyFile(root, path, target, info.Mode().Perm())
 			if copyErr != nil {
 				return copyErr
 			}
@@ -128,7 +130,7 @@ func copyTree(from string, to string, tick func() error) error {
 	})
 }
 
-func copyFile(from string, to string, perm fs.FileMode) error {
+func copyFile(root string, from string, to string, perm fs.FileMode) error {
 	source, err := os.Open(from)
 	if err != nil {
 		return err
@@ -136,7 +138,7 @@ func copyFile(from string, to string, perm fs.FileMode) error {
 
 	defer func() { _ = source.Close() }()
 
-	target, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	target, err := safefs.CreateFile(root, to, perm)
 	if err != nil {
 		return err
 	}
@@ -211,16 +213,16 @@ func hashFile(path string) ([]byte, error) {
 }
 
 // copyFileInto copies one small file to to, creating its folder.
-func copyFileInto(from string, to string) error {
+func copyFileInto(root string, from string, to string) error {
 	data, err := readSmall(from)
 	if err != nil {
 		return err
 	}
 
-	err = os.MkdirAll(filepath.Dir(to), 0o700)
+	err = safefs.MkdirAll(root, filepath.Dir(to), 0o700)
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(to, data, 0o600)
+	return safefs.WriteFile(root, to, data, 0o600)
 }

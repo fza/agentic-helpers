@@ -116,6 +116,7 @@ func emptyIndex() *index {
 // store is one project's library.
 type store struct {
 	key   string
+	root  string
 	label string
 	path  string
 	own   bool

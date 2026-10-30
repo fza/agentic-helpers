@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -99,14 +100,14 @@ func (mem *memory) migrate(ctx context.Context) error {
 func (mem *memory) migrateFormat6(ctx context.Context) error {
 	backup := filepath.Join(mem.store(), "backup", "format-6-"+mem.now().UTC().Format("20060102T150405.000000000Z"))
 
-	err := copyTree(mem.logDir(), filepath.Join(backup, "log"))
+	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
 	if err != nil {
 		return fmt.Errorf("backing up the store's log: %w", err)
 	}
 
 	mem.recordStore(ctx)
 
-	return writeFormat(mem.store(), storeFormat)
+	return writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
 }
 
 // migrateFormat4 moves a format-4 store to format 5, whose log may hold
@@ -116,12 +117,12 @@ func (mem *memory) migrateFormat6(ctx context.Context) error {
 func (mem *memory) migrateFormat4() error {
 	backup := filepath.Join(mem.store(), "backup", "format-4-"+mem.now().Format("20060102T150405.000000000Z"))
 
-	err := copyTree(mem.logDir(), filepath.Join(backup, "log"))
+	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
 	if err != nil {
 		return fmt.Errorf("backing up the store's log: %w", err)
 	}
 
-	return writeFormat(mem.store(), itemsFormat)
+	return writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
 }
 
 // migrateFormat1 turns a format-1 store, keyed by seat name, into format 2,
@@ -191,7 +192,7 @@ func (mem *memory) rewrite(ctx context.Context, events []memorylog.Event, regist
 
 	undo.add(func() { _ = os.RemoveAll(building) })
 
-	err = memorylog.Build(ctx, building, events)
+	err = memorylog.Build(ctx, mem.env.Roots.Data, building, events)
 	if err != nil {
 		return fmt.Errorf("writing the migrated log: %w", err)
 	}
@@ -206,14 +207,14 @@ func (mem *memory) rewrite(ctx context.Context, events []memorylog.Event, regist
 		return err
 	}
 
-	err = registry.Save()
+	err = registry.Save(mem.env.Roots.Data)
 	if err != nil {
 		return err
 	}
 
 	undo.add(func() { _ = os.Remove(seat.RegistryPath(mem.store())) })
 
-	err = writeFormat(mem.store(), 2)
+	err = writeFormat(mem.env.Roots.Data, mem.store(), 2)
 	if err != nil {
 		return err
 	}
@@ -229,7 +230,7 @@ func (mem *memory) backUpFormat1() error {
 	backup := filepath.Join(mem.store(), "backup", "format-1-"+mem.now().Format("20060102T150405.000000000Z"))
 
 	for _, part := range []string{"log", "seats"} {
-		err := copyTree(filepath.Join(mem.store(), part), filepath.Join(backup, part))
+		err := copyTree(mem.env.Roots.Data, filepath.Join(mem.store(), part), filepath.Join(backup, part))
 		if err != nil {
 			return fmt.Errorf("backing up the store's %s: %w", part, err)
 		}
@@ -333,12 +334,12 @@ func (mem *memory) renameSeatFiles(ids map[string]string, undo *rollback) error 
 			from := filepath.Join(mem.seatsDir(), file.Name())
 			to := filepath.Join(mem.seatsDir(), ids[name]+suffix)
 
-			err = os.Rename(from, to)
+			err = safefs.Rename(mem.env.Roots.Data, from, to)
 			if err != nil {
 				return fmt.Errorf("renaming the seat file %s: %w", file.Name(), err)
 			}
 
-			undo.add(func() { _ = os.Rename(to, from) })
+			undo.add(func() { _ = safefs.Rename(mem.env.Roots.Data, to, from) })
 
 			break
 		}
@@ -354,20 +355,20 @@ func (mem *memory) swapLog(building string, setAside string, undo *rollback) err
 	hadLog := err == nil
 
 	if hadLog {
-		err = os.Rename(mem.logDir(), retired)
+		err = safefs.Rename(mem.env.Roots.Data, mem.logDir(), retired)
 		if err != nil {
 			return fmt.Errorf("setting the old log aside: %w", err)
 		}
 
-		undo.add(func() { _ = os.Rename(retired, mem.logDir()) })
+		undo.add(func() { _ = safefs.Rename(mem.env.Roots.Data, retired, mem.logDir()) })
 	}
 
-	err = os.Rename(building, mem.logDir())
+	err = safefs.Rename(mem.env.Roots.Data, building, mem.logDir())
 	if err != nil {
 		return fmt.Errorf("putting the migrated log in place: %w", err)
 	}
 
-	undo.add(func() { _ = os.Rename(mem.logDir(), building) })
+	undo.add(func() { _ = safefs.Rename(mem.env.Roots.Data, mem.logDir(), building) })
 
 	return nil
 }
@@ -387,7 +388,7 @@ func (undo *rollback) run() {
 	}
 }
 
-func copyTree(from string, to string) error {
+func copyTree(root string, from string, to string) error {
 	return filepath.WalkDir(from, func(path string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && path == from {
 			return nil
@@ -405,7 +406,7 @@ func copyTree(from string, to string) error {
 		target := filepath.Join(to, relative)
 
 		if entry.IsDir() {
-			return os.MkdirAll(target, 0o700)
+			return safefs.MkdirAll(root, target, 0o700)
 		}
 
 		source, err := os.Open(path)
@@ -414,7 +415,7 @@ func copyTree(from string, to string) error {
 		}
 		defer source.Close()
 
-		copied, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
+		copied, err := safefs.CreateFile(root, target, 0o600)
 		if err != nil {
 			return err
 		}
@@ -439,7 +440,7 @@ func (mem *memory) migrateFormat2() error {
 
 	backup := filepath.Join(mem.store(), "backup", "format-2-"+mem.now().Format("20060102T150405.000000000Z"))
 
-	err := os.MkdirAll(backup, 0o700)
+	err := safefs.MkdirAll(mem.env.Roots.Data, backup, 0o700)
 	if err != nil {
 		return fmt.Errorf("backing up the seat registry: %w", err)
 	}
@@ -449,7 +450,7 @@ func (mem *memory) migrateFormat2() error {
 		return fmt.Errorf("backing up the seat registry: %w", err)
 	}
 
-	err = os.WriteFile(filepath.Join(backup, "seats.json"), original, 0o600)
+	err = safefs.WriteFile(mem.env.Roots.Data, filepath.Join(backup, "seats.json"), original, 0o600)
 	if err != nil {
 		return fmt.Errorf("backing up the seat registry: %w", err)
 	}
@@ -499,19 +500,19 @@ func (mem *memory) migrateFormat2() error {
 }
 
 func (mem *memory) placeShelves(registry seat.Registry, shelves seat.Shelves, original []byte, undo *rollback) error {
-	err := shelves.Save()
+	err := shelves.Save(mem.env.Roots.Data)
 	if err != nil {
 		return err
 	}
 
 	undo.add(func() { _ = os.Remove(seat.ShelvesPath(mem.store())) })
 
-	err = registry.Save()
+	err = registry.Save(mem.env.Roots.Data)
 	if err != nil {
 		return err
 	}
 
-	undo.add(func() { _ = os.WriteFile(seat.RegistryPath(mem.store()), original, 0o600) })
+	undo.add(func() { _ = safefs.WriteFile(mem.env.Roots.Data, seat.RegistryPath(mem.store()), original, 0o600) })
 
-	return writeFormat(mem.store(), 3)
+	return writeFormat(mem.env.Roots.Data, mem.store(), 3)
 }

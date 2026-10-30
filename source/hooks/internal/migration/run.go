@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 const (
@@ -54,7 +55,7 @@ func (env Env) migrate(ctx context.Context) error {
 	}
 
 	if err != nil {
-		undoErr := rollback(log.steps)
+		undoErr := rollback(log.data, log.steps)
 		if undoErr != nil {
 			return errors.Join(err, undoErr)
 		}
@@ -162,7 +163,7 @@ func (log *journal) nestReadings(dir string) error {
 			return err
 		}
 
-		err = os.Mkdir(session, 0o700)
+		err = safefs.Mkdir(log.data, session, 0o700)
 		if err != nil {
 			return fmt.Errorf("nesting the reading %s: %w", reading, err)
 		}
@@ -172,7 +173,7 @@ func (log *journal) nestReadings(dir string) error {
 			return err
 		}
 
-		err = os.Rename(reading, filepath.Join(session, readingName))
+		err = moveEntry(log.data, reading, filepath.Join(session, readingName))
 		if err != nil {
 			return fmt.Errorf("nesting the reading %s: %w", reading, err)
 		}
@@ -280,7 +281,7 @@ func (env Env) backUp(stamp time.Time) error {
 				return err
 			}
 
-			return copyFileInto(path, filepath.Join(target, relative))
+			return copyFileInto(env.Roots.Data, path, filepath.Join(target, relative))
 		})
 		if err != nil {
 			return fmt.Errorf("backing up the old metadata: %w", err)

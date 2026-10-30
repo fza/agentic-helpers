@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 // identityLimit caps an identity read: one lists checkouts and identifiers,
@@ -120,8 +121,8 @@ func readIdentity(path string) (Identity, error) {
 	return identity, nil
 }
 
-func writeIdentity(dir string, identity Identity) error {
-	err := os.MkdirAll(dir, 0o700)
+func writeIdentity(root string, dir string, identity Identity) error {
+	err := safefs.MkdirAll(root, dir, 0o700)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", dir, err)
 	}
@@ -133,7 +134,7 @@ func writeIdentity(dir string, identity Identity) error {
 		return fmt.Errorf("encoding the identity of %s: %w", identity.ID, err)
 	}
 
-	return atomicfile.Write(filepath.Join(dir, identityName), append(data, '\n'), 0o600)
+	return atomicfile.Write(root, filepath.Join(dir, identityName), append(data, '\n'), 0o600)
 }
 
 func (identity *Identity) normalize() {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
 var errNoLedger = errors.New("no ledger for this session")
@@ -169,7 +170,7 @@ func (held *evidence) addListing(listing string) {
 // ledgerPath is where this session's evidence lives. A spawned agent shares
 // its parent's session, so its evidence is a file of its own: no prompt ever
 // starts a turn for it, and the parent's reads are not its.
-func ledgerPath(dir string, payload hookio.Payload) (string, error) {
+func ledgerPath(root string, dir string, payload hookio.Payload) (string, error) {
 	session := payload.SessionID
 	if session == "" {
 		session = "unknown"
@@ -181,7 +182,7 @@ func ledgerPath(dir string, payload hookio.Payload) (string, error) {
 		session += "." + strings.ReplaceAll(payload.AgentID, "/", "-")
 	}
 
-	err := os.MkdirAll(dir, 0o755)
+	err := safefs.MkdirAll(root, dir, 0o755)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", errNoLedger, err)
 	}
@@ -211,7 +212,7 @@ func loadEvidence(ctx context.Context, path string) evidence {
 	return held
 }
 
-func saveEvidence(ctx context.Context, path string, held evidence) error {
+func saveEvidence(ctx context.Context, root string, path string, held evidence) error {
 	err := ctx.Err()
 	if err != nil {
 		return fmt.Errorf("saving the ledger: %w", err)
@@ -222,7 +223,7 @@ func saveEvidence(ctx context.Context, path string, held evidence) error {
 		return fmt.Errorf("saving the ledger: %w", err)
 	}
 
-	err = atomicfile.Write(path, data, 0o644)
+	err = atomicfile.Write(root, path, data, 0o644)
 	if err != nil {
 		return fmt.Errorf("saving the ledger: %w", err)
 	}

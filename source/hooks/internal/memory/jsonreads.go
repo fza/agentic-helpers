@@ -43,9 +43,9 @@ type jsonEntry struct {
 	Anchors      []jsonAnchor      `json:"anchors,omitempty"`
 	Links        []jsonLink        `json:"links,omitempty"`
 	// Tools is every tool the entry names; `show` adds the take.
-	Tools        []jsonTool        `json:"tools,omitempty"`
-	LinkedFrom   []string          `json:"linked_from,omitempty"`
-	Attachments  []jsonAttachment  `json:"attachments,omitempty"`
+	Tools       []jsonTool       `json:"tools,omitempty"`
+	LinkedFrom  []string         `json:"linked_from,omitempty"`
+	Attachments []jsonAttachment `json:"attachments,omitempty"`
 	// Body is absent where a merge dropped it, BodyDropped then saying when.
 	Body        *json.RawMessage `json:"body,omitempty"`
 	BodyDropped string           `json:"body_dropped,omitempty"`
