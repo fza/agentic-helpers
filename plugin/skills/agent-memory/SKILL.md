@@ -106,7 +106,8 @@ EOF
 ```
 
 - **Where work stands → `state`, never an entry.** One slot, overwritten, first in the brief. Write
-  it whenever the picture changes and whenever a nudge asks. `state (..., hook draft): ...` = no
+  it when a nudge asks (work shipped, near compaction, replay outgrown), not between: each write
+  rewrites the whole slot, and the nudges already fire when work moves. `state (..., hook draft): ...` = no
   state written since the claim; a lead, not where work stands.
 - **Kind** sets decay and brief section:
 

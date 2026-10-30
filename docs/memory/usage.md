@@ -357,6 +357,11 @@ Where a seat's work stands is not an entry. Each seat holds one state slot, over
 id, no heat and no topics: `search`, recall, `retire` and the live and retired counts never see it.
 The `entry_max_words` limit applies to its body, as to an entry's.
 
+An agent writes it when a nudge asks: the shipped-work request, the near-compaction nudge and its
+`Stop` backstop, the replay-overflow nudge. Those fire whenever work moves (a commit, a graph entry,
+`state_stale_after_writes` file writes, a filling context), and every write rewrites the whole slot
+in output tokens, so a write between nudges repeats what the next request asks for anyway.
+
 The brief opens with it, after its first line, its age measured as the brief is built:
 
     state (3h old, branch main): gate fix half done: the Bash path records reads, the MCP path not yet
