@@ -126,6 +126,13 @@ func TestAttachHoldsToItsLimits(t *testing.T) {
 		t.Errorf("a file past attachment_max_mb should be refused naming its size, got %d %q", got.code, got.err)
 	}
 
+	barely := filepath.Join(dir, "barely.bin")
+	test.WriteFile(t, barely, string(bytes.Repeat([]byte{1}, 1<<20+1)))
+
+	if got := h.run("", "attach", id, barely); got.code != 1 || !strings.Contains(got.err, "barely.bin is 1.1 MB, past the 1 MB") {
+		t.Errorf("a file barely past attachment_max_mb should never read as the limit itself, got %d %q", got.code, got.err)
+	}
+
 	first := filepath.Join(dir, "first.bin")
 	test.WriteFile(t, first, string(bytes.Repeat([]byte{2}, 600<<10)))
 	h.must("", "attach", id, first)
