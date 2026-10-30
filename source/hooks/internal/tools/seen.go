@@ -111,11 +111,16 @@ func versionKey(hit found) string {
 // printed is whether hit's version already stands in the context; it marks
 // it as standing from now on.
 func (seen *presented) printed(hit found) bool {
+	return seen.marked(versionKey(hit))
+}
+
+// marked is whether key already stands in the context; it marks it as
+// standing from now on.
+func (seen *presented) marked(key string) bool {
 	if seen == nil {
 		return false
 	}
 
-	key := versionKey(hit)
 	if !seen.again && slices.Contains(seen.set.Lines, key) {
 		return true
 	}
@@ -126,6 +131,12 @@ func (seen *presented) printed(hit found) bool {
 	}
 
 	return false
+}
+
+// printedUsage is printed for a version's usage, which a find hit no longer
+// carries: only agentic-memory's `show` marks it.
+func (seen *presented) printedUsage(hit found) bool {
+	return seen.marked(versionKey(hit) + " usage")
 }
 
 // save writes the seen set back; one too large for its slot gives up its

@@ -135,6 +135,13 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		links = append(links, resolved)
 	}
 
+	toolTargets, err := mem.toolTargets(ctx, req.Tools)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	links = append(links, toolTargets...)
+
 	textLinks, unlinked := mem.textLinks(ctx, folded, req.Title+"\n"+req.Body, id)
 
 	var failures []string
@@ -546,7 +553,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 	defer mem.presenting(ctx, req.Again)()
 
 	if req.JSON {
-		return mem.showJSON(here, folded, req)
+		return mem.showJSON(ctx, here, folded, req)
 	}
 
 	var blocks []string
@@ -575,7 +582,10 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		}
 
 		mem.seen.markBody(held)
-		blocks = append(blocks, showBlock(here, folded, held, retiredBodyLifetime, req.WithSuperseded, req.WithRemoved))
+
+		block := []string{showBlock(here, folded, held, retiredBodyLifetime, req.WithSuperseded, req.WithRemoved)}
+		block = append(block, mem.toolSection(here, mem.takenTools(ctx, held, req.Again))...)
+		blocks = append(blocks, strings.Join(block, "\n"))
 	}
 
 	if !req.NoHeat {

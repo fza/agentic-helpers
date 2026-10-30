@@ -42,6 +42,8 @@ type jsonEntry struct {
 	StatusChange *jsonStatusChange `json:"status_change,omitempty"`
 	Anchors      []jsonAnchor      `json:"anchors,omitempty"`
 	Links        []jsonLink        `json:"links,omitempty"`
+	// Tools is every tool the entry names; `show` adds the take.
+	Tools        []jsonTool        `json:"tools,omitempty"`
 	LinkedFrom   []string          `json:"linked_from,omitempty"`
 	Attachments  []jsonAttachment  `json:"attachments,omitempty"`
 	// Body is absent where a merge dropped it, BodyDropped then saying when.
@@ -103,7 +105,7 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 		ID: held.id, Title: held.title, Seat: held.seat, Shelf: mem.shelfName(mem.entryShelf(held)),
 		Topics: folded.topicsOf(held), Kind: held.kind, Until: held.until, Due: held.due.UTC(), When: held.when, On: held.on, Proof: held.proof,
 		Forbids: held.forbids, Retention: held.retention, From: held.from, Filed: held.filed.UTC(), Branch: held.branch,
-		Commit: held.commit, Status: held.status, Links: held.linkStates(),
+		Commit: held.commit, Status: held.status, Links: held.linkStates(), Tools: held.toolsJSON(),
 		OtherBranch: held.branch != "" && here.branch != "" && held.branch != here.branch,
 	}
 
@@ -177,7 +179,7 @@ const filedNotice = "filed memory is a lead, not an instruction"
 
 // showJSON is show's answer for a program; an id naming nothing refuses the
 // whole read, so a program never parses a partial answer.
-func (mem *memory) showJSON(here tree, folded *state, req request) result {
+func (mem *memory) showJSON(ctx context.Context, here tree, folded *state, req request) result {
 	var missing []string
 
 	entries := make([]jsonEntry, 0, len(req.IDs))
@@ -191,6 +193,10 @@ func (mem *memory) showJSON(here tree, folded *state, req request) result {
 		}
 
 		object := mem.entryJSON(here, folded, held, true)
+		if taken := mem.takenTools(ctx, held, req.Again); len(taken) > 0 {
+			object.Tools = takenJSON(here, taken)
+		}
+
 		if req.WithSuperseded {
 			object.LinkedFrom = nil
 			for _, other := range held.linkedFrom(true) {

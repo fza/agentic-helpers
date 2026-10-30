@@ -49,6 +49,7 @@ type request struct {
 	Statuses       []string `json:"status,omitempty"`
 	For            []string `json:"for,omitempty"`
 	Links          []string `json:"link,omitempty"`
+	Tools          []string `json:"tool,omitempty"`
 	Absorbs        []string `json:"absorbs,omitempty"`
 	Until          []string `json:"until,omitempty"`
 	Attach         []string `json:"attach,omitempty"`
@@ -274,7 +275,7 @@ func (req *request) set(spec flagSpec, value string) error {
 	}
 	lists := map[string]*[]string{
 		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
-		"for": &req.For, "link": &req.Links, "absorbs": &req.Absorbs, "until": &req.Until, "attach": &req.Attach,
+		"for": &req.For, "link": &req.Links, "tool": &req.Tools, "absorbs": &req.Absorbs, "until": &req.Until, "attach": &req.Attach,
 		"when": &req.When, "on": &req.On, "proof": &req.Proof, "forbids": &req.Forbids,
 		"item": &req.Items, "add": &req.Add,
 	}
@@ -403,11 +404,11 @@ func allCommands() []command {
 	return []command{
 		{
 			name:        "new",
-			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--absorbs <id>]... [--item '<step>']... [--items carry|leave] [--due <time>] [options]",
+			usage:       "new --title '<3-10 words>' --topic <name>... [--kind rule|trap|todo|note] [--until <condition>]... [--when <trigger>]... [--on claim|compact]... [--proof <trigger>]... [--forbids <regex>]... [--attach <path>]... [--for <seat>|all]... [--link <id>]... [--tool <name>[@<project>]]... [--absorbs <id>]... [--item '<step>']... [--items carry|leave] [--due <time>] [options]",
 			description: "file an entry, in the language and style the brief names; kind sets its decay, note unless given",
 			flags: []flagSpec{
 				{"title", flagText}, {"topic", flagList}, {"kind", flagText}, {"from", flagText},
-				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"absorbs", flagList}, {"until", flagList}, {"attach", flagList},
+				{"about", flagList}, {"for", flagList}, {"link", flagList}, {"tool", flagList}, {"absorbs", flagList}, {"until", flagList}, {"attach", flagList},
 				{"when", flagList}, {"on", flagList}, {"proof", flagList}, {"forbids", flagList},
 				{"item", flagList}, {"items", flagText}, {"due", flagText},
 			},
@@ -422,6 +423,7 @@ func allCommands() []command {
 				`"about":{"type":"array","items":{"type":"string"},"description":"paths it is about, hash-anchored"},` +
 				`"for":{"type":"array","items":{"type":"string"},"description":"other seats it is for, or all"},` +
 				`"link":{"type":"array","items":{"type":"string"},"description":"graph or memory ids to link"},` +
+				`"tool":{"type":"array","items":{"type":"string"},"description":"agentic-tools tools to link, name or name@project; show takes them"},` +
 				`"absorbs":{"type":"array","items":` + idSchema + `,"description":"ids it supersedes"},` +
 				`"item":{"type":"array","items":{"type":"string"},"description":"todo only: the steps of one piece of work, each text or a memory or graph id; ticked later through ack <todo>#<item>, never a supersede"},` +
 				`"items":{"type":"string","enum":["carry","leave"],"description":"an absorbed todo's items move here, or stay"},` +
@@ -459,7 +461,7 @@ func allCommands() []command {
 		},
 		{
 			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--again]",
-			description: "entries in full: stamps, anchors, flags, events, a todo's items",
+			description: "entries in full: stamps, anchors, flags, events, a todo's items; takes each tool an entry names and prints its usage",
 			flags: []flagSpec{
 				{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"with-removed", flagSwitch}, {"again", flagSwitch},
 			},
@@ -641,16 +643,21 @@ func allCommands() []command {
 				`,"topics":{"type":"array","items":{"type":"string"},"description":"topics to remove, array even for one"}},"required":["id","topics"]}`,
 		},
 		{
-			name: "link", usage: "link <id> <target> [--no-heat]", description: "link an entry to a graph or memory entry",
-			flags:      []flagSpec{{"no-heat", flagSwitch}},
-			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).link,
+			name: "link", usage: "link <id> <target> | link <id> --tool <name>[@<project>] [--no-heat]",
+			description: "link an entry to a graph or memory entry, or to an agentic-tools tool show then takes",
+			flags:       []flagSpec{{"no-heat", flagSwitch}, {"tool", flagList}},
+			positional:  linkPositional, run: (*memory).link,
 			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"full graph id or memory id"},` +
-				`"no_heat":{"type":"boolean","description":"add no heat to a memory target"}},"required":["id","target"]}`,
+				`"tool":{"type":"array","items":{"type":"string"},"description":"in place of target: one tool, name or name@project"},` +
+				`"no_heat":{"type":"boolean","description":"add no heat to a memory target"}},"required":["id"]}`,
 		},
 		{
-			name: "unlink", cliOnly: true, usage: "unlink <id> <target>", description: "drop a link made by new's link key or by link",
-			positional: func(req *request) error { return exactly(2, &req.ID, &req.Target)(req) }, run: (*memory).unlink,
-			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"the linked graph id or memory id"}},"required":["id","target"]}`,
+			name: "unlink", cliOnly: true, usage: "unlink <id> <target> | unlink <id> --tool <name>[@<project>]",
+			description: "drop a link made by new's link or tool key or by link",
+			flags:       []flagSpec{{"tool", flagList}},
+			positional:  linkPositional, run: (*memory).unlink,
+			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"the linked graph id or memory id"},` +
+				`"tool":{"type":"array","items":{"type":"string"},"description":"in place of target: the linked tool"}},"required":["id"]}`,
 		},
 		{
 			name: "bind", cliOnly: true, usage: "bind <store> | bind --new",
@@ -749,4 +756,14 @@ func allCommands() []command {
 			schema:     `{"type":"object","properties":{"shelf":{"type":"string","description":"the temporary shelf to purge"}},"required":["shelf"]}`,
 		},
 	}
+}
+
+// linkPositional is the entry id and its target, or the entry id alone where
+// a tool is the target.
+func linkPositional(req *request) error {
+	if len(req.Tools) > 0 {
+		return exactly(1, &req.ID)(req)
+	}
+
+	return exactly(2, &req.ID, &req.Target)(req)
 }

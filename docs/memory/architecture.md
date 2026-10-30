@@ -473,6 +473,17 @@ grounding gate resolves it), a memory id
 where the folded log holds the entry. A merge keeps one `link` row per net explicit link with its
 seat, dropping a link with its `unlink`, and drops a text link with the body it came from.
 
+A tool link is a `link` event whose target is `tool:<name>`, or `tool:<name>@<store key>` for
+another project's tool: a label is worked out against every store in reach and changes as projects
+come and go, a store key does not. It rides the `link` kind rather than one of its own, which every
+older release reading the same log would refuse as unknown; such a release reads it as a link to an
+entry that is gone. `links()` leaves tool links out, so link flags, ends, `returns` and filters never
+count one; `toolLinks()` holds them. The library opens once per process, through
+`tools.OpenLinked`, and only for an entry naming a tool, since it reads every store's index. `show`'s
+take runs `tools.Linked.Take`: the copy of `agentic-tools take`, the holding recorded, no take
+journal line, and the seen set marking `<name> v<n> usage`, a key no find hit carries since a hit
+lost its usage.
+
 A graph target's state comes from `sdd export --dependencies all`, run when a read shows an entry carrying a
 graph link, the first time its flags are asked for, reading `repos[].entries[].{id,status,status_by}` of every repo it carries: the local one keyed by
 the bare id, each connected repo keyed by `<repo_id>:<id>` from `repos[].repo_id` (a connected repo with

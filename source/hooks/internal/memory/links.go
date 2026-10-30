@@ -208,6 +208,10 @@ func (mem *memory) unlink(ctx context.Context, req request) result {
 // owner's brief lists it. A link from the entry's text holds as long as the
 // text does.
 func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.Kind) result {
+	if len(req.Tools) > 0 {
+		return mem.changeToolLink(ctx, req, kind)
+	}
+
 	var loaded *state
 
 	// A graph target is stored in the form it resolves to, qualified where a
@@ -485,7 +489,7 @@ func (mem *memory) annotateLinks(ctx context.Context, folded *state) {
 	}
 
 	folded.flagger = func(held *entry) []string {
-		var flags []string
+		flags := mem.toolFlags(ctx, held)
 
 		for _, target := range held.links() {
 			if _, _, qualified := splitQualified(target); qualified {

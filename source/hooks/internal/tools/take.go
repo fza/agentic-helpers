@@ -98,7 +98,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 		// Another project's agent wrote it, and nothing in the library checks
 		// what a script does; an own tool, a fork included, runs by its usage.
 		if !hit.store.own {
-			lines = append(lines, "  "+foreignMark)
+			lines = append(lines, "  "+ForeignMark)
 		}
 		taken.Tools = append(taken.Tools, takenTool{Name: hit.shown(), Version: tool.Version, Copy: copied,
 			Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs, Foreign: !hit.store.own})
@@ -116,8 +116,8 @@ func (lib *library) take(ctx context.Context, req request) result {
 	return done(strings.Join(lines, "\n")).with(taken)
 }
 
-// foreignMark heads a tool taken from another project's store.
-const foreignMark = "from another project: read it before running it"
+// ForeignMark heads a tool taken from another project's store.
+const ForeignMark = "from another project: read it before running it"
 
 func indented(label string, value string) []string {
 	if strings.TrimSpace(value) == "" {
