@@ -60,8 +60,8 @@ func TestABatchLandsEveryIDInOneAppend(t *testing.T) {
 	before := h.tailLines()
 
 	got := h.must("", "supersede", first, second, "--by", summary)
-	if !strings.Contains(got, "superseded "+first+", "+second+" by "+summary) {
-		t.Errorf("the reply should name every superseded id, got %q", got)
+	if strings.TrimSpace(got) != "superseded" {
+		t.Errorf("the reply should say the supersede landed without echoing the ids sent, got %q", got)
 	}
 
 	if h.tailLines() != before+2 {
@@ -90,8 +90,8 @@ func TestABatchLandsEveryIDInOneAppend(t *testing.T) {
 		}
 	}
 
-	if got := h.must("", "retire", summary, third); !strings.Contains(got, "retired "+summary+", "+third) {
-		t.Errorf("a retire should name every id, got %q", got)
+	if got := h.must("", "retire", summary, third); strings.TrimSpace(got) != "retired" {
+		t.Errorf("a retire should say it landed without echoing the ids sent, got %q", got)
 	}
 }
 
@@ -226,8 +226,8 @@ func TestAnIDNamedTwiceChangesOnce(t *testing.T) {
 
 	before := h.tailLines()
 
-	if got := h.must("", "retire", id, id); strings.Count(got, id) != 1 {
-		t.Errorf("the reply should name a repeated id once, got %q", got)
+	if got := h.must("", "retire", id, id); strings.TrimSpace(got) != "retired" {
+		t.Errorf("a repeated id should retire once and be answered as one retire, got %q", got)
 	}
 
 	if h.tailLines() != before+1 {

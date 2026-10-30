@@ -102,14 +102,6 @@ type result struct {
 	text   string
 	code   int
 	failed bool
-	// fields is what the call produced, answered beside the text over MCP.
-	fields any
-}
-
-func (answer result) with(fields any) result {
-	answer.fields = fields
-
-	return answer
 }
 
 // normalize spells every seat name a request carries the one way the store

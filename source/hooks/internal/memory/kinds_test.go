@@ -120,8 +120,8 @@ func TestTheStateSlot(t *testing.T) {
 		t.Errorf("an empty state should be refused, got %d %q", got.code, got.err)
 	}
 
-	if out := h.must("halfway through the gate fix", "state"); !strings.Contains(out, "state of main written") {
-		t.Errorf("a state write should say whose slot it wrote, got %q", out)
+	if out := h.must("halfway through the gate fix", "state"); strings.TrimSpace(out) != "state written" {
+		t.Errorf("a state write should say it wrote the slot without echoing the seat, got %q", out)
 	}
 
 	h.clock.Advance(3 * time.Hour)

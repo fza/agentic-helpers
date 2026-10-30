@@ -1187,5 +1187,5 @@ func (mem *memory) confirm(ctx context.Context, req request) result {
 			len(folded.entries[id].anchors), cmp.Or(here.commit, "the tree")))
 	}
 
-	return done(strings.Join(lines, "\n")).with(idsFields{IDs: ids})
+	return done(strings.Join(lines, "\n"))
 }

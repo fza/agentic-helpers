@@ -326,6 +326,5 @@ func (mem *memory) drop(ctx context.Context, req request) result {
 
 	mem.sweepAttachments(ctx)
 
-	return done(fmt.Sprintf("dropped %s (%s, %s)", req.Shelf, plural(seats, "seat"), plural(entries, "entry"))).
-		with(droppedFields{Shelf: req.Shelf, Seats: seats, Entries: entries})
+	return done(fmt.Sprintf("dropped %s (%s, %s)", req.Shelf, plural(seats, "seat"), plural(entries, "entry")))
 }

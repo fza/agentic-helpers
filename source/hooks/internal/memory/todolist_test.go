@@ -120,7 +120,10 @@ func TestAckChangesItems(t *testing.T) {
 	h.must("", "claim", "main")
 	id, items := h.todo("Port the waiter", "one", "two")
 
-	h.must("", "ack", id+"#"+items[0], "--done")
+	if out := h.must("", "ack", id+"#"+items[0], "--done"); strings.TrimSpace(out) != "done" {
+		t.Errorf("ack should say the item is done without echoing its address, got %q", out)
+	}
+
 	h.must("", "ack", id+"#"+items[0], "--undo")
 
 	if shown := h.must("", "show", id, "--again"); !strings.Contains(shown, "1. [ ] #"+items[0]) {

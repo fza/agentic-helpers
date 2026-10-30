@@ -222,7 +222,7 @@ func TestAckSettlesPendingItems(t *testing.T) {
 		t.Errorf("ack should need --done or --decline, got %d %q", got.code, got.err)
 	}
 
-	if out := h.must("", "ack", board, "--done"); !strings.Contains(out, "done "+board) {
+	if out := h.must("", "ack", board, "--done"); !strings.HasPrefix(out, "done") || strings.Contains(out, board) {
 		t.Errorf("ack --done should settle the item, got %q", out)
 	}
 

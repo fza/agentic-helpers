@@ -133,7 +133,7 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 		return mcpserver.Result{Structured: json.RawMessage(answer.text)}
 	}
 
-	return mcpserver.Result{Structured: mcpserver.Messaged(answer.text, answer.fields)}
+	return mcpserver.Result{Structured: mcpserver.Messaged(answer.text, nil)}
 }
 
 // closedSchema marks a tool's schema as taking no key beyond its properties,

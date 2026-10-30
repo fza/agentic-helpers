@@ -250,7 +250,7 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 			mem.warm(loaded, heatLink, target)
 		}
 
-		lines := []string{fmt.Sprintf("%s linked to %s", req.ID, target)}
+		lines := []string{"linked"}
 
 		// A link to a graph entry filed after an entry waiting for its capture
 		// is the capture, and ends it.
@@ -259,10 +259,10 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 			lines = append(lines, mem.reachEnds(ctx, folded, name, req.ID, "captured")...)
 		}
 
-		return done(strings.Join(lines, "\n")).with(linkFields{ID: req.ID, Target: target})
+		return done(strings.Join(lines, "\n"))
 	}
 
-	return done(fmt.Sprintf("%s unlinked from %s", req.ID, req.Target)).with(linkFields{ID: req.ID, Target: req.Target})
+	return done(fmt.Sprintf("%s unlinked from %s", req.ID, req.Target))
 }
 
 // graphStatus is what became of each graph entry, as `sdd export` says: its

@@ -145,12 +145,11 @@ func (mem *memory) changeToolLink(ctx context.Context, req request, kind memoryl
 		return failure
 	}
 
-	verb := "linked to"
 	if kind == memorylog.KindUnlink {
-		verb = "unlinked from"
+		return done("unlinked")
 	}
 
-	return done(fmt.Sprintf("%s %s tool %s", req.ID, verb, given)).with(linkFields{ID: req.ID, Target: "tool " + given})
+	return done("linked")
 }
 
 // takenTools takes every tool the entry names, as `show` does.
