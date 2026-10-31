@@ -46,8 +46,9 @@ agentic-memory unfollow infra
   shelf. It lands in every seat on it: brief, search, recall, as if their own. Only your shelf
   retires it.
 - **`agentic-memory: new for <seat> (<n>):`** at a prompt, a tool call, or as a turn that wakes an
-  idle session → entries filed for this seat, or by a shelf mate. Read them, act on them, say
-  nothing about the mechanism.
+  idle session → entries filed for this seat, or by a shelf mate, one short line each (kind and
+  source named only when not a note from an agent). Read them, act on them, say nothing about the
+  mechanism.
 
 ## Lifetime
 
