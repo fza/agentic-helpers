@@ -912,6 +912,39 @@ func TestRecall(t *testing.T) {
 	}
 }
 
+func TestRecallTellsOfEachEmbedderOutageOnce(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	h.file("Tail seal manifest rename", "the tail seal writes the manifest by rename")
+
+	for _, word := range unrelated {
+		h.file("Unrelated finding about "+word, word+" "+word+" "+word)
+	}
+
+	prompt := hookPayload("", "", "how does the tail seal manifest rename work")
+	failed := "agentic-memory: prompt recall failed, retried each prompt: "
+
+	h.embedder.Err = errors.New("connection refused")
+
+	if !strings.Contains(h.must(prompt, "prompt"), failed) {
+		t.Fatal("a failed recall should say so")
+	}
+
+	if strings.Contains(h.must(prompt, "prompt"), failed) {
+		t.Error("a recall failing again in the same outage should stay silent")
+	}
+
+	h.embedder.Err = nil
+	h.must(prompt, "prompt")
+	h.embedder.Err = errors.New("connection refused")
+
+	// A new prompt, since the working recall cached the first one's vector.
+	if !strings.Contains(h.must(hookPayload("", "", "where does the ledger keep its offsets"), "prompt"), failed) {
+		t.Error("a failure after a working recall starts a new outage and should say so")
+	}
+}
+
 // Three entries sharing the prompt's words among twenty stand about 2.4
 // deviations above the mean: past the own seat's bar, short of another seat's.
 func TestRecallBarIsHigherForOtherSeats(t *testing.T) {
