@@ -156,8 +156,6 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 
 	var todo []pending
 
-	var texts []string
-
 	for _, held := range folded.entryList() {
 		if held.dropped {
 			continue
@@ -170,7 +168,6 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 
 		chunks := embed.Chunks(held.title, held.body)
 		todo = append(todo, pending{id: held.id, hash: hash, chunks: chunks})
-		texts = append(texts, chunks...)
 	}
 
 	if len(todo) == 0 {
@@ -182,26 +179,40 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 	bounded, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Documents(bounded, texts)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
-	}
+	// Each request's vectors are saved as it answers, so a fill outlasting its
+	// bound keeps what landed and the next fill sends only the rest.
+	for len(todo) > 0 {
+		var texts []string
 
-	if len(vectors) != len(texts) {
-		return nil, fmt.Errorf("%w: the embedder answered %d vectors for %d texts", ErrNoEmbedder, len(vectors), len(texts))
-	}
+		size := 0
+		for size < len(todo) && (size == 0 || len(texts)+len(todo[size].chunks) <= embed.RequestTexts) {
+			texts = append(texts, todo[size].chunks...)
+			size++
+		}
 
-	rows := make([]vectorseg.Row, 0, len(todo))
-	next := 0
+		vectors, err := embedder.Documents(bounded, texts)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
+		}
 
-	for _, item := range todo {
-		rows = append(rows, vectorseg.Row{ID: item.id, Hash: item.hash, Chunks: vectors[next : next+len(item.chunks)]})
-		next += len(item.chunks)
-	}
+		if len(vectors) != len(texts) {
+			return nil, fmt.Errorf("%w: the embedder answered %d vectors for %d texts", ErrNoEmbedder, len(vectors), len(texts))
+		}
 
-	err = store.Write(rows, live)
-	if err != nil {
-		return nil, err
+		rows := make([]vectorseg.Row, 0, size)
+		next := 0
+
+		for _, item := range todo[:size] {
+			rows = append(rows, vectorseg.Row{ID: item.id, Hash: item.hash, Chunks: vectors[next : next+len(item.chunks)]})
+			next += len(item.chunks)
+		}
+
+		err = store.Write(rows, live)
+		if err != nil {
+			return nil, err
+		}
+
+		todo = todo[size:]
 	}
 
 	return store.Snapshot()

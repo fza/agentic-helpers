@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -177,5 +180,32 @@ func TestTheOfferEmbedsNoPromptWhereNoOwnToolHasAVector(t *testing.T) {
 
 	if h.hook("prompt", map[string]any{"prompt": "put each word on its own line"}) != "" || h.embedder.Calls() != embedded {
 		t.Error("the offer should neither embed the prompt nor name a tool where no own tool has a vector")
+	}
+}
+
+func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
+	h := newHarness(t)
+
+	h.embedder.Err = errors.New("connection refused")
+
+	names := make([]string, 0, embed.RequestTexts+6)
+	for number := range embed.RequestTexts + 6 {
+		name := fmt.Sprintf("helper-%02d", number)
+		h.tool(name, fmt.Sprintf("Helper number %d for the fill", number))
+		names = append(names, name)
+	}
+
+	h.embedder.Answering = h.embedder.Calls() + 1
+	h.run("", "reindex")
+
+	held := 0
+	for _, name := range names {
+		if h.holds(h.described(name)) {
+			held++
+		}
+	}
+
+	if held != embed.RequestTexts {
+		t.Errorf("a fill failing partway should keep the request that answered, kept %d vectors", held)
 	}
 }

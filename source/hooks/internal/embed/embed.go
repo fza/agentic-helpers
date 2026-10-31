@@ -77,6 +77,10 @@ func endpointOr(configured string, fallback string) string {
 	return strings.TrimRight(configured, "/")
 }
 
+// RequestTexts is the most texts one request carries with either provider, so
+// a caller saving vectors per group of that size saves them per request.
+const RequestTexts = min(openAIBatchSize, ollamaBatchSize)
+
 func inBatches(
 	ctx context.Context,
 	texts []string,

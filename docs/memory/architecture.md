@@ -257,8 +257,11 @@ vectors  chunk count * dims little-endian float32, an entry's chunks contiguous,
   A merge that drops a segment between a search's listing and its open sends the search to list
   again.
 - **A write** embeds only the live entries no segment holds for their current content and writes
-  them as one segment, through a temporary `.segment-*` file renamed to the first 16 hex digits of
-  the content's sha256: its cost follows the rows written, never the store.
+  them one segment per embedding request (`embed.RequestTexts` texts at most, whole entries), each
+  through a temporary `.segment-*` file renamed to the first 16 hex digits of the content's sha256:
+  its cost follows the rows written, never the store. A write the embedder fails or the deadline cuts
+  short keeps every request answered before, so a re-embed of the whole store lands across calls
+  instead of starting over.
 - **A merge** runs after every write, under `segments.lock`, where every temporary file is one a
   killed writer left, and is deleted. A segment with no counted row is deleted; one whose dead rows
   outnumber its live ones is rewritten alone; and size classes, each 4 times the one below, merge
