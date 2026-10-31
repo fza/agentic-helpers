@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
@@ -432,6 +433,31 @@ func TestSemanticSearchFailsClosed(t *testing.T) {
 
 	if !strings.Contains(h.must("", "search", "--term", "gate"), "Gate ignores") {
 		t.Error("a keyword search should answer without an embedder")
+	}
+}
+
+func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	h.embedder.Err = errors.New("connection refused")
+
+	// Ten entries of eight chunks each: more texts than one request carries.
+	paragraph := strings.Repeat("finding ", 390)
+	for number := range 10 {
+		h.file(fmt.Sprintf("Finding number %d", number), strings.Repeat(paragraph+"\n\n", 8))
+	}
+
+	h.embedder.Answering = h.embedder.Calls() + 1
+	h.run("", "search", "--query", "finding")
+
+	h.embedder.Err = nil
+	before := len(h.embedder.Texts())
+	h.must("", "search", "--query", "finding")
+
+	// The chunks the failed request held, and the query.
+	if sent := len(h.embedder.Texts()) - before; sent != 10*8-embed.RequestTexts+1 {
+		t.Errorf("a fill failing partway should keep each request that answered and send only the rest next, sent %d texts", sent)
 	}
 }
 

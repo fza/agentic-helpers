@@ -106,9 +106,10 @@ Vectors live outside every store, in `<cache>/tools/vectors/<embedder>/`, one di
 per embedder fingerprint (provider, model, dimensions, template hash, as memory's), as segments of `internal/vectorseg`, the store agentic-memory keeps its
 entry vectors in (`docs/memory/architecture.md`, "The vector store"). A row is one description's
 vector, keyed by the description's hash, so one vector serves every store naming that description
-and a rebuild embeds only a description no row is held for. `add`, `update`, `merge` and a rebuild
-each file one segment holding only the rows they embedded, after the own index names them, then
-merge. A row counts while some store on the machine names its description, read from every store's
+and a rebuild embeds only a description no row is held for. `add`, `update` and `merge` each file
+one segment holding only the rows they embedded, after the own index names them, then merge; a
+rebuild files one segment per embedding request (`embed.RequestTexts` descriptions at most), so a
+rebuild the embedder fails or the deadline cuts short keeps what answered. A row counts while some store on the machine names its description, read from every store's
 index whatever `AGENTIC_TOOLS_SCOPE` says, so a merge drops the vector of a description every store
 replaced. `find --query`, `add`'s near-duplicate check and the offer score through one mapped
 snapshot; the offer embeds the prompt only where an own tool not yet shown has a row. A cache

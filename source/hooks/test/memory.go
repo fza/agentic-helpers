@@ -201,9 +201,12 @@ func (fake *Git) branches(args []string) (string, bool, error) {
 // Embedder maps a text to a bag of its words hashed into a small vector, so
 // texts sharing words score close and the result is deterministic.
 type Embedder struct {
-	Err   error
-	mutex sync.Mutex
-	calls int
+	Err error
+	// Answering, where set, lets that many calls answer before Err applies,
+	// as an embedder failing partway through a fill.
+	Answering int
+	mutex     sync.Mutex
+	calls     int
 	// texts is every text it was asked to embed.
 	texts []string
 }
@@ -214,9 +217,10 @@ func (fake *Embedder) Embed(_ context.Context, texts []string) ([][]float32, err
 	fake.mutex.Lock()
 	fake.calls++
 	fake.texts = append(fake.texts, texts...)
+	answered := fake.calls <= fake.Answering
 	fake.mutex.Unlock()
 
-	if fake.Err != nil {
+	if fake.Err != nil && !answered {
 		return nil, fake.Err
 	}
 

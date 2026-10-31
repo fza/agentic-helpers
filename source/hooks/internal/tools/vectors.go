@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
@@ -177,17 +178,23 @@ func (lib *library) rebuild(ctx context.Context, at string) (*index, error) {
 	bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Documents(bounded, texts)
-	if err != nil || len(vectors) != len(missing) {
-		return built, nil
-	}
+	// Each request's vectors are saved as it answers, so a fill outlasting its
+	// bound keeps what landed and the next fill sends only the rest.
+	for start := 0; start < len(missing); start += embed.RequestTexts {
+		end := min(start+embed.RequestTexts, len(missing))
 
-	embedded := map[string][]float32{}
-	for position, described := range missing {
-		embedded[described] = vectors[position]
-	}
+		vectors, err := embedder.Documents(bounded, texts[start:end])
+		if err != nil || len(vectors) != end-start {
+			return built, nil
+		}
 
-	_ = store.Write(vectorRows(embedded), lib.named())
+		embedded := map[string][]float32{}
+		for position, described := range missing[start:end] {
+			embedded[described] = vectors[position]
+		}
+
+		_ = store.Write(vectorRows(embedded), lib.named())
+	}
 
 	return built, nil
 }
