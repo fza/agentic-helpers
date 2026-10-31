@@ -641,7 +641,9 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	}
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
-	nudged := mem.crossed(session, payload.TranscriptPath, steps)
+	// Past the second unanswered nudge the Stop backstop holds the turn; a
+	// third nudge would only repeat it on every prompt.
+	nudged := steps.Nudges < nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps)
 	if nudged {
 		steps.Nudges++
 		steps.NudgedAt = mem.now()

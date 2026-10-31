@@ -1142,7 +1142,8 @@ Near compaction a nudge asks for a state write first:
 
     Context near compaction. Write where work stands first: agentic-memory state < body. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
-A state write or any entry answers it. Unanswered twice, `Stop` holds the turn with the backstop:
+A state write or any entry answers it. It fires on at most two prompts until answered; past that,
+`Stop` holds the turn with the backstop:
 `Memory overdue, two nudges unanswered: write where work stands with agentic-memory state now, and
 file findings with agentic-memory new, before ending the turn.`
 
