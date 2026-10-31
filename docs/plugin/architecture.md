@@ -219,8 +219,11 @@ Actions tab). It runs the tests, then semantic-release reads the commits since t
 cuts a patch, `feat:` a minor, a `!` after the type a major, and every other type, `sdd:` included,
 cuts nothing. A releasable run writes the new version into `plugin/.claude-plugin/plugin.json`,
 commits it to `main` as `chore(release): v<version> [skip ci]`, tags that commit, and creates the
-GitHub release with the generated notes; GoReleaser adds an archive per platform (darwin and linux,
-arm64 and amd64) and `checksums.txt` to it. A breaking change marked without `!` ships as a minor.
+GitHub release as a draft with the generated notes; GoReleaser finds that draft by its name
+(`v<version>`), adds an archive per platform (darwin and linux, arm64 and amd64) and
+`checksums.txt` to it, and publishes it. The repository's releases are immutable, so nothing can be
+added to a release once it is published: the draft is what lets the archives land at all. A
+breaking change marked without `!` ships as a minor.
 Pull before pushing after a release: `main` carries the release commit.
 
 ## Tests

@@ -55,7 +55,11 @@ checksum:
 changelog:
   disable: true
 
-# @semantic-release/github creates the release with its notes; GoReleaser adds
-# the archives and checksums.txt to it and leaves the notes as they are.
+# @semantic-release/github creates the release as a draft with its notes;
+# GoReleaser finds that draft by name (both name it v<version>), adds the
+# archives and checksums.txt, leaves the notes as they are, and publishes it,
+# since `draft` stays false. Releases are immutable, so nothing could be added
+# after publishing. A draft is not found by its tag, hence use_existing_draft.
 release:
   mode: keep-existing
+  use_existing_draft: true

@@ -6,6 +6,10 @@
 # creates the release carrying them, and GoReleaser uploads the archives into
 # it, keeping its notes. Interpolating them into a command would let a commit
 # subject run as shell under a token that writes to the repository.
+#
+# The repository's releases are immutable: nothing is added to one once it is
+# published. So the release starts as a draft, and GoReleaser publishes it
+# after the upload.
 branches:
   - main
 tagFormat: v${version}
@@ -22,7 +26,8 @@ plugins:
         - plugin/.claude-plugin/plugin.json
       message: "chore(release): v${nextRelease.version} [skip ci]"
   - - "@semantic-release/github"
-    - successComment: false
+    - draftRelease: true
+      successComment: false
       failComment: false
       releasedLabels: false
   - - "@semantic-release/exec"
