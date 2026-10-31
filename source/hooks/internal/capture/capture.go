@@ -479,7 +479,7 @@ func (run *capture) do(ctx context.Context) int {
 		return 1
 	}
 
-	held, err := parseDraft(run.path)
+	held, err := parseDraft(run.path, run.request.draft)
 	if err != nil {
 		run.say("%v", err)
 
@@ -1144,20 +1144,27 @@ func shift(alert string, body string, draft string, offset int) string {
 	return fmt.Sprintf("%s:%d:%s", draft, number+offset, after)
 }
 
-func parseDraft(path string) (draft, error) {
+// parseDraft reads the draft at path and names it as the caller gave it,
+// since a resolved path a reader never typed reads as a different file.
+func parseDraft(path string, named string) (draft, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return draft{}, fmt.Errorf("%w: reading %s: %w", ErrDraft, path, err)
+		var pathErr *fs.PathError
+		if errors.As(err, &pathErr) {
+			err = pathErr.Err
+		}
+
+		return draft{}, fmt.Errorf("%w: reading %s: %w", ErrDraft, named, err)
 	}
 
 	text := string(data)
 	if !strings.HasPrefix(text, "---\n") {
-		return draft{}, fmt.Errorf("%w: %s opens with no --- line, so it carries no leading block", ErrDraft, path)
+		return draft{}, fmt.Errorf("%w: %s opens with no --- line, so it carries no leading block", ErrDraft, named)
 	}
 
 	end := strings.Index(text[3:], "\n---\n")
 	if end < 0 {
-		return draft{}, fmt.Errorf("%w: %s carries no closing --- line for its leading block", ErrDraft, path)
+		return draft{}, fmt.Errorf("%w: %s carries no closing --- line for its leading block", ErrDraft, named)
 	}
 
 	end += 3
@@ -1166,14 +1173,14 @@ func parseDraft(path string) (draft, error) {
 
 	err = yaml.Unmarshal([]byte(text[4:end]), &front)
 	if err != nil {
-		return draft{}, fmt.Errorf("%w: %s's leading block is not a mapping of keys to values: %w", ErrDraft, path, err)
+		return draft{}, fmt.Errorf("%w: %s's leading block is not a mapping of keys to values: %w", ErrDraft, named, err)
 	}
 
 	raw := text[end+5:]
 	body := strings.TrimSpace(raw)
 
 	if body == "" {
-		return draft{}, fmt.Errorf("%w: %s carries no body below its leading block", ErrDraft, path)
+		return draft{}, fmt.Errorf("%w: %s carries no body below its leading block", ErrDraft, named)
 	}
 
 	// A lint finding names a line of the body, and a reader looks for it in
