@@ -192,7 +192,7 @@ func TestTheMCPToolsTakeExactlyTheirKeys(t *testing.T) {
 		t.Errorf("a wrong-case key should be refused, got %s", answers[3])
 	}
 
-	if !strings.Contains(answers[4], "word-count/v1: Count the words") || strings.Contains(answers[4], `"isError":true`) {
+	if !strings.Contains(answers[4], `"summary":"Count the words`) || strings.Contains(answers[4], `"isError":true`) {
 		t.Errorf("take should answer over MCP, got %s", answers[4])
 	}
 

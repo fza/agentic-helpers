@@ -35,7 +35,8 @@ agentic-tools take <name>...                                     # copy into .tm
   guard value looser than the default.
 - **JSON (MCP, `--json`): an absent key is empty.** `[]`, `null`, `""` and `false` are left out: no
   `label` → own project. A hit carries `name`, `label`, `version`, `summary`, `score`; a taken tool
-  `name`, `version`, `copy`, `usage`, `inputs`, `outputs`. Every other value stays, `0` included.
+  `name`, `version`, `summary`, `merged_from` (the merged name you gave), `copy`, `usage`,
+  `inputs`, `outputs`. Every other value stays, `0` included.
 - **`score`** on each find hit: whole percent of the best hit (100), never higher than the hit above.
   Term hits score above hits by meaning alone; terms alone → every hit 100. `list` carries none.
 - **Each tool version prints once per context.** find or list printed it before → `<name> v<n>
@@ -114,9 +115,9 @@ launcher, never by hand.
 
 Every verb is `mcp__plugin_agentic-helpers_tools__<verb>`: `find`, `list`, `take` (`names`), `add`,
 `update`, `merge` (`survivor`, `members`), `reindex`. Keys exactly as the schema lists them.
-Every answer is JSON: `find` and `list` → their `--json` listing; any other
-verb → `message` (the CLI text) beside what it did (`take` → `into`, `tools`); refused → error
-result, `{"error": "refused: ..."}`.
+Every answer is JSON: `find` and `list` → their `--json` listing; `take` → `framing`, `into`,
+`tools`, no `message`; any other verb → `message` (the CLI text) beside what it did; refused →
+error result, `{"error": "refused: ..."}`.
 
 ## Off on the machine
 

@@ -69,7 +69,7 @@ func TestFindPagesAndPrintsJSON(t *testing.T) {
 			Label *string `json:"label"`
 			Score *int    `json:"score"`
 		} `json:"tools"`
-		Shown, Matching, Total, Projects, Page int
+		Matching, Total, Projects int
 	}
 
 	err := json.Unmarshal([]byte(h.must("find", "--term", "helper", "--json", "--again")), &answer)
