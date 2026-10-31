@@ -121,10 +121,14 @@ func TestALineSaysWhatBecameOfItsLinks(t *testing.T) {
 	out := h.must("", "show", hub)
 	first := strings.SplitN(h.must("", "search", "--term", "flaky", "--again"), "\n", 2)[0]
 
-	for _, want := range []string{"→ " + closedDecision + " closed by " + itsCloser, "→ " + old + " superseded by " + successor, "← 2"} {
-		if !strings.Contains(first, want) {
-			t.Errorf("the line should carry %q, got:\n%s", want, first)
+	for _, want := range []string{"  → " + closedDecision + " closed by " + itsCloser + "\n", "  → " + old + " superseded by " + successor + "\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("show's links section should carry %q, got:\n%s", want, out)
 		}
+	}
+
+	if !strings.HasSuffix(first, "→ 1 ended, 1 superseded by "+successor+"; ← 2") {
+		t.Errorf("the line should fold its ended links and count the entries linking in, got:\n%s", first)
 	}
 
 	if strings.Contains(first, "→ "+activeDecision) {
@@ -177,17 +181,6 @@ func TestTheShortLineFoldsEndedLinks(t *testing.T) {
 		t.Errorf("the brief line should list settled links and fold the ended ones keeping each successor, got:\n%s", got)
 	}
 
-	for _, full := range []string{h.must("", "search", "--term", "flaky", "--again")} {
-		first := strings.SplitN(full, "\n", 2)[0]
-
-		for _, flag := range []string{"→ " + closedDecision + " closed by " + itsCloser, "→ " + retired + " retired",
-			"→ " + settledDecision + " settled", "→ " + old + " superseded by " + successor,
-			"→ " + supersededDecision + " superseded by " + itsSuccessor} {
-			if !strings.Contains(first, flag) {
-				t.Errorf("show and search should keep every link flag in full, got:\n%s", first)
-			}
-		}
-	}
 }
 
 func TestTheBriefNamesTheNewerEntriesCitingAHit(t *testing.T) {
@@ -278,7 +271,7 @@ func TestWithoutAnExportLinksFallBackToExistence(t *testing.T) {
 		t.Errorf("a failed export should be said once per read, got %q", got.err)
 	}
 
-	if strings.Contains(got.out, "closed by") || !strings.Contains(got.out, "→ "+activeDecision+" gone") {
+	if strings.Contains(got.out, "closed by") || strings.Count(got.out, "→ 1 ended") != 1 {
 		t.Errorf("without the export only a missing graph file should flag, as gone, got:\n%s", got.out)
 	}
 }

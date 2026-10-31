@@ -786,8 +786,9 @@ A link is read, never followed for bodies. A line flags each target that is no l
 open: `→ <target> closed by <id>`, `superseded by <id>`, `settled`, `retired`, or `gone` where the
 graph entry's file is missing from the checkout, or, for a connected repo's entry, where the export no
 longer carries it. A line names a connected repo's entry by the last path segment of its `repo_id`,
-`→ fdbox:20261024-120000-d-tac-k2m closed by <id>`, and `show` by its full qualified id. The brief's
-and recall's short line folds the ended ones into a count (see [What comes back](#what-comes-back)). `← <n>` counts the entries linking to it, superseded ones aside. `show` adds
+`→ fdbox:20261024-120000-d-tac-k2m closed by <id>`, and `show` by its full qualified id. Every line
+folds the ended ones into a count, the brief's, recall's, `search`'s and `view`'s alike (see
+[What comes back](#what-comes-back)); `show`'s `links:` names each. `← <n>` counts the entries linking to it, superseded ones aside. `show` adds
 `links:` and `linked from:`, which leaves out superseded entries too, every older link of a supersede
 chain being one; `show --with-superseded` (MCP `with_superseded`) lists them. A retired entry linking
 in stays listed: it ended, and nothing replaced it. Recall and the brief name, under a hit, up to two
@@ -1044,8 +1045,11 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `until end met: <condition>`, `until end inferred: <why>` | `retire` (a rule ends only by hand, so it carries no end) |
 | `branch filed on <branch>` | none until that branch merges |
 
-    m-7q2k4f Gate reads only Bash calls  [main, trap, from agent, 2026-10-25 10:00 CET, 15af1a8c]  drifted: internal/gate/gate.go
+    m-7q2k4f Gate reads only Bash calls  [main, trap, from agent, 2026-10-25 10:00 CET, 15af1a8c]
         anchor drifted: internal/gate/gate.go → confirm where the entry still holds, else supersede
+
+The entry's line leaves out the flags its reasons restate: a drifted or gone anchor, a link that
+ended, the other branch. Every other flag stays.
 
 A reason that cannot be checked shows as unchecked, never as absent: `link unchecked: <target>: the
 graph status cache is cold` where no cached `sdd export` answers for the graph as it stands (a view
@@ -1139,9 +1143,9 @@ superseded one kept by its successor, the id to read next:
 
     m-q2rk7d Waiter flaky on CI  [2d]  → 20261024-110000-d-tac-set settled; → 17 ended, 1 superseded by m-xlez8q; ← 1
 
-`ended` counts the targets closed, retired, gone, or superseded naming no successor. `search` keeps
-the full line, with seat, kind, source, filing time and commit, and every link flag in full. `show`
-opens with that line less its link and anchor flags and its `← <n>`, each stated once below:
+`ended` counts the targets closed, retired, gone, or superseded naming no successor. `search` and
+`view` keep the full line, with seat, kind, source, filing time and commit, their link flags folded
+the same way. `show` opens with that line less its link and anchor flags and its `← <n>`, each stated once below:
 `filed: session <s>, branch <b>` (the bracket holds the seat, filing time and commit, and an
 `other branch:` flag in the header leaves the branch out), `anchors: <path> (drifted), <path>`,
 `links:` with each target's state, which target closed and by what, and `linked from:` with each
