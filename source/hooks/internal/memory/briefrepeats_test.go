@@ -159,3 +159,61 @@ func TestASeenEntryACiterFollowsKeepsItsPointerAndCiter(t *testing.T) {
 		t.Errorf("a seen entry followed by a citer should keep its pointer above the citer:\n%s", brief)
 	}
 }
+
+func TestASeatsFirstBriefListsNoChangeByOtherSeats(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "impl", "--shelf", "row-7ah")
+
+	cited := h.file("Gate note of the impl seat", "a finding")
+	second := h.file("Gate note linked later", "another finding")
+	h.must("", "link", second, cited)
+
+	other := newHarnessSharing(h)
+	other.clock.Advance(time.Minute)
+
+	first := other.must("", "claim", "rev", "--shelf", "row-7ah")
+	if strings.Contains(first, "changed by other seats:") {
+		t.Errorf("a seat's first brief should list no change a shelf mate made:\n%s", first)
+	}
+
+	h.clock.Advance(2 * time.Minute)
+	h.must("", "tag", cited, "storage")
+
+	if later := other.must("", "brief"); !strings.Contains(later, "changed by other seats:\n  "+cited+" tagged storage") {
+		t.Errorf("a later brief should list what shelf mates changed since the last one:\n%s", later)
+	}
+}
+
+func TestASeatsFirstBriefCountsOtherSeatsEntriesInsteadOfListingThem(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	notes := []string{
+		h.file("Gate note of the main seat", "a finding"),
+		h.file("Gate note about the bravo finding", "bravo"),
+		h.file("Gate trap of the main seat", "a trap", "--kind", "trap"),
+	}
+
+	other := newHarnessSharing(h)
+	other.clock.Advance(time.Minute)
+
+	first := other.must("", "claim", "drive")
+	if !strings.Contains(first, "\n+3 from other seats: agentic-memory search --all-seats --status live") ||
+		strings.Contains(first, "new from other seats:") {
+		t.Errorf("a seat's first brief should count other seats' entries and name the command listing them:\n%s", first)
+	}
+
+	for _, id := range notes {
+		if strings.Contains(first, id) {
+			t.Errorf("a seat's first brief should list no entry of another seat:\n%s", first)
+		}
+	}
+
+	h.clock.Advance(2 * time.Minute)
+	fresh := h.file("Gate note filed after the first brief", "news")
+
+	later := other.must("", "brief")
+	if !strings.Contains(later, "new from other seats:\n  "+fresh) || strings.Contains(later, "from other seats: agentic-memory") {
+		t.Errorf("a later brief should list what other seats filed since the last one:\n%s", later)
+	}
+}

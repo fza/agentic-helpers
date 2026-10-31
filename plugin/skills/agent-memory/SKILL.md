@@ -227,7 +227,9 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   (revive to undo):` (wrong one → `revive`; refused while its end still holds, see
   [reference.md](reference.md)), rules, traps, todos, notes by heat (`retire? <why>`
   ending a line = looks ended, nothing retired: check each), `retire?` (only candidates printed
-  nowhere above), topics, then the turns since the seat's newest write.
+  nowhere above), new from other seats, topics, then the turns since the seat's newest write. A
+  seat's first brief: `+<n> from other seats: agentic-memory search --all-seats --status live` → run
+  it before redoing work another seat may hold.
   `+<n> more notes: agentic-memory brief --kind note` → run it when a cold note is needed. Before
   relying on old entries → `agentic-memory view --layout 'active:mine:returns:as-list'`
   ([view.md](view.md)).

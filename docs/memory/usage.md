@@ -1117,7 +1117,10 @@ plugin option `brief_note_limit`, 10 unless set, then
 `+<n> more notes: agentic-memory brief --kind note`; traps and todos print whole. A rule the do-now
 list above the brief names (see [Do-now rules](#do-now-rules)) stays out of the rules section, and
 `new from other seats:` leaves out every entry a section above printed, an entry filed for the seat
-among them.
+among them. A seat's first brief has no brief mark to measure from, so everything other seats ever
+did would count: it prints no `changed by other seats:`, and in place of `new from other seats:` one
+line, `+<n> from other seats: agentic-memory search --all-seats --status live`. Every later brief
+lists both.
 `brief --kind rule|trap|todo|note` (MCP key `kind`) lists one kind's live entries whole, as
 `brief --topic <name>` lists one topic's and those below it, as `topic(<name>)` reads it.
 
