@@ -122,6 +122,8 @@ EOF
   - A linked item ticks itself when its target closes or retires; a superseded target moves it on.
   - Every item ticked or dropped → the todo retires, `end reached: items <n>/<n>`.
   - Brief: `<todo line>  <done>/<total>`, then up to three open items, `    <n>. #<id>: <text>`.
+  - Show: every open item; `<n> settled (<d> done, <x> dropped): agentic-memory show <todo>
+    --all-items` → run it to read the ticked and dropped ones.
   - Supersede of a todo with items needs `--items carry` (list moves, ids kept) or `--items leave`.
   - `<n> list lines in the text; steps go into --item` after filing → those lines were steps:
     file a todo with `--item`, supersede the one just filed.

@@ -93,7 +93,7 @@ func TestAckChangesItems(t *testing.T) {
 
 			h.must("", append([]string{"ack"}, tc.args(id, items)...)...)
 
-			shown := h.must("", "show", id, "--again")
+			shown := h.must("", "show", id, "--again", "--all-items")
 			for _, want := range tc.shows {
 				for index, item := range items {
 					want = strings.ReplaceAll(want, "%"+string(rune('0'+index)), item)
@@ -158,7 +158,7 @@ func TestAckChangesItems(t *testing.T) {
 		}
 	}
 
-	if shown := h.must("", "show", id, "--again"); strings.Contains(shown, "[x]") {
+	if shown := h.must("", "show", id, "--again", "--all-items"); strings.Contains(shown, "[x]") {
 		t.Errorf("a refused ack should change nothing:\n%s", shown)
 	}
 }
@@ -172,15 +172,15 @@ func TestALinkedItemReadsItsTarget(t *testing.T) {
 	gone := "m-zzzz99"
 	id, items := h.todo("Port the waiter", target, closedDecision, activeDecision, gone)
 
-	shown := h.must("", "show", id, "--again")
+	shown := h.must("", "show", id, "--again", "--all-items")
 	for _, want := range []string{
 		"1. [ ] #" + items[0] + ": Waiter ported to Linux  → " + target,
-		"2. [x] #" + items[1] + ": " + closedDecision + "  → " + closedDecision + " closed by " + itsCloser,
-		"3. [ ] #" + items[2] + ": " + activeDecision + "  → " + activeDecision,
-		"4. [ ] #" + items[3] + ": " + gone + "  → " + gone + " gone",
+		"2. [x] #" + items[1] + ": " + closedDecision + "  closed by " + itsCloser + "\n",
+		"3. [ ] #" + items[2] + ": " + activeDecision + "\n",
+		"4. [ ] #" + items[3] + ": " + gone + "  gone\n",
 	} {
 		if !strings.Contains(shown, want) {
-			t.Errorf("a linked item should read its target's state, missing %q:\n%s", want, shown)
+			t.Errorf("a linked item should read its target's state, naming the target once, missing %q:\n%s", want, shown)
 		}
 	}
 
@@ -193,7 +193,7 @@ func TestALinkedItemReadsItsTarget(t *testing.T) {
 
 	h.must("", "retire", successor, "--because", "done")
 
-	if shown := h.must("", "show", id, "--again"); !strings.Contains(shown, "1. [x] #"+items[0]) {
+	if shown := h.must("", "show", id, "--again", "--all-items"); !strings.Contains(shown, "1. [x] #"+items[0]) {
 		t.Errorf("a retired successor should tick the item:\n%s", shown)
 	}
 
@@ -205,13 +205,13 @@ func TestALinkedItemReadsItsTarget(t *testing.T) {
 
 	h.must("", "ack", id+"#"+items[1], "--decline", "moot")
 
-	if shown := h.must("", "show", id, "--again"); !strings.Contains(shown, "2. [-] #"+items[1]) {
+	if shown := h.must("", "show", id, "--again", "--all-items"); !strings.Contains(shown, "2. [-] #"+items[1]) {
 		t.Errorf("an explicit drop should win over a closed target:\n%s", shown)
 	}
 
 	h.must("", "ack", id+"#"+items[1], "--undo")
 
-	if shown := h.must("", "show", id, "--again"); !strings.Contains(shown, "2. [x] #"+items[1]) {
+	if shown := h.must("", "show", id, "--again", "--all-items"); !strings.Contains(shown, "2. [x] #"+items[1]) {
 		t.Errorf("--undo should give a linked item back to its target:\n%s", shown)
 	}
 }
@@ -242,7 +242,7 @@ func TestTheBriefShowsTheCountAndTheNextOpenItems(t *testing.T) {
 		} `json:"entries"`
 	}
 
-	err := json.Unmarshal([]byte(h.must("", "show", id, "--json", "--again")), &answer)
+	err := json.Unmarshal([]byte(h.must("", "show", id, "--json", "--again", "--all-items")), &answer)
 	if err != nil || len(answer.Entries) != 1 {
 		t.Fatalf("show --json should answer the todo: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestSupersedingATodoCarriesOrLeavesItsItems(t *testing.T) {
 
 	h.must("", "supersede", old, "--by", successor, "--items", "carry")
 
-	shown := h.must("", "show", successor, "--again")
+	shown := h.must("", "show", successor, "--again", "--all-items")
 	for _, want := range []string{"1. [ ] #" + own[0] + ": clock", "2. [ ] #" + items[0] + ": one", "3. [x] #" + items[1] + ": two"} {
 		if !strings.Contains(shown, want) {
 			t.Errorf("carry should move every item with its id, state and order, missing %q:\n%s", want, shown)
@@ -314,7 +314,7 @@ func TestSupersedingATodoCarriesOrLeavesItsItems(t *testing.T) {
 
 	h.must("", "ack", old+"#"+items[0], "--done")
 
-	if shown := h.must("", "show", successor, "--again"); !strings.Contains(shown, "[x] #"+items[0]) {
+	if shown := h.must("", "show", successor, "--again", "--all-items"); !strings.Contains(shown, "[x] #"+items[0]) {
 		t.Errorf("an old address should resolve through the supersede to the carried item:\n%s", shown)
 	}
 

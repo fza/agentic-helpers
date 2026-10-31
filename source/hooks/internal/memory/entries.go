@@ -580,7 +580,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 
 		mem.seen.markBody(held)
 
-		block := []string{showBlock(here, folded, held, retiredBodyLifetime, req.WithSuperseded, req.WithRemoved)}
+		block := []string{showBlock(here, folded, held, retiredBodyLifetime, showItemsOf(req), req.WithSuperseded)}
 		block = append(block, mem.toolSection(here, mem.takenTools(ctx, held, req.Again))...)
 		blocks = append(blocks, strings.Join(block, "\n"))
 	}
@@ -638,7 +638,16 @@ func daysOrSpan(held time.Duration) string {
 	return span.Format(held)
 }
 
-func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.Duration, withSuperseded bool, withRemoved bool) string {
+// itemsShown is which of a todo's items show prints beside the open ones.
+type itemsShown struct {
+	removed, settled bool
+}
+
+func showItemsOf(req request) itemsShown {
+	return itemsShown{removed: req.WithRemoved, settled: req.AllItems}
+}
+
+func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.Duration, items itemsShown, withSuperseded bool) string {
 	lines := []string{line(here, held)}
 
 	topics := folded.topicsOf(held)
@@ -710,7 +719,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 	}
 
 	lines = append(lines, "---")
-	lines = append(lines, folded.showItems(held, withRemoved)...)
+	lines = append(lines, folded.showItems(held, items.removed, items.settled)...)
 
 	if len(held.history) > 0 {
 		lines = append(lines, "events:")

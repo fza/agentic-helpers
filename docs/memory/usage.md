@@ -670,7 +670,7 @@ log, never a line of the body; only a todo holds items, and `--item` on another 
     agentic-memory new --kind todo --title '...' --topic t --item 'read the timer' --item m-abc123 < body
     agentic-memory ack m-1oqsjs#k3x... --done | --undo | --decline '<why>' | --remove
     agentic-memory ack m-1oqsjs --add '<step>'... | --order k3x,p9a
-    agentic-memory show m-1oqsjs [--with-removed]
+    agentic-memory show m-1oqsjs [--with-removed] [--all-items]
 
 Each item gets an id of three lowercase base36 characters (never all digits), unique within its todo
 and never reused; `<todo>#<id>` is the only address of an item, and the filing reply names them,
@@ -700,10 +700,15 @@ at about 60 characters:
         2. #p9a: swap the clock
         3. #k3x: run CI on Linux
 
-`show` lists every item but removed ones, `<n>. [ ] #<id>: <text>`, `[x]` ticked, `[-]` dropped with
-`    dropped: <why>` under it, a linked item adding `  → <target> <state>`. JSON (`--json`, MCP) gives
-the todo `items` (each `id`, `position`, `text`, `link`, `state` of open, done or dropped, `reason`),
-`done` and `total`.
+`show` lists every open item, `<n>. [ ] #<id>: <text>`, and folds the ticked and dropped ones into
+one line, `<n> settled (<d> done, <x> dropped): agentic-memory show <todo> --all-items`. `--all-items`
+(MCP `all_items`) lists each instead, `[x]` ticked, `[-]` dropped with `    dropped: <why>` under it.
+A linked item showing its target's title adds `  → <target> <state>`; one showing its target's id (a
+graph item, a gone target) names it once and adds only the outcome: `closed by <id>`, `settled`,
+`gone`, each later hop of a supersede chain as `superseded by <id>`. A view's `as-bodies` folds as
+`show` does. JSON (`--json`, MCP) gives the todo `items` (each `id`, `position`, `text`, `link`,
+`state` of open, done or dropped, `reason`), `done` and `total`; `show` carries the open items only
+unless `all_items`, and an item whose text would equal its `link` carries no `text`.
 
 A todo whose every item is ticked or dropped has reached a declared end: the end check retires it,
 `end reached: items <n>/<n>`, and lists it once under `ended since last brief`. `revive` undoes it,

@@ -55,7 +55,10 @@ type jsonEntry struct {
 	// expand(refs) widens.
 	Expanded []jsonEntry `json:"expanded,omitempty"`
 	// Items is a todo's todolist, removed items aside, with Done counting the
-	// items done or dropped of Total.
+	// items done or dropped of Total. Show leaves the done and dropped ones
+	// out unless all_items asks for them; Done still counts them. An item
+	// carries no text where it would equal its link: a reader takes the link
+	// as the text then.
 	Items []jsonItem `json:"items,omitempty"`
 	Done  *int       `json:"done,omitempty"`
 	Total *int       `json:"total,omitempty"`
@@ -114,8 +117,13 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 		object.Done, object.Total = &settled, &total
 
 		for _, view := range views {
+			text := view.text
+			if text == view.item.Link {
+				text = ""
+			}
+
 			object.Items = append(object.Items, jsonItem{
-				ID: view.item.ID, Position: view.position, Text: view.text, Link: view.item.Link, State: view.state, Reason: view.item.Reason,
+				ID: view.item.ID, Position: view.position, Text: text, Link: view.item.Link, State: view.state, Reason: view.item.Reason,
 			})
 		}
 	}
@@ -193,6 +201,12 @@ func (mem *memory) showJSON(ctx context.Context, here tree, folded *state, req r
 		}
 
 		object := mem.entryJSON(here, folded, held, true)
+		if !req.AllItems {
+			object.Items = slices.DeleteFunc(object.Items, func(item jsonItem) bool {
+				return item.State == itemDone || item.State == itemDropped
+			})
+		}
+
 		if taken := mem.takenTools(ctx, held, req.Again); len(taken) > 0 {
 			object.Tools = takenJSON(here, taken)
 		}
