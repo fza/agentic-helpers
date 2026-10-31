@@ -230,6 +230,10 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	defer mem.presenting(ctx, false)()
 
 	since := mem.previousBrief(seatName)
+	// A seat's first brief has no mark to measure from: everything other seats
+	// ever did would count as changed or new, so it lists neither.
+	first := since.IsZero()
+
 	mem.reachEnds(ctx, folded, seatName, "", "")
 	now := mem.now()
 	live := mem.ownLive(folded, seatName, "")
@@ -292,7 +296,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 	}
 
-	if len(changed) > 0 {
+	if len(changed) > 0 && !first {
 		out.add("changed by other seats:")
 
 		for _, text := range changed {
@@ -467,7 +471,11 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 	slices.SortStableFunc(news, func(a, b *entry) int { return b.filed.Compare(a.filed) })
 
-	if len(news) > 0 {
+	if len(news) > 0 && first {
+		out.add(fmt.Sprintf("+%d from other seats: %s search --all-seats --status live", len(news), self))
+	}
+
+	if len(news) > 0 && !first {
 		out.add("new from other seats:")
 
 		var run []*entry
