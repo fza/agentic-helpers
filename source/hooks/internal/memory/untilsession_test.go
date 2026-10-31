@@ -165,7 +165,8 @@ func TestARuleTakesNoSessionEnd(t *testing.T) {
 	}
 
 	answer := h.mcp(`{"name":"new","arguments":{"title":"Gate scratch over MCP","body":"b","until":["session"]}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "until: session") {
+	if strings.Contains(answer, `"isError":true`) || !strings.Contains(h.must("", "show", idPattern.FindString(answer), "--again"),
+		"until: session") {
 		t.Errorf("the MCP key until should take session: %s", answer)
 	}
 }

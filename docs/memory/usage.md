@@ -357,11 +357,14 @@ tool stamps time, seat, session, branch and commit, and anchors the entry to eve
 content hash: a name of letters, digits and marks of any script holding a dot or a slash, where a
 file exists under it, with a trailing `:<line>` dropped.
 
-A filing answers `filed <id>`, then the entry's flags where it has any (a declared end, a due time, a
-link target already closed), never the title, seat, kind, source, time or commit the caller sent or
-cannot act on. Lines below it name what else the filing did or found: attachments, superseded ids,
-ids that resolved to nothing, todo item ids, notes on the title, body and topics, near topics and
-similar entries.
+A filing answers `filed <id>`, then the entry's flags where it has any (a link target already
+closed, an anchor flag), never the title, seat, kind, source, time or commit the caller sent or
+cannot act on. A declared flag (`until:`, `when:`, `on:`, `proof:`, `forbids:`, `due:`) prints only
+where its normalized form differs from what the caller sent: `--due 2026-11-07` answers
+`due: 2026-11-07 00:00 CET`, a bare `closed:<id>` the qualified id it watches, while `--until session`
+answers nothing more. Lines below it name what else the filing did or found: attachments,
+superseded ids, ids that resolved to nothing, todo item ids (`items: #k3x #p9a`), notes on the
+title, body and topics, near topics and similar entries.
 
 ### Kinds
 
@@ -676,7 +679,7 @@ log, never a line of the body; only a todo holds items, and `--item` on another 
 
 Each item gets an id of three lowercase base36 characters (never all digits), unique within its todo
 and never reused; `<todo>#<id>` is the only address of an item, and the filing reply names them,
-`items m-1oqsjs: #k3x #p9a`. An item is text, or a memory id or a graph id (a qualified foreign one
+`items: #k3x #p9a`. An item is text, or a memory id or a graph id (a qualified foreign one
 included), which links it: a linked item shows its target's title (a graph item its id) and reads
 its target's state at every read, never stored. A graph target closed or settled, or a memory target
 retired, ticks it; a target reopening unticks it. A superseded target does not tick it: the item
@@ -1279,7 +1282,9 @@ answer carries are the ones below. The command line keeps its text and its `--js
   never echoes the ids, topics, title or seat the caller sent: `state written`, `retired`,
   `superseded`, `linked`, `tagged`, `untagged`, `retitled`, `done` (or `undone`, `dropped`,
   `removed`), `reordered`, `due <time>`, `filed <id>`, each followed by any line naming what else
-  the call did or found. `ack --add` names the new items, `confirm` the anchors it re-hashed.
+  the call did or found. `ack --add` names the new items. `confirm` answers `confirmed`, naming
+  only an entry left with anchors it could not re-hash, their files gone and so dropped:
+  `<id>: anchors gone from the tree, dropped: <path>, ...`.
 
 - **A refusal is an error result carrying `{"error": <the refusal text>}`** and nothing else.
 - A JSON answer leaves out every key holding an empty value, as `--json` does (see

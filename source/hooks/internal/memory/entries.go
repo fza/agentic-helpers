@@ -262,7 +262,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	held := folded.entries[id]
 	mem.warm(folded, 0, id)
 
-	lines := []string{filedLine(here, held)}
+	lines := []string{filedLine(here, held, req)}
 	for _, file := range prepared {
 		lines = append(lines, attachedLine(id, file.attachPayload))
 	}
@@ -282,7 +282,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 			ids = append(ids, "#"+one.ID)
 		}
 
-		lines = append(lines, fmt.Sprintf("items %s: %s", id, strings.Join(ids, " ")))
+		lines = append(lines, "items: "+strings.Join(ids, " "))
 	}
 
 	lines = append(lines, renamed...)
@@ -304,10 +304,32 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 // filedLine opens the reply to a filing with the new id and the entry's
 // flags alone: the title, seat, kind, source, time and commit are what the
-// caller just sent or cannot act on, while a flag carries the normalized or
-// computed form of an input, a due time or a link target already closed.
-func filedLine(here tree, held *entry) string {
-	return withFlags("filed "+held.id, append(flagsOf(here, held, held.flags()), declared(held)...))
+// caller just sent or cannot act on, while a flag carries the computed form of
+// an input or a link target already closed. A declared flag (until, when, on,
+// proof, forbids, due) prints only where its normalized form differs from what
+// req sent.
+func filedLine(here tree, held *entry, req request) string {
+	sent := map[string][]string{
+		"until": req.Until, "when": req.When, "on": req.On, "proof": req.Proof, "forbids": req.Forbids,
+		"due": {req.Due.text},
+	}
+
+	flags := flagsOf(here, held, held.flags())
+
+	for _, flag := range declared(held) {
+		name, value, _ := strings.Cut(flag, ": ")
+
+		given := make([]string, 0, len(sent[name]))
+		for _, one := range sent[name] {
+			given = append(given, strings.TrimSpace(one))
+		}
+
+		if value != strings.Join(given, ", ") {
+			flags = append(flags, flag)
+		}
+	}
+
+	return withFlags("filed "+held.id, flags)
 }
 
 // absorbed are the entries the filing superseded, which no hint offers again.
@@ -1231,12 +1253,17 @@ func fuse(arms [][]rankedHit, limit int) []rankedHit {
 
 func (mem *memory) confirm(ctx context.Context, req request) result {
 	here := mem.checkout(ctx)
-	rehashed := map[string]confirmPayload{}
+	gone := map[string][]string{}
 
 	folded, ids, failure, ok := mem.batch(ctx, "confirmed", req.IDs, false, nil,
 		func(_ *state, held *entry, seat string) (memorylog.Event, error) {
 			confirmed := confirmPayload{Anchors: rehash(here.root, held.anchors), Commit: here.commit, Branch: here.branch}
-			rehashed[held.id] = confirmed
+
+			for _, anchored := range held.anchors {
+				if !slices.ContainsFunc(confirmed.Anchors, func(kept anchor) bool { return kept.Path == anchored.Path }) {
+					gone[held.id] = append(gone[held.id], anchored.Path)
+				}
+			}
 
 			raw, err := json.Marshal(confirmed)
 			if err != nil {
@@ -1251,10 +1278,13 @@ func (mem *memory) confirm(ctx context.Context, req request) result {
 
 	mem.warm(folded, heatConfirm, ids...)
 
-	lines := make([]string, 0, len(ids))
+	// The ids are the caller's own; only an anchor the confirm could not
+	// re-hash, its file gone and so dropped, is news to it.
+	lines := []string{"confirmed"}
 	for _, id := range ids {
-		lines = append(lines, fmt.Sprintf("confirmed %s: %d of %d anchors re-hashed against %s", id, len(rehashed[id].Anchors),
-			len(folded.entries[id].anchors), cmp.Or(here.commit, "the tree")))
+		if len(gone[id]) > 0 {
+			lines = append(lines, fmt.Sprintf("%s: anchors gone from the tree, dropped: %s", id, strings.Join(gone[id], ", ")))
+		}
 	}
 
 	return done(strings.Join(lines, "\n"))
