@@ -368,7 +368,7 @@ func seatLines(rows []seatRow, every bool, listsUnused string) []string {
 	}
 
 	if unused > 0 {
-		lines = append(lines, "+"+plural(unused, "unused seat")+": "+listsUnused)
+		lines = append(lines, runBefore("+"+plural(unused, "unused seat")+": "+listsUnused, "claiming a new seat"))
 	}
 
 	return lines

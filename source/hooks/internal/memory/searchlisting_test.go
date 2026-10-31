@@ -22,8 +22,8 @@ func TestAStatusListingHonoursItsLimit(t *testing.T) {
 		count  int
 		footer string
 	}{
-		{"the first page", "0", 2, "3 more: --skip 2"},
-		{"a middle page", "2", 2, "1 more: --skip 4"},
+		{"the first page", "0", 2, "3 more: --skip 2  (run before concluding none fits)"},
+		{"a middle page", "2", 2, "1 more: --skip 4  (run before concluding none fits)"},
 		{"the last page", "4", 1, ""},
 	}
 

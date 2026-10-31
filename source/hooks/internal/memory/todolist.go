@@ -447,8 +447,8 @@ func (folded *state) showItems(held *entry, withRemoved bool, allItems bool) []s
 	}
 
 	if done+dropped > 0 {
-		lines = append(lines, fmt.Sprintf("  %d settled (%d done, %d dropped): %s show %s --all-items",
-			done+dropped, done, dropped, self, held.id))
+		lines = append(lines, runBefore(fmt.Sprintf("  %d settled (%d done, %d dropped): %s show %s --all-items",
+			done+dropped, done, dropped, self, held.id), "judging what was done"))
 	}
 
 	return lines

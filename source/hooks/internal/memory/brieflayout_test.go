@@ -53,7 +53,7 @@ func TestTheBriefRunsThroughItsLayout(t *testing.T) {
 	}
 
 	brief := h.must("", "brief")
-	if strings.Contains(brief, "Gate note number") || !strings.Contains(brief, "notes:\n+2 more notes: agentic-memory brief --kind note") {
+	if strings.Contains(brief, "Gate note number") || !strings.Contains(brief, "notes:\n+2 more notes: agentic-memory brief --kind note  (run before concluding no note applies)\n") {
 		t.Errorf("a note limit of 0 should print the notes heading and name every note as more, got:\n%s", brief)
 	}
 
@@ -64,7 +64,7 @@ func TestTheBriefRunsThroughItsLayout(t *testing.T) {
 	}
 
 	view := h.must("", "view", "--layout", "active:mine:kind(note):rank(heat):n(0):brief:as-list")
-	if !strings.Contains(view, "  no entry\n  2 more: skip(0)") {
+	if !strings.Contains(view, "  no entry\n  2 more: skip(0)  (run before concluding none fits)") {
 		t.Errorf("n(0) should list nothing and name the rest, got:\n%s", view)
 	}
 }

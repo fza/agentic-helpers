@@ -503,8 +503,9 @@ it wakes nothing on its own.
 
 The brief's due section follows the state slot. It holds the entries already due and those due
 within a day, earliest first, each short line ending `due <age> ago` or `due in <age>`, under
-`due (<shown> of <total>):`, at most five, then `+<n> more due: agentic-memory brief --due`. An
-entry due later stands in one line, `<n> due later (next <time>)`. An entry carrying a due time
+`due (<shown> of <total>):`, at most five, then `+<n> more due: agentic-memory brief --due  (run
+before choosing what to do next)`. An entry due later stands in one line, `<n> due later (next
+<time>): agentic-memory brief --due  (run before planning ahead)`. An entry carrying a due time
 stands in no kind section, so it is never listed twice and never pushes out another entry.
 `brief --due` (MCP `brief` key `due`) lists every live entry of the seat carrying a due time,
 earliest first.
@@ -706,10 +707,12 @@ at about 60 characters:
         3. #k3x: run CI on Linux
 
 `show` lists every open item, `<n>. [ ] #<id>: <text>`, and folds the ticked and dropped ones into
-one line, `<n> settled (<d> done, <x> dropped): agentic-memory show <todo> --all-items`. `--all-items`
+one line, `<n> settled (<d> done, <x> dropped): agentic-memory show <todo> --all-items  (run before
+judging what was done)`. `--all-items`
 (MCP `all_items`) lists each instead, `[x]` ticked, `[-]` dropped with `    dropped: <why>` under it.
 The item changes the todo's own seat made fold the same way under `events:`, as `<n> item changes:
-agentic-memory show <todo> --all-items`; another seat's change stays listed, naming who made it.
+agentic-memory show <todo> --all-items  (run before judging what changed)`; another seat's change
+stays listed, naming who made it.
 A linked item showing its target's title adds `  → <target> <state>`; one showing its target's id (a
 graph item, a gone target) names it once and adds only the outcome: `closed by <id>`, `settled`,
 `gone`, each later hop of a supersede chain as `superseded by <id>`. A view's `as-bodies` folds as
@@ -982,8 +985,9 @@ search, not filters.
 
 A search returns `--limit` results, 10 unless set, and `--skip <n>` (MCP `skip`) drops the first
 `n` before the limit cuts the page. A page with results past it ends with the next page's flag:
-`14 more: --skip 10` where the remainder is exact (a `--term` search, a listing), `more: --skip 10`
-where a `--query` takes part, since every candidate carries a score. A hybrid search's arms each keep
+`14 more: --skip 10  (run before concluding none fits)` where the remainder is exact (a `--term`
+search, a listing), `more: --skip 10  (run before concluding none fits)` where a `--query` takes
+part, since every candidate carries a score. A hybrid search's arms each keep
 `skip + limit` candidates before fusion, so a later page is the fused ranking's next slice. Only the
 first page warms its top hits.
 
@@ -1040,7 +1044,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `topic(<topic>,...)` where a section starts | sdd's macro: the filter above, hottest first, later words overriding the rank; anywhere else in a section it only filters |
 | `group(by(kind\|seat\|shelf\|from))` | blocks the section's entries by their kind, filing seat, shelf, or source (`user`, `agent`, `tool`), each block in the section's rank and the blocks in the order their first entry ranks; renders only with `as-grouped`. sdd's `layer`, `type` and `participant` have no memory counterpart and are refused |
 | `expand(refs)` | under each entry, every link it makes: a memory target as its short line, a graph target as its id, each followed by what became of it where that is not ok; not with `as-counts` |
-| `as-list` | one line per entry under the section's heading, and `<k> more: skip(<next>)` where `n` cut some |
+| `as-list` | one line per entry under the section's heading, and `<k> more: skip(<next>)  (run before concluding none fits)` where `n` cut some |
 | `as-counts` | each topic the kept entries carry, with their count and summed heat |
 | `as-bodies` | each entry whole, framed as `show` frames it |
 | `as-grouped` | the blocks `group` makes, each under its value; needs `group` |
@@ -1124,15 +1128,26 @@ and the topics. It stays within 9,000 characters; rules
 take at most a third of that, and past it the brief says
 `rules exceed a third of the brief: <n>; retire or rekind some`. Notes print the hottest up to the
 plugin option `brief_note_limit`, 10 unless set, then
-`+<n> more notes: agentic-memory brief --kind note`; traps and todos print whole. A rule the do-now
+`+<n> more notes: agentic-memory brief --kind note  (run before concluding no note applies)`; traps
+and todos print whole. An entry the budget cuts is counted at the end, `+<n> more: agentic-memory
+brief --topic <name>  (run before working on a listed topic)`. A rule the do-now
 list above the brief names (see [Do-now rules](#do-now-rules)) stays out of the rules section, and
 `new from other seats:` leaves out every entry a section above printed, an entry filed for the seat
 among them. A seat's first brief has no brief mark to measure from, so everything other seats ever
 did would count: it prints no `changed by other seats:`, and in place of `new from other seats:` one
-line, `+<n> from other seats: agentic-memory search --all-seats --status live`. Every later brief
-lists both.
+line, `+<n> from other seats: agentic-memory search --all-seats --status live  (run before starting
+work another seat may hold)`. Every later brief lists both.
 `brief --kind rule|trap|todo|note` (MCP key `kind`) lists one kind's live entries whole, as
-`brief --topic <name>` lists one topic's and those below it, as `topic(<name>)` reads it.
+`brief --topic <name>` lists one topic's and those below it, as `topic(<name>)` reads it, and past
+the budget ends `+<n> more past the budget: agentic-memory search --topic <name> --term .  (run
+before concluding the topic lacks it)`.
+
+Every line standing for data it does not print, a fold or a paging line, ends with a trigger in
+parentheses saying when to run the command it names: `(run before <what the hidden data matters
+for>)`. An agent otherwise concludes from the part it sees. A seen pointer (`(seen)`, `<n> seen
+above, unchanged`) carries none, its text being in the context already. The MCP descriptions of
+`search`, `show` and `brief` close with the same rule, for the JSON answers that fold through
+`more` and a todo's `done` count instead of a line.
 
 The space line, `space left: attachments <left> of <limit>, tools <left> of <limit>`, prints only
 while a store has under a tenth of its limit left, and names only that store: the attachment store
@@ -1314,7 +1329,7 @@ by seat:
     rev   shelf row-7ah  reserved a1b2c3d4  filed 0 / used 0
     main                 free  filed 3 / used 5
     gone                 free (holder a1b2c3d4 gone, freed)  filed 0 / used 0
-    +12 unused seats: agentic-memory who --unused
+    +12 unused seats: agentic-memory who --unused  (run before claiming a new seat)
 
 Each row ends with the seat's entries filed in the last 14 days and how many of all its entries a
 use warmed in that time (see [Search](#search)), so a seat filing far more than it uses shows it;
@@ -1322,7 +1337,7 @@ the header names that window once. A row names its shelf only where the shelf's 
 seat's.
 
 A free seat with `filed 0 / used 0` is left out and counted in the block's last line, `+<n> unused
-seats: agentic-memory who --unused`; `who --unused` (MCP `unused`) lists it too. Every seat ever claimed stays in
+seats: agentic-memory who --unused  (run before claiming a new seat)`; `who --unused` (MCP `unused`) lists it too. Every seat ever claimed stays in
 the store, a finished board row's seats among them, and listing each would bury the seats in use.
 A held or reserved seat is always listed, as is a seat this call freed. `who --json` lists every
 seat.
@@ -1332,7 +1347,8 @@ minutes, saying `freed` on their row; from a checkout bound to no store it frees
 `who --all` (MCP key `all`) adds every other project's seats on the machine, a migration's backups
 aside, under a line naming the project and its store id, `<name> (<id>):`, a [private](#private-seats) seat left out, each
 project's block closing with its own count line,
-`+<n> unused seats: agentic-memory who --all --unused`; it never writes to another project's store.
+`+<n> unused seats: agentic-memory who --all --unused  (run before claiming a new seat)`; it never
+writes to another project's store.
 `who` migrates no store and runs anywhere: outside a project it says `no seat in this project`
 and, with `--all`, lists the others.
 
@@ -1400,7 +1416,7 @@ to a route there the writer picks.
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
 | `retired_body_lifetime` | `config.yaml` only: how long a retired entry keeps its body, a span (`90d`, `6w`); `90d` unless set, never under `14d`. The older `retired_body_days` (a number of days) is still read for one release, and `agentic-helpers check` names it |
 | `entry_id_length` | the characters after `m-` in a new entry id |
-| `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note` |
+| `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note  (run before concluding no note applies)` |
 | `attachment_max_mb` | the megabytes one attached file may hold, 10 unless set |
 | `attachments_total_mb` | the megabytes every attachment of every project on the machine may hold together, each file counted once, 2048 unless set, never below `attachment_max_mb` |
 | `tools_total_mb` | `config.yaml` only: the megabytes every agentic-tools library on the machine may hold, 500 unless set; enforced by every `agentic-tools add` and `update`, which prune the oldest prunable version or refuse, and read by the SessionStart pass that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |

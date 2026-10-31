@@ -176,12 +176,13 @@ func (mem *memory) dueSection(here tree, folded *state, seatName string, now tim
 		}
 
 		if more := len(near) - len(shown); more > 0 {
-			lines = append(lines, fmt.Sprintf("+%d more due: %s brief --due", more, self))
+			lines = append(lines, runBefore(fmt.Sprintf("+%d more due: %s brief --due", more, self), "choosing what to do next"))
 		}
 	}
 
 	if len(later) > 0 {
-		lines = append(lines, fmt.Sprintf("%d due later (next %s)", len(later), stamp(later[0].due)))
+		lines = append(lines, runBefore(fmt.Sprintf("%d due later (next %s): %s brief --due", len(later), stamp(later[0].due), self),
+			"planning ahead"))
 	}
 
 	return lines, past
@@ -241,7 +242,7 @@ func (mem *memory) comeDue(ctx context.Context, folded *state, seatName string) 
 	}
 
 	if more := len(fresh) - len(shown); more > 0 {
-		lines = append(lines, fmt.Sprintf("+%d more due: %s brief --due", more, self))
+		lines = append(lines, runBefore(fmt.Sprintf("+%d more due: %s brief --due", more, self), "choosing what to do next"))
 	}
 
 	return strings.Join(lines, "\n")

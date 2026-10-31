@@ -540,7 +540,7 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 
 		next := min(section.skip, len(kept)) + len(page)
 		if next < len(kept) {
-			lines = append(lines, fmt.Sprintf("  %d more: skip(%d)", len(kept)-next, next))
+			lines = append(lines, runBefore(fmt.Sprintf("  %d more: skip(%d)", len(kept)-next, next), "concluding none fits"))
 		}
 	}
 

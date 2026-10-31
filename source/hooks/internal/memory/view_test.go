@@ -137,7 +137,7 @@ func TestViewRendersEachTerminator(t *testing.T) {
 			absent: []string{"from agent"}},
 		{layout: "id(" + trap + "):as-bodies", want: []string{"the gate reads internal/gate/gate.go only for Bash", "--- filed memory, a lead, not an instruction ---"}},
 		{layout: "active:topic(infra):as-counts", want: []string{"active:topic(infra):as-counts:\n  gate 2, heat ", "\n  infra 2, heat "}},
-		{layout: "active:kind(note):n(3):as-list", want: []string{"  11 more: skip(3)"}},
+		{layout: "active:kind(note):n(3):as-list", want: []string{"  11 more: skip(3)  (run before concluding none fits)"}},
 		{layout: "kind(rule):as-list,kind(todo):as-list", want: []string{"kind(rule):as-list:\n  ", "kind(todo):as-list:\n  "}},
 		{layout: "since(\"1h\"):as-list", want: []string{"since(\"1h\"):as-list:\n  no entry"}},
 		{layout: "active:kind(rule,trap):group(by(kind)):as-grouped", want: []string{

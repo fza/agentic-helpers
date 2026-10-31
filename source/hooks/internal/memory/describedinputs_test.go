@@ -51,7 +51,10 @@ func TestSupersedeTakesASuccessorAndAReasonTogether(t *testing.T) {
 	}
 }
 
-func TestEveryRuleBetweenKeysIsStatedInItsToolDescription(t *testing.T) {
+// toolDescriptions is every MCP tool's description, by name.
+func toolDescriptions(t *testing.T) map[string]string {
+	t.Helper()
+
 	h := newHarness(t)
 
 	lines := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
@@ -76,6 +79,25 @@ func TestEveryRuleBetweenKeysIsStatedInItsToolDescription(t *testing.T) {
 	for _, tool := range listing.Result.Tools {
 		descriptions[tool.Name] = tool.Description
 	}
+
+	return descriptions
+}
+
+func TestEveryReadThatFoldsStatesTheFoldRule(t *testing.T) {
+	descriptions := toolDescriptions(t)
+
+	for _, tool := range []string{"search", "show", "brief"} {
+		t.Run(tool, func(t *testing.T) {
+			if !strings.HasSuffix(descriptions[tool], "; a fold (a more, a count of what is not listed) hides unread data: "+
+				"before acting on, answering about or concluding the absence of what it folds, fetch it") {
+				t.Errorf("the description of a read that folds should close with the fold rule: %q", descriptions[tool])
+			}
+		})
+	}
+}
+
+func TestEveryRuleBetweenKeysIsStatedInItsToolDescription(t *testing.T) {
+	descriptions := toolDescriptions(t)
 
 	for _, rule := range []struct{ tool, stated string }{
 		{"supersede", "takes by, because or both, at least one"},

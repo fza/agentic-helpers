@@ -374,6 +374,12 @@ const (
 	seatName = `"name":{"type":"string","description":"seat name"}`
 )
 
+// foldClause closes the description of every read whose answer can fold data
+// away: the agent reading a description before any skill loads gets the rule.
+// agentic-tools carries the same clause.
+const foldClause = "; a fold (a more, a count of what is not listed) hides unread data: before acting on, " +
+	"answering about or concluding the absence of what it folds, fetch it"
+
 func commands() []command {
 	return readsAsJSON(allCommands())
 }
@@ -436,7 +442,7 @@ func allCommands() []command {
 		{
 			name:        "search",
 			usage:       "search [--term <regex>]... [--query <phrase>] [--status live|retired|superseded]... [--skip <n>] [options]",
-			description: "search entries; needs term, query or status; status alone lists by time",
+			description: "search entries; needs term, query or status; status alone lists by time" + foldClause,
 			flags: []flagSpec{
 				{"term", flagList}, {"query", flagText}, {"topic", flagList}, {"seat", flagList},
 				{"all-seats", flagSwitch}, {"with-superseded", flagSwitch}, {"limit", flagNumber},
@@ -457,7 +463,8 @@ func allCommands() []command {
 		},
 		{
 			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--all-items] [--again]",
-			description: "entries in full: stamps, anchors, flags, events, a todo's items; takes each tool an entry names and prints its usage",
+			description: "entries in full: stamps, anchors, flags, events, a todo's items; takes each tool an entry names and prints its usage" +
+				foldClause,
 			flags: []flagSpec{
 				{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"with-removed", flagSwitch}, {"all-items", flagSwitch},
 				{"again", flagSwitch},
@@ -470,7 +477,7 @@ func allCommands() []command {
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--due] [--again]",
-			description: "the brief, or one topic's, kind's or the due entries",
+			description: "the brief, or one topic's, kind's or the due entries" + foldClause,
 			flags:       []flagSpec{{"topic", flagList}, {"kind", flagText}, {"due", flagSwitch}, {"again", flagSwitch}}, run: (*memory).briefCommand,
 			schema: `{"type":"object","properties":{"topic":{"type":"array","items":{"type":"string"},"description":"one topic's entries"},` +
 				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"one kind's live entries whole"},` +

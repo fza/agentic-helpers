@@ -29,8 +29,9 @@ agentic-memory holder --session <id> --json
 ## Due times
 
 - `--due <time>` takes a todo or a note; a rule or trap → `--due takes a todo or a note`.
-- Out of the brief's kind sections: one `<n> due later (next <time>)` line until a day before, then
-  `due (<shown> of <total>):`, `+<n> more due: agentic-memory brief --due` past the cap.
+- Out of the brief's kind sections: one `<n> due later (next <time>): agentic-memory brief --due  (run
+  before planning ahead)` line until a day before, then `due (<shown> of <total>):`, `+<n> more due:
+  agentic-memory brief --due  (run before choosing what to do next)` past the cap.
 - Coming due mid-run → `agentic-memory: due for <seat> (<n>):`, once. Act on it.
 - Moved: `due <id> <time>`; dropped: `due <id> --clear`.
 - A week past due → `retire? due <age> ago`.

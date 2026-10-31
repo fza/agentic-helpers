@@ -37,7 +37,7 @@ func TestTheBriefCapsItsNotes(t *testing.T) {
 
 	brief := h.must("", "brief")
 
-	if strings.Count(brief, "Gate note number") != 3 || !strings.Contains(brief, "+2 more notes: agentic-memory brief --kind note") {
+	if strings.Count(brief, "Gate note number") != 3 || !strings.Contains(brief, "+2 more notes: agentic-memory brief --kind note  (run before concluding no note applies)") {
 		t.Errorf("the brief should print the notes up to the limit and name the rest:\n%s", brief)
 	}
 
