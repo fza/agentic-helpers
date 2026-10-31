@@ -123,7 +123,7 @@ EOF
   - Every item ticked or dropped → the todo retires, `end reached: items <n>/<n>`.
   - Brief: `<todo line>  <done>/<total>`, then up to three open items, `    <n>. #<id>: <text>`.
   - Show: every open item; `<n> settled (<d> done, <x> dropped): agentic-memory show <todo>
-    --all-items` → run it to read the ticked and dropped ones.
+    --all-items  (run before judging what was done)` folds the ticked and dropped ones.
   - Supersede of a todo with items needs `--items carry` (list moves, ids kept) or `--items leave`.
   - `<n> list lines in the text; steps go into --item` after filing → those lines were steps:
     file a todo with `--item`, supersede the one just filed.
@@ -165,6 +165,9 @@ agentic-memory show <id>... [--with-superseded] [--no-heat]
 agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 ```
 
+- **A fold line hides unread data.** A line ending `(run before <what>)` stands for entries, items
+  or pages it does not print. Before acting on, answering about, or concluding the absence of what
+  it folds → run its command. A seen pointer carries none: its text is in your context.
 - **Each entry prints once per context.** Brief, recall, search, view or show already printed it, unchanged
   since → `<id> <title> (seen)` in its place (JSON `{"id", "title", "seen": true}`, a search hit's
   with its score); the full text
@@ -179,7 +182,8 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
   listing prints none.
 - **JSON (MCP, `--json`): an absent key is empty.** `[]`, `{}`, `null`, `""` and `false` are left
   out; every other value stays, `0` and defaults included.
-- `14 more: --skip 10` / `more: --skip 10` → next page. No line → last page.
+- `14 more: --skip 10  (run before concluding none fits)` / `more: --skip 10  (...)` → next page. No
+  line → last page.
 - **`--query` exits 1 → no working embedder** (none set, `embedding_provider` `off`, unreachable, or its input-limit calibration failing, the message naming the file or probe), not "nothing found". Fall back to `--term`, say so.
 - Line flags computed now: `drifted: <path>`, `gone: <path>` (live entries), `other branch: <b>`; `→ <target> closed by|superseded
   by|settled|retired|gone`; `← <n>` linked from. Every line folds ended links: `→ <n> ended,
@@ -191,7 +195,7 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - `who` rows end `filed <n> / used <m>`, counted over the 14d its header names; a row names its shelf
   only when not the seat's. Filing far more than using → file less, retire unread.
   Free seats with `filed 0 / used 0` are counted, not listed: `+<n> unused seats: agentic-memory who
-  --unused`. A seat the user names is missing from `who` → run that.
+  --unused  (run before claiming a new seat)`. A seat the user names is missing from `who` → run that.
 
 ## Change
 
@@ -225,15 +229,16 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 ## What comes back
 
 - **Claim and every compaction → brief**: state, the due section (`due (<shown> of <total>):`,
-  `+<n> more due: agentic-memory brief --due`, `<n> due later (next <time>)`), changes by other
+  `+<n> more due: agentic-memory brief --due  (run before choosing what to do next)`, `<n> due later
+  (next <time>): agentic-memory brief --due  (run before planning ahead)`), changes by other
   seats, `ended since last brief
   (revive to undo):` (wrong one → `revive`; refused while its end still holds, see
   [reference.md](reference.md)), rules, traps, todos, notes by heat (`retire? <why>`
   ending a line = looks ended, nothing retired: check each), `retire?` (only candidates printed
   nowhere above), new from other seats, topics, then the turns since the seat's newest write. A
-  seat's first brief: `+<n> from other seats: agentic-memory search --all-seats --status live` → run
-  it before redoing work another seat may hold.
-  `+<n> more notes: agentic-memory brief --kind note` → run it when a cold note is needed. Before
+  seat's first brief: `+<n> from other seats: agentic-memory search --all-seats --status live  (run
+  before starting work another seat may hold)`. `+<n> more notes: agentic-memory brief --kind note
+  (run before concluding no note applies)`. Before
   relying on old entries → `agentic-memory view --layout 'active:mine:returns:as-list'`
   ([view.md](view.md)).
 - **Every prompt → up to three related entries.**

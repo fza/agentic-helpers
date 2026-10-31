@@ -177,8 +177,8 @@ func TestTheBriefsDueSection(t *testing.T) {
 		t.Errorf("the due section should hold the entries due and due within a day, earliest first:\n%s", brief)
 	}
 
-	if !strings.Contains(brief, "2 due later (next 2026-10-28") {
-		t.Errorf("the entries due later should be counted on one line, naming the next:\n%s", brief)
+	if !regexp.MustCompile(`\n2 due later \(next 2026-10-28 [^)]*\): agentic-memory brief --due  \(run before planning ahead\)\n`).MatchString(brief) {
+		t.Errorf("the entries due later should be counted on one line, naming the next and the command listing them:\n%s", brief)
 	}
 
 	for _, id := range []string{past, soon, later, latest} {
@@ -216,7 +216,7 @@ func TestTheDueSectionIsCappedAndLeavesKindSectionsAlone(t *testing.T) {
 	plainBrief := without.must("", "brief")
 	dueBrief := with.must("", "brief")
 
-	if got := section(dueBrief, "due (5 of 7):"); len(got) != 5 || !strings.Contains(dueBrief, "+2 more due: agentic-memory brief --due") {
+	if got := section(dueBrief, "due (5 of 7):"); len(got) != 5 || !strings.Contains(dueBrief, "+2 more due: agentic-memory brief --due  (run before choosing what to do next)") {
 		t.Errorf("the due section should show five and count the rest:\n%s", dueBrief)
 	}
 
@@ -257,6 +257,21 @@ func TestAnEntryComingDueIsToldOnce(t *testing.T) {
 
 	if out := h.must(h.toolCall(), "tool"); !strings.Contains(out, "due for main (1):") {
 		t.Errorf("a moved due time should be told of again:\n%s", out)
+	}
+}
+
+func TestEntriesComingDuePastTheCapAreCounted(t *testing.T) {
+	h := heldHarness(t)
+
+	for index := range 7 {
+		h.file("Due item number "+string(rune('a'+index)), "body", "--due", dueAt(h, time.Duration(index+1)*time.Minute))
+	}
+
+	h.must(h.toolCall(), "tool")
+	h.clock.Advance(time.Hour)
+
+	if out := h.must(h.toolCall(), "tool"); !strings.Contains(out, `\n+2 more due: agentic-memory brief --due  (run before choosing what to do next)"`) {
+		t.Errorf("entries coming due past the cap should be counted, naming the command and when to run it:\n%s", out)
 	}
 }
 

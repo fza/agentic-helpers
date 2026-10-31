@@ -966,6 +966,31 @@ func TestBrief(t *testing.T) {
 	}
 }
 
+func TestABriefPastItsBudgetNamesWhatListsTheRest(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	// A store of the test harness draws at most 64 distinct ids, so the
+	// titles are long enough for 60 entries to pass the budget.
+	for index := range 60 {
+		h.must("trap text", "new", "--title", fmt.Sprintf("Standing trap number %d tripping the gate, quoting the failing call verbatim "+
+			"with every argument it carried and the whole error it printed back", index),
+			"--topic", "gate", "--kind", "trap")
+		h.clock.Advance(time.Minute)
+	}
+
+	brief := h.must("", "brief")
+	if !regexp.MustCompile(`\n\+\d+ more: agentic-memory brief --topic <name>  \(run before working on a listed topic\)$`).MatchString(strings.TrimSpace(brief)) {
+		t.Errorf("the brief should end counting the entries past its budget, naming the command and when to run it:\n%s", brief)
+	}
+
+	topical := h.must("", "brief", "--topic", "gate")
+	if !regexp.MustCompile(`\n\+\d+ more past the budget: agentic-memory search --topic gate --term \.  \(run before concluding the topic lacks it\)$`).
+		MatchString(strings.TrimSpace(topical)) {
+		t.Errorf("a topic brief past its budget should end naming the search listing the rest and when to run it:\n%s", topical)
+	}
+}
+
 var unrelated = []string{
 	"alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet", "kilo",
 	"lima", "mike", "november", "oscar", "papa", "quebec", "romeo", "sierra",
@@ -1538,8 +1563,8 @@ func TestSearchPages(t *testing.T) {
 		skip   string
 		footer string
 	}{
-		{skip: "0", footer: "15 more: --skip 10"},
-		{skip: "10", footer: "5 more: --skip 20"},
+		{skip: "0", footer: "15 more: --skip 10  (run before concluding none fits)"},
+		{skip: "10", footer: "5 more: --skip 20  (run before concluding none fits)"},
 		{skip: "20"},
 	} {
 		out := h.must("", "search", "--term", "paging", "--skip", page.skip, "--no-heat")
@@ -1571,7 +1596,7 @@ func TestSearchPages(t *testing.T) {
 		t.Errorf("a hybrid search's second page should be results 11 to 20 of the same search with --limit 20, got %v against %v", second, whole[10:20])
 	}
 
-	if out := h.must("", "search", "--query", "paging finding", "--no-heat"); !regexp.MustCompile(`\nmore: --skip 10$`).MatchString(strings.TrimSpace(out)) {
+	if out := h.must("", "search", "--query", "paging finding", "--no-heat"); !regexp.MustCompile(`\nmore: --skip 10  \(run before concluding none fits\)$`).MatchString(strings.TrimSpace(out)) {
 		t.Errorf("a search by meaning should end a non-final page with the next flag alone, got:\n%s", out)
 	}
 

@@ -133,8 +133,8 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 	}
 
 	if held.cut > 0 {
-		held.lines = append(held.lines, fmt.Sprintf("+%d more past the budget: %s search --topic %s --term .",
-			held.cut, self, wanted[0]))
+		held.lines = append(held.lines, runBefore(fmt.Sprintf("+%d more past the budget: %s search --topic %s --term .",
+			held.cut, self, wanted[0]), "concluding the topic lacks it"))
 	}
 
 	return strings.Join(held.lines, "\n")
@@ -441,7 +441,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		closeRun()
 
 		if capped := len(kept) - len(page); capped > 0 {
-			out.add(fmt.Sprintf("+%d more notes: %s brief --kind note", capped, self))
+			out.add(runBefore(fmt.Sprintf("+%d more notes: %s brief --kind note", capped, self), "concluding no note applies"))
 		}
 	}
 
@@ -472,7 +472,8 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	slices.SortStableFunc(news, func(a, b *entry) int { return b.filed.Compare(a.filed) })
 
 	if len(news) > 0 && first {
-		out.add(fmt.Sprintf("+%d from other seats: %s search --all-seats --status live", len(news), self))
+		out.add(runBefore(fmt.Sprintf("+%d from other seats: %s search --all-seats --status live", len(news), self),
+			"starting work another seat may hold"))
 	}
 
 	if len(news) > 0 && !first {
@@ -517,7 +518,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 	if missing > 0 {
 		out.limit += 200
-		out.add(fmt.Sprintf("+%d more: %s brief --topic <name>", missing, self))
+		out.add(runBefore(fmt.Sprintf("+%d more: %s brief --topic <name>", missing, self), "working on a listed topic"))
 	}
 
 	_ = mem.writeSlot(mem.briefMarkKey(seatName), briefMark{At: mem.now()})

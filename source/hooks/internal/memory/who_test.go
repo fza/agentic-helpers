@@ -162,7 +162,7 @@ func TestWhoCountsUnusedFreeSeatsRatherThanListingThem(t *testing.T) {
 		t.Errorf("who should leave out a free seat nothing was filed by or used from, got:\n%s", out)
 	}
 
-	if !strings.HasSuffix(out, "\n+1 unused seat: agentic-memory who --unused\n") {
+	if !strings.HasSuffix(out, "\n+1 unused seat: agentic-memory who --unused  (run before claiming a new seat)\n") {
 		t.Errorf("who should end the project's block counting the seats it left out and naming the flag, got:\n%s", out)
 	}
 
@@ -173,7 +173,7 @@ func TestWhoCountsUnusedFreeSeatsRatherThanListingThem(t *testing.T) {
 
 	all := h.must("", "who", "--all")
 	if strings.Contains(all, "idle") || strings.Contains(all, "left") ||
-		!strings.Contains(all, "+1 unused seat: agentic-memory who --unused\n\ngitlab.com/acme/tool ("+elsewhereID+"):\n  +2 unused seats: agentic-memory who --all --unused") {
+		!strings.Contains(all, "+1 unused seat: agentic-memory who --unused  (run before claiming a new seat)\n\ngitlab.com/acme/tool ("+elsewhereID+"):\n  +2 unused seats: agentic-memory who --all --unused  (run before claiming a new seat)") {
 		t.Errorf("who --all should count each project's unused seats at the end of its block, got:\n%s", all)
 	}
 

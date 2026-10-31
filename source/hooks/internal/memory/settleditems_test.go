@@ -15,7 +15,7 @@ func TestShowFoldsSettledItemsIntoACount(t *testing.T) {
 	h.must("", "ack", id+"#"+items[1], "--decline", "moot")
 	h.must("", "ack", id+"#"+items[3], "--done")
 
-	fold := "  3 settled (2 done, 1 dropped): agentic-memory show " + id + " --all-items\n"
+	fold := "  3 settled (2 done, 1 dropped): agentic-memory show " + id + " --all-items  (run before judging what was done)\n"
 
 	shown := h.must("", "show", id, "--again")
 	if !strings.Contains(shown, "items 3/4:\n  3. [ ] #"+items[2]+": three\n"+fold) {
@@ -30,7 +30,7 @@ func TestShowFoldsSettledItemsIntoACount(t *testing.T) {
 	}
 
 	_, events, _ := strings.Cut(shown, "events:")
-	if strings.Contains(events, " item #") || !strings.Contains(events, " item changes: agentic-memory show "+id+" --all-items") {
+	if strings.Contains(events, " item #") || !strings.Contains(events, " item changes: agentic-memory show "+id+" --all-items  (run before judging what changed)\n") {
 		t.Errorf("the seat's own item changes should fold into one line naming the flag:\n%s", events)
 	}
 

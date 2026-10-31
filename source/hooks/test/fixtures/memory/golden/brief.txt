@@ -19,5 +19,5 @@ notes:
   m-xsqupf Finding citing a closed decision  [4h]  → 1 ended; retire? every link ended
   m-g6cqa7 Note about the lima finding  [4h]
   m-adr7gq Note about the kilo finding  [4h]
-+4 more notes: agentic-memory brief --kind note
++4 more notes: agentic-memory brief --kind note  (run before concluding no note applies)
 topics: gate (16) infra (2) deploy (1) grants (1)

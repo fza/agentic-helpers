@@ -198,7 +198,7 @@ func TestASeatsFirstBriefCountsOtherSeatsEntriesInsteadOfListingThem(t *testing.
 	other.clock.Advance(time.Minute)
 
 	first := other.must("", "claim", "drive")
-	if !strings.Contains(first, "\n+3 from other seats: agentic-memory search --all-seats --status live") ||
+	if !strings.Contains(first, "\n+3 from other seats: agentic-memory search --all-seats --status live  (run before starting work another seat may hold)") ||
 		strings.Contains(first, "new from other seats:") {
 		t.Errorf("a seat's first brief should count other seats' entries and name the command listing them:\n%s", first)
 	}

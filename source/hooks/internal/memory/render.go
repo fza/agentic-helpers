@@ -233,6 +233,13 @@ func words(text string) int {
 	return count
 }
 
+// runBefore ends a fold line, one standing for data it does not print, with
+// when to run the command it names: an agent otherwise concludes from the part
+// it sees. A seen pointer takes none, its text being in the context already.
+func runBefore(line string, purpose string) string {
+	return line + "  (run before " + purpose + ")"
+}
+
 func plural(count int, noun string) string {
 	if count == 1 {
 		return "1 " + noun

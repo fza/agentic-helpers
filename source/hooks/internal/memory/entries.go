@@ -783,7 +783,8 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 	}
 
 	if hiddenItemChanges > 0 {
-		events = append(events, fmt.Sprintf("  %d item changes: agentic-memory show %s --all-items", hiddenItemChanges, held.id))
+		events = append(events, runBefore(fmt.Sprintf("  %d item changes: %s show %s --all-items", hiddenItemChanges, self, held.id),
+			"judging what changed"))
 	}
 
 	if len(events) > 0 {
@@ -1052,9 +1053,9 @@ func (mem *memory) search(ctx context.Context, req request) result {
 
 	switch {
 	case total < 0 && len(ranked) == window:
-		lines = append(lines, fmt.Sprintf("more: --skip %d", next))
+		lines = append(lines, runBefore(fmt.Sprintf("more: --skip %d", next), "concluding none fits"))
 	case total > next:
-		lines = append(lines, fmt.Sprintf("%d more: --skip %d", total-next, next))
+		lines = append(lines, runBefore(fmt.Sprintf("%d more: --skip %d", total-next, next), "concluding none fits"))
 	}
 
 	warm()
