@@ -201,10 +201,10 @@ built-in default, the layer below it:
 | `shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets` | only as strict or stricter: `off` < `ask` < `deny` |
 | `shell_guard_secret_output` | only as strict or stricter: `off` < `files` < `all` |
 | `shell_guard_ask_timeout` | only as short or shorter; `0` waits without limit, the loosest |
-| `embedding_endpoint`, `embedding_api_key_env`, `shell_guard_secret_output_skip` | nothing: never read from it |
+| `embedding_endpoint`, `embedding_path`, `embedding_api_key_env`, `shell_guard_secret_output_skip` | nothing: never read from it |
 
 The embedder's endpoint and key variable together could send any environment variable to a server
-the writer picks; the skip list can only loosen. A looser value, or any value for a key the file never
+the writer picks, and its path to a route there the writer picks; the skip list can only loosen. A looser value, or any value for a key the file never
 sets, is ignored, the layer below applies, and `agentic-helpers check` names it at session start as
 `agentic-helpers: config.yaml may only tighten <key>; <value> ignored` or
 `agentic-helpers: config.yaml never sets <key>; <value> ignored`. Loosening a guard and pointing the

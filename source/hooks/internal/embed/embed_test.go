@@ -69,6 +69,24 @@ func TestRequestShape(t *testing.T) {
 			body:    `{"model":"nomic","input":["a","b"],"encoding_format":"float"}`,
 		},
 		{
+			name:    "openai behind a gateway naming its own path",
+			cfg:     embed.Config{Provider: "openai", Model: "nomic", Endpoint: "https://api.opper.ai/", Path: "/v3/compat/embeddings"},
+			address: "https://api.opper.ai/v3/compat/embeddings",
+			body:    `{"model":"nomic","input":["a","b"],"encoding_format":"float"}`,
+		},
+		{
+			name:    "openai path without its leading slash",
+			cfg:     embed.Config{Provider: "openai", Model: "nomic", Endpoint: "http://127.0.0.1:1234/v1", Path: "embed"},
+			address: "http://127.0.0.1:1234/v1/embed",
+			body:    `{"model":"nomic","input":["a","b"],"encoding_format":"float"}`,
+		},
+		{
+			name:    "ollama ignores a path",
+			cfg:     embed.Config{Provider: "ollama", Model: "nomic-embed-text", Path: "/v3/compat/embeddings"},
+			address: "http://localhost:11434/api/embed",
+			body:    `{"model":"nomic-embed-text","input":["a","b"]}`,
+		},
+		{
 			name:    "ollama on its default endpoint ignores a key and asks for dimensions",
 			cfg:     embed.Config{Provider: "ollama", Model: "nomic-embed-text", APIKey: "secret", Dimensions: 256},
 			address: "http://localhost:11434/api/embed",

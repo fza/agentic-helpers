@@ -9,11 +9,13 @@ import (
 
 const (
 	openAIEndpoint  = "https://api.openai.com"
+	openAIPath      = "/v1/embeddings"
 	openAIBatchSize = 100
 )
 
 type openAI struct {
 	endpoint   string
+	path       string
 	model      string
 	dimensions int
 	apiKey     string
@@ -35,13 +37,31 @@ type openAIAnswer struct {
 }
 
 func newOpenAI(cfg Config, client *http.Client) *openAI {
+	endpoint := endpointOr(cfg.Endpoint, openAIEndpoint)
+
 	return &openAI{
-		endpoint:   endpointOr(cfg.Endpoint, openAIEndpoint),
+		endpoint:   endpoint,
+		path:       openAIRoute(endpoint, cfg.Path),
 		model:      cfg.Model,
 		dimensions: cfg.Dimensions,
 		apiKey:     cfg.APIKey,
 		client:     client,
 	}
+}
+
+// openAIRoute is the configured path, else `/v1/embeddings`. An endpoint
+// already ending in `/v1` with no path set keeps the `/embeddings` it was
+// given before the path was configurable, so no existing setting breaks.
+func openAIRoute(endpoint string, path string) string {
+	if path != "" {
+		return "/" + strings.TrimLeft(path, "/")
+	}
+
+	if strings.HasSuffix(endpoint, "/v1") {
+		return "/embeddings"
+	}
+
+	return openAIPath
 }
 
 func (embedder *openAI) Embed(ctx context.Context, texts []string) ([][]float32, error) {
@@ -56,13 +76,6 @@ func (embedder *openAI) Fingerprint() string {
 	return fmt.Sprintf("openai/%s/%d", embedder.model, embedder.dimensions)
 }
 
-func (embedder *openAI) address() string {
-	if strings.HasSuffix(embedder.endpoint, "/v1") {
-		return embedder.endpoint + "/embeddings"
-	}
-	return embedder.endpoint + "/v1/embeddings"
-}
-
 func (embedder *openAI) embedBatch(ctx context.Context, batch []string) ([][]float32, error) {
 	payload := openAIRequest{
 		Model:          embedder.model,
@@ -71,7 +84,7 @@ func (embedder *openAI) embedBatch(ctx context.Context, batch []string) ([][]flo
 		Dimensions:     embedder.dimensions,
 	}
 	var answer openAIAnswer
-	err := post(ctx, embedder.client, embedder.address(), embedder.apiKey, payload, &answer)
+	err := post(ctx, embedder.client, embedder.endpoint+embedder.path, embedder.apiKey, payload, &answer)
 	if err != nil {
 		return nil, err
 	}

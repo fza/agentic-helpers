@@ -33,6 +33,12 @@
       "description": "Base URL, e.g. http://127.0.0.1:1235; default the provider's own",
       "required": false
     },
+    "embedding_path": {
+      "type": "string",
+      "title": "Embedding path",
+      "description": "The OpenAI-compatible route joined to the endpoint, for a gateway serving it elsewhere, e.g. /v3/compat/embeddings; ollama keeps /api/embed; default /v1/embeddings",
+      "required": false
+    },
     "embedding_dimensions": {
       "type": "number",
       "title": "Embedding dimensions",

@@ -23,6 +23,11 @@ type Sdd interface {
 // and prompt is sent.
 var ErrRepositoryEndpoint = errors.New("sdd's embedding endpoint is set in this repository's .sdd/")
 
+// ErrRepositoryPath refuses sdd's embedder where its path comes from a layer
+// inside the repository, for the reason the endpoint is refused: the route
+// decides where on the host every entry and prompt goes.
+var ErrRepositoryPath = errors.New("sdd's embedding path is set in this repository's .sdd/")
+
 // trustedLayers are sdd's layers living outside any repository: the user's
 // global configuration and sdd's built-in defaults. Every other layer, the
 // committed `.sdd/config.yaml`, the `.sdd/config.local.yaml` a repository can
@@ -81,10 +86,16 @@ func Settle(ctx context.Context, own Config, fromSdd bool, sdd Sdd, dir string) 
 		return Config{}, fmt.Errorf("%w (layer %s)", ErrRepositoryEndpoint, layer)
 	}
 
+	layer, set = layers["path"]
+	if set && !slices.Contains(trustedLayers, layer) {
+		return Config{}, fmt.Errorf("%w (layer %s)", ErrRepositoryPath, layer)
+	}
+
 	config := Config{
 		Provider:         block["provider"],
 		Model:            block["model"],
 		Endpoint:         block["endpoint"],
+		Path:             block["path"],
 		QueryTemplate:    block["query_template"],
 		DocumentTemplate: block["document_template"],
 		Timeout:          own.Timeout,

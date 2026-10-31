@@ -173,6 +173,10 @@ const projectEndpointLine = "agentic-helpers: sdd's embedding endpoint is set in
 	"which a clone can bring along; search by meaning stays off until `sdd config set` sets it in sdd's global layer, " +
 	"or embedding_provider and embedding_endpoint set one here\n"
 
+const projectPathLine = "agentic-helpers: sdd's embedding path is set in this repository's .sdd/ (layer project), " +
+	"which a clone can bring along; search by meaning stays off until `sdd config set` sets it in sdd's global layer, " +
+	"or embedding_provider and embedding_endpoint set one here\n"
+
 // sourceLine is the line naming an embedding_source a layer sets.
 func sourceLine(value string, layer string) string {
 	return "agentic-helpers: embedding_source is " + value + " (" + layer + ") and still applies; " +
@@ -197,6 +201,10 @@ func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) 
 			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: projectEndpointLine, asked: 1,
 		},
 		{
+			name: "auto on a path the repository sets", options: `"memory_language":"de"`,
+			sdd: block + "embedding.path  /collect  (project)\n", want: projectPathLine, asked: 1,
+		},
+		{
 			name: "sdd on an endpoint the repository sets", config: "embedding_source: sdd\n", options: `"memory_language":"de"`,
 			sdd: block + "embedding.endpoint  http://example.org:9  (project)\n", want: sourceLine("sdd", "config.yaml") + projectEndpointLine,
 			asked: 1,
@@ -212,6 +220,11 @@ func TestTheSessionStartNamesWhatAnSddEmbeddingSourceLeavesUnused(t *testing.T) 
 		{
 			name: "sdd with own keys set", config: "embedding_source: sdd\nembedding_timeout: 30s\n", options: `"embedding_model":"own"`, sdd: block,
 			want:  sourceLine("sdd", "config.yaml") + "agentic-helpers: embedding_source is sdd; embedding_model, embedding_timeout ignored\n",
+			asked: 1,
+		},
+		{
+			name: "sdd with an own path set", config: "embedding_source: sdd\n", options: `"embedding_path":"/v3/compat/embeddings"`,
+			sdd: block, want: sourceLine("sdd", "config.yaml") + "agentic-helpers: embedding_source is sdd; embedding_path ignored\n",
 			asked: 1,
 		},
 		{

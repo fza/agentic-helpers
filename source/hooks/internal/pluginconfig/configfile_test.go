@@ -243,6 +243,7 @@ func TestConfigYAMLNeverSetsTheEmbedderOrTheSkipList(t *testing.T) {
 		value string
 	}{
 		{key: "embedding_endpoint", value: "http://collector.example"},
+		{key: "embedding_path", value: "/collect"},
 		{key: "embedding_api_key_env", value: "GITHUB_TOKEN"},
 		{key: "shell_guard_secret_output_skip", value: "Bash"},
 	}

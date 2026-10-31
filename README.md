@@ -144,9 +144,10 @@ only stricter, `off` < `ask` < `deny`; `shell_guard_secret_output` only stricter
 **Time options take a span:** a whole count of seconds, minutes, hours, days or weeks (`45s`, `2m`,
 `12h`, `90d`, `2w`), a Go duration as sdd prints one (`1m0s`), or `0`. `retired_body_days`, a number
 of days, is still read as `retired_body_lifetime` for one release, and `agentic-helpers check` names it. A looser value there is ignored, and
-`agentic-helpers config set` refuses it. `embedding_endpoint`, `embedding_api_key_env` and
-`shell_guard_secret_output_skip` are never read from `config.yaml`: the first two together could send
-any environment variable to a server the writer picks. Loosen a guard or point the embedder elsewhere
+`agentic-helpers config set` refuses it. `embedding_endpoint`, `embedding_path`,
+`embedding_api_key_env` and `shell_guard_secret_output_skip` are never read from `config.yaml`: the
+endpoint and key variable together could send any environment variable to a server the writer
+picks, and the path to a route there the writer picks. Loosen a guard or point the embedder elsewhere
 in Claude Code's settings, behind its permission prompts.
 
 ### Turning pieces off
@@ -181,6 +182,7 @@ OpenAI-compatible server) or as a hosted service.
 | `embedding_source` | `auto` | No longer in the plugin's dialog, still read where `config.yaml` or Claude Code's settings set it, and named at session start. `sdd`: always sdd's configuration, the options below ignored. `own`: never sdd's, so `embedding_provider` `auto` means no embedder. `auto` changes nothing. An `embedding_provider` of `off` wins over it |
 | `embedding_model` | none | The model the endpoint serves, such as `embeddinggemma-300m` |
 | `embedding_endpoint` | the provider's | Claude Code's settings only. The server's base URL. Empty means `https://api.openai.com` or `http://localhost:11434` |
+| `embedding_path` | `/v1/embeddings` | Claude Code's settings only. The OpenAI-compatible route joined to the endpoint, for a gateway serving it elsewhere (`/v3/compat/embeddings`). An endpoint ending in `/v1` with no path set keeps `/v1/embeddings`. Ollama keeps `/api/embed` |
 | `embedding_dimensions` | `0` | Vector size to ask the provider for. `0` keeps the model's own |
 | `embedding_api_key_env` | none | Claude Code's settings only. Name of the environment variable holding a hosted service's API key. The key itself is never stored |
 | `embedding_timeout` | `2m` | How long one embedding request may take, a span; a fill sending several requests gives each its own, as sdd's `embedding.timeout` does. Hooks keep a shorter limit of their own (20s), never longer than this |
@@ -188,15 +190,15 @@ OpenAI-compatible server) or as a hosted service.
 | `embedding_document_template` | none | Wraps a memory entry or a tool description before it is embedded (`title: none \| text: {text}`) |
 
 **sdd's embedder.** Under sdd's configuration, agentic-helpers runs `sdd config get embedding` once
-per process in the project and takes sdd's provider, model, endpoint, dimensions, timeout and both
-templates together, never mixed with its own. No API key is sent then: sdd prints its keys masked,
+per process in the project and takes sdd's provider, model, endpoint, path, dimensions, timeout and
+both templates together, never mixed with its own. No API key is sent then: sdd prints its keys masked,
 and its configuration is a file any agent can write, so a key sent to an endpoint read from it could
 go anywhere. sdd's embedder therefore serves a server needing no key, such as a local one; a hosted one
 is set in the options above. sdd's endpoint is taken only from its global configuration or its
 built-in default: one from the repository's `.sdd/config.yaml` or `.sdd/config.local.yaml`, either of
 which a clone can carry, is refused, since the clone would choose where every memory entry and prompt
-goes. The session start says so, and search by meaning stays off until `sdd config set` sets the
-endpoint globally. Without sdd, or with sdd setting no embedder, search by meaning is off.
+goes. sdd's `path` is taken from the same layers, for the same reason. The session start says so,
+and search by meaning stays off until `sdd config set` sets the endpoint or path globally. Without sdd, or with sdd setting no embedder, search by meaning is off.
 
 **`off`.** `embedding_provider: off` turns every use of an embedder off: search by meaning
 (`agentic-memory search --query`), the memory entries each prompt brings up, the tools offered at a
