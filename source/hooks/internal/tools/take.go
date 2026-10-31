@@ -64,7 +64,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 	}
 
 	lines := []string{framing, "taken into " + base}
-	taken := takenFields{Into: base, Tools: []takenTool{}}
+	taken := takenFields{Framing: strings.TrimSuffix(framing, ":"), Into: base, Tools: []takenTool{}}
 
 	for _, hit := range hits {
 		tool := hit.tool
@@ -102,8 +102,9 @@ func (lib *library) take(ctx context.Context, req request) result {
 		if !hit.store.own {
 			lines = append(lines, "  "+ForeignMark)
 		}
-		taken.Tools = append(taken.Tools, takenTool{Name: hit.shown(), Version: tool.Version, Copy: copied,
-			Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs, Foreign: !hit.store.own})
+		taken.Tools = append(taken.Tools, takenTool{Name: hit.shown(), Version: tool.Version, Summary: tool.Summary,
+			MergedFrom: hit.via, Copy: copied, Usage: tool.Usage, Inputs: tool.Inputs, Outputs: tool.Outputs,
+			Foreign: !hit.store.own})
 		lines = append(lines, indented("usage", tool.Usage)...)
 		lines = append(lines, indented("inputs", tool.Inputs)...)
 		lines = append(lines, indented("outputs", tool.Outputs)...)

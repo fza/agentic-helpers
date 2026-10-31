@@ -69,13 +69,17 @@ func (lib *library) callTool(ctx context.Context, held command, arguments json.R
 		return mcpserver.Result{Structured: json.RawMessage(answer.text)}
 	}
 
+	if slices.Contains(mcpBare, held.name) {
+		return mcpserver.Result{Structured: answer.fields}
+	}
+
 	return mcpserver.Result{Structured: mcpserver.Messaged(answer.text, answer.fields)}
 }
 
-// outputSchema is the shape a tool answers: a read's listing, or its message
-// beside the fields of what it produced.
+// outputSchema is the shape a tool answers: a read's listing, a bare
+// answer's fields, or its message beside the fields of what it produced.
 func outputSchema(name string) json.RawMessage {
-	if slices.Contains(mcpReads, name) {
+	if slices.Contains(mcpReads, name) || slices.Contains(mcpBare, name) {
 		return mcpserver.SchemaOf(mcpOutputs[name])
 	}
 

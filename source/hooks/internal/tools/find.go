@@ -167,7 +167,7 @@ func (lib *library) find(ctx context.Context, req request) result {
 			best = hits[0].rankValue()
 		}
 
-		return lib.findJSON(seen, shown, best, len(hits), total, len(stores), page)
+		return lib.findJSON(seen, shown, best, len(hits), total, len(stores))
 	}
 
 	var lines []string
@@ -309,20 +309,26 @@ func asListed(hit found) listedTool {
 	return listedTool{Name: tool.Name, Label: label, Version: tool.Version, Summary: tool.Summary}
 }
 
-// listing is what find and list answer as JSON.
+// listing is what list answers as JSON, and findListing what find answers.
+// Neither carries a count its reader holds already: the tools shown are the
+// length of tools, the page is the one asked, and every own tool matches a
+// list.
 type listing struct {
 	Framing  string       `json:"framing,omitempty"`
 	Tools    []listedTool `json:"tools,omitempty"`
-	Shown    int          `json:"shown"`
+	Total    int          `json:"total"`
+	Projects int          `json:"projects"`
+}
+
+type findListing struct {
+	Framing  string       `json:"framing,omitempty"`
+	Tools    []listedTool `json:"tools,omitempty"`
 	Matching int          `json:"matching"`
 	Total    int          `json:"total"`
 	Projects int          `json:"projects"`
-	Page     int          `json:"page"`
 }
 
-func (lib *library) findJSON(seen *presented, shown []ranked, best float64, matching int, total int, projects int,
-	page int,
-) result {
+func (lib *library) findJSON(seen *presented, shown []ranked, best float64, matching int, total int, projects int) result {
 	tools := make([]listedTool, 0, len(shown))
 	for _, hit := range shown {
 		listed := asListed(hit.hit)
@@ -333,8 +339,8 @@ func (lib *library) findJSON(seen *presented, shown []ranked, best float64, matc
 		tools = append(tools, listed)
 	}
 
-	return encoded(listing{Framing: framedFor(tools), Tools: tools, Shown: len(shown),
-		Matching: matching, Total: total, Projects: projects, Page: page})
+	return encoded(findListing{Framing: framedFor(tools), Tools: tools, Matching: matching, Total: total,
+		Projects: projects})
 }
 
 func encoded(value any) result {
@@ -368,8 +374,7 @@ func (lib *library) list(ctx context.Context, req request) result {
 			total += len(held.index.Tools)
 		}
 
-		return encoded(listing{Framing: framedFor(tools), Tools: tools, Shown: len(tools),
-			Matching: len(tools), Total: total, Projects: len(stores), Page: 1})
+		return encoded(listing{Framing: framedFor(tools), Tools: tools, Total: total, Projects: len(stores)})
 	}
 
 	var lines []string

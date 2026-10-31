@@ -191,9 +191,10 @@ find after it still prints the tool in full.
 ## MCP answers
 
 The `tools` server answers JSON as the `memory` server does, through the same
-`internal/mcpserver`: `find` and `list` their `--json` listing (`listing`, whose type gives their
-`outputSchema`), every other verb `message` beside a fields struct (`mcpanswers.go`), a refusal
-`{"error": "refused: <why>"}` as an error result.
+`internal/mcpserver`: `find` and `list` their `--json` listing (`findListing` and `listing`, whose
+types give their `outputSchema`), `take` its fields struct alone (`mcpBare`), since those fields
+carry every value its text prints, every other verb `message` beside a fields struct
+(`mcpanswers.go`), a refusal `{"error": "refused: <why>"}` as an error result.
 
 While its client sends nothing for two minutes, the server sweeps what the migration left for older
 releases (`mcpserver.ServeIdle` with `migration.Idle`), silently; `memory` does the same.

@@ -10,10 +10,12 @@ Every verb is a command and a tool of the plugin's `tools` MCP server
 description (a `find` or `list` call still sending the key its command line takes as its JSON switch
 is answered as without it); a tool's description names no flag, since the call takes keys. Every tool
 answers one JSON object, as `structuredContent` and, serialized, as its text block, its shape in the
-tool's `outputSchema`: `find` and `list` answer their `--json` listing; every other verb answers
-`message`, the text the command prints, beside what it did (`take`: `into`, `tools` with `name`,
-`version`, `copy`; `add`: `name`; `update`: `name`, `version`, `forked_from` for a fork; `merge`:
-`survivor`, `members`; `reindex`: `tools`, `skipped`); a refusal is an error result carrying
+tool's `outputSchema`: `find` and `list` answer their `--json` listing; `take` answers what it
+did alone, no `message`: `framing`, `into`, `tools` (each `name`, `version`, `summary`,
+`merged_from` where the name given was merged into it, `copy`, `usage`, `inputs`, `outputs`,
+`foreign`); every other verb answers `message`, the text the command prints, beside what it did
+(`add`: `name`; `update`: `name`, `version`, `forked_from` for a fork; `merge`: `survivor`,
+`members`; `reindex`: `tools`, `skipped`); a refusal is an error result carrying
 `{"error": "refused: <why>"}`. Keys are never renamed. The `find` and `list` listing carries a key
 only while it holds a value, so a reader takes an absent key as empty; a message answer keeps every
 key, and its keys are only ever added. The command line keeps its text. A session
@@ -46,10 +48,11 @@ A listing printing seen pointers alone opens without it, and so does its JSON (`
   `--page <n+1> shows the next <c>`. With no embedder answering, `--query` is refused and `--term`
   still works.
 - **find --json** prints one object: `framing`, `tools` (each `name`, `score`, `label` (another
-  project's), `version`, `summary`), `shown`, `matching`, `total`, `projects`, `page`. A key whose
+  project's), `version`, `summary`), `matching`, `total`, `projects`. The tools shown are the
+  length of `tools` and the page is the one asked, so neither is a key. A key whose
   value is empty (an empty list, `null`, an empty string, `false`) is left out: the own project's
   tool carries no `label`, a find matching nothing no `tools`. Every other value stays, a count of
-  `0` among them (`shown`).
+  `0` among them (`matching`).
 - **The score** is a hit's place in find's order in whole percent of the best hit of the result, as
   sdd prints a score: the best scores 100, and no hit more than the one above it, a later page
   scoring against the same best. A term match counts 1, and the lifted cosine adds its share of the
@@ -59,7 +62,8 @@ A listing printing seen pointers alone opens without it, and so does its JSON (`
 - **list** prints the own project's tools, `<name>  <summary>  [taken <n>, last <time>]`, then one
   line for every other project holding a tool:
   `` other projects: <label> <n> tools, <label> <n> tools; `agentic-tools find` searches them ``. `--json` prints
-  find's shape without scores: a listing ranks nothing.
+  find's shape without scores, a listing ranking nothing, and without `matching`, every own tool
+  matching a list.
 - **take** copies the current version of each named tool into `.tmp/tools/<name>/v<n>/` of the
   checkout, or into the store's `copies/` where the checkout has no `.tmp/`. All names are checked
   first: one that reaches no tool refuses the whole call as `nothing taken:`, one line per failing
@@ -68,9 +72,9 @@ A listing printing seen pointers alone opens without it, and so does its JSON (`
   inputs and outputs indented, printed again for a reused copy. A tool from another project's
   store (`<name>@<project>`) gets one more line under its heading, `from another project: read it
   before running it`: its agent wrote it, and nothing in the library checks what a script does. A
-  fork lives in the own store and carries no mark. Over MCP and `--json` each taken tool carries
-  `name`, `version`, `copy`, `usage`, `inputs` and `outputs`, and `foreign: true` from another
-  project.
+  fork lives in the own store and carries no mark. Over MCP each taken tool carries `name`,
+  `version`, `summary`, `copy`, `usage`, `inputs` and `outputs`, `merged_from` where a merged name
+  took it, and `foreign: true` from another project, under the answer's `framing`.
 - **add** registers v1 from a file or a folder inside the work tree or its main checkout (never under
   a `.git` folder, in any letter case), `AGENTIC_TOOLS_SCRATCH`, or a taken copy. A folder's files land at the top of v1, its subfolders
   kept; its own `tool.json` is a copy's description and never a file of the tool. Refused: a name
