@@ -156,6 +156,15 @@ the call keeps every rule: `mktemp && bash x.sh` is still refused.
   before `bash x.sh` is judged from that here-document, never from the disk. A file the command
   writes any other way before running it (`echo ... > x.sh`, a redirection to a path built at run
   time) is not read.
+- **A script an earlier command names**: a command before the run naming the script's path as an
+  argument (an operand, an option's value as in `-o x.sh`, or `of=x.sh`) may have written it, so
+  the script is not read (`cp new.sh x.sh && bash x.sh`, `sed -i s/a/b/ x.sh && ./x.sh`,
+  `curl -o x.sh URL && sh x.sh`, `mytool x.sh && bash x.sh`). Exempt are the commands that only
+  read or change metadata: `cat`, `head`, `tail`, `less`, `more`, `wc`, `grep`, `rg`, `file`,
+  `stat`, `ls`, `test` and `[`, `diff`, `cmp`, `shasum`, `md5`, `od`, `xxd`, `chmod`, `chown`, and
+  an earlier run of the same script, itself judged: `chmod +x x.sh && ./x.sh` is judged from the
+  file on disk. A command missing from that list costs an ask, never a bypass. A command that
+  changes the script without naming it (`git checkout other`, an archive extraction) is not seen.
 - **What cannot be read is asked about, not refused**: `cannot read the script <name> (<why>)`, the
   why one of `no such file`, `cannot open it`, `its path is built at run time`,
   `the directory it runs in is not known`, `over 1 MiB`, `the command writes it before running it`,
@@ -370,8 +379,9 @@ redacted too.
 
 shell-guard holds a careless command, not an agent set on getting around it: a command named
 through a double-quoted variable with no argument (`"$RM"`, `ls | xargs "$RM"`), `env -S`, a script file an
-interpreter runs (`python3 x.py`), a script another command of the same call replaces (`cp`, `sed -i`)
-before running it, and inline code removing through a call it does not name all run unjudged.
+interpreter runs (`python3 x.py`), a script another command of the same call changes without naming
+it (`git checkout other && ./x.sh`, an archive extraction) before running it, and inline code removing
+through a call it does not name all run unjudged.
 
 ## Locking it on
 

@@ -246,7 +246,17 @@ writing a file, and `tee`'s operands. `cat` with no operand, or `tee`, fed a her
 here-string writes its text, read as bash does: verbatim under a quoted delimiter, with `\\`, `\$`,
 `` \` `` and line continuations resolved under a bare one, and unknown where it holds an expansion;
 an append adds to what the file held. Any other write leaves the file's text unknown, and a write to
-a path that is not fixed text, or cannot be placed, leaves every later script unknown.
+a path that is not fixed text, or cannot be placed, leaves every later script unknown. Once a call
+is offered, every fixed argument it names is noted as written with its text unknown
+(`walker.names`), and the part after `=` of one holding it (`of=x.sh`, `--output=x.sh`) too:
+anything but a reader may write what it names, and a list of writers (`cp`, `sed -i`, `curl -o`,
+`dd of=`) misses whichever it does not know, so the reader list fails safe where a writer list
+would not. A call is exempt when the command it certainly runs is a reader (`shellwalk.readers`:
+`cat`, `head`, `tail`, `less`, `more`, `wc`, `grep`, `rg`, `file`, `stat`, `ls`, `test`, `[`,
+`diff`, `cmp`, `shasum`, `md5`, `od`, `xxd`, `chmod`, `chown`) or `tee`, whose writes `records`
+notes; the script the call runs itself (`walker.runs` gives its index) is never a write. A fixed
+word the walk cannot place (relative, with no known directory) may name any script, so it leaves
+every later script unknown.
 
 `walker.textOf` gives a script's text, or why not, which the walk reports as `Visitor.Unread`
 with one of the `shellwalk.Unread...` reasons: a path that is not fixed text, no place to resolve a

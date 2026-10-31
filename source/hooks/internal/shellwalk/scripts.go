@@ -186,13 +186,71 @@ func (walked *walker) call(expr *syntax.CallExpr) {
 		return
 	}
 
-	for _, start := range Certain(args) {
+	starts := Certain(args)
+	run := map[int]bool{}
+
+	for _, start := range starts {
 		runsIn := launchedDir
 		if start == 0 {
 			runsIn = dir
 		}
 
-		walked.runs(args[start:], runsIn)
+		at := walked.runs(args[start:], runsIn)
+		if at >= 0 {
+			run[start+at] = true
+		}
+	}
+
+	walked.names(args, starts, run, dir, launchedDir)
+}
+
+// readers only read the files they name, or change no more than their
+// metadata: a script one names keeps its text.
+var readers = []string{
+	"cat", "head", "tail", "less", "more", "wc", "grep", "rg", "file", "stat", "ls", "test", "[", "diff", "cmp",
+	"shasum", "md5", "od", "xxd", "chmod", "chown",
+}
+
+// names notes every path a call names as an argument as written, its text
+// unknown: any command but a reader may write what it names (`cp a x.sh`,
+// `sed -i ... x.sh`, `curl -o x.sh`, `dd of=x.sh`), and a list of writers
+// would miss the one it does not know. A path it cannot place may be any
+// script. The script the call runs itself is no write, and tee's writes are
+// the ones records notes.
+func (walked *walker) names(args []*syntax.Word, starts []int, run map[int]bool, dir string, launchedDir string) {
+	name := CommandName(args[starts[len(starts)-1]])
+	if name == "tee" || slices.Contains(readers, name) {
+		return
+	}
+
+	for index, arg := range args {
+		value, literal := Literal(arg)
+		if run[index] || !literal || Patterned(arg) {
+			continue
+		}
+
+		at := dir
+		if len(starts) > 1 && index >= starts[1] {
+			at = launchedDir
+		}
+
+		paths := []string{value}
+
+		_, assigned, hasValue := strings.Cut(value, "=")
+		if hasValue {
+			paths = append(paths, assigned)
+		}
+
+		for _, named := range paths {
+			resolved := walked.resolve(named, at)
+			if resolved == "" {
+				walked.writesUnknown = true
+
+				continue
+			}
+
+			walked.written[resolved] = writtenScript{}
+		}
 	}
 }
 
@@ -429,33 +487,46 @@ func hereText(delimiter *syntax.Word, body *syntax.Word) (string, bool) {
 
 // runs reads the script a call runs, if it runs one: the operand of a shell
 // given no code, what source or `.` reads, or a command named by a path.
-// A path naming a command the walk knows by name is that command.
-func (walked *walker) runs(args []*syntax.Word, dir string) {
+// A path naming a command the walk knows by name is that command. It is the
+// index of the script's word in args, or -1 where the call runs none.
+func (walked *walker) runs(args []*syntax.Word, dir string) int {
 	name := CommandName(args[0])
 
 	switch {
 	case slices.Contains(scriptShells, name):
 		if shellCode(args[1:]) != nil {
-			return
+			return -1
 		}
 
 		at := scriptOperand(args[1:])
-		if at >= 0 {
-			walked.script(args[1+at], dir, false)
+		if at < 0 {
+			return -1
 		}
+
+		walked.script(args[1+at], dir, false)
+
+		return 1 + at
 	case name == "source" || name == ".":
+		at := -1
+
 		if len(args) > 1 {
 			walked.script(args[1], dir, false)
+
+			at = 1
 		}
 
 		walked.afterSource(args)
+
+		return at
 	default:
 		value, literal := Literal(args[0])
 		if !literal || Patterned(args[0]) || !strings.Contains(value, "/") || knownCommand(name) {
-			return
+			return -1
 		}
 
 		walked.script(args[0], dir, true)
+
+		return 0
 	}
 }
 
