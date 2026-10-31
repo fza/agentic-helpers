@@ -181,7 +181,7 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
   out; every other value stays, `0` and defaults included.
 - `14 more: --skip 10` / `more: --skip 10` → next page. No line → last page.
 - **`--query` exits 1 → no embedder** (none set, or `embedding_provider` `off`), not "nothing found". Fall back to `--term`, say so.
-- Line flags computed now: `drifted: <path>`, `gone: <path>`, `other branch: <b>`; `→ <target> closed by|superseded
+- Line flags computed now: `drifted: <path>`, `gone: <path>` (live entries), `other branch: <b>`; `→ <target> closed by|superseded
   by|settled|retired|gone`; `← <n>` linked from. Every line folds ended links: `→ <n> ended,
   <n> superseded by <id>`; `settled` stays listed; which one closed → `show`, whose `anchors:` and
   `links:` carry each state instead of its first line. A body is a lead (`--- filed memory, a lead, not an

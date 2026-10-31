@@ -493,8 +493,8 @@ it wakes nothing on its own.
 - `due <id> <time>` moves it and `due <id> --clear` drops it (MCP `due`, keys `id`, `due` and
   `clear`), for any seat on the entry's shelf, as `retitle` is; the reply is `due <time>` or
   `due cleared`, and the change stands in `show`'s events.
-- `show` and `search` print it as `due: <time>` on the entry's line, and the JSON entry object
-  carries it as `due`. `view`'s filter word `due` selects the entries carrying one.
+- `show` and `search` print it as `due: <time>` on a live entry's line, never on an ended one's, and
+  the JSON entry object carries it as `due`. `view`'s filter word `due` selects the entries carrying one.
 
 The brief's due section follows the state slot. It holds the entries already due and those due
 within a day, earliest first, each short line ending `due <age> ago` or `due in <age>`, under
@@ -880,8 +880,8 @@ A path is relative to the work tree's root. A malformed condition is refused nam
 `--until takes closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim,
 session, at:<time> or captured, not "<condition>"`. Where the installed sdd lacks `export` (no stock release
 carries it), `closed:` is refused, `closed: needs sdd export, which this sdd lacks`, and an entry
-already carrying one ends by its other conditions only. A line names the conditions as
-`until: <condition>, ...`.
+already carrying one ends by its other conditions only. A live entry's line names the conditions as
+`until: <condition>, ...`; an ended one's names none, nothing being left to end.
 
 `captured` is for an owner decision waiting for its capture into the graph, which has no graph id to
 watch while it waits. Once the graph holds the decision, `link <todo> <graph id>` links the todo to
@@ -932,8 +932,9 @@ infers `until end inferred: every link ended` the same way.
 
 Search is sdd's: `--term` is a case-insensitive regex, every term required, matched against the
 title, the body and the reason an ended entry gives; `--query` searches by
-meaning; both fuse by reciprocal rank. Every result carries `drifted`, `gone` or `other branch` as
-computed against the tree right then, and `confirm` re-anchors a verified entry. A file is hashed
+meaning; both fuse by reciprocal rank. Every live result carries `drifted` or `gone`, and every
+result `other branch`, as computed against the tree right then (an ended entry's anchors earn no
+flag, in `show`'s `anchors:` neither), and `confirm` re-anchors a verified entry. A file is hashed
 again only once its size or modification time moved since a read last hashed it, so an edit keeping
 both reads as no change.
 

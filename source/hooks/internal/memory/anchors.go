@@ -191,11 +191,12 @@ func rehash(root string, anchors []anchor) []anchor {
 	return fresh
 }
 
-// staleness is every flag an entry earns against the caller's checkout.
+// staleness is every flag an entry earns against the caller's checkout. An
+// ended entry's anchors earn none: nothing is left to confirm or supersede.
 func staleness(here tree, held *entry) []string {
 	var flags []string
 
-	for _, anchored := range held.anchors {
+	for _, anchored := range liveAnchors(held) {
 		state := staleState(here, anchored)
 		if state != "" {
 			flags = append(flags, state+": "+anchored.Path)
@@ -219,6 +220,14 @@ func staleState(here tree, anchored anchor) string {
 	}
 
 	return ""
+}
+
+func liveAnchors(held *entry) []anchor {
+	if held.status != statusLive {
+		return nil
+	}
+
+	return held.anchors
 }
 
 func branchFlag(here tree, held *entry) []string {

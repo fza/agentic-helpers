@@ -28,10 +28,15 @@ func TestShowNamesEachStateOnce(t *testing.T) {
 	theirs := other.file("Drive's note on the gate", "a related finding")
 	other.must("", "link", id, theirs)
 
+	test.WriteFile(t, filepath.Join(h.repo, "README.md"), "# app, changed\n")
+
+	// Anchor states print for a live entry only.
+	live := h.must("", "show", id, "--again")
+	view := h.must("", "view", "--layout", "kind(note):mine:as-bodies", "--again")
+
 	h.must("", "retire", id, "--because", "first pass")
 	h.must("", "revive", id)
 	h.must("", "retire", id, "--because", "fixed in the gate")
-	test.WriteFile(t, filepath.Join(h.repo, "README.md"), "# app, changed\n")
 
 	shown := h.must("", "show", id, "--again")
 	header, _, _ := strings.Cut(shown, "\n")
@@ -46,7 +51,7 @@ func TestShowNamesEachStateOnce(t *testing.T) {
 		{"header links", !strings.Contains(header, "→ "+closedDecision), "the header should leave link flags to the links section"},
 		{"header anchors", !strings.Contains(header, "drifted"), "the header should leave anchor flags to the anchors line"},
 		{"header citers", !strings.Contains(header, "← 1"), "the header should leave the citer count to the linked-from section"},
-		{"anchors", strings.Contains(shown, "\nanchors: README.md (drifted), internal/gate/gate.go\n"),
+		{"anchors", strings.Contains(live, "\nanchors: README.md (drifted), internal/gate/gate.go\n"),
 			"the anchors line should carry each anchor's state beside it"},
 		{"links", strings.Contains(shown, "\nlinks:\n  → "+closedDecision+" closed by "+itsCloser+"\n"),
 			"the links section should carry each link's state"},
@@ -75,7 +80,6 @@ func TestShowNamesEachStateOnce(t *testing.T) {
 		})
 	}
 
-	view := h.must("", "view", "--layout", "status(retired):as-bodies", "--again")
 	if !strings.Contains(view, "\nfiled: session ") || !strings.Contains(view, "anchors: README.md (drifted)") {
 		t.Errorf("a view's as-bodies should print the block as show does:\n%s", view)
 	}
