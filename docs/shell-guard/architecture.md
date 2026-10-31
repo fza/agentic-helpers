@@ -170,7 +170,9 @@ word denies under the nested-code guard, and with it off a removal takes the sam
 verdict. A shell at the end of a pipe, through any launchers before it, that is named no `-c` code and no
 script, or is told `-s`, reads its code from the pipe: code it cannot read. A compound command at
 the end of a pipe (`{ sh; }`, `if ...; then sh; fi`, a loop) hands the pipe on to every shell inside
-it whose statement does not redirect its own input. Its first operand past
+it unless that statement's last redirection of its input is a here-document, a here-string, or a
+file named by fixed text that is not the input again: a duplicated descriptor (`0<&3`), a target the
+shell builds at run time (`< "$f"`) or `/dev/stdin` may still be the pipe. Its first operand past
 its options is the script, unless it names the input itself (`-`, `/dev/stdin`, a descriptor under
 `/dev/fd/` or `/proc/<pid>/fd/`, read cleaned, so `//dev/./stdin` counts), an option taking a value (`-o`, `-O`, fish's `-C`, grouped as `-eo`, and
 every long option but the shells' known flags such as `--norc`) taking the next word with it. Only

@@ -248,6 +248,8 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"code piped to a shell reading an uncleaned /dev/stdin", "{project}", "echo 'rm x' | sh //dev/./stdin", "deny"},
 		{"code piped to a shell reading a descriptor", "{project}", "echo 'rm x' | bash /dev/fd/0", "deny"},
 		{"input piped to a group whose shell reads a file", "{project}", "echo x | { sh < script.sh; }", "allow"},
+		{"code piped to a group whose shell reads /dev/stdin", "{project}", "echo 'rm x' | { sh < /dev/stdin; }", "deny"},
+		{"code piped to a group whose shell duplicates its input", "{project}", "echo 'rm x' | { sh 0<&0; }", "deny"},
 		{"code piped to bash with an option value", "{project}", "echo 'rm x' | bash -o errexit", "deny"},
 		{"code piped to bash with a grouped option value", "{project}", "echo 'rm x' | bash -eo pipefail", "deny"},
 		{"fish init command with a removal", "{project}", "fish -C 'rm x'", "deny"},

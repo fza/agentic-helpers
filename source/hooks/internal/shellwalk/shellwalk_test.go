@@ -94,6 +94,13 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 		{name: "a script piped into", command: "echo x | sh run.sh", events: []string{"call echo x", "call sh run.sh"}},
 		{name: "code piped to a shell in a group", command: "echo x | { sh; }", events: []string{"piped sh", "call echo x", "call sh"}},
 		{name: "code piped past a shell reading a file", command: "echo x | { sh < run.sh; }", events: []string{"call echo x", "call sh"}},
+		{name: "code piped to a shell redirected to the input again", command: "echo x | { sh < /dev/stdin; }", events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "code piped to a shell redirected to an uncleaned /dev/stdin", command: "echo x | { sh < //dev/./stdin; }", events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "code piped to a shell redirected to descriptor 0", command: "echo x | { sh < /dev/fd/0; }", events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "code piped to a shell redirected to its own descriptor 0", command: "echo x | { sh < /proc/self/fd/0; }", events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "code piped to a shell redirected to a duplicate", command: "echo x | { sh 0<&0; }", events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "code piped to a shell redirected to a built path", command: `echo x | { sh < "$f"; }`, events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "code piped to a shell whose last redirection is a duplicate", command: "echo x | { sh < run.sh 0<&3; }", events: []string{"piped sh", "call echo x", "call sh"}},
 		{name: "code piped to a shell reading its input by path", command: "echo x | sh //dev/./stdin", events: []string{"piped sh", "call echo x", "call sh //dev/./stdin"}},
 		{
 			name: "xargs past BSD's replace count", command: "xargs -R x sdd",

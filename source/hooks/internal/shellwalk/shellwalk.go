@@ -485,16 +485,31 @@ func pipedCall(visitor Visitor, call *syntax.CallExpr) {
 	visitor.Piped(CommandName(args[0]))
 }
 
+// redirectsInput is whether a statement's input is certainly no longer the
+// pipe: its last redirection of descriptor 0 is a here-document or
+// here-string, whose code the walk judges itself, or a file named by fixed
+// text that is not the input again. A duplicated descriptor (`0<&3`), a target
+// the shell builds at run time, or `/dev/stdin` may still be the pipe.
 func redirectsInput(statement *syntax.Stmt) bool {
-	return slices.ContainsFunc(statement.Redirs, func(redirect *syntax.Redirect) bool {
+	replaced := false
+
+	for _, redirect := range statement.Redirs {
 		if redirect.N != nil && redirect.N.Value != "0" {
-			return false
+			continue
 		}
 
-		return slices.Contains([]syntax.RedirOperator{
-			syntax.RdrIn, syntax.RdrInOut, syntax.DplIn, syntax.Hdoc, syntax.DashHdoc, syntax.WordHdoc,
-		}, redirect.Op)
-	})
+		switch redirect.Op {
+		case syntax.Hdoc, syntax.DashHdoc, syntax.WordHdoc:
+			replaced = true
+		case syntax.RdrIn, syntax.RdrInOut:
+			target, isLiteral := Literal(redirect.Word)
+			replaced = isLiteral && !Patterned(redirect.Word) && !StandardInput(target)
+		case syntax.DplIn:
+			replaced = false
+		}
+	}
+
+	return replaced
 }
 
 // launchedShell is the shell a call runs, through any launchers before it,
