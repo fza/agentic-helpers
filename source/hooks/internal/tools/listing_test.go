@@ -79,7 +79,7 @@ func TestFindClosesWithOneCountWhereEveryHitFitsAPage(t *testing.T) {
 			closing: "3 matches (3 tools, 1 project)" + takes},
 		{name: "no match", args: []string{"find", "--term", "nothing-holds-this"}, closing: "0 matches (3 tools, 1 project)"},
 		{name: "a first page of more", args: []string{"find", "--term", "helper", "--limit", "2", "--again"},
-			closing: "1-2 of 3 matching tools shown, of 3 in 1 projects" + takes + "; --page 2 shows the next 1"},
+			closing: "1-2 of 3 matching tools shown, of 3 in 1 projects" + takes + "; --page 2 shows the next 1  (run before concluding none fits)"},
 		{name: "a last page", args: []string{"find", "--term", "helper", "--limit", "2", "--page", "2", "--again"},
 			closing: "3-3 of 3 matching tools shown, of 3 in 1 projects" + takes},
 	}
@@ -106,7 +106,7 @@ func TestListFoldsOtherProjectsIntoOneLine(t *testing.T) {
 
 	out := h.must("list")
 
-	if !strings.Contains(out, "\nother projects: ") || strings.Count(out, "`agentic-tools find` searches them") != 1 {
+	if !strings.Contains(out, "\nother projects: ") || strings.Count(out, "`agentic-tools find` searches them  (run before writing a helper yourself)\n") != 1 {
 		t.Errorf("list should name every other project in one line:\n%s", out)
 	}
 
