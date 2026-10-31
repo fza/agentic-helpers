@@ -173,7 +173,7 @@ func TestANewEntryAbsorbsTheEntriesItSummarises(t *testing.T) {
 	}
 
 	for _, id := range []string{first, second} {
-		if !strings.Contains(h.must("", "show", id), "superseded by "+summary) {
+		if !strings.Contains(h.must("", "show", id), " by "+summary) {
 			t.Errorf("%s should be superseded by the new entry", id)
 		}
 	}

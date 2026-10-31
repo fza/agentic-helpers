@@ -78,7 +78,7 @@ func TestAConnectedRepoEntryLinksQualified(t *testing.T) {
 				t.Errorf("show should carry the qualified id and the connected repo's status, got:\n%s", shown)
 			}
 
-			first := strings.SplitN(shown, "\n", 2)[0]
+			first := strings.SplitN(h.must("", "search", "--term", "citing fdbox", "--no-heat", "--again"), "\n", 2)[0]
 			if !strings.Contains(first, "→ fdbox:"+foreignClosed+" closed by "+foreignCloser) {
 				t.Errorf("a line should name the target by its repo's last path segment, got:\n%s", first)
 			}
@@ -229,7 +229,7 @@ func TestAForeignLinkFlagsWhatTheExportSays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if first := strings.SplitN(h.must("", "show", id, "--no-heat"), "\n", 2)[0]; !strings.Contains(first, "→ fdbox:"+foreignActive+" gone") {
+	if first := h.must("", "show", id, "--no-heat"); !strings.Contains(first, "links:\n  → "+fdbox+":"+foreignActive+" gone") {
 		t.Errorf("a target the export no longer carries should flag as gone, got:\n%s", first)
 	}
 

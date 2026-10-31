@@ -196,19 +196,35 @@ func staleness(here tree, held *entry) []string {
 	var flags []string
 
 	for _, anchored := range held.anchors {
-		hash, found := here.fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
-
-		switch {
-		case !found:
-			flags = append(flags, "gone: "+anchored.Path)
-		case hash != anchored.Hash:
-			flags = append(flags, "drifted: "+anchored.Path)
+		state := staleState(here, anchored)
+		if state != "" {
+			flags = append(flags, state+": "+anchored.Path)
 		}
 	}
 
-	if held.branch != "" && here.branch != "" && held.branch != here.branch {
-		flags = append(flags, "other branch: "+held.branch)
+	return append(flags, branchFlag(here, held)...)
+}
+
+// staleState is what became of an anchored file in the caller's checkout, as
+// a line flags it: gone, drifted, or nothing where it still holds what the
+// entry was filed on.
+func staleState(here tree, anchored anchor) string {
+	hash, found := here.fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
+
+	switch {
+	case !found:
+		return "gone"
+	case hash != anchored.Hash:
+		return "drifted"
 	}
 
-	return flags
+	return ""
+}
+
+func branchFlag(here tree, held *entry) []string {
+	if held.branch != "" && here.branch != "" && held.branch != here.branch {
+		return []string{"other branch: " + held.branch}
+	}
+
+	return nil
 }

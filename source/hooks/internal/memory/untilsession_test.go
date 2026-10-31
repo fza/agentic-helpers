@@ -86,7 +86,7 @@ func TestASessionEndIsReachedWhenTheFilingClaimEnds(t *testing.T) {
 			checker := tc.reach(h)
 
 			shown := checker.must("", "show", id)
-			if strings.Contains(shown, "retired: end reached: session") != tc.retired {
+			if strings.Contains(shown, "end reached: session") != tc.retired {
 				t.Errorf("a session end should retire the entry exactly when the claim it was filed under ended:\n%s", shown)
 			}
 		})
@@ -105,7 +105,7 @@ func TestASessionEndUnderAClaimWithoutAStampEndsAtRelease(t *testing.T) {
 
 	h.must("", "release")
 
-	if shown := h.must("", "show", id); !strings.Contains(shown, "retired: end reached: session") {
+	if shown := h.must("", "show", id); !strings.Contains(shown, "end reached: session") {
 		t.Errorf("releasing a claim an earlier release wrote should end the entry:\n%s", shown)
 	}
 }

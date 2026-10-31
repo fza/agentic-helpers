@@ -648,27 +648,38 @@ func showItemsOf(req request) itemsShown {
 }
 
 func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.Duration, items itemsShown, withSuperseded bool) string {
-	lines := []string{line(here, held)}
+	// The header leaves the link and anchor flags to the sections below,
+	// which name each state once.
+	other := branchFlag(here, held)
+	header := append(statusFlags(held), other...)
+
+	for _, flag := range held.flags() {
+		if strings.HasPrefix(flag, "→ tool ") {
+			header = append(header, flag)
+		}
+	}
+
+	lines := []string{withFlags(lineHead(held), append(header, declared(held)...))}
 
 	topics := folded.topicsOf(held)
 	if len(topics) > 0 {
 		lines = append(lines, "topics: "+strings.Join(topics, ", "))
 	}
 
-	filed := fmt.Sprintf("filed %s by %s", stamp(held.filed), held.seat)
+	// The bracket holds the seat, the filing time and the commit, and the
+	// header an other branch.
+	var filed []string
 	if held.session != "" {
-		filed += ", session " + short(held.session)
+		filed = append(filed, "session "+short(held.session))
 	}
 
-	if held.branch != "" {
-		filed += ", branch " + held.branch
+	if held.branch != "" && len(other) == 0 {
+		filed = append(filed, "branch "+held.branch)
 	}
 
-	if held.commit != "" {
-		filed += ", commit " + held.commit
+	if len(filed) > 0 {
+		lines = append(lines, "filed: "+strings.Join(filed, ", "))
 	}
-
-	lines = append(lines, filed)
 
 	if !held.verified.IsZero() {
 		lines = append(lines, "verified "+stamp(held.verified))
@@ -676,7 +687,15 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 
 	if len(held.anchors) > 0 {
 		var paths []string
+
 		for _, anchored := range held.anchors {
+			state := staleState(here, anchored)
+			if state != "" {
+				paths = append(paths, anchored.Path+" ("+state+")")
+
+				continue
+			}
+
 			paths = append(paths, anchored.Path)
 		}
 
@@ -702,8 +721,8 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 
 	if inbound := held.linkedFrom(withSuperseded); len(inbound) > 0 {
 		lines = append(lines, "linked from:")
-		for _, other := range inbound {
-			lines = append(lines, "  "+line(here, other))
+		for _, citer := range inbound {
+			lines = append(lines, fmt.Sprintf("  %s %s (%s)", citer.id, citer.title, citer.status))
 		}
 	}
 
@@ -721,14 +740,56 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 	lines = append(lines, "---")
 	lines = append(lines, folded.showItems(held, items.removed, items.settled)...)
 
-	if len(held.history) > 0 {
-		lines = append(lines, "events:")
-		for _, event := range held.history {
-			lines = append(lines, "  "+event)
+	var events []string
+
+	for index, event := range held.events {
+		if !restated(held, index) {
+			events = append(events, fmt.Sprintf("  %s %s by %s", stamp(event.at), event.text, event.seat))
 		}
 	}
 
+	if len(events) > 0 {
+		lines = append(lines, "events:")
+		lines = append(lines, events...)
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+// restated is whether show already says what held's event at index did: the
+// retire or supersede the header names, a link the links section or a tool
+// flag still lists, an attachment the attachments line lists. Neither names
+// who made the change, so another seat's event stays.
+func restated(held *entry, index int) bool {
+	event := held.events[index]
+	if event.seat != held.seat {
+		return false
+	}
+
+	switch event.kind {
+	case memorylog.KindRetire, memorylog.KindSupersede:
+		if held.status == statusLive {
+			return false
+		}
+
+		for _, later := range held.events[index+1:] {
+			if later.kind == memorylog.KindRetire || later.kind == memorylog.KindSupersede {
+				return false
+			}
+		}
+
+		return true
+	case memorylog.KindLink:
+		return slices.ContainsFunc(held.explicit, func(link explicitLink) bool {
+			return event.text == "linked to "+linkNote(link.target)
+		})
+	case memorylog.KindAttach:
+		return slices.ContainsFunc(held.attachments, func(attached attachPayload) bool {
+			return event.text == "attached "+attached.Name
+		})
+	}
+
+	return false
 }
 
 func short(session string) string {

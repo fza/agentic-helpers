@@ -84,7 +84,7 @@ func TestInboundLinksLeaveOutSuperseded(t *testing.T) {
 		t.Errorf("linked from should leave out superseded entries and keep retired ones:\n%s", shown)
 	}
 
-	if !strings.Contains(shown, "← 2") {
+	if !strings.Contains(h.must("", "search", "--term", "hub finding", "--again"), "← 2") {
 		t.Errorf("the inbound count should leave out superseded entries:\n%s", shown)
 	}
 

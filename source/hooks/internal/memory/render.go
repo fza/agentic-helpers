@@ -19,6 +19,11 @@ func stamp(at time.Time) string {
 // kind, a retain override that differs from the kind's decay, source, filing
 // time and commit, then its flags.
 func line(here tree, held *entry) string {
+	return withFlags(lineHead(held), append(flagsOf(here, held, held.flags()), declared(held)...))
+}
+
+// lineHead is a full line before its flags: id, title and the bracket.
+func lineHead(held *entry) string {
 	filer := held.seat
 	if held.recipients != "" {
 		filer += " → " + held.recipients
@@ -34,9 +39,7 @@ func line(here tree, held *entry) string {
 		parts = append(parts, held.commit)
 	}
 
-	text := fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", "))
-
-	return withFlags(text, append(flagsOf(here, held, held.flags()), declared(held)...))
+	return fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", "))
 }
 
 // shortLine is how an entry shows in the brief and in recall, read every
