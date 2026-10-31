@@ -1028,8 +1028,12 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 		shown.Notified = true
 		_ = mem.writeSlot(mem.shownKey(session), &shown)
 
-		return fmt.Sprintf("%s: prompt recall is off this session: %v", self, err)
+		return fmt.Sprintf("%s: prompt recall failed, retried each prompt: %v", self, err)
 	}
+
+	// A recall that works again ends the outage, so the next failure is told.
+	shown.Notified = false
+	_ = mem.writeSlot(mem.shownKey(session), &shown)
 
 	values := make([]float64, 0, len(live))
 	for _, held := range live {
