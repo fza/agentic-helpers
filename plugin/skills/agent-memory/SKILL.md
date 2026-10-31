@@ -213,6 +213,8 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   v2.2.2, commit 81df9dd'`).
 - **Several ids → one call, all or nothing.** `agentic-memory: nothing <verb>:` then one line per
   failing id → send again without them. `new --absorbs` over a failing id → `nothing filed:`.
+- `confirm` → `confirmed`; `<id>: anchors gone from the tree, dropped: <path>` → that file moved or
+  went: the entry no longer watches it, `--about` on a successor if it should.
 - Wrong kind → `rekind`; wrong topic → `untag` (its only topic: `tag` the right one first). Never
   file again.
 - A full id named in the text links if it resolves; short graph ids never do. Another repo's graph

@@ -26,8 +26,12 @@ func TestUntilTakesEachForm(t *testing.T) {
 	} {
 		t.Run(until, func(t *testing.T) {
 			out := h.must("body", "new", "--title", "Gate todo ending on a condition", "--kind", "todo", "--until", until)
-			if !strings.Contains(out, "until: "+until) {
-				t.Errorf("the filed line should carry the declared end:\n%s", out)
+			if strings.Contains(out, "until: ") {
+				t.Errorf("the filed line should not echo an end declared in its normal form:\n%s", out)
+			}
+
+			if shown := h.must("", "show", idPattern.FindString(out), "--again"); !strings.Contains(shown, "until: "+until) {
+				t.Errorf("the entry should carry the declared end:\n%s", shown)
 			}
 		})
 	}
@@ -55,7 +59,8 @@ func TestUntilTakesEachForm(t *testing.T) {
 	}
 
 	answer := h.mcp(`{"name":"new","arguments":{"title":"Gate todo over MCP","body":"b","kind":"todo","until":["claim","captured"]}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "until: claim, captured") {
+	if strings.Contains(answer, `"isError":true`) || !strings.Contains(h.must("", "show", idPattern.FindString(answer), "--again"),
+		"until: claim, captured") {
 		t.Errorf("the MCP key until should declare the ends: %s", answer)
 	}
 
@@ -220,8 +225,12 @@ func TestClosedReadsAConnectedRepo(t *testing.T) {
 			h.must("", "claim", "main")
 
 			out := h.must("body", "new", "--title", "Gate todo ending on fdbox", "--kind", "todo", "--until", tc.until)
-			if !strings.Contains(out, "until: closed:"+tc.watched) {
-				t.Errorf("a connected repo's entry should be watched qualified:\n%s", out)
+			if strings.Contains(out, "until: closed:"+tc.watched) != (tc.until != "closed:"+tc.watched) {
+				t.Errorf("the filed line should echo the end only where it qualified the id sent:\n%s", out)
+			}
+
+			if shown := h.must("", "show", idPattern.FindString(out), "--again"); !strings.Contains(shown, "until: closed:"+tc.watched) {
+				t.Errorf("a connected repo's entry should be watched qualified:\n%s", shown)
 			}
 
 			h.must("", "brief")

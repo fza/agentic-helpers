@@ -11,7 +11,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-var itemsLine = regexp.MustCompile(`(?m)^items (m-[a-z0-9]+): (.+)$`)
+var itemsLine = regexp.MustCompile(`(?ms)^filed (m-[a-z0-9]+).*?^items: ([^\n]+)$`)
 
 // todo files a todo with items and returns its id and item ids in order.
 func (h *harness) todo(title string, items ...string) (string, []string) {
@@ -60,7 +60,7 @@ func TestATodoFilesItsItemsWithDistinctIDs(t *testing.T) {
 	}
 
 	answer := h.mcp(`{"name":"new","arguments":{"title":"Port the clock too","body":"x","topic":["gate"],"kind":"todo","item":["one","two"]}}`)
-	if !strings.Contains(answer, "items m-") {
+	if !strings.Contains(answer, "items: #") {
 		t.Errorf("MCP new should file items as the command does: %s", answer)
 	}
 }

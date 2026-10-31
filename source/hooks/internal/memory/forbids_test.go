@@ -11,8 +11,9 @@ func TestForbidsBelongsToARule(t *testing.T) {
 
 	out := h.must("never file notes like pilot v2.3", "new", "--title", "No notes on pilot versions", "--kind", "rule",
 		"--from", "user", "--forbids", `(?i)pilot v\d+`)
-	if !strings.Contains(out, `forbids: (?i)pilot v\d+`) || strings.Contains(out, "forbidden by") {
-		t.Errorf("the filed line should carry the patterns, the rule forbidding nothing of itself:\n%s", out)
+	if !strings.Contains(h.must("", "show", idPattern.FindString(out), "--again"), `forbids: (?i)pilot v\d+`) ||
+		strings.Contains(out, "forbidden by") {
+		t.Errorf("the rule should carry the patterns, forbidding nothing of itself:\n%s", out)
 	}
 
 	for _, tc := range []struct {
@@ -29,7 +30,8 @@ func TestForbidsBelongsToARule(t *testing.T) {
 	}
 
 	answer := h.mcp(`{"name":"new","arguments":{"title":"Rule over MCP here","body":"b","kind":"rule","from":"user","forbids":["secret"]}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "forbids: secret") {
+	if strings.Contains(answer, `"isError":true`) || !strings.Contains(h.must("", "show", idPattern.FindString(answer), "--again"),
+		"forbids: secret") {
 		t.Errorf("the MCP key forbids should store the patterns: %s", answer)
 	}
 

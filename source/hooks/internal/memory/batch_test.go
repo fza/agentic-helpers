@@ -74,8 +74,8 @@ func TestABatchLandsEveryIDInOneAppend(t *testing.T) {
 		}
 	}
 
-	if got := h.must("", "confirm", summary, first); strings.Count(got, "confirmed ") != 2 {
-		t.Errorf("confirm should name every confirmed id, got %q", got)
+	if got := h.must("", "confirm", summary, first); strings.TrimSpace(got) != "confirmed" {
+		t.Errorf("confirm should answer without echoing the ids sent, got %q", got)
 	}
 
 	third := h.file("Third gate finding kept longer", "third")
@@ -208,7 +208,7 @@ func TestTheBatchToolsTakeIDs(t *testing.T) {
 	}
 
 	answer := h.mcp(`{"name":"confirm","arguments":{"ids":["` + first + `","` + second + `"]}}`)
-	if !strings.Contains(answer, "confirmed "+first) || !strings.Contains(answer, "confirmed "+second) {
+	if !strings.Contains(answer, `"message":"confirmed"`) {
 		t.Errorf("confirm should take ids, got %s", answer)
 	}
 

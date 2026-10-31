@@ -270,9 +270,8 @@ func TestNewStampsAndAnchors(t *testing.T) {
 
 	due := h.must("", "new", "--title", "Port the waiter to Linux", "--topic", "gate", "--kind", "todo",
 		"--until", "claim", "--due", "2027-01-01")
-	if !regexp.MustCompile(`^filed m-[a-z0-9]{6}  .*until: claim`).MatchString(due) ||
-		!strings.Contains(strings.SplitN(due, "\n", 2)[0], "due: 2027-01-01") {
-		t.Errorf("filing should keep the entry's declared end and due time beside the id: %s", due)
+	if !regexp.MustCompile(`^filed m-[a-z0-9]{6}  due: 2027-01-01 00:00 \S+(\n|$)`).MatchString(due) || strings.Contains(due, "until:") {
+		t.Errorf("filing should name the due time it normalized beside the id, and no end declared in its normal form: %s", due)
 	}
 
 	id := idPattern.FindString(out)

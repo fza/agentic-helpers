@@ -23,8 +23,8 @@ func TestWhenTakesEachTrigger(t *testing.T) {
 
 	for _, when := range []string{"path:.autopilot/plan/parts/jobs/**", "command:pilot board upgrade", "tool:Agent"} {
 		out := h.must("body", "new", "--title", "Trap that already cost time", "--kind", "trap", "--when", when)
-		if !strings.Contains(out, "when: "+when) {
-			t.Errorf("the filed line should carry the trigger %s:\n%s", when, out)
+		if !strings.Contains(h.must("", "show", idPattern.FindString(out), "--again"), "when: "+when) || strings.Contains(out, "when: ") {
+			t.Errorf("the trap should carry the trigger %s, the filed line not echo it:\n%s", when, out)
 		}
 	}
 
@@ -41,7 +41,7 @@ func TestWhenTakesEachTrigger(t *testing.T) {
 	}
 
 	answer := h.mcp(`{"name":"new","arguments":{"title":"Trap over MCP here","body":"b","kind":"trap","when":["tool:Agent"]}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "when: tool:Agent") {
+	if strings.Contains(answer, `"isError":true`) || !strings.Contains(h.must("", "show", idPattern.FindString(answer), "--again"), "when: tool:Agent") {
 		t.Errorf("the MCP key when should declare the trigger: %s", answer)
 	}
 
@@ -103,8 +103,8 @@ func TestOnAndProofBelongToARule(t *testing.T) {
 
 	out := h.must("body", "new", "--title", "Arm the monitor on claim", "--kind", "rule", "--from", "user",
 		"--on", "claim", "--proof", "tool:Monitor")
-	if !strings.Contains(out, "on: claim; proof: tool:Monitor") {
-		t.Errorf("the filed line should carry the moment and the proof:\n%s", out)
+	if !strings.Contains(h.must("", "show", idPattern.FindString(out), "--again"), "on: claim; proof: tool:Monitor") || strings.Contains(out, "on: ") {
+		t.Errorf("the rule should carry the moment and the proof, the filed line not echo them:\n%s", out)
 	}
 
 	for _, tc := range []struct {
@@ -125,7 +125,7 @@ func TestOnAndProofBelongToARule(t *testing.T) {
 
 	answer := h.mcp(`{"name":"new","arguments":{"title":"Rule over MCP here","body":"b","kind":"rule","from":"user",` +
 		`"on":["compact"],"proof":["command:make test"]}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "on: compact; proof: command:make test") {
+	if strings.Contains(answer, `"isError":true`) || !strings.Contains(h.must("", "show", idPattern.FindString(answer), "--again"), "on: compact; proof: command:make test") {
 		t.Errorf("the MCP keys on and proof should declare them: %s", answer)
 	}
 
