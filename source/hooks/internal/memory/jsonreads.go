@@ -381,13 +381,15 @@ type jsonHolder struct {
 	SessionID string `json:"session_id,omitempty"`
 	PID       int    `json:"pid"`
 	Claimed   string `json:"claimed,omitempty"`
+	Message   string `json:"message,omitempty"`
 }
 
 func seatJSON(row seatRow, project string) jsonSeat {
 	held := jsonSeat{Name: row.seat, Shelf: row.shelf, State: row.status, Filed: row.usage.filed, Used: row.usage.used, Project: project,
 		Private: row.private}
 	if row.holder != nil {
-		held.Holder = &jsonHolder{SessionID: row.holder.SessionID, PID: row.holder.PID, Claimed: row.holder.Claimed}
+		held.Holder = &jsonHolder{SessionID: row.holder.SessionID, PID: row.holder.PID, Claimed: row.holder.Claimed,
+			Message: row.message}
 	}
 
 	return held

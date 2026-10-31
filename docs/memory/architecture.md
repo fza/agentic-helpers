@@ -122,7 +122,14 @@ seat has now, so a `rename` shows everywhere at once. No seat may be named in an
 `seats.json` is written under the store's lock (`.lock` in the store root), through a temporary
 file renamed into place. A seat's `"private": true` lives there too, beside its name, so the mark
 outlasts every claim file: `who --all` reads each other store's registry and drops its private seats
-before counting or listing any.
+before counting or listing any, as plain `who` does before counting them into its fold line.
+
+`who` names a live holder's session from Claude Code's own per-process record,
+`sessions/<pid>.json` under its configuration folder, read for the claim's pid and trusted only where
+its `sessionId` is the claim's: a pid is reused once its process ends, so a record left behind or
+written for another session names no holder. The file is Claude Code's, not memory's: where its
+shape changes, the `message:` part disappears and nothing else in the row changes. The process
+table names no session, which is why `ps` is not asked.
 
 ## Shelves
 

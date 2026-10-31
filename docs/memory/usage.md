@@ -1428,11 +1428,19 @@ answer carries are the ones below. The command line keeps its text and its `--js
 by seat:
 
     seats, filed / used in the last 14d:
-    impl  shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET  filed 6 / used 2
+    impl  shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET  message: memory rework  filed 6 / used 2
     rev   shelf row-7ah  reserved a1b2c3d4  filed 0 / used 0
     main                 free  filed 3 / used 5
     gone                 free (holder a1b2c3d4 gone, freed)  filed 0 / used 0
     +12 unused seats: agentic-memory who --unused  (run before claiming a new seat)
+    +5 seats in other projects: agentic-memory who --all  (run before concluding a seat is not held)
+
+A live holder's row carries `message: <name>`, the name Claude Code gave the holder's session and
+the one another session sends it a message by (`SendMessage`). It comes from Claude Code's record of
+the holder's process, `sessions/<pid>.json` in its configuration folder (`CLAUDE_CONFIG_DIR`, else
+`~/.claude`), whose `name` counts only where its `sessionId` is the claim's session. A record that
+is missing, unreadable or another session's prints no `message:` part, and nothing else in the row
+depends on it. `who --json` carries it as the holder's `message`.
 
 Each row ends with the seat's entries filed in the last 14 days and how many of all its entries a
 use warmed in that time (see [Search](#search)), so a seat filing far more than it uses shows it;
@@ -1451,7 +1459,9 @@ minutes, saying `freed` on their row; from a checkout bound to no store it frees
 aside, under a line naming the project and its store id, `<name> (<id>):`, a [private](#private-seats) seat left out, each
 project's block closing with its own count line,
 `+<n> unused seats: agentic-memory who --all --unused  (run before claiming a new seat)`; it never
-writes to another project's store.
+writes to another project's store. Its rows carry the same `message:` part. Without `--all`, the
+seats it would add fold into the last line, `+<n> seats in other projects: agentic-memory who --all
+(run before concluding a seat is not held)`, absent where there are none.
 `who` migrates no store and runs anywhere: outside a project it says `no seat in this project`
 and, with `--all`, lists the others.
 
@@ -1472,7 +1482,7 @@ answers one JSON object on stdout in place of its text (over MCP every answer is
 | `search --json` | `{"notice", "entries": [entry...], "more": {"skip": n}}`, no `body`, `more` absent on the last page, each entry of a ranked search carrying `score` (see [Search](#search)), none of a listing |
 | `brief --json` | `{"notice", "seat", "shelf", "language", "live", "retired", "state": {"body", "at", "branch", "commit"}, "changed": [{"id", "change", "seat", "at"}], "rules", "traps", "todos", "notes", "news": [entry...], "topics": {name: count}, "do_now": [{"id", "title", "trigger", "proof"}]}` |
 | `view --json` | `{"notice", "sections": {name: section}}`, one section per layout section under its name, in the layout's order: `{"entries": [entry...], "more": {"skip": n}}` for `as-list` and `as-bodies` (`body` only for `as-bodies`, `more` absent where nothing is left), `{"topics": {name: {"count", "heat"}}}` for `as-counts`, `{"groups": {value: {"entries": [entry...]}}, "more": {"skip": n}}` for `as-grouped`; under `expand(refs)` each entry carries `expanded`, the memory entries it links to |
-| `who --json` | `{"seats": [{"name", "shelf", "state", "holder", "filed", "used"}]}`, `state` being `held`, `reserved` or `free`, `holder` the claim's `session_id`, `pid` and `claimed`, absent for a free seat, `filed` and `used` counting the last 14 days, `private` true on a private seat of this project; `--all` adds `project` to every seat and leaves other projects' private seats out |
+| `who --json` | `{"seats": [{"name", "shelf", "state", "holder", "filed", "used"}]}`, `state` being `held`, `reserved` or `free`, `holder` the claim's `session_id`, `pid` and `claimed`, with `message` the holder's session name where known, absent for a free seat, `filed` and `used` counting the last 14 days, `private` true on a private seat of this project; `--all` adds `project` to every seat and leaves other projects' private seats out |
 | `topics --json` | `{"topics": {name: {seat: count}}}` |
 
 The entry object: `id`, `score` (a ranked search hit's), `title`, `seat`, `shelf`, `for` (shelf

@@ -54,6 +54,9 @@ agentic-memory private on|off      # hide this seat from other projects' who --a
   one`).
 - **User names a seat loosely** ("main seat", "Haupt-Session") → `who`, claim the seat whose name
   means the same. None or several fit → ask, naming the seats. Never coin one from a translation.
+- **Reaching a seat's holder** → `who`: a live holder's row carries `message: <name>`, the name
+  `SendMessage` takes. No such part → no name known; never guess one. Other projects' seats fold
+  into `+<n> seats in other projects: agentic-memory who --all`: the fold rule holds.
 - **Claimed on the user's request → answer with where work stands**, from the brief just printed:
   state, what is due, open todos with their next items, decisions waiting on the user. User's
   language, outcomes only, a few lines; an id only for work the user must act on. A claim at
