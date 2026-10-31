@@ -72,9 +72,9 @@ fires the note again. A ledger that cannot be written leaves the note firing.
 ## The reads refusal
 
 `refusals/reads.txt` holds the frame: its first line, the `gather_command` call where the project
-names one, and the reads owed. `owedReads` fills the last from the ledger, one reason and command
-for each read the ledger does not credit, and appends the search hint only when a search is among
-them. A read the ledger credits is never named, so an agent is not sent to repeat it. On a gated
+names one, and the reads owed. `owedReads` fills the last from the ledger: one header, then a label
+and command for each read the ledger does not credit, and appends the search hint only when a search
+is among them. A read the ledger credits is never named, so an agent is not sent to repeat it. On a gated
 tool `letThrough` swaps the first line for the let-through one: the call already ran, so the reads
 are owed before the next question or draft rather than before the call again. The note carrying
 reads owed fires once per cause (see [the ledger](#the-ledger)); a refusal fires on every call.

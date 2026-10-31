@@ -37,7 +37,7 @@ func TestMCPReadsGroundAQuestion(t *testing.T) {
 				mcp("search", map[string]any{"query": "a host key that changed"}),
 				mcp("search", map[string]any{"terms": []string{"ssh_host_key_changed"}}),
 			},
-			missing: "No listing of every topic since the graph last changed.",
+			missing: "\nlisting of every topic\n",
 		},
 		{
 			name: "a view of another layout is no listing of every topic",
@@ -45,7 +45,7 @@ func TestMCPReadsGroundAQuestion(t *testing.T) {
 				mcp("search", map[string]any{"query": "host key", "terms": []string{"host_key"}}),
 				mcp("view", map[string]any{"layout": "top(15)"}),
 			},
-			missing: "No listing of every topic since the graph last changed.",
+			missing: "\nlisting of every topic\n",
 		},
 		{
 			name: "blank terms are no literal read",
@@ -53,7 +53,7 @@ func TestMCPReadsGroundAQuestion(t *testing.T) {
 				mcp("search", map[string]any{"query": "host key", "terms": []string{" "}}),
 				mcp("view", map[string]any{"layout": "active:as-counts"}),
 			},
-			missing: "No `--term` search since the graph last changed.",
+			missing: "\n`--term` search\n",
 		},
 		{
 			name: "MCP and Bash reads add up",
@@ -134,7 +134,7 @@ func TestTheMCPCaptureOwesTheReads(t *testing.T) {
 	capture := mcp("start_procedure", map[string]any{"canonical": "capture"})
 
 	t.Run("without reads it is refused", func(t *testing.T) {
-		refuses(t, run(t, bare(t), "gate", capture), "No `--query` search since the graph last changed.")
+		refuses(t, run(t, bare(t), "gate", capture), "\n`--query` search\n")
 	})
 
 	t.Run("with reads it passes", func(t *testing.T) {

@@ -83,22 +83,22 @@ func TestANoteNamesOnlyTheReadsOwed(t *testing.T) {
 		{
 			name:   "only the listing missing",
 			reads:  []string{semanticRead, literalRead},
-			owed:   []string{"No listing of every topic since the graph last changed.\n  sdd view --layout \"active:as-counts\"\n"},
+			owed:   []string{"\nlisting of every topic\n  sdd view --layout \"active:as-counts\"\n"},
 			credit: []string{"--query", "--term", "search"},
 		},
 		{
 			name:   "only the literal search missing",
 			reads:  []string{semanticRead, "sdd view --layout \"active:as-counts\""},
-			owed:   []string{"No `--term` search since the graph last changed.\n  sdd search --term '<literal>' --limit 5 --max-citations 0\n"},
+			owed:   []string{"\n`--term` search\n  sdd search --term '<literal>' --limit 5 --max-citations 0\n"},
 			credit: []string{"--query", "listing of every topic", "view"},
 			hint:   true,
 		},
 		{
 			name: "every read missing",
 			owed: []string{
-				"No `--query` search since the graph last changed.\n  sdd search --query '<subject>' --limit 5 --max-citations 0\n",
-				"No `--term` search since the graph last changed.\n  sdd search --term '<literal>' --limit 5 --max-citations 0\n",
-				"No listing of every topic since the graph last changed.\n  sdd view --layout \"active:as-counts\"\n",
+				"\n`--query` search\n  sdd search --query '<subject>' --limit 5 --max-citations 0\n",
+				"\n`--term` search\n  sdd search --term '<literal>' --limit 5 --max-citations 0\n",
+				"\nlisting of every topic\n  sdd view --layout \"active:as-counts\"\n",
 			},
 			hint: true,
 		},

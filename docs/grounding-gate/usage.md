@@ -93,13 +93,14 @@ refusal, exit 2 with the reason on stderr: a capture, a plain `sdd new`, a disca
 show and an MCP capture, each a call Claude Code folds into one grey line. A refusal for reads owed
 opens `GROUNDING GATE: refused. Run the reads owed, then run this call again.`
 
-**A note or refusal names only the reads still owed**, each as the reason it is owed above the
-command that answers it; a read already credited is not named. A question asked with both searches
-credited and no listing gets:
+**A note or refusal names only the reads still owed**, under one header, each as a short label
+above the command that answers it; a read already credited is not named. A question asked with
+both searches credited and no listing gets:
 
     GROUNDING GATE: let through, reads owed before the next question or draft.
 
-    No listing of every topic since the graph last changed.
+    Owed since the graph last changed:
+    listing of every topic
       sdd view --layout "active:as-counts"
 
 `Empty search ≠ absence; a listing settles membership.` follows the reads only when a search is

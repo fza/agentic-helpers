@@ -174,12 +174,12 @@ func refuses(t *testing.T, got result, says ...string) {
 
 var (
 	everyAreaRead = []string{
-		"No `--query` search since the graph last changed.",
-		"No `--term` search since the graph last changed.",
-		"No `area-` listing since the graph last changed.",
+		"\n`--query` search\n",
+		"\n`--term` search\n",
+		"\n`area-` listing\n",
 	}
 
-	owedListing = regexp.MustCompile("No (?:`[^`]+` listing|listing of every topic) since the graph last changed\\.")
+	owedListing = regexp.MustCompile("\\n(?:`[^`]+` listing|listing of every topic)\\n")
 )
 
 // owesEveryRead asserts the call owes all three reads, whatever listing the
@@ -187,7 +187,7 @@ var (
 func owesEveryRead(t *testing.T, got result) {
 	t.Helper()
 
-	refuses(t, got, "No `--query` search since the graph last changed.", "No `--term` search since the graph last changed.")
+	refuses(t, got, "\n`--query` search\n", "\n`--term` search\n")
 
 	if !owedListing.MatchString(got.said) {
 		t.Errorf("the refusal should owe the listing too, got: %s", got.said)
@@ -209,12 +209,12 @@ func TestQuestionNeedsEveryRead(t *testing.T) {
 		missing []string
 	}{
 		{name: "no reads", missing: everyAreaRead},
-		{name: "misspelled search alone", reads: []string{misspelled}, missing: []string{"No `area-` listing since the graph last changed."}},
-		{name: "area listing alone", reads: []string{areaRead}, missing: []string{"No `--query` search since the graph last changed."}},
-		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: []string{"No `--term` search since the graph last changed."}},
-		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: []string{"No `--query` search since the graph last changed."}},
+		{name: "misspelled search alone", reads: []string{misspelled}, missing: []string{"\n`area-` listing\n"}},
+		{name: "area listing alone", reads: []string{areaRead}, missing: []string{"\n`--query` search\n"}},
+		{name: "semantic mode alone", reads: []string{semanticRead, areaRead}, missing: []string{"\n`--term` search\n"}},
+		{name: "literal mode alone", reads: []string{literalRead, areaRead}, missing: []string{"\n`--query` search\n"}},
 		{name: "show alone", reads: []string{"sdd show 20260829-122703-d-tac-kuz"}, missing: everyAreaRead},
-		{name: "facet listing is no area", reads: []string{`sdd view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: []string{"No `area-` listing"}},
+		{name: "facet listing is no area", reads: []string{`sdd view --layout "topic(deployment):as-list"`, literalRead, semanticRead}, missing: []string{"\n`area-` listing\n"}},
 	}
 
 	for _, tc := range cases {
@@ -249,7 +249,7 @@ func TestNoRefusalSpellsAFlagTheToolDoesNotTake(t *testing.T) {
 func TestDraftEdits(t *testing.T) {
 	env := areaProject(t)
 
-	refuses(t, run(t, env, "gate", edit("/x/.tmp/drafts/ssh-access/01-block.md")), "No `--query`")
+	refuses(t, run(t, env, "gate", edit("/x/.tmp/drafts/ssh-access/01-block.md")), "\n`--query` search\n")
 	passes(t, run(t, env, "gate", edit("/x/docs/fdbox/07-cli.md")))
 	passes(t, run(t, env, "gate", with(edit("/x/.tmp/drafts/ssh-access/01-block.md"), "tool_name", "Read")))
 }
@@ -299,7 +299,7 @@ func TestEvidenceIsPerTurnAndPerReader(t *testing.T) {
 			record(t, env, with(bash(read), "agent_id", "a1"))
 		}
 
-		refuses(t, run(t, env, "gate", ask("s1")), "No `--query` search since the graph last changed.")
+		refuses(t, run(t, env, "gate", ask("s1")), "\n`--query` search\n")
 		passes(t, run(t, env, "gate", with(ask("s1"), "agent_id", "a1")))
 		owesEveryRead(t, run(t, env, "gate", with(ask("s1"), "agent_id", "a2")))
 	})
@@ -681,7 +681,7 @@ func TestListingWithoutAPrefix(t *testing.T) {
 			if tc.opens {
 				passes(t, got)
 			} else {
-				refuses(t, got, "No listing of every topic since the graph last changed.")
+				refuses(t, got, "\nlisting of every topic\n")
 			}
 		})
 	}
@@ -699,7 +699,7 @@ func TestListingWithAPrefix(t *testing.T) {
 		env := areaProject(t)
 		record(t, env, bash(literalRead), bash(semanticRead), bash(`sdd view --layout "active:as-counts"`))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing since the graph last changed.")
+		refuses(t, run(t, env, "gate", ask("s1")), "\n`area-` listing\n")
 	})
 
 	t.Run("a quoted topic still counts", func(t *testing.T) {
@@ -755,9 +755,9 @@ func TestCaptureNeedsEveryRead(t *testing.T) {
 		missing []string
 	}{
 		{name: "no reads", missing: everyAreaRead},
-		{name: "no semantic search", reads: []string{literalRead, areaRead}, missing: []string{"No `--query` search since the graph last changed."}},
-		{name: "no literal search", reads: []string{semanticRead, areaRead}, missing: []string{"No `--term` search since the graph last changed."}},
-		{name: "no listing", reads: []string{literalRead, semanticRead}, missing: []string{"No `area-` listing since the graph last changed."}},
+		{name: "no semantic search", reads: []string{literalRead, areaRead}, missing: []string{"\n`--query` search\n"}},
+		{name: "no literal search", reads: []string{semanticRead, areaRead}, missing: []string{"\n`--term` search\n"}},
+		{name: "no listing", reads: []string{literalRead, semanticRead}, missing: []string{"\n`area-` listing\n"}},
 	}
 
 	for _, tc := range cases {

@@ -29,9 +29,9 @@ func TestAReadAfterAGraphChangeClearsTheOlderCredit(t *testing.T) {
 	record(t, env, bash(literalRead), bash(areaRead))
 
 	got := run(t, env, "gate", ask("s1"))
-	refuses(t, got, "No `--query` search since the graph last changed.")
+	refuses(t, got, "\n`--query` search\n")
 
-	if strings.Contains(got.said, "No `--term`") || strings.Contains(got.said, "listing since") {
+	if strings.Contains(got.said, "\n`--term` search\n") || strings.Contains(got.said, "` listing\n") {
 		t.Errorf("only the read made before the change should be owed, got: %s", got.said)
 	}
 }
