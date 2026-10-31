@@ -267,6 +267,32 @@ func TestADraftTheCallCannotTakeIsRefused(t *testing.T) {
 	})
 }
 
+func TestARefusedDraftIsNamedOnceAsGiven(t *testing.T) {
+	cases := []struct {
+		name    string
+		fixture string
+		says    string
+	}{
+		{name: "a missing draft", says: "draft refused: reading .tmp/drafts/entry.md: no such file or directory\n"},
+		{name: "a draft with no leading block", fixture: "capture/no-block.md",
+			says: "draft refused: .tmp/drafts/entry.md opens with no --- line, so it carries no leading block\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			if tc.fixture != "" {
+				f.draft(tc.fixture)
+			}
+
+			got := f.run(filepath.Join(".tmp", "drafts", "entry.md"))
+			if got.code != 1 || got.stderr != tc.says {
+				t.Errorf("the refusal should name the draft once, as the call spelled it, got: %+v", got)
+			}
+		})
+	}
+}
+
 func TestTheProjectsLint(t *testing.T) {
 	t.Run("no key, no lint", func(t *testing.T) {
 		f := newFixture(t, "grounding/area-prefix.yaml")
