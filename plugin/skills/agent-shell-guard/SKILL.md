@@ -35,7 +35,10 @@ around that; ask the user.
   chain only). Inside a script a
   removal is judged by its targets only (`ls` then `rm -rf build` passes; `rm -rf ~/x` and
   `rm -rf $DIR` ask), and nothing is refused: what would deny in a typed command asks. A python (or
-  other interpreter's) `#!` line is judged as that interpreter's inline code, asking too. A script
+  other interpreter's) `#!` line is judged as that interpreter's inline code, asking too; so is a
+  fish script (`fish x.fish`, or a fish `#!` line), asking
+  `in the script x.fish: inline code for fish names a removal or mktemp; refusing` where its text
+  names a removal or `mktemp`, a comment or string among it. A script
   written by `cat > x.sh <<'EOF'` in the same call is judged from the here-document. A script an
   earlier command of the call names as an argument (`cp new.sh x.sh`, `sed -i ... x.sh`,
   `curl -o x.sh`, any command it does not know) is not read and asks, unless that command only

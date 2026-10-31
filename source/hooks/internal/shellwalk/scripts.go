@@ -66,9 +66,12 @@ const (
 	UnreadDeep      = "scripts run scripts too deep"
 )
 
-// scriptShells are the shells whose scripts the walk reads: fish's syntax is
-// no shell's the parser reads.
+// scriptShells are the shells whose scripts the walk reads as shell: fish's
+// syntax is no shell's the parser reads, so a fish script goes out as
+// another interpreter's text.
 var scriptShells = []string{"sh", "bash", "zsh", "dash", "ksh", "mksh"}
+
+const fishShell = "fish"
 
 var shellMoves = []string{"cd", "pushd", "popd"}
 
@@ -557,7 +560,7 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 	name := CommandName(args[0])
 
 	switch {
-	case slices.Contains(scriptShells, name):
+	case slices.Contains(scriptShells, name) || name == fishShell:
 		if shellCode(args[1:]) != nil {
 			return -1
 		}
@@ -567,14 +570,14 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 			return -1
 		}
 
-		walked.script(args[1+at], dir, false)
+		walked.script(args[1+at], dir, false, name == fishShell)
 
 		return 1 + at
 	case name == "source" || name == ".":
 		at := -1
 
 		if len(args) > 1 {
-			walked.script(args[1], dir, false)
+			walked.script(args[1], dir, false, false)
 
 			at = 1
 		}
@@ -588,7 +591,7 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 			return -1
 		}
 
-		walked.script(args[0], dir, true)
+		walked.script(args[0], dir, true, false)
 
 		return 0
 	}
@@ -631,9 +634,11 @@ func (walked *walker) afterSource(args []*syntax.Word) {
 
 // script reports the script word names: its text, with the interpreter named on
 // its first line where that is no shell, or why it goes unread. executed is a script
-// run by its path, whose first line picks what reads it; a file that is no
-// text is no script.
-func (walked *walker) script(word *syntax.Word, dir string, executed bool) {
+// run by its path, whose first line picks what reads it; fish is what fish
+// itself reads, whatever its first line says. A fish script goes out as
+// another interpreter's: the parser reads no fish. A file that is no text is
+// no script.
+func (walked *walker) script(word *syntax.Word, dir string, executed bool, fish bool) {
 	name := Spelled(word)
 
 	text, why := walked.textOf(word, dir)
@@ -653,6 +658,8 @@ func (walked *walker) script(word *syntax.Word, dir string, executed bool) {
 	interpreter, hasShebang := shebang(text)
 
 	switch {
+	case fish || executed && interpreter == fishShell:
+		walked.visitor.Script(name, fishShell, text, inner)
 	case !executed || !hasShebang || slices.Contains(scriptShells, interpreter):
 		walked.visitor.Script(name, "", text, inner)
 	case IsInterpreter(interpreter):

@@ -715,6 +715,39 @@ func TestAScriptAnEarlierCommandNamesIsWrittenBeforeItRuns(t *testing.T) {
 	}
 }
 
+func TestAFishScriptIsJudgedAsInlineCode(t *testing.T) {
+	g := newGuard(t, true, "")
+	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)
+
+	cases := []struct {
+		name     string
+		command  string
+		decision string
+		reason   string
+	}{
+		{"a fish script holding no removal", "fish list.fish", "allow", ""},
+		{"a fish script holding a removal", "fish clean.fish", "ask", "in the script clean.fish: inline code for fish names a removal or mktemp; refusing"},
+		{"a fish script past fish's options", "fish --no-config -- clean.fish", "ask", "in the script clean.fish: inline code for fish names a removal or mktemp; refusing"},
+		{"an executed script with a fish shebang holding a removal", "./tidy-fish", "ask", "in the script ./tidy-fish: inline code for fish names a removal or mktemp; refusing"},
+		{"a missing fish script", "fish missing.fish", "ask", "cannot read the script missing.fish (no such file)"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision, reason := g.judge(tc.command, "{project}/scripts")
+
+			want := ""
+			if tc.reason != "" {
+				want = "agentic-shell-guard: " + tc.reason
+			}
+
+			if decision != tc.decision || reason != want {
+				t.Errorf("the fish script should be judged by the removals its text names, got %s %q", decision, reason)
+			}
+		})
+	}
+}
+
 func TestAnOversizedScriptIsAskedAbout(t *testing.T) {
 	g := newGuard(t, true, "")
 	test.WriteFile(t, filepath.Join(g.tree.Project, "large.sh"), strings.Repeat("echo padding\n", 90000))

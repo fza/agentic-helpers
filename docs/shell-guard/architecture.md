@@ -228,7 +228,11 @@ payload's `cwd`; the plain `Walk` reads none. A script is the operand of `sh`, `
 `dash`, `ksh` or `mksh` given no code (`scriptOperand`, reading options as `namesScript` does, and
 taking the word after `--`), the file `source` or `.` reads, or a command named by a literal path
 holding `/` whose base name is no shell, launcher or interpreter. Only a call the walk is certain
-runs counts. fish is left out: its syntax is no shell's the parser reads.
+runs counts. A script `fish` runs, or one run by its path whose `#!` line names fish, goes out as
+`Visitor.Script` with `fish` as its interpreter: its syntax is no shell's the parser reads, so
+shell-guard judges its text by the removal and `mktemp` names `Inline` looks for, as it judges
+`python3` code. Asking on every fish script was rejected: it costs a confirmation for harmless ones
+with no gain over the name check.
 
 The walk keeps the directory the shell is in (`walker.dir`). A `cd` moves it only where what
 follows runs only once the `cd` succeeded (`followedMoves`), with a fixed operand (none means home,

@@ -145,6 +145,12 @@ the call keeps every rule: `mktemp && bash x.sh` is still refused.
   the nested-code guard judges by the removal calls it names, asking where it names one; any other
   `#!` line, and a file holding
   a NUL byte in its first 8000 bytes (a binary), not at all.
+- **A fish script** (`fish x.fish`, or a file run by its path whose `#!` line names fish) is read
+  like any other, and its text judged as inline code is, since the bash parser reads no fish: one
+  naming a removal or `mktemp` asks
+  `in the script x.fish: inline code for fish names a removal or mktemp; refusing`, and one naming
+  none passes. A removal word in a comment or a string asks too, and a removal's target is not
+  checked against the project.
 - **Where it is read from**: the session's working directory, moved by a `cd` with a fixed operand
   naming a directory that exists, in three forms, each one where what follows runs only where the
   `cd` took the shell. A `cd` that is a statement of its own or opens an `&&` chain of such cds
