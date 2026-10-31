@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
@@ -139,11 +140,17 @@ func toKeep(root string, source string) string {
 	}
 
 	name := filepath.Base(source)
+	stem, extension := name, ""
+
+	info, err := os.Lstat(source)
+	if err == nil && !info.IsDir() {
+		stem, extension = splitExtension(name)
+	}
 
 	for suffix := 1; suffix <= keepSuffixLimit; suffix++ {
 		candidate := name
 		if suffix > 1 {
-			candidate = fmt.Sprintf("%s-%d", name, suffix)
+			candidate = fmt.Sprintf("%s-%d%s", stem, suffix, extension)
 		}
 
 		target := filepath.Join(keepDir(root), candidate)
@@ -168,6 +175,15 @@ func toKeep(root string, source string) string {
 	}
 
 	return ""
+}
+
+// splitExtension keeps a file's last extension apart, so a clash suffix still
+// leaves the name opening as the kind of file it is; a leading dot opens a
+// name, never an extension.
+func splitExtension(name string) (string, string) {
+	extension := filepath.Ext(strings.TrimLeft(name, "."))
+
+	return strings.TrimSuffix(name, extension), extension
 }
 
 // The removal itself refuses a folder holding anything; a link at the name is

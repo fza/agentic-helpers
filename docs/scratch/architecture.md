@@ -67,9 +67,12 @@ something already holds the name stays, printing `Scratch: left <from> where it 
 the newer folder goes by its own sweep, and the old one moves at the next start after that. Merging
 two seat folders' throwaway would gain nothing a later start does not, and could misfile a keep. A
 stray bound for `.tmp/keep/<name>` takes the first of `<name>`, `<name>-2`, `<name>-3` and on that
-nothing holds, up to `-1000`. A file moves there through `safefs.RenameExclusive`: hard-linked at
-the new name, which fails where something filled the name since the check, then unlinked at the
-old, so it never replaces another file; one with a second hard link stays where it is.
+nothing holds, up to `-1000`. A file's suffix goes before its last extension (`notes-2.txt`,
+`archive.tar-2.gz`), so the kept copy still opens as the kind of file it is; a leading dot opens a
+name rather than an extension (`.env-2`). A folder always takes the suffix at the end. A file
+moves there through `safefs.RenameExclusive`: hard-linked at the new name, which fails where
+something filled the name since the check, then unlinked at the old, so it never replaces another
+file; one with a second hard link stays where it is.
 
 Dating a stray reads at most 10,000 entries, as the reap does; a larger one stays. `.tmp/claude/` is
 removed only as a plain folder the removal itself finds empty, never as a link. Every move goes

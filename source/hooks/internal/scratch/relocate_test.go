@@ -236,15 +236,41 @@ func TestATakenKeepNameGetsTheNextSuffix(t *testing.T) {
 }
 
 func TestALooseFileNeverReplacesAKeep(t *testing.T) {
+	cases := []struct {
+		name string
+		kept string
+	}{
+		{name: "notes.md", kept: "notes-2.md"},
+		{name: "Makefile", kept: "Makefile-2"},
+		{name: ".env", kept: ".env-2"},
+		{name: "archive.tar.gz", kept: "archive.tar-2.gz"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := project(t)
+			test.WriteFile(t, filepath.Join(root, ".tmp", "keep", tc.name), "kept\n")
+			aged(t, root, filepath.Join(root, ".tmp", "claude", tc.name), "stray\n", 2*day)
+
+			relocated(t, root)
+
+			if test.ReadFile(t, filepath.Join(root, ".tmp", "keep", tc.name)) != "kept\n" ||
+				test.ReadFile(t, filepath.Join(root, ".tmp", "keep", tc.kept)) != "stray\n" {
+				t.Error("a loose file should take the next free name, suffixed before its last extension, and leave the keep at its own")
+			}
+		})
+	}
+}
+
+func TestAStrayFolderTakesItsSuffixAtTheEnd(t *testing.T) {
 	root := project(t)
-	test.WriteFile(t, filepath.Join(root, ".tmp", "keep", "notes.md"), "kept\n")
-	aged(t, root, filepath.Join(root, ".tmp", "claude", "notes.md"), "stray\n", 2*day)
+	test.WriteFile(t, filepath.Join(root, ".tmp", "keep", "probe.v1", "a.sh"), "a")
+	aged(t, root, filepath.Join(root, ".tmp", "claude", "probe.v1", "b.sh"), "b", 2*day)
 
-	relocated(t, root)
+	said := relocated(t, root)
 
-	if test.ReadFile(t, filepath.Join(root, ".tmp", "keep", "notes.md")) != "kept\n" ||
-		test.ReadFile(t, filepath.Join(root, ".tmp", "keep", "notes.md-2")) != "stray\n" {
-		t.Error("a loose file should take the next free name and leave the keep at its own")
+	if test.ReadFile(t, filepath.Join(root, ".tmp", "keep", "probe.v1-2", "b.sh")) != "b" {
+		t.Errorf("a folder's name should take the suffix at its end, a dot in it being no extension, said %q", said)
 	}
 }
 

@@ -23,7 +23,10 @@ Work a later session reads goes to `.tmp/keep/<name>/`, which nothing sweeps.
 session's folder there and never creates another name. Anything else found under `.tmp/seats/`, a
 folder without a marker or a loose file not named for a session, moves to `.tmp/keep/<name>` once
 nothing in it changed for 24 hours, said in one line: `Scratch: moved .tmp/seats/<name>/ to
-.tmp/keep/<name>/`. A name `.tmp/keep/` already holds gets `-2`, `-3` and on.
+.tmp/keep/<name>/`. A name `.tmp/keep/` already holds gets `-2`, `-3` and on: a folder at the end
+of its name (`probe/` to `probe-2/`), a file before its last extension (`notes.txt` to
+`notes-2.txt`, `archive.tar.gz` to `archive.tar-2.gz`). A file without one, or whose only dot leads
+its name, takes it at the end (`Makefile-2`, `.env-2`).
 
 **Only a folder the sweep can prove is throwaway is ever removed.** A seat's folder carries a marker
 file, `.agentic-scratch`, naming the seat's id; only a folder whose marker names a seat of the
