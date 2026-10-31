@@ -207,7 +207,7 @@ Each line names tools, paths and commands only, never another agent's summary or
 | a tool call, a held tool newer | `` tool library: newer versions of `word-count`. `agentic-tools take word-count` copies them `` |
 | a tool call, a held fork's origin newer | `` tool library: `word-count` in github.com/fza/other has v6; yours forked at v5 `` |
 | the next prompt after a turn left scripts the library lacks | `` tool library: your scratch holds scripts the library lacks: check.py, split.sh. `agentic-tools add <name> --from <path> --summary '...' --usage '...'` registers one `` |
-| the next prompt after a turn changed a taken copy | `` tool library: you changed your copy of `word-count` (<copy>): `agentic-tools update word-count --from <copy> --why '...'` `` |
+| the next prompt after a turn changed a taken copy | `` tool library: you changed your copy of `word-count`: `agentic-tools update word-count --from <copy> --why '...'` `` |
 
 The offer names up to three own tools, each once per context and none find or list printed, the caller's role first; nothing when
 none is near. A prompt holding a credential is never embedded and gets no offer; agentic-memory

@@ -161,8 +161,8 @@ func TestStopRecordsAndThePromptDeliversNudgesOnce(t *testing.T) {
 		t.Errorf("only scripts no tool holds should be named, got %q", got)
 	}
 
-	if !strings.Contains(got, "tool library: you changed your copy of `word-count` ("+filepath.Dir(copied)+
-		"): `agentic-tools update word-count --from "+filepath.Dir(copied)+" --why '...'`") {
+	if !strings.Contains(got, "tool library: you changed your copy of `word-count`: "+
+		"`agentic-tools update word-count --from "+filepath.Dir(copied)+" --why '...'`") {
 		t.Errorf("the prompt should deliver the changed-copy nudge, got %q", got)
 	}
 
