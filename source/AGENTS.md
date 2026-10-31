@@ -22,7 +22,8 @@ Go rules, loaded when a session touches code under `source/`.
   not expose and which saves a `ps` spawn per read, and maps memory's vector segments with
   `madvise`, which `syscall` lacks on darwin, and asks standard input for its terminal settings,
   which the standard library cannot, and renames between two folder descriptors with `renameat`,
-  which neither `syscall` on darwin nor `os.Root` offers; `github.com/bmatcuk/doublestar/v4` matches
+  and links one with `linkat` for a move that never replaces a file, which neither `syscall` on
+  darwin nor `os.Root` offers; `github.com/bmatcuk/doublestar/v4` matches
   memory's `path:` triggers, since `path.Match` has no `**`.
 
 ## Hooks

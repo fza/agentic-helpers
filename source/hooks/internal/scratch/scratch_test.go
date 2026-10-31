@@ -34,7 +34,7 @@ func project(t *testing.T) string {
 func sessionDir(t *testing.T, root string, name string, age time.Duration) string {
 	t.Helper()
 
-	held := filepath.Join(root, ".tmp", "claude", name)
+	held := filepath.Join(root, ".tmp", "seats", name)
 	test.WriteFile(t, filepath.Join(held, "probe.txt"), "scratch")
 
 	if age > 0 {
@@ -57,7 +57,7 @@ func TestEndRemovesOnlyTheEndingSession(t *testing.T) {
 	root := project(t)
 	mine := sessionDir(t, root, test.Session, 0)
 	theirs := sessionDir(t, root, test.OtherSession, 0)
-	keep := filepath.Join(root, ".tmp", "claude", "keep", "worth-keeping.sh")
+	keep := filepath.Join(root, ".tmp", "keep", "probes", "worth-keeping.sh")
 	drafts := filepath.Join(root, ".tmp", "drafts", "entry.md")
 	test.WriteFile(t, keep, "#!/bin/sh\n")
 	test.WriteFile(t, drafts, "draft")
@@ -98,7 +98,7 @@ func TestEndRemovesNothingWithoutASession(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := project(t)
 			mine := sessionDir(t, root, test.Session, 0)
-			test.WriteFile(t, filepath.Join(root, ".tmp", "claude", "keep", "x"), "x")
+			test.WriteFile(t, filepath.Join(root, ".tmp", "keep", "probes", "x"), "x")
 
 			code, captured := run(t, root, "end", tc.stdin)
 
@@ -106,7 +106,7 @@ func TestEndRemovesNothingWithoutASession(t *testing.T) {
 				t.Errorf("end should succeed, stderr: %s", captured.Err.String())
 			}
 
-			if !test.Exists(t, mine) || !test.Exists(t, filepath.Join(root, ".tmp", "claude", "keep")) {
+			if !test.Exists(t, mine) || !test.Exists(t, filepath.Join(root, ".tmp", "keep", "probes")) {
 				t.Error("nothing should be removed")
 			}
 		})
@@ -118,7 +118,7 @@ func TestEndNeverFollowsALink(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "precious")
 	test.WriteFile(t, filepath.Join(outside, "keep.txt"), "keep")
 
-	link := filepath.Join(root, ".tmp", "claude", test.Session)
+	link := filepath.Join(root, ".tmp", "seats", test.Session)
 
 	err := os.MkdirAll(filepath.Dir(link), 0o755)
 	if err != nil {
@@ -141,7 +141,7 @@ func TestStartReapsOnlyAbandonedSessions(t *testing.T) {
 	root := project(t)
 	stale := sessionDir(t, root, test.OtherSession, 30*24*time.Hour)
 	fresh := sessionDir(t, root, test.Session, 0)
-	named := filepath.Join(root, ".tmp", "claude", "keep")
+	named := filepath.Join(root, ".tmp", "keep", "probes")
 	test.WriteFile(t, filepath.Join(named, "x"), "x")
 	test.Age(t, named, 99*24*time.Hour)
 

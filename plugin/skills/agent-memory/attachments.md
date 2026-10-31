@@ -1,7 +1,7 @@
 # Attachments
 
 ```bash
-agentic-memory new --title '...' --topic t --attach .tmp/claude/build.log <<'EOF'   # a path, never content
+agentic-memory new --title '...' --topic t --attach .tmp/keep/build.log <<'EOF'   # a path, never content
 agentic-memory attach <id> <path>...                    # any seat on the entry's shelf
 agentic-memory read <id> [<name>] [--offset n] [--max-bytes n]   # page a text file
 agentic-memory read <id> <name> --to <new path>         # any file's bytes, inside the work tree or /tmp

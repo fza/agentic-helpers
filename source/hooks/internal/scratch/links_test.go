@@ -30,7 +30,7 @@ func TestASeatsMarkerNeverLandsAtAPlantedLink(t *testing.T) {
 		t.Run(planting.Name, func(t *testing.T) {
 			root := t.TempDir()
 			outside := test.Outside(t)
-			test.WriteFile(t, filepath.Join(root, ".tmp", "claude", "old", scratch.Marker), seatID+"\n")
+			test.WriteFile(t, filepath.Join(root, ".tmp", "seats", "old", scratch.Marker), seatID+"\n")
 			planting.Plant(t, filepath.Join(scratch.SeatDir(root, "main"), scratch.Marker), outside)
 
 			scratch.Seat(root, "main", seatID)

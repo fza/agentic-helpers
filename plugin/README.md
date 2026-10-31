@@ -23,7 +23,7 @@ the version first installed: turn auto-update on under `/plugin`, Marketplaces, 
 - **agentic-memory** keeps notes the agent reads again after a compaction or in a new session, and
   serves them over the `memory` MCP server.
 - **agentic-tools** shares helper scripts between agents, over the `tools` MCP server.
-- **agentic-scratch** gives each seat or session a `.tmp/claude/` folder and empties it when the
+- **agentic-scratch** gives each seat or session a `.tmp/seats/` folder and empties it when the
   work ends.
 - **agentic-grounding-gate** holds questions, drafts and captures until the agent has read the
   project's [sdd](https://github.com/networkteam/sdd) decision graph.

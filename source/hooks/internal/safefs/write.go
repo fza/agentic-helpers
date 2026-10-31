@@ -346,6 +346,61 @@ func (held *Dir) Rename(from string, into *Dir, to string) error {
 	return nil
 }
 
+// RenameExclusive moves the entry from below held to the name to below into,
+// never replacing an entry there. rename(2) replaces a file at the new name,
+// and checking the name first leaves a gap another process can fill, so a
+// file is hard-linked at the new name, which fails atomically where the name
+// exists, and only then unlinked at the old. A folder renames as Rename does,
+// refused at a name already there. A file with a second name is refused, as a
+// write refuses one.
+func (held *Dir) RenameExclusive(from string, into *Dir, to string) error {
+	source, target := path.Join(held.path, from), path.Join(into.path, to)
+	if !singleName(from) || !singleName(to) {
+		return fmt.Errorf("moving %s to %s: names no single entry", source, target)
+	}
+
+	moving, err := held.root.Lstat(from)
+	if err != nil {
+		return fmt.Errorf("moving %s: %w", source, err)
+	}
+
+	if moving.IsDir() {
+		return held.Rename(from, into, to)
+	}
+
+	if hardLinked(moving) {
+		return fmt.Errorf("moving %s: %w", source, ErrHardLinked)
+	}
+
+	sourceDir, err := held.root.Open(".")
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", held.path, err)
+	}
+
+	defer func() { _ = sourceDir.Close() }()
+
+	targetDir, err := into.root.Open(".")
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", into.path, err)
+	}
+
+	defer func() { _ = targetDir.Close() }()
+
+	// Without AT_SYMLINK_FOLLOW a link at the old name is linked as itself,
+	// never followed.
+	err = unix.Linkat(int(sourceDir.Fd()), from, int(targetDir.Fd()), to, 0)
+	if err != nil {
+		return fmt.Errorf("moving %s to %s: %w", source, target, err)
+	}
+
+	err = held.root.Remove(from)
+	if err != nil {
+		return fmt.Errorf("moving %s to %s, %s keeps its old name too: %w", source, target, source, err)
+	}
+
+	return nil
+}
+
 // Symlink makes name below held a link holding target, refusing a name
 // already there. Nothing written follows the link: it is copied as it stands.
 func (held *Dir) Symlink(target string, name string) error {

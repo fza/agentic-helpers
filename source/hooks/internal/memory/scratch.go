@@ -30,7 +30,7 @@ var seatInTranscript = regexp.MustCompile(
 	`agentic-memory: seat ([^\s,"\\]+),|agentic-memory claim ([^\s"\\-][^\s"\\]*)|memory__claim","input":\{"name":"([^"\\]+)"`)
 
 // scratchRoot is the main checkout, where agentic-scratch keeps
-// `.tmp/claude/`, even for a session in a worktree.
+// `.tmp/seats/`, even for a session in a worktree.
 func (mem *memory) scratchRoot() string {
 	if mem.facts.CommonDir != "" {
 		return filepath.Dir(mem.facts.CommonDir)
@@ -96,8 +96,10 @@ func (mem *memory) moveScratch(from string, fromKey string, to string, toKey str
 	scratch.MoveSeat(mem.scratchRoot(), from, fromKey, to, toKey)
 }
 
-// tidyScratch moves each old session folder into its seat's folder and reaps
-// every seat folder idle a week, at session start.
+// tidyScratch moves each seat folder of the store still under `.tmp/claude/`
+// to `.tmp/seats/`, each old session folder into its seat's folder, and reaps
+// every seat folder idle a week, at session start. Session folders and strays
+// are agentic-scratch's to move.
 func (mem *memory) tidyScratch(ctx context.Context, transcriptPath string) {
 	registry, found := mem.registry()
 	if !found || !pieces.Scratch.On(mem.options()) {
@@ -110,6 +112,11 @@ func (mem *memory) tidyScratch(ctx context.Context, transcriptPath string) {
 	}
 
 	root := mem.scratchRoot()
+	owned := func(id string) bool { return ids[id] }
+
+	for _, line := range scratch.RelocateSeats(root, owned) {
+		mem.say(line)
+	}
 
 	scratch.Migrate(root, func(session string) (string, string, bool) {
 		key := mem.seatOfSession(registry, session, transcriptPath)
@@ -120,7 +127,7 @@ func (mem *memory) tidyScratch(ctx context.Context, transcriptPath string) {
 		return registry.NameOf(key), key, true
 	})
 
-	scratch.ReapSeats(ctx, root, func(id string) bool { return ids[id] }, time.Now())
+	scratch.ReapSeats(ctx, root, owned, time.Now())
 }
 
 // seatOfSession is the id of the seat session held: as a seat's claim or last

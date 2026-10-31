@@ -136,11 +136,11 @@ func TestStopRecordsAndThePromptDeliversNudgesOnce(t *testing.T) {
 	h.tool("word-count", "Count the words of standard input")
 	h.must("take", "word-count")
 
-	scratch := filepath.Join(h.repo, ".tmp", "claude", h.session)
-	h.file(".tmp/claude/"+h.session+"/check.py", "print('check')\n")
-	h.file(".tmp/claude/"+h.session+"/notes.txt", "not a script\n")
-	h.file(".tmp/claude/"+h.session+"/again.sh", "# word-count\nprint('word-count')\n# Count the words of standard input\n")
-	h.file(".tmp/claude/"+h.session+"/word-count.py", "# a different script under a tool's file name\n")
+	scratch := filepath.Join(h.repo, ".tmp", "seats", h.session)
+	h.file(".tmp/seats/"+h.session+"/check.py", "print('check')\n")
+	h.file(".tmp/seats/"+h.session+"/notes.txt", "not a script\n")
+	h.file(".tmp/seats/"+h.session+"/again.sh", "# word-count\nprint('word-count')\n# Count the words of standard input\n")
+	h.file(".tmp/seats/"+h.session+"/word-count.py", "# a different script under a tool's file name\n")
 
 	copied := filepath.Join(h.store(), "copies", "word-count", "v1", "word-count.py")
 	_ = os.WriteFile(copied, []byte("# changed\n"), 0o600)
@@ -178,7 +178,7 @@ func TestStopRecordsAndThePromptDeliversNudgesOnce(t *testing.T) {
 
 func TestANudgeOpensTheNextCall(t *testing.T) {
 	h := newHarness(t)
-	h.file(".tmp/claude/"+h.session+"/check.py", "print('check')\n")
+	h.file(".tmp/seats/"+h.session+"/check.py", "print('check')\n")
 	h.tool("word-count", "Count the words of standard input")
 	h.hook("stop", nil)
 
@@ -193,7 +193,7 @@ func TestANudgeOpensTheNextCall(t *testing.T) {
 
 func TestAMachineWithoutALibraryHearsNothing(t *testing.T) {
 	h := newHarness(t)
-	h.file(".tmp/claude/"+h.session+"/check.py", "print('check')\n")
+	h.file(".tmp/seats/"+h.session+"/check.py", "print('check')\n")
 
 	for _, verb := range []string{"prompt", "notice", "stop", "end"} {
 		if h.hook(verb, map[string]any{"prompt": "count words"}) != "" {
@@ -212,8 +212,8 @@ func TestTheTurnEndReadsTheSeatsScratchFolderToo(t *testing.T) {
 
 	memory := h.roots().Store(test.StoreOf(t, h.roots(), h.repo, test.GitDirOf{}, nil), home.Memory)
 	test.ClaimSeatByID(t, memory, "s-abc123", "main", h.session)
-	h.file(".tmp/claude/main/probe.py", "print('probe')\n")
-	h.file(".tmp/claude/"+h.session+"/check.py", "print('check')\n")
+	h.file(".tmp/seats/main/probe.py", "print('probe')\n")
+	h.file(".tmp/seats/"+h.session+"/check.py", "print('check')\n")
 
 	h.hook("stop", nil)
 

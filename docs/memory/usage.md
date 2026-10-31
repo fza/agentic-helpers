@@ -128,8 +128,8 @@ agentic-memory search --term mcp --query 'gate blind to tool calls'
 agentic-memory supersede m-7q2k4f --by m-9xq0b1
 ```
 
-With scratch on, a claim also makes the seat's scratch folder, `.tmp/claude/<seat>/` (creating
-`.tmp/` first in a git checkout lacking one, and adding it to git's global excludes), and prints `scratch: .tmp/claude/<seat>/` under its first line; a brief after
+With scratch on, a claim also makes the seat's scratch folder, `.tmp/seats/<seat>/` (creating
+`.tmp/` first in a git checkout lacking one, and adding it to git's global excludes), and prints `scratch: .tmp/seats/<seat>/` under its first line, after `Scratch: moved .tmp/seats/<seat>/ to .tmp/keep/<seat>/` where something not marked for the seat held the name; a brief after
 a compaction prints it again. `release`, the end of the session and a rename act on that folder as
 `scratch_sweep` says ([the scratch sweep](../scratch/usage.md)).
 

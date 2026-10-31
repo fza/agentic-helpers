@@ -1,15 +1,17 @@
 // Package scratch keeps a project's scratch directory from becoming a
 // graveyard.
 //
-// A session holding no seat writes its throwaway under
-// `.tmp/claude/<session-id>/`, and that directory goes when the session ends. A
-// directory abandoned by a session that crashed is reaped at a later session
-// start once it is a week old. A seated session's `.tmp/claude/<seat>/` is
-// agentic-memory's to make and sweep, through seats.go.
+// `.tmp/seats/` belongs to agentic-helpers alone. A session holding no seat
+// writes its throwaway under `.tmp/seats/<session-id>/`, and that directory
+// goes when the session ends. A directory abandoned by a session that crashed
+// is reaped at a later session start once it is a week old. A seated session's
+// `.tmp/seats/<seat>/` is agentic-memory's to make and sweep, through seats.go.
+// Work a later session reads lives under `.tmp/keep/`, which nothing sweeps.
 //
 // Only a directory named for a session, or a seat folder carrying its marker,
-// is ever removed. Any other name is somebody's deliberate keep, and survives
-// whatever its age.
+// is ever removed. Anything else found under `.tmp/seats/` or the older
+// `.tmp/claude/` is somebody's keep: relocate.go moves it to `.tmp/keep/`,
+// never removing it.
 package scratch
 
 import (
@@ -94,8 +96,8 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	return 0
 }
 
-func sessionsDir(root string) string {
-	return filepath.Join(root, ".tmp", "claude")
+func seatsDir(root string) string {
+	return filepath.Join(root, ".tmp", "seats")
 }
 
 func end(ctx context.Context, root string, session string, out io.Writer) error {
@@ -103,7 +105,7 @@ func end(ctx context.Context, root string, session string, out io.Writer) error 
 		return nil
 	}
 
-	held := filepath.Join(sessionsDir(root), session)
+	held := filepath.Join(seatsDir(root), session)
 	if !isDir(held) || !remove(ctx, held) {
 		return nil
 	}
@@ -118,6 +120,14 @@ func end(ctx context.Context, root string, session string, out io.Writer) error 
 
 func start(ctx context.Context, env Env, options pluginconfig.Options, out io.Writer) error {
 	var said []string
+
+	// With memory on, agentic-memory moves the marked seat folders, since only
+	// its store says whose a marker names; with memory off any seat id counts.
+	if !pieces.Memory.On(options) {
+		said = append(said, RelocateSeats(env.Root, seat.IsID)...)
+	}
+
+	said = append(said, Relocate(ctx, env.Root, time.Now())...)
 
 	gone := reap(ctx, env.Root, time.Now())
 	if gone > 0 {
@@ -160,7 +170,7 @@ func start(ctx context.Context, env Env, options pluginconfig.Options, out io.Wr
 }
 
 func reap(ctx context.Context, root string, now time.Time) int {
-	entries, err := os.ReadDir(sessionsDir(root))
+	entries, err := os.ReadDir(seatsDir(root))
 	if err != nil {
 		return 0
 	}
@@ -182,7 +192,7 @@ func reap(ctx context.Context, root string, now time.Time) int {
 			continue
 		}
 
-		if remove(ctx, filepath.Join(sessionsDir(root), entry.Name())) {
+		if remove(ctx, filepath.Join(seatsDir(root), entry.Name())) {
 			gone++
 		}
 	}

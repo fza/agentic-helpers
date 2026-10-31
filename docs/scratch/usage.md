@@ -5,24 +5,31 @@ they are invisible to whoever reviews the work; left at the root of the project'
 pile up, and nothing tells a throwaway apart from a draft that still matters.
 
 So an agent writes its throwaway under one folder of its own. A session holding an agentic-memory
-seat gets `.tmp/claude/<seat>/`, made when it claims the seat and named on the claim and after every
-compaction: `scratch: .tmp/claude/<seat>/`. An agent always knows its seat, rarely its session id. A
-session holding no seat writes under `.tmp/claude/<session-id>/`, which goes when the session ends.
+seat gets `.tmp/seats/<seat>/`, made when it claims the seat and named on the claim and after every
+compaction: `scratch: .tmp/seats/<seat>/`. An agent always knows its seat, rarely its session id. A
+session holding no seat writes under `.tmp/seats/<session-id>/`, which goes when the session ends.
+Work a later session reads goes to `.tmp/keep/<name>/`, which nothing sweeps.
 
 ```
 .tmp/
-├── claude/<seat>/         throwaway of a seat. Swept as scratch_sweep says.
-├── claude/<session-id>/   throwaway of a session holding no seat. Swept when it ends.
-├── claude/<name>/         kept. Never swept.
+├── seats/<seat>/          throwaway of a seat. Swept as scratch_sweep says.
+├── seats/<session-id>/    throwaway of a session holding no seat. Swept when it ends.
+├── keep/<name>/           kept. Never swept.
 ├── drafts/                awaiting capture. Never swept.
 └── <the project's own>    never touched
 ```
 
+**`.tmp/seats/` belongs to agentic-helpers alone.** An agent writes inside its own seat's or
+session's folder there and never creates another name. Anything else found under `.tmp/seats/`, a
+folder without a marker or a loose file not named for a session, moves to `.tmp/keep/<name>` once
+nothing in it changed for 24 hours, said in one line: `Scratch: moved .tmp/seats/<name>/ to
+.tmp/keep/<name>/`. A name `.tmp/keep/` already holds gets `-2`, `-3` and on.
+
 **Only a folder the sweep can prove is throwaway is ever removed.** A seat's folder carries a marker
 file, `.agentic-scratch`, naming the seat's id; only a folder whose marker names a seat of the
-checkout's memory store goes. A session folder goes only where its name is a session id. Any other
-folder is somebody's deliberate keep and survives whatever its age, a folder at a seat's name without
-the marker included: the claim then says `scratch: .tmp/claude/<seat>/ (a keep, never swept)`.
+checkout's memory store goes. A session folder goes only where its name is a session id. A claim
+finding anything else at its seat's name moves it to `.tmp/keep/<seat>/` at once, saying so, and
+then makes the seat's own marked folder, so a seat's throwaway never mixes into somebody's keep.
 
 The plugin option `scratch_sweep` chooses when a seat's folder goes:
 
@@ -36,11 +43,21 @@ In every mode a session start reaps a marked folder whose newest file is a week 
 folder a week old: the backstop for a session that crashed or a seat nobody released. A rename and a
 launcher moving a session to another seat carry the folder to the new name.
 
+**A checkout that kept its scratch under `.tmp/claude/` moves it, never deleting it.** At a
+session start each `.tmp/claude/<seat>/` whose marker names a seat of the store moves to
+`.tmp/seats/<seat>/`, and each `.tmp/claude/<session-id>/` to `.tmp/seats/<session-id>/`. Every
+other entry of `.tmp/claude/`, a folder without a marker or a loose file, moves to
+`.tmp/keep/<name>` once nothing in it changed for 24 hours, so a session still writing there keeps
+its paths through the day. A name already taken under `.tmp/seats/` is never merged into: the old
+folder stays, said as `Scratch: left .tmp/claude/<name>/ where it is, .tmp/seats/<name>/ is taken.`,
+and moves at a later start once the sweep took the newer one. An emptied `.tmp/claude/` then goes,
+the only removal the migration makes. Each move is said in one line naming where it went.
+
 A checkout that kept session folders before seats had their own moves them once: at a session start
-each `.tmp/claude/<session-id>/` whose session a seat's claim or the session's transcript names
-moves into that seat's folder, a name already there going into a `<first 8 characters of the
-session id>/` subfolder. A folder no seat claims stays, and goes a week after its last change. Loose
-files at the root of `.tmp/claude/` are never touched.
+each session folder, under `.tmp/seats/` or `.tmp/claude/`, whose session a seat's claim or the
+session's transcript names moves into that seat's folder, a name already there going into a
+`<first 8 characters of the session id>/` subfolder. A folder no seat claims stays, and goes a week
+after its last change.
 
 A project opts in by carrying `.tmp/`. Claiming an agentic-memory seat in a git checkout counts as
 opting in: the claim creates `.tmp/` where it is missing, and adds it to git's global excludes at

@@ -514,7 +514,7 @@ func (lib *library) scratchFolders(ctx context.Context) []string {
 	}
 
 	root := lib.checkout(ctx)
-	folders := []string{filepath.Join(root, ".tmp", "claude", lib.session)}
+	folders := []string{filepath.Join(root, ".tmp", "seats", lib.session)}
 
 	if lib.key == "" {
 		return folders

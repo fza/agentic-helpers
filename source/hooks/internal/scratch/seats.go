@@ -23,45 +23,55 @@ const walkLimit = 10000
 
 // SeatDir is a seat's scratch folder under root.
 func SeatDir(root string, name string) string {
-	return filepath.Join(sessionsDir(root), name)
+	return filepath.Join(seatsDir(root), name)
 }
 
 // Seat makes the seat's folder under a root carrying `.tmp/`, marked for the
-// seat id, and answers the line a claim prints, or nothing where the root has
-// no `.tmp/`. A folder already there without the seat's marker is left as it
-// is, and the line says it is a keep.
+// seat id, and answers the lines a claim prints, or nothing where the root has
+// no `.tmp/`. Anything already at the name not marked for the seat moves to
+// `.tmp/keep/` first, its move said above the folder's line, so the seat's
+// throwaway never mixes into somebody's keep.
 func Seat(root string, name string, id string) string {
 	if !isDir(filepath.Join(root, ".tmp")) {
 		return ""
 	}
 
-	line := "scratch: " + filepath.Join(".tmp", "claude", name) + "/"
+	line := "scratch: " + filepath.ToSlash(filepath.Join(".tmp", "seats", name)) + "/"
 	dir := SeatDir(root, name)
 
+	var said []string
+
 	_, err := os.Lstat(dir)
-	if err == nil {
-		if markOf(dir) == id {
-			return line
+
+	switch {
+	case err == nil && markOf(dir) == id:
+		return line
+	case err == nil:
+		moved := toKeep(root, dir)
+		if moved == "" {
+			return ""
 		}
 
-		return line + " (a keep, never swept)"
-	}
-
-	if !errors.Is(err, fs.ErrNotExist) {
+		said = append(said, moved)
+	case !errors.Is(err, fs.ErrNotExist):
 		return ""
 	}
 
-	err = safefs.MkdirAll(root, dir, 0o700)
+	err = makeSeat(root, dir, id)
 	if err != nil {
-		return ""
+		return strings.Join(said, "\n")
 	}
 
-	err = safefs.WriteFile(root, filepath.Join(dir, Marker), []byte(id+"\n"), 0o600)
+	return strings.Join(append(said, line), "\n")
+}
+
+func makeSeat(root string, dir string, id string) error {
+	err := safefs.MkdirAll(root, dir, 0o700)
 	if err != nil {
-		return ""
+		return err
 	}
 
-	return line
+	return safefs.WriteFile(root, filepath.Join(dir, Marker), []byte(id+"\n"), 0o600)
 }
 
 // RemoveSeat removes the seat's folder where its marker names the seat, and
@@ -96,7 +106,7 @@ func MoveSeat(root string, from string, fromID string, to string, toID string) {
 // accepts and whose newest file is older than a week, the backstop for a seat
 // nobody releases, and answers how many went.
 func ReapSeats(ctx context.Context, root string, owned func(id string) bool, now time.Time) int {
-	entries, err := os.ReadDir(sessionsDir(root))
+	entries, err := os.ReadDir(seatsDir(root))
 	if err != nil {
 		return 0
 	}
@@ -109,7 +119,7 @@ func ReapSeats(ctx context.Context, root string, owned func(id string) bool, now
 			break
 		}
 
-		dir := filepath.Join(sessionsDir(root), entry.Name())
+		dir := filepath.Join(seatsDir(root), entry.Name())
 		if !entry.IsDir() {
 			continue
 		}
@@ -132,39 +142,47 @@ func ReapSeats(ctx context.Context, root string, owned func(id string) bool, now
 	return gone
 }
 
-// Migrate moves each `.tmp/claude/<session-id>/` folder whose session seatOf
-// maps to a seat into that seat's folder, a name already there going into a
-// subfolder named by the session id's first eight characters, and removes
-// the emptied session folder. A folder no seat claims stays, and is reaped on
-// the session-id rule. Loose files at the root are never touched.
+// Migrate moves each session folder, under `.tmp/seats/` or the older
+// `.tmp/claude/`, whose session seatOf maps to a seat into that seat's folder,
+// a name already there going into a subfolder named by the session id's first
+// eight characters, and removes the emptied session folder. A folder no seat
+// claims stays, and is reaped on the session-id rule. Loose files are never
+// touched.
 func Migrate(root string, seatOf func(session string) (name string, id string, found bool)) int {
-	entries, err := os.ReadDir(sessionsDir(root))
-	if err != nil {
-		return 0
-	}
-
 	moved := 0
 
-	for _, entry := range entries {
-		if !entry.IsDir() || !isSession(entry.Name()) {
+	for _, parent := range []string{seatsDir(root), legacyDir(root)} {
+		entries, err := os.ReadDir(parent)
+		if err != nil {
 			continue
 		}
 
-		name, id, found := seatOf(entry.Name())
-		if !found {
-			continue
-		}
+		for _, entry := range entries {
+			if !entry.IsDir() || !isSession(entry.Name()) {
+				continue
+			}
 
-		// A keep at the seat's name takes nothing: what moved into it would
-		// never be swept.
-		Seat(root, name, id)
+			name, id, found := seatOf(entry.Name())
+			if !found {
+				continue
+			}
 
-		if markOf(SeatDir(root, name)) != id {
-			continue
-		}
+			dir := SeatDir(root, name)
 
-		if moveInto(root, filepath.Join(sessionsDir(root), entry.Name()), SeatDir(root, name), entry.Name()[:8]) {
-			moved++
+			_, err = os.Lstat(dir)
+			if errors.Is(err, fs.ErrNotExist) {
+				_ = makeSeat(root, dir, id)
+			}
+
+			// A keep at the seat's name takes nothing: what moved into it
+			// would never be swept.
+			if markOf(dir) != id {
+				continue
+			}
+
+			if moveInto(root, filepath.Join(parent, entry.Name()), dir, entry.Name()[:8]) {
+				moved++
+			}
 		}
 	}
 

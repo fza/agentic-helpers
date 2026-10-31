@@ -37,7 +37,7 @@ func TestAClaimMakesTheSeatsMarkedScratchFolder(t *testing.T) {
 	h := scratchProject(t)
 
 	out := h.must("", "claim", "main")
-	if !strings.Contains(out, "\nscratch: .tmp/claude/main/\n") {
+	if !strings.Contains(out, "\nscratch: .tmp/seats/main/\n") {
 		t.Errorf("the claim should name the seat's scratch folder, got:\n%s", out)
 	}
 
@@ -51,7 +51,7 @@ func TestAClaimGivesAGitCheckoutItsTmpFolder(t *testing.T) {
 	h := newHarness(t)
 
 	out := h.must("", "claim", "main")
-	if !strings.Contains(out, "\nscratch: .tmp/claude/main/\n") || !test.Exists(t, filepath.Join(h.seatScratch("main"), scratch.Marker)) {
+	if !strings.Contains(out, "\nscratch: .tmp/seats/main/\n") || !test.Exists(t, filepath.Join(h.seatScratch("main"), scratch.Marker)) {
 		t.Errorf("a claim in a git checkout without .tmp/ should create it with the seat's folder, got:\n%s", out)
 	}
 
@@ -134,19 +134,19 @@ func TestAClearKeepsTheSeatsFolderUnderTheSessionSweep(t *testing.T) {
 	}
 }
 
-func TestAKeepAtTheSeatsNameIsNeverSwept(t *testing.T) {
+func TestAKeepAtTheSeatsNameMovesToKeep(t *testing.T) {
 	h := scratchProject(t)
-	keep := filepath.Join(h.seatScratch("main"), "keep.sh")
-	test.WriteFile(t, keep, "echo keep\n")
+	test.WriteFile(t, filepath.Join(h.seatScratch("main"), "keep.sh"), "echo keep\n")
 
-	if !strings.Contains(h.must("", "claim", "main"), "scratch: .tmp/claude/main/ (a keep, never swept)") {
-		t.Error("the claim should name a folder it did not make as a keep")
+	out := h.must("", "claim", "main")
+	if !strings.Contains(out, "Scratch: moved .tmp/seats/main/ to .tmp/keep/main/\nscratch: .tmp/seats/main/\n") {
+		t.Errorf("the claim should move the folder it did not make to .tmp/keep/ and name its own, got:\n%s", out)
 	}
 
 	h.must("", "release")
 
-	if !test.Exists(t, keep) || test.Exists(t, filepath.Join(h.seatScratch("main"), scratch.Marker)) {
-		t.Error("a keep should survive the release unmarked")
+	if !test.Exists(t, filepath.Join(h.repo, ".tmp", "keep", "main", "keep.sh")) || test.Exists(t, h.seatScratch("main")) {
+		t.Error("the keep should survive the release under .tmp/keep/, and the seat's own folder go")
 	}
 }
 
@@ -187,16 +187,45 @@ func TestTheSessionStartReapsAWeekIdleSeatFolder(t *testing.T) {
 }
 
 func TestAnOldSessionFolderMovesIntoItsSeatsFolder(t *testing.T) {
+	for _, parent := range []string{"seats", "claude"} {
+		t.Run(parent, func(t *testing.T) {
+			h := scratchProject(t)
+			h.must("", "claim", "main")
+
+			held := filepath.Join(h.repo, ".tmp", parent, test.Session, "probe.py")
+			test.WriteFile(t, held, "print(1)\n")
+
+			h.must(unrelatedStart(), "session-start")
+
+			if test.Exists(t, filepath.Dir(held)) || !test.Exists(t, filepath.Join(h.seatScratch("main"), "probe.py")) {
+				t.Error("the session folder of a seat's claim should move into the seat's folder")
+			}
+		})
+	}
+}
+
+func TestTheSessionStartMovesTheStoresLegacySeatFolders(t *testing.T) {
 	h := scratchProject(t)
 	h.must("", "claim", "main")
+	h.must("", "release")
 
-	held := filepath.Join(h.repo, ".tmp", "claude", test.Session, "probe.py")
-	test.WriteFile(t, held, "print(1)\n")
+	legacy := filepath.Join(h.repo, ".tmp", "claude")
+	test.WriteFile(t, filepath.Join(legacy, "main", scratch.Marker), seatID(t, h.store(), "main")+"\n")
+	test.WriteFile(t, filepath.Join(legacy, "main", "probe.py"), "print(1)\n")
+	test.WriteFile(t, filepath.Join(legacy, "lead", scratch.Marker), "s-zzz999\n")
 
-	h.must(unrelatedStart(), "session-start")
+	out := h.must(unrelatedStart(), "session-start")
 
-	if test.Exists(t, filepath.Dir(held)) || !test.Exists(t, filepath.Join(h.seatScratch("main"), "probe.py")) {
-		t.Error("the session folder of a seat's claim should move into the seat's folder")
+	if test.ReadFile(t, filepath.Join(h.seatScratch("main"), "probe.py")) != "print(1)\n" {
+		t.Error("a seat folder of the store should move under .tmp/seats/ with its contents")
+	}
+
+	if !strings.Contains(out, "Scratch: moved .tmp/claude/main/ to .tmp/seats/main/") {
+		t.Errorf("the move should be said, got:\n%s", out)
+	}
+
+	if !test.Exists(t, filepath.Join(legacy, "lead", scratch.Marker)) {
+		t.Error("a folder marked for a seat of another store should stay")
 	}
 }
 
@@ -218,7 +247,7 @@ func TestATranscriptNamesTheSeatOfAnOlderSessionFolder(t *testing.T) {
 
 			transcripts := filepath.Join(h.home, "projects", "repo")
 			test.WriteFile(t, filepath.Join(transcripts, session+".jsonl"), line+"\n")
-			held := filepath.Join(h.repo, ".tmp", "claude", session, "notes.md")
+			held := filepath.Join(h.repo, ".tmp", "seats", session, "notes.md")
 			test.WriteFile(t, held, "notes\n")
 
 			h.must(startPayload(older, filepath.Join(transcripts, older+".jsonl")), "session-start")
@@ -235,7 +264,7 @@ func TestTheCompactBriefNamesTheSeatsFolder(t *testing.T) {
 	h := scratchProject(t)
 	h.must("", "claim", "main")
 
-	if !strings.Contains(h.must(hookPayload("compact", "", ""), "session-start"), "scratch: .tmp/claude/main/") {
+	if !strings.Contains(h.must(hookPayload("compact", "", ""), "session-start"), "scratch: .tmp/seats/main/") {
 		t.Error("the brief after a compaction should name the seat's scratch folder")
 	}
 }

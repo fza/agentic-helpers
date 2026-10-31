@@ -64,7 +64,7 @@ func TestASecondCloneWritesNothingUntilBound(t *testing.T) {
 		t.Error("a clone bound to no store should still take a copy into its own .tmp/")
 	}
 
-	clone.file(".tmp/claude/"+clone.session+"/line-count.py", "print(1)\n")
+	clone.file(".tmp/seats/"+clone.session+"/line-count.py", "print(1)\n")
 
 	for _, verb := range []string{"prompt", "notice", "stop", "end"} {
 		if clone.hook(verb, map[string]any{"prompt": "count the words of standard input"}) != "" {
@@ -156,7 +156,7 @@ func TestANewerHomeIsRefusedAndKeptAsItIs(t *testing.T) {
 		h.refused("has format 9; this release reads up to 1", args...)
 	}
 
-	h.file(".tmp/claude/"+h.session+"/line-count.py", "print(1)\n")
+	h.file(".tmp/seats/"+h.session+"/line-count.py", "print(1)\n")
 
 	for _, verb := range []string{"prompt", "notice", "stop", "end"} {
 		if h.hook(verb, map[string]any{"prompt": "count the words of standard input"}) != "" {

@@ -185,6 +185,25 @@ func Rename(root string, from string, to string) error {
 	return Move(root, from, root, to)
 }
 
+// RenameExclusive is Rename refusing to replace anything at to.
+func RenameExclusive(root string, from string, to string) error {
+	source, fromName, err := Parent(root, from)
+	if err != nil {
+		return err
+	}
+
+	defer source.Close()
+
+	target, toName, err := Parent(root, to)
+	if err != nil {
+		return err
+	}
+
+	defer target.Close()
+
+	return source.RenameExclusive(fromName, target, toName)
+}
+
 // Move moves from below fromRoot to to below toRoot, walking each side from
 // its own root. A path whose folder is the owner's names that folder as its
 // root.

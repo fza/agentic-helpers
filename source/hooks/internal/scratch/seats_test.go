@@ -35,7 +35,7 @@ func TestAClaimedSeatGetsItsMarkedFolder(t *testing.T) {
 	root := project(t)
 
 	line := scratch.Seat(root, "main", seatID)
-	if line != "scratch: .tmp/claude/main/" {
+	if line != "scratch: .tmp/seats/main/" {
 		t.Errorf("the claim should name the seat's folder, got %q", line)
 	}
 
@@ -61,7 +61,7 @@ func TestAProjectWithoutTmpGetsNoSeatFolder(t *testing.T) {
 	}
 }
 
-func TestAFolderWithoutTheSeatsMarkerIsAKeep(t *testing.T) {
+func TestAFolderWithoutTheSeatsMarkerIsNeverSwept(t *testing.T) {
 	for name, marker := range map[string]string{"no marker": "", "another seat's marker": "s-zzz999\n"} {
 		t.Run(name, func(t *testing.T) {
 			root := project(t)
@@ -76,10 +76,6 @@ func TestAFolderWithoutTheSeatsMarkerIsAKeep(t *testing.T) {
 			test.Age(t, dir, 30*24*time.Hour)
 			before := test.Tree(t, root)
 
-			if !strings.HasSuffix(scratch.Seat(root, "main", seatID), "(a keep, never swept)") {
-				t.Error("the claim should name a folder it did not mark as a keep")
-			}
-
 			if scratch.RemoveSeat(t.Context(), root, "main", seatID) {
 				t.Error("a release should not remove a keep")
 			}
@@ -90,6 +86,59 @@ func TestAFolderWithoutTheSeatsMarkerIsAKeep(t *testing.T) {
 
 			if test.Tree(t, root) != before {
 				t.Error("a keep should be left byte-identical")
+			}
+		})
+	}
+}
+
+func TestAClaimMovesWhatHoldsItsNameToKeep(t *testing.T) {
+	cases := []struct {
+		name   string
+		marker string
+		taken  bool
+		kept   string
+	}{
+		{name: "an unmarked folder", kept: "main"},
+		{name: "another seat's folder", marker: "s-zzz999\n", kept: "main"},
+		{name: "a keep name already taken", taken: true, kept: "main-2"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := project(t)
+			dir := scratch.SeatDir(root, "main")
+			test.WriteFile(t, filepath.Join(dir, "keep.sh"), "echo keep\n")
+
+			if tc.marker != "" {
+				test.WriteFile(t, filepath.Join(dir, scratch.Marker), tc.marker)
+			}
+
+			if tc.taken {
+				test.WriteFile(t, filepath.Join(root, ".tmp", "keep", "main", "older.sh"), "echo older\n")
+			}
+
+			out := scratch.Seat(root, "main", seatID)
+
+			kept := filepath.Join(root, ".tmp", "keep", tc.kept)
+			if test.ReadFile(t, filepath.Join(kept, "keep.sh")) != "echo keep\n" {
+				t.Error("the folder at the seat's name should move to .tmp/keep/ intact")
+			}
+
+			if !strings.Contains(out, "Scratch: moved .tmp/seats/main/ to .tmp/keep/"+tc.kept+"/\n") {
+				t.Errorf("the move should be said, got %q", out)
+			}
+
+			if !strings.HasSuffix(out, "scratch: .tmp/seats/main/") || strings.Contains(out, "keep, never swept") {
+				t.Errorf("the claim should name its own fresh folder, got %q", out)
+			}
+
+			marker, err := os.ReadFile(filepath.Join(dir, scratch.Marker))
+			if err != nil || strings.TrimSpace(string(marker)) != seatID || test.Exists(t, filepath.Join(dir, "keep.sh")) {
+				t.Error("the seat's folder should be fresh and marked for the seat")
+			}
+
+			if tc.taken && test.ReadFile(t, filepath.Join(root, ".tmp", "keep", "main", "older.sh")) != "echo older\n" {
+				t.Error("a keep already at the name should stay as it is")
 			}
 		})
 	}
@@ -219,33 +268,38 @@ func TestASeatMoveRemarksTheFolderForTheNewSeat(t *testing.T) {
 }
 
 func TestOldSessionFoldersMoveIntoTheirSeatsFolder(t *testing.T) {
-	root := project(t)
-	seatFolder(t, root, 0)
+	for _, parent := range []string{"seats", "claude"} {
+		t.Run(parent, func(t *testing.T) {
+			root := project(t)
+			seatFolder(t, root, 0)
 
-	mapped := sessionDir(t, root, test.Session, 0)
-	test.WriteFile(t, filepath.Join(mapped, "probe.py"), "print(2)\n")
-	unmapped := sessionDir(t, root, test.OtherSession, 0)
-	loose := filepath.Join(root, ".tmp", "claude", "loose.txt")
-	test.WriteFile(t, loose, "loose")
+			mapped := filepath.Join(root, ".tmp", parent, test.Session)
+			test.WriteFile(t, filepath.Join(mapped, "probe.txt"), "scratch")
+			test.WriteFile(t, filepath.Join(mapped, "probe.py"), "print(2)\n")
+			unmapped := sessionDir(t, root, test.OtherSession, 0)
+			loose := filepath.Join(root, ".tmp", parent, "loose.txt")
+			test.WriteFile(t, loose, "loose")
 
-	moved := scratch.Migrate(root, func(session string) (string, string, bool) {
-		return "main", seatID, session == test.Session
-	})
+			moved := scratch.Migrate(root, func(session string) (string, string, bool) {
+				return "main", seatID, session == test.Session
+			})
 
-	dir := scratch.SeatDir(root, "main")
-	clash := filepath.Join(dir, test.Session[:8], "probe.py")
+			dir := scratch.SeatDir(root, "main")
+			clash := filepath.Join(dir, test.Session[:8], "probe.py")
 
-	switch {
-	case moved != 1:
-		t.Errorf("one session folder should move, got %d", moved)
-	case test.Exists(t, mapped):
-		t.Error("the moved session's folder should be removed")
-	case !test.Exists(t, filepath.Join(dir, "probe.txt")):
-		t.Error("a file should land in the seat's folder")
-	case !test.Exists(t, clash):
-		t.Error("a file whose name the seat's folder holds should land in the session's subfolder")
-	case !test.Exists(t, unmapped) || !test.Exists(t, loose):
-		t.Error("an unmapped session folder and a loose file should stay")
+			switch {
+			case moved != 1:
+				t.Errorf("one session folder should move, got %d", moved)
+			case test.Exists(t, mapped):
+				t.Error("the moved session's folder should be removed")
+			case !test.Exists(t, filepath.Join(dir, "probe.txt")):
+				t.Error("a file should land in the seat's folder")
+			case !test.Exists(t, clash):
+				t.Error("a file whose name the seat's folder holds should land in the session's subfolder")
+			case !test.Exists(t, unmapped) || !test.Exists(t, loose):
+				t.Error("an unmapped session folder and a loose file should stay")
+			}
+		})
 	}
 }
 
