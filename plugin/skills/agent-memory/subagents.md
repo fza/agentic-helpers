@@ -12,7 +12,20 @@ agentic-helpers: shared
 ```
 
 `none`, `rules`, `silent`, `shared` or `full`. No line, or a word that is none of these, is `none`.
-Only the first marker line counts; the PreToolUse hook on the Agent tool drops every other one.
+Only the first marker line counts: the PreToolUse hook on the Agent tool swaps it for the block and
+keeps every later one as text.
+
+**Passing a level on.** For a subagent that spawns its own (a builder spawning a reviewer), write
+the nested line alone on its line below your own marker, saying what it is for:
+
+```
+agentic-helpers: silent
+Spawn the reviewer with this line, alone on its line, in its prompt:
+agentic-helpers: rules
+```
+
+The child copies it into its Agent prompt as is, no backticks. It never raises the nested child
+above the child's own level: a `silent` child copying `agentic-helpers: full` spawns at `silent`.
 
 ## What each level gets
 

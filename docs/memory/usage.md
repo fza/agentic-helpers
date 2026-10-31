@@ -307,12 +307,16 @@ The levels form a ladder, each holding everything of the one below:
   rules govern runs at `rules`; one needing what memory knows at `silent`; long work beside other
   seats at `shared`; work whose findings outlive it at `full`.
 - **The prompt is rewritten.** The `agentic-memory pre-tool` hook on the Agent tool replaces the
-  marker line with the level's block, or puts the block above a prompt carrying none. From `rules`
+  first marker line with the level's block, or puts the block above a prompt carrying none. Every
+  later marker line stays in the prompt as text, so a spawner passes a level on for a nested Agent
+  call by writing that line, alone on its line, below its own: the child copies it into its own
+  Agent prompt, where it is the first marker line. From `rules`
   up the block opens with `agentic-helpers level: <level>` (`, seat <name>` at `full`), the line
   the subagent's hooks read its level back from; a line in that shape the prompt already carried is
   dropped. The rewrite never answers the permission decision: the call goes through the user's
   permission rules as Claude sent it would.
-- **Capped.** A nested subagent never gets more than the subagent spawning it. With memory off,
+- **Capped.** A nested subagent never gets more than the subagent spawning it, whatever line its
+  prompt handed on: a `silent` child copying `agentic-helpers: full` spawns at `silent`. With memory off,
   outside a git work tree or with no store, a spawn gets at most `rules`; where the session holds no
   seat, at most `silent`.
 - **Refused below `full`.** The same hook judges a subagent's `agentic-memory` calls on Bash and its
@@ -333,7 +337,8 @@ The levels form a ladder, each holding everything of the one below:
 - **Notices are the subagent's own.** A `shared` subagent's notices run against a mark of its own,
   so the seat is still told of what its subagent was told; a `full` one's are its seat's.
 
-**Accepted costs.** A spawner that forgets the line leaves its subagent at `none`. A level fixed at
+**Accepted costs.** A spawner that forgets the line leaves its subagent at `none`. A prompt
+carrying two marker lines meant for the same child shows it the second as text. A level fixed at
 the spawn does not change while the subagent runs. An `agentic-memory` call a script file makes is
 out of the hook's reach and works on the session's own seat. The MCP join on the call id is observed
 in Claude Code, not documented; the command line is the path where it breaks. A subagent's reads

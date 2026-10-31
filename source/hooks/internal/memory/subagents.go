@@ -102,9 +102,10 @@ func levelIn(prompt string) (level, string, bool) {
 }
 
 // rewritePrompt puts the block where the prompt's first marker line stood,
-// or above the prompt where none did. Every other marker line, and any line
-// in the shape of a level line, goes: only the hook names a level the
-// subagent's hooks read back.
+// or above the prompt where none did. A later marker line stays as text, so
+// a spawner can hand a level on for a nested Agent call, which the cap at
+// the subagent's own level still bounds. Any line in the shape of a level
+// line goes: only the hook names a level the subagent's hooks read back.
 func rewritePrompt(prompt string, block []string) string {
 	var kept []string
 
@@ -112,11 +113,9 @@ func rewritePrompt(prompt string, block []string) string {
 
 	for _, line := range strings.Split(prompt, "\n") {
 		switch {
-		case markerLine.MatchString(line):
-			if !placed {
-				kept = append(kept, block...)
-				placed = true
-			}
+		case !placed && markerLine.MatchString(line):
+			kept = append(kept, block...)
+			placed = true
 		case strings.HasPrefix(strings.TrimSpace(line), "agentic-helpers level:"):
 		default:
 			kept = append(kept, line)
