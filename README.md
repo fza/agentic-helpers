@@ -11,12 +11,20 @@ to the agent. Memory and the tool library are also available as MCP servers, `me
 
 | Piece | Command | What it does |
 |---|---|---|
-| memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session, and tells every running session to re-read an instruction file it loaded once that file changes |
+| memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session |
 | tool library | `agentic-tools` | Shares helper scripts between agents, so none is written twice |
 | scratch sweep | `agentic-scratch` | Gives each seat or session one place for throwaway files, and empties it when the work ends |
 | grounding gate | `agentic-grounding-gate` | Makes the agent read the decision graph before it asks, drafts or captures |
 | capture | `agentic-capture` | Writes new graph entries through one checked path, free of credentials |
 | shell-guard | `agentic-shell-guard` | Keeps deletions inside the project, and credentials out of commands and output |
+
+**Edits to `CLAUDE.md` reach sessions already running.** Claude Code reads a project's `CLAUDE.md`,
+`CLAUDE.local.md`, every file they import with `@` (an `AGENTS.md`, say), each `CLAUDE.md` in
+a subfolder it works in, and `~/.claude/CLAUDE.md` when a session starts, and never again until a
+compaction. agentic-memory watches every one of these files a session loaded. When one changes,
+every running session that loaded it, in a project using memory, is told to read it again at its
+next prompt or tool call, seat or none. A rule written into `CLAUDE.md` mid-session holds in every
+session from then on, not only in the next one.
 
 ## Memory and the decision graph
 
@@ -38,11 +46,6 @@ project's decision graph under `.sdd/`.
   options turn it off.
 - **The hooks and commands are Go binaries** built from `source/hooks`. Each release publishes them,
   and the plugin downloads them.
-- **Instructions reach sessions already running.** When `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`
-  or another file they import, a nested instruction file or `~/.claude/CLAUDE.md` changes, every
-  running session that loaded it, in a project using memory, is told to re-read it at its next
-  prompt or tool call, seat or none. An instruction written mid-session holds everywhere from then
-  on, not from the next session.
 - **Subagents get what their spawner names.** One line `agentic-helpers: <level>` in the Agent
   prompt picks `none` (the scratch folder and machine notes, the default), `rules`, `silent`
   (read-only memory), `shared` or `full` (a memory seat of its own). A subagent never gets more than
