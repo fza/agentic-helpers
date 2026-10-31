@@ -170,24 +170,27 @@ func (mem *memory) inUseRefusal(ctx context.Context, name string, existing seat.
 }
 
 // adopt makes the hook's own process the holder of a seat reserved for its
-// session, the first hook the session runs taking the reservation over.
-func (mem *memory) adopt(ctx context.Context, payload hookio.Payload) {
+// session, the first hook the session runs taking the reservation over, and
+// answers whether it did.
+func (mem *memory) adopt(ctx context.Context, payload hookio.Payload) bool {
 	if payload.SessionID == "" {
-		return
+		return false
 	}
 
 	own, _ := mem.ownSeat(ctx)
 	if own != "" {
-		return
+		return false
 	}
 
 	key, held := seat.OfSession(mem.seatsDir(), payload.SessionID)
 	if key == "" || held.PID != 0 || !mem.freshReservation(held) {
-		return
+		return false
 	}
 
 	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
 	started, running := mem.env.Processes.StartTime(ctx, owner)
+
+	took := false
 
 	mem.rewriteClaim(ctx, key, func(current seat.Claim) bool { return current == held }, func(claim *seat.Claim) {
 		if running {
@@ -198,7 +201,29 @@ func (mem *memory) adopt(ctx context.Context, payload hookio.Payload) {
 		claim.Reserved = ""
 		claim.TranscriptPath = payload.TranscriptPath
 		claim.Claimed = mem.now().Format(time.RFC3339Nano)
+		took = true
 	})
+
+	return took
+}
+
+// tookOver is what a session taking a reservation over is told, as a direct
+// claim tells it: the seat's scratch folder and its brief. A launcher's claim
+// is no request from the user, so no overview follows.
+func (mem *memory) tookOver(ctx context.Context, seatName string) string {
+	scratchLine := mem.seatScratch(seatName)
+
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return scratchLine
+	}
+
+	briefed := mem.brief(ctx, mem.checkout(ctx), folded, seatName, nil)
+	if scratchLine == "" {
+		return briefed
+	}
+
+	return scratchLine + "\n" + briefed
 }
 
 // moved tells a session a handover moved it, once: the seat it left, the seat

@@ -2,10 +2,12 @@ package memory_test
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/scratch"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -133,5 +135,56 @@ func TestAClaimForASeatedSessionHandsItOver(t *testing.T) {
 	answer := board.mcp(`{"name":"claim","arguments":{"name":"impl-9zz","session":"` + job.session + `"}}`)
 	if !strings.Contains(answer, "moved session a1b2c3d4 from impl-8bq to impl-9zz") {
 		t.Errorf("the MCP claim should take the session key, got %s", answer)
+	}
+}
+
+func TestASessionTakingOverAReservationGetsItsScratchAndBrief(t *testing.T) {
+	takeOvers := map[string]struct {
+		hook    string
+		payload func(job *harness) string
+	}{
+		"at session start":       {"session-start", func(job *harness) string { return startPayload(job.session, "") }},
+		"at the first prompt":    {"prompt", func(job *harness) string { return job.promptHook("start") }},
+		"at the first tool call": {"tool", func(job *harness) string { return job.toolCall() }},
+	}
+
+	for name, takeOver := range takeOvers {
+		t.Run(name, func(t *testing.T) {
+			board := scratchProject(t)
+			job := newHarnessSharing(board)
+			board.must("", "claim", "impl", "--session", job.session)
+
+			out := job.must(takeOver.payload(job), takeOver.hook)
+			if !strings.Contains(out, "scratch: .tmp/seats/impl/") || !test.Exists(t, filepath.Join(job.seatScratch("impl"), scratch.Marker)) {
+				t.Errorf("the session taking the reservation over should get the seat's scratch folder, got:\n%s", out)
+			}
+
+			if !strings.Contains(out, "agentic-memory: seat impl") {
+				t.Errorf("the session taking the reservation over should get the seat's brief, got:\n%s", out)
+			}
+
+			again := job.must(job.promptHook("next"), "prompt")
+			if strings.Contains(again, "scratch:") || strings.Contains(again, "agentic-memory: seat impl") {
+				t.Errorf("the seat's scratch and brief should come once, at the take-over, got:\n%s", again)
+			}
+		})
+	}
+}
+
+func TestAResumedSessionTakingOverAReservationPrintsNothing(t *testing.T) {
+	board := scratchProject(t)
+	job := newHarnessSharing(board)
+	board.must("", "claim", "impl", "--session", job.session)
+
+	resumed, _ := json.Marshal(map[string]string{"session_id": job.session, "source": "resume"})
+
+	out := job.must(string(resumed), "session-start")
+	if strings.Contains(out, "scratch:") || strings.Contains(out, "agentic-memory: seat impl") {
+		t.Errorf("a resumed session's transcript carries what it saw, so the take-over should print nothing, got:\n%s", out)
+	}
+
+	view, code := job.holderJSON("--session", job.session, "--json")
+	if code != 0 || view["alive"] != true {
+		t.Errorf("the resumed session should still take the reservation over, got %d %v", code, view)
 	}
 }

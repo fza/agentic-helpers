@@ -162,13 +162,18 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 
 	payload := mem.payload()
 	mem.housekeep(ctx)
-	mem.adopt(ctx, payload)
+	adopted := mem.adopt(ctx, payload)
 	mem.tidyScratch(ctx, payload.TranscriptPath)
 
 	name, held := mem.ownSeat(ctx)
 	if name != "" {
 		held = mem.track(ctx, name, held, payload)
 		mem.say(mem.moved(ctx, name, held))
+
+		// A resumed session's transcript already carries what it was told.
+		if adopted && payload.Source == "startup" {
+			mem.say(mem.tookOver(ctx, name))
+		}
 
 		if payload.Source == "compact" {
 			mem.rewriteClaim(ctx, mem.seatKey(name), sameHolder(held), func(claim *seat.Claim) { claim.ForkUUID = "" })
@@ -621,7 +626,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
-	mem.adopt(ctx, payload)
+	adopted := mem.adopt(ctx, payload)
 
 	reread := mem.instructionsChanged(ctx, payload)
 
@@ -648,6 +653,10 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	movedHere := mem.moved(ctx, name, held)
 	if movedHere != "" {
 		out = append(out, movedHere)
+	}
+
+	if adopted {
+		out = append(out, mem.tookOver(ctx, name))
 	}
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
@@ -712,7 +721,7 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
-	mem.adopt(ctx, payload)
+	adopted := mem.adopt(ctx, payload)
 
 	reread := mem.instructionsChanged(ctx, payload)
 
@@ -738,6 +747,10 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	movedHere := mem.moved(ctx, name, held)
 	if movedHere != "" {
 		notes = append(notes, movedHere)
+	}
+
+	if adopted {
+		notes = append(notes, mem.tookOver(ctx, name))
 	}
 
 	session := cmp.Or(payload.SessionID, held.SessionID)

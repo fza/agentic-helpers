@@ -430,7 +430,8 @@ SessionEnd closing the seat moves the claim to `<id>.last.json` with `closed`, t
 A claim records `commit`, HEAD when it was taken, which a hook-written draft of the seat's state
 counts the session's commits from. A claim made with `--session` for a session holding no seat is a reservation: `reserved` holds its
 time and `pid` is 0; any hook whose payload carries that session id, run by a process holding no
-seat, writes its owning `claude` process, start time and transcript into it. A handover writes the
+seat, writes its owning `claude` process, start time and transcript into it, and prints the seat's
+`scratch:` line and brief, except at a resumed session's SessionStart. A handover writes the
 new seat's claim from the old one, process and all, with `moved_from` naming the old seat until the
 session's next hook reports it. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.

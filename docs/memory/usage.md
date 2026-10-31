@@ -268,7 +268,11 @@ agentic-memory claim impl-7ah --session <uuid> --shelf row-7ah --lifetime 3d
 - **For a session holding no seat it is a reservation**: the seat's claim names the session and no
   process, and the reply says `reserved <seat> for session <id> (shelf <name>)`. The session's first
   agentic-memory hook (SessionStart, else its first prompt or tool call) takes it over, and from
-  then on the seat is held like any other. A reservation untaken for 10 minutes frees the seat. A
+  then on the seat is held like any other. A session taking it over as it starts fresh, or at its
+  first prompt or tool call, receives what a direct claim gives: the seat's scratch folder
+  `.tmp/seats/<seat>/` is created, and the hook prints the `scratch:` line and the seat's brief. No
+  user overview follows, since a launcher's claim is no request from the user. A resumed session
+  taking it over prints nothing, its transcript already carrying what it saw. A reservation untaken for 10 minutes frees the seat. A
   reserved seat refuses every other claim, `<seat> is reserved for session <id> until it starts`,
   and keeps a temporary shelf from purging.
 - **For a session holding a seat it is a handover**: in one step the session's seat closes and the

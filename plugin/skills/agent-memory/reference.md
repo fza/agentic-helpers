@@ -15,7 +15,8 @@ agentic-memory holder --session <id> --json
   (`main-2`). The claim output and brief arrive as on a claim. Work on as that seat; say nothing
   about it.
 - **`claim <seat> --session <id>`** is a launcher's, never your own session's: a reservation the
-  session takes over on its first hook, or a handover of a session already seated.
+  session takes over on its first hook, or a handover of a session already seated. Started on a
+  reservation, you get the seat's `scratch:` line and brief at that hook, as on a claim.
 - **`agentic-memory: seat moved from <old> to <new> (shelf <name>)`** at a hook → a launcher moved
   you; work on as the new seat.
 - **`agentic-helpers: release <new> is out, this machine runs <old>`** in a claim → tell the user in
