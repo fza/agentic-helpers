@@ -439,6 +439,10 @@ filing time:
 | `todo` | work owed later, an owner decision waiting for its capture | half-life 3 days | `todos` |
 | `note` | everything else, and the kind of an entry filed without `--kind` | half-life 14 days | `notes` |
 
+- **A system clock set back changes no order.** Memory's time never falls behind the newest time the
+  store holds, so an entry filed after the rollback still sorts last and arrives as new; decay
+  pauses, and due times fire late, until the clock catches up
+  ([architecture](architecture.md#the-clock-mark)).
 - **A rule is the user's.** `--kind rule` without `--from user` is refused:
   `a rule is the user's grant or instruction: --kind rule needs --from user`.
 - **A standing instruction goes where the user places it.** For every new standing instruction the

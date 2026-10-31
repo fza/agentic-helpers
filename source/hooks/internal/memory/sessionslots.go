@@ -52,6 +52,9 @@ func (mem *memory) readSlot(key string, target any) bool {
 func (mem *memory) writeSlot(key string, value any) error {
 	for {
 		err := mem.slotFile().PutJSON(context.Background(), key, value)
+		if err == nil {
+			mem.keepMarkOfCache()
+		}
 
 		trimmed, canTrim := value.(trimmer)
 		if !errors.Is(err, slots.ErrTooLarge) || !canTrim || !trimmed.trim() {
@@ -133,11 +136,13 @@ func (shown *shownSet) trim() bool {
 	return true
 }
 
-// recordStore refreshes the store's size ledger once a write changed one of
-// its files (internal/space). The store's own figures limit nothing; the
-// ledger keeps what each of its files holds checkable without reading them.
+// recordStore raises the store's clock mark and refreshes its size ledger
+// once a write changed one of its files (internal/space). The store's own
+// figures limit nothing; the ledger keeps what each of its files holds
+// checkable without reading them.
 func (mem *memory) recordStore(ctx context.Context) {
 	if mem.key != "" && mem.storeExists() {
+		_ = mem.keepMark()
 		_ = space.Refresh(ctx, mem.env.Roots.Data, mem.store(), nil)
 	}
 }

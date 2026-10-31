@@ -136,5 +136,8 @@ func (mem *memory) warm(folded *state, amount float64, ids ...string) {
 		heats[id] = warmed
 	}
 
-	_ = writeJSON(mem.env.Roots.Cache, mem.heatPath(), heats)
+	err := writeJSON(mem.env.Roots.Cache, mem.heatPath(), heats)
+	if err == nil {
+		mem.keepMarkOfCache()
+	}
 }
