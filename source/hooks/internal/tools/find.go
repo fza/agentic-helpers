@@ -210,10 +210,19 @@ func findClosing(start int, end int, limit int, page int, matching int, total in
 	closing := fmt.Sprintf("%d-%d of %d matching tools shown, of %d in %d projects; %s",
 		min(start+1, end), end, matching, total, projects, takes)
 	if end < matching {
-		closing += fmt.Sprintf("; --page %d shows the next %d", page+1, min(limit, matching-end))
+		closing = runBefore(closing+fmt.Sprintf("; --page %d shows the next %d", page+1, min(limit, matching-end)),
+			"concluding none fits")
 	}
 
 	return closing
+}
+
+// runBefore ends a fold line, one standing for data it does not print, with
+// when to run the command it names: an agent otherwise concludes from the part
+// it sees. A seen pointer takes none, its text being in the context already.
+// agentic-memory words its fold lines the same way.
+func runBefore(line string, purpose string) string {
+	return line + "  (run before " + purpose + ")"
 }
 
 func counted(count int, one string, many string) string {
@@ -417,7 +426,8 @@ func (lib *library) list(ctx context.Context, req request) result {
 	}
 
 	if len(others) > 0 {
-		lines = append(lines, fmt.Sprintf("other projects: %s; `%s find` searches them", strings.Join(others, ", "), self))
+		lines = append(lines, runBefore(fmt.Sprintf("other projects: %s; `%s find` searches them", strings.Join(others, ", "), self),
+			"writing a helper yourself"))
 	}
 
 	return done(strings.Join(lines, "\n"))

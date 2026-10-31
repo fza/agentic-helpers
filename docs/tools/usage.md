@@ -45,8 +45,8 @@ A listing printing seen pointers alone opens without it, and so does its JSON (`
   <summary>`; its usage comes with `take`. Five a page by default; the closing line says what was
   shown: `<n> matches (<t> tools, <p> projects)` where every hit fits the page, else
   `<k>-<m> of <n> matching tools shown, of <t> in <p> projects`, and where more remain,
-  `--page <n+1> shows the next <c>`. With no embedder answering, `--query` is refused and `--term`
-  still works.
+  `--page <n+1> shows the next <c>  (run before concluding none fits)`. With no embedder answering,
+  `--query` is refused and `--term` still works.
 - **find --json** prints one object: `framing`, `tools` (each `name`, `score`, `label` (another
   project's), `version`, `summary`), `matching`, `total`, `projects`. The tools shown are the
   length of `tools` and the page is the one asked, so neither is a key. A key whose
@@ -61,9 +61,14 @@ A listing printing seen pointers alone opens without it, and so does its JSON (`
   cosine against the best's.
 - **list** prints the own project's tools, `<name>  <summary>  [taken <n>, last <time>]`, then one
   line for every other project holding a tool:
-  `` other projects: <label> <n> tools, <label> <n> tools; `agentic-tools find` searches them ``. `--json` prints
-  find's shape without scores, a listing ranking nothing, and without `matching`, every own tool
-  matching a list.
+  `` other projects: <label> <n> tools, <label> <n> tools; `agentic-tools find` searches them  (run before writing a helper yourself) ``.
+  `--json` prints find's shape without scores, a listing ranking nothing, and without `matching`,
+  every own tool matching a list.
+- **A fold line**, one standing for tools it does not print (find's paging, list's other-projects
+  line), ends with a trigger in parentheses saying when to run the command it names, worded as
+  agentic-memory words its fold lines; a seen pointer carries none. An agent otherwise concludes
+  from the part it sees. The MCP descriptions of `find` and `list` close with the same rule, for
+  the JSON listing, whose `matching` counts past the tools shown.
 - **take** copies the current version of each named tool into `.tmp/tools/<name>/v<n>/` of the
   checkout, or into the store's `copies/` where the checkout has no `.tmp/`. All names are checked
   first: one that reaches no tool refuses the whole call as `nothing taken:`, one line per failing

@@ -54,7 +54,7 @@ func TestFindPagesAndPrintsJSON(t *testing.T) {
 	}
 
 	out := h.must("find", "--term", "helper", "--limit", "2")
-	if !strings.Contains(out, "1-2 of 3 matching tools shown") || !strings.Contains(out, "--page 2 shows the next 1") {
+	if !strings.Contains(out, "1-2 of 3 matching tools shown") || !strings.Contains(out, "--page 2 shows the next 1  (run before concluding none fits)") {
 		t.Errorf("a limited find should say what the next page shows, got:\n%s", out)
 	}
 

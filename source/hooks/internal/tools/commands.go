@@ -79,12 +79,18 @@ var describingKeys = `,"summary":` + described(text, "what the tool does, one li
 	`,"usage":` + described(text, "how to run it") + `,"inputs":` + described(text, "what it reads") +
 	`,"outputs":` + described(text, "what it writes or prints")
 
+// foldClause closes the description of every read whose answer can fold data
+// away: the agent reading a description before any skill loads gets the rule.
+// agentic-memory carries the same clause.
+const foldClause = "; a fold (a more, a count of what is not listed) hides unread data: before acting on, " +
+	"answering about or concluding the absence of what it folds, fetch it"
+
 func commands() []command {
 	return []command{
 		{
 			name:        "find",
 			usage:       "find [--query '<need>'] [--term '<literal>']... [--limit <n>] [--page <n>] [--again] [--json]",
-			description: "search the tool library of every project on the machine, the own project first; one line per tool, its usage comes with take",
+			description: "search the tool library of every project on the machine, the own project first; one line per tool, its usage comes with take" + foldClause,
 			flags: []flagSpec{{"query", flagText}, {"term", flagList}, {"limit", flagNumber}, {"page", flagNumber},
 				{"json", flagSwitch}, {"again", flagSwitch}},
 			run: (*library).find,
@@ -94,7 +100,7 @@ func commands() []command {
 				`,"again":` + described(boolean, "print tools already seen in full") + `}}`,
 		},
 		{
-			name: "list", usage: "list [--again] [--json]", description: "list the own project's tools and how many each other project holds",
+			name: "list", usage: "list [--again] [--json]", description: "list the own project's tools and how many each other project holds" + foldClause,
 			flags: []flagSpec{{"json", flagSwitch}, {"again", flagSwitch}}, run: (*library).list,
 			schema: `{"type":"object","properties":{"again":` + described(boolean, "print tools already seen in full") + `}}`,
 		},
