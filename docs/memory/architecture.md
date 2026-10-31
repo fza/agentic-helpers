@@ -236,8 +236,8 @@ plus `n` entries in a bounded heap rather than sorting all it kept.
 `<cache>/stores/<id>/memory/<sha256(fingerprint)[:12]>/segments/`, one store per embedder, so
 a changed embedder starts a fresh store instead of mixing two vector spaces. The fingerprint names the
 provider, the model, the dimensions and a hash of the query and document templates
-(`openai/<model>/<dims>/t<hash>`), every one of which changes the vectors; the endpoint stays out, so
-moving a local server to another port keeps the store. The layout follows sdd's
+(`openai/<model>/<dims>/t<hash>`), every one of which changes the vectors; the endpoint and its path
+stay out, so moving a local server to another port keeps the store. The layout follows sdd's
 search segments:
 
 ```
@@ -247,16 +247,42 @@ padding  zeros up to a 64-byte boundary
 vectors  chunk count * dims little-endian float32, an entry's chunks contiguous, in table order
 ```
 
-- **No manifest.** The fold says which rows count: an entry's row whose hash is the entry's current
-  content hash (sha256 of title and body, 16 hex digits), or any row of an entry whose body was
-  dropped, since nothing embeds it again. A row of older content is dead without anything recording
-  it.
+- **The manifest records only the cap.** `segments/manifest.json` holds `max_runes`, the
+  cap every text of the store's rows was cut to, as sdd names it; a store without one (0) predates
+  the cap. The fold says which rows count: an entry's row whose hash is `embed.RowHash` of the
+  entry's title and body and the manifest's cap (sha256, 16 hex digits), or any row of an entry
+  whose body was dropped, since nothing embeds it again. A row of older content, or one cut to
+  another cap, is dead without anything recording it.
+- **Input sizing.** An embedder past its input limit discards the tail without an error and answers
+  the vector of the head, so every text is sized to the limit before it is sent. The limit is
+  measured once per endpoint (`internal/embed`, `calibrate.go`, matching sdd's calibration): a
+  probe of 1000 runes of Latin text, one of 1000 runes of CJK (the worst tokens per rune), and an
+  overflow of 20000 runes. A count stuck below 0.9 of its linear growth is the limit of a provider
+  truncating silently (`plateau`); a refused overflow is bisected to 64 runes between the last size
+  accepted and the first refused (`bisect`); a count that keeps growing is a lower bound
+  (`unbounded`); a provider reporting no count (OpenAI's `usage.prompt_tokens`, Ollama's
+  `prompt_eval_count`) gets 2048 runes (`unreported`). The cap is the limit times 0.9 over the worst
+  tokens per rune, rounded down to a 64-rune step, so probe noise below a step changes nothing. The
+  result is stored as `<cache>/embedding-calibration/calibration-<sha256(key)[:16]>.json`
+  (`method`, `limit_tokens`, `tokens_per_rune`, `max_runes`), written whole by rename, the key
+  being the vector fingerprint, the endpoint URL and the path, one per line: a changed endpoint or
+  path is measured again and re-embeds nothing by itself. A file that does not read is an error
+  naming it, never measured over.
+- **Where calibration runs.** Only a fill measures, and only where no calibration is stored for its
+  endpoint: the first search by meaning, prompt recall included, after an upgrade or a change of
+  endpoint. The probes share the fill's per-request deadline, the 20-second hook limit in a hook, so
+  no hook waits on calibration past the deadline it already keeps. A failed probe is an error: a
+  search refuses naming it, and recall tells it once through its failure line.
+- **Chunks and queries.** A fill cuts each entry into chunks of at most the cap, `Entry: <title>`
+  included, the title taking at most a quarter of it and the body pieces at most 3200 runes. A
+  search cuts its phrase, and recall its prompt, to the cap the manifest records, never probing; a
+  phrase longer than the cap is embedded by its head.
 - **A search** maps every segment read-only and shared, and scans the mapped vector block in place,
   decoding and copying no vector: each counted entry scores by its best chunk, its first counted row
   deciding. A long-running process, the MCP server, maps a segment once and keeps it across calls.
   A merge that drops a segment between a search's listing and its open sends the search to list
   again.
-- **A write** embeds only the live entries no segment holds for their current content and writes
+- **A write** embeds only the live entries no segment holds for their current content and cap, and writes
   them one segment per embedding request (`embed.RequestTexts` texts at most, whole entries), each
   through a temporary `.segment-*` file renamed to the first 16 hex digits of the content's sha256:
   its cost follows the rows written, never the store. As sdd fills its index, each request has its
@@ -265,7 +291,12 @@ vectors  chunk count * dims little-endian float32, an entry's chunks contiguous,
   cuts short keeps every request answered before.
 - **A fill** runs under `fill.lock` in the store's directory, taken without waiting before the
   snapshot: a process finding another one filling embeds nothing and scores the rows held so far,
-  so concurrent sessions never embed the same texts at once.
+  so concurrent sessions never embed the same texts at once. A store without a cap takes the
+  calibrated one at once, since none of its rows counts under any other; a store whose cap differs
+  from the calibrated one keeps counting its old rows while the fill embeds every entry again, then
+  records the new cap. An upgrade is silent: the first fill calibrates and re-embeds the store once,
+  saved per request, so a hook's deadline only defers the rest. A store without a cap when a search
+  needs one, its first fill running in another process, refuses the search.
 - **A merge** runs after every write, under `segments.lock`, where every temporary file is one a
   killed writer left, and is deleted. A segment with no counted row is deleted; one whose dead rows
   outnumber its live ones is rewritten alone; and size classes, each 4 times the one below, merge
@@ -278,8 +309,8 @@ vectors  chunk count * dims little-endian float32, an entry's chunks contiguous,
 - **Segments are not synced**, as the cache's other files are not. A segment a crash left torn fails
   its size check, is skipped by a search and deleted by the next merge, and its entries are embedded
   again.
-- **The whole-file `vectors.gob`** an older release kept beside `segments/` is read once, written as
-  one segment and deleted, so no entry it held is embedded again.
+- **The whole-file `vectors.gob`** an older release kept beside `segments/` is deleted: its rows were
+  embedded uncut, so none counts under a cap, and the next fill embeds its entries again.
 
 Any process that writes the cache can plant vectors that skew ranking. A planted row never puts an
 entry in a result that the fold does not hold.

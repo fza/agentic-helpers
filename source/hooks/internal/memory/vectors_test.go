@@ -20,7 +20,7 @@ func (h *harness) storeDir() string {
 	return filepath.Join(h.cacheDir(), hex.EncodeToString(sum[:])[:12])
 }
 
-func TestAWholeFileVectorStoreMigratesWithoutEmbedding(t *testing.T) {
+func TestAWholeFileVectorStoreGoesAndItsEntriesAreEmbeddedAgain(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
@@ -59,19 +59,19 @@ func TestAWholeFileVectorStoreMigratesWithoutEmbedding(t *testing.T) {
 
 	h.must("", "search", "--query", "manifest rename fsync")
 
+	// Its rows were embedded uncut, so none counts under a cap.
+	embedded := false
+
 	for _, text := range h.embedder.Texts() {
-		if strings.Contains(text, title) {
-			t.Errorf("an entry vectors.gob held should not be embedded again, got %q", text)
-		}
+		embedded = embedded || strings.Contains(text, title)
+	}
+
+	if !embedded {
+		t.Error("an entry vectors.gob held should be embedded again, cut to the cap")
 	}
 
 	if _, err := os.Stat(legacy); err == nil {
-		t.Error("the migrated vectors.gob should be removed")
-	}
-
-	segments, _ := filepath.Glob(filepath.Join(h.storeDir(), "segments", "*.seg"))
-	if len(segments) != 1 {
-		t.Errorf("the migration should write one segment, got %v", segments)
+		t.Error("vectors.gob should be removed")
 	}
 }
 

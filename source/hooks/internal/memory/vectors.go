@@ -4,14 +4,12 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"encoding/gob"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
@@ -26,12 +24,9 @@ const embedLimit = 20 * time.Second
 
 var ErrNoEmbedder = errors.New("semantic search needs an embedder")
 
-// legacyRow is one entry's vectors in vectors.gob, the whole-file store
-// segments replace; it is read once, to migrate.
-type legacyRow struct {
-	Hash   string
-	Chunks [][]float32
-}
+// ErrNoCap is a vector store recording no cap when a search needs one: its
+// first fill has not landed, since another process is still running it.
+var ErrNoCap = errors.New("the vector store records no input cap yet; its first fill is still running elsewhere, search again shortly")
 
 // embedder is the embedder the options choose, settled once per run: under
 // sdd's block that costs one `sdd config get`.
@@ -61,10 +56,10 @@ func (mem *memory) embedLimitFor() time.Duration {
 	return timeout
 }
 
-func contentHash(held *entry) string {
-	sum := sha256.Sum256([]byte(held.title + "\n" + held.body))
-
-	return hex.EncodeToString(sum[:])[:16]
+// rowHash names an entry's rows by its content and the cap its chunks were
+// cut to: rows of another cap never pass as current.
+func rowHash(held *entry, maxRunes int) string {
+	return embed.RowHash(held.title+"\n"+held.body, maxRunes)
 }
 
 // vectors opens the vector store of one embedder: a changed embedder starts a
@@ -75,74 +70,54 @@ func (mem *memory) vectors(embedder embed.Templated) *vectorseg.Store {
 	return vectorseg.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), hex.EncodeToString(sum[:])[:12], "segments"))
 }
 
-// counted is which rows a search counts: an entry's rows embedded from its
-// current content, or any row of an entry whose body was dropped, since
-// nothing embeds it again.
-func counted(folded *state) vectorseg.Live {
-	current := map[string]string{}
+// counted is which rows count under any of caps: an entry's rows embedded
+// from its current content cut to one of them, or any row of an entry whose
+// body was dropped, since nothing embeds it again. A search counts the
+// manifest's cap; a fill moving the store to a new cap keeps both, so a
+// search meanwhile still finds the rows of the old one.
+func counted(folded *state, caps ...int) vectorseg.Live {
+	current := map[string][]string{}
 
 	for _, held := range folded.entryList() {
 		if held.dropped {
-			current[held.id] = ""
+			current[held.id] = nil
 
 			continue
 		}
 
-		current[held.id] = contentHash(held)
+		for _, maxRunes := range caps {
+			current[held.id] = append(current[held.id], rowHash(held, maxRunes))
+		}
 	}
 
 	return func(id string, hash string) bool {
 		want, live := current[id]
 
-		return live && (want == "" || want == hash)
+		return live && (want == nil || slices.Contains(want, hash))
 	}
 }
 
-// migrate moves vectors.gob, beside the segments, into one segment, so an
-// existing store is never embedded again. A file that does not decode is a
-// cache lost: its entries are embedded again.
-func migrate(store *vectorseg.Store, live vectorseg.Live) error {
+// migrate removes vectors.gob, the whole-file store beside the segments. Its
+// rows were embedded uncut, so none of them counts under a cap: the next fill
+// embeds its entries again.
+func migrate(store *vectorseg.Store) error {
 	legacy := filepath.Join(filepath.Dir(store.Dir()), "vectors.gob")
 
-	file, err := os.Open(legacy)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-
-	if err != nil {
-		return fmt.Errorf("opening the vector store to migrate: %w", err)
-	}
-
-	decoded := map[string]legacyRow{}
-	decodeErr := gob.NewDecoder(file).Decode(&decoded)
-	_ = file.Close()
-
-	if decodeErr == nil {
-		rows := make([]vectorseg.Row, 0, len(decoded))
-		for id, row := range decoded {
-			rows = append(rows, vectorseg.Row{ID: id, Hash: row.Hash, Chunks: row.Chunks})
-		}
-
-		slices.SortFunc(rows, func(a vectorseg.Row, b vectorseg.Row) int { return strings.Compare(a.ID, b.ID) })
-
-		err = store.Write(rows, live)
-		if err != nil {
-			return fmt.Errorf("migrating the vector store: %w", err)
-		}
-	}
-
-	err = os.Remove(legacy)
+	err := os.Remove(legacy)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("removing the migrated vector store: %w", err)
+		return fmt.Errorf("removing the vector store that preceded the segments: %w", err)
 	}
 
 	return nil
 }
 
 // fill embeds every entry the snapshot holds no rows of for its current
-// content, and returns the snapshot to search: filing never waits on the
-// embedder, so the next call reaching it catches up.
-func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *vectorseg.Store, folded *state, live vectorseg.Live) (*vectorseg.Snapshot, error) {
+// content at the endpoint's calibrated cap, and returns the snapshot to
+// search: filing never waits on the embedder, so the next call reaching it
+// catches up. A store recording no cap takes the calibrated one at once,
+// since none of its rows counts under any other; one recording another cap
+// keeps it until every entry is embedded again, then records the new one.
+func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *vectorseg.Store, folded *state) (*vectorseg.Snapshot, error) {
 	// Taken before the snapshot, so a fill never embeds again what another
 	// process landed while this one waited to start.
 	release, taken, err := store.TryFill()
@@ -155,6 +130,31 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 	}
 
 	defer release()
+
+	calibrating, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
+	target, err := embedder.MaxRunes(calibrating, mem.env.Roots.Cache)
+	cancel()
+
+	if err != nil {
+		return nil, fmt.Errorf("%w: calibrating the embedder: %w", ErrNoEmbedder, err)
+	}
+
+	manifest, err := store.Manifest()
+	if err != nil {
+		return nil, err
+	}
+
+	if manifest.MaxRunes == 0 {
+		manifest.MaxRunes = target
+
+		err = store.SetManifest(manifest)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	live := counted(folded, target, manifest.MaxRunes)
+	sized := embedder.Capped(target)
 
 	snapshot, err := store.Snapshot()
 	if err != nil {
@@ -174,16 +174,16 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 			continue
 		}
 
-		hash := contentHash(held)
+		hash := rowHash(held, target)
 		if snapshot.Holds(held.id, hash) {
 			continue
 		}
 
-		chunks := embed.Chunks(held.title, held.body)
+		chunks := embed.Chunks(held.title, held.body, target)
 		todo = append(todo, pending{id: held.id, hash: hash, chunks: chunks})
 	}
 
-	if len(todo) == 0 {
+	if len(todo) == 0 && manifest.MaxRunes == target {
 		return snapshot, nil
 	}
 
@@ -203,7 +203,7 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 		}
 
 		bounded, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
-		vectors, err := embedder.Documents(bounded, texts)
+		vectors, err := sized.Documents(bounded, texts)
 		cancel()
 
 		if err != nil {
@@ -230,6 +230,13 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 		todo = todo[size:]
 	}
 
+	if manifest.MaxRunes != target {
+		err = store.SetManifest(vectorseg.Manifest{MaxRunes: target})
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return store.Snapshot()
 }
 
@@ -248,30 +255,42 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 	}
 
 	store := mem.vectors(embedder)
-	live := counted(folded)
 
-	err = migrate(store, live)
+	err = migrate(store)
 	if err != nil {
 		return nil, err
 	}
 
-	snapshot, err := mem.fill(ctx, embedder, store, folded, live)
+	snapshot, err := mem.fill(ctx, embedder, store, folded)
 	if err != nil {
 		return nil, err
 	}
 
 	defer func() { _ = snapshot.Close() }()
 
-	slots := promptvector.Dir(mem.env.Roots.Cache)
+	// The fill may have moved the store to a new cap; the search cuts its
+	// query to, and counts the rows of, whichever cap the store records now.
+	manifest, err := store.Manifest()
+	if err != nil {
+		return nil, err
+	}
 
-	cached, hit := promptvector.Load(ctx, slots, session, phrase, embedder.Fingerprint())
+	if manifest.MaxRunes == 0 {
+		return nil, ErrNoCap
+	}
+
+	live := counted(folded, manifest.MaxRunes)
+	slots := promptvector.Dir(mem.env.Roots.Cache)
+	slotKey := promptvector.Key(embedder.Fingerprint(), manifest.MaxRunes)
+
+	cached, hit := promptvector.Load(ctx, slots, session, phrase, slotKey)
 
 	query := [][]float32{cached}
 	if !hit {
 		bounded, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
 		defer cancel()
 
-		query, err = embedder.Queries(bounded, []string{phrase})
+		query, err = embedder.Capped(manifest.MaxRunes).Queries(bounded, []string{phrase})
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
 		}
@@ -281,7 +300,7 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 		}
 
 		if session != "" {
-			_ = promptvector.Save(ctx, slots, session, phrase, embedder.Fingerprint(), query[0])
+			_ = promptvector.Save(ctx, slots, session, phrase, slotKey, query[0])
 		}
 	}
 

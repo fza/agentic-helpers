@@ -51,6 +51,12 @@ func Withheld(ctx context.Context, prompt string) string {
 	return fmt.Sprintf("agentic-memory: this prompt looks like it holds a credential (%s); it was not sent to the embedding endpoint", rules)
 }
 
+// Key is what a slot's vector is filed under: the vector fingerprint and the
+// cap the prompt was cut to, so a prompt cut to another cap is embedded anew.
+func Key(fingerprint string, maxRunes int) string {
+	return fmt.Sprintf("%s@%d", fingerprint, maxRunes)
+}
+
 // Dir is where prompt vectors live below the home's cache root
 // (internal/home), shared by every store.
 func Dir(cache string) string {

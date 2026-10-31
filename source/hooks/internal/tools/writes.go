@@ -7,6 +7,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
@@ -17,7 +18,7 @@ type version struct {
 	files  []safefs.Walked
 	spec   spec
 	why    string
-	vector []float32
+	vector describedVectors
 }
 
 // writeVersion lays a version into the own store and makes it current, then
@@ -116,7 +117,7 @@ func (lib *library) ownStore() (*safefs.Dir, error) {
 }
 
 // reindexTool rereads one tool's folder into the own index and writes it.
-func (lib *library) reindexTool(name string, vector []float32) error {
+func (lib *library) reindexTool(name string, vector describedVectors) error {
 	held, found := loadIndex(lib.ownDir())
 	if !found {
 		rebuilt, err := buildIndex(lib.ownDir())
@@ -161,21 +162,29 @@ func (lib *library) reindexTool(name string, vector []float32) error {
 
 func (lib *library) stamp() string { return lib.now().Format("2006-01-02T15:04:05Z07:00") }
 
-// embedOne embeds a tool's description, or answers nothing where no embedder
-// does: the tool still lands, unranked by meaning until a rebuild embeds it.
-func (lib *library) embedOne(ctx context.Context, described spec) ([]float32, string) {
+// embedOne embeds a tool's description in pieces of the vector store's cap,
+// or answers nothing where no embedder does: the tool still lands, unranked
+// by meaning until a fill embeds it.
+func (lib *library) embedOne(ctx context.Context, described spec) (describedVectors, string) {
 	embedder, err := lib.embedder(ctx)
 	if err != nil {
-		return nil, ""
+		return describedVectors{}, ""
 	}
+
+	maxRunes, err := lib.storeCap(ctx, embedder, lib.vectorStore(embedder.Fingerprint()))
+	if err != nil {
+		return describedVectors{}, ""
+	}
+
+	pieces := embed.Pieces(describe(described), maxRunes)
 
 	bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Documents(bounded, []string{describe(described)})
-	if err != nil || len(vectors) != 1 {
-		return nil, ""
+	vectors, err := embedder.Capped(maxRunes).Documents(bounded, pieces)
+	if err != nil || len(vectors) != len(pieces) {
+		return describedVectors{}, ""
 	}
 
-	return vectors[0], embedder.Fingerprint()
+	return describedVectors{Chunks: vectors, MaxRunes: maxRunes}, embedder.Fingerprint()
 }

@@ -1414,6 +1414,12 @@ to a route there the writer picks.
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.
+Every text is sized to the embedder's input limit, which an embedder past it discards without an
+error: the first search by meaning or recall on an endpoint measures it with a few probes and stores
+the result in the cache, an entry is embedded in chunks that fit, and a search phrase or prompt
+longer than that is embedded by its head. A provider reporting no token count gets 2048 runes. A
+probe that fails or a stored measurement that does not read makes a search exit 1 naming it, and
+recall says so once through its failure line.
 `embedding_provider: off` leaves memory without one on purpose: search by meaning and the entries
 each prompt brings up stay off, while keyword search and filing keep working. Recall needs an
 embedder: without one configured, off or never set, a prompt prints nothing, no recall failure

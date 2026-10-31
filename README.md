@@ -209,6 +209,13 @@ Changing the provider, the model, the dimensions or a template starts a fresh ve
 two models cannot be compared. Memory embeds its entries again on its next search by meaning;
 `agentic-tools reindex` does the same for the tool library.
 
+**Input sizing.** An embedder past its input limit drops the rest of a text without an error, so
+every text is sized to fit. The first search on an endpoint measures its limit with a few probe
+requests, as sdd does, and keeps the result in the cache per model, endpoint and path. Entries and
+tool descriptions are embedded in chunks that fit; a search phrase or prompt past the limit is
+embedded by its head. A provider that reports no token count gets 2048 characters per input. A new
+measurement, after an upgrade or a change of endpoint, embeds each index again once, by itself.
+
 ### Memory
 
 | Option | Default | What it controls |

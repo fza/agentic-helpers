@@ -34,6 +34,9 @@ type openAIAnswer struct {
 		Index     int       `json:"index"`
 		Embedding []float32 `json:"embedding"`
 	} `json:"data"`
+	Usage struct {
+		PromptTokens int `json:"prompt_tokens"`
+	} `json:"usage"`
 }
 
 func newOpenAI(cfg Config, client *http.Client) *openAI {
@@ -76,7 +79,26 @@ func (embedder *openAI) Fingerprint() string {
 	return fmt.Sprintf("openai/%s/%d", embedder.model, embedder.dimensions)
 }
 
+func (embedder *openAI) Route() (string, string) {
+	return embedder.endpoint, embedder.path
+}
+
+func (embedder *openAI) Measure(ctx context.Context, text string) (int, error) {
+	_, tokens, err := embedder.request(ctx, []string{text})
+	if err != nil {
+		return 0, fmt.Errorf("measuring with %s: %w", embedder.endpoint, err)
+	}
+
+	return tokens, nil
+}
+
 func (embedder *openAI) embedBatch(ctx context.Context, batch []string) ([][]float32, error) {
+	vectors, _, err := embedder.request(ctx, batch)
+
+	return vectors, err
+}
+
+func (embedder *openAI) request(ctx context.Context, batch []string) ([][]float32, int, error) {
 	payload := openAIRequest{
 		Model:          embedder.model,
 		Input:          batch,
@@ -86,18 +108,18 @@ func (embedder *openAI) embedBatch(ctx context.Context, batch []string) ([][]flo
 	var answer openAIAnswer
 	err := post(ctx, embedder.client, embedder.endpoint+embedder.path, embedder.apiKey, payload, &answer)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if len(answer.Data) != len(batch) {
-		return nil, fmt.Errorf("%d vectors for %d texts", len(answer.Data), len(batch))
+		return nil, 0, fmt.Errorf("%d vectors for %d texts", len(answer.Data), len(batch))
 	}
 
 	vectors := make([][]float32, len(batch))
 	for _, datum := range answer.Data {
 		if datum.Index < 0 || datum.Index >= len(batch) || vectors[datum.Index] != nil {
-			return nil, fmt.Errorf("answer index %d is out of range or repeated", datum.Index)
+			return nil, 0, fmt.Errorf("answer index %d is out of range or repeated", datum.Index)
 		}
 		vectors[datum.Index] = datum.Embedding
 	}
-	return vectors, nil
+	return vectors, answer.Usage.PromptTokens, nil
 }

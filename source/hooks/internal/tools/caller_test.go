@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
 )
 
@@ -66,7 +67,7 @@ func TestThePromptReusesAVectorAgenticMemoryLeft(t *testing.T) {
 	prompt := "count the words of standard input"
 	vector, _ := h.embedder.Embed(t.Context(), []string{prompt})
 
-	err := promptvector.Save(context.Background(), promptvector.Dir(h.roots().Cache), h.session, prompt, h.embedder.Space(), vector[0])
+	err := promptvector.Save(context.Background(), promptvector.Dir(h.roots().Cache), h.session, prompt, promptvector.Key(h.embedder.Space(), embed.FallbackRunes), vector[0])
 	if err != nil {
 		t.Fatalf("saving the slot: %v", err)
 	}

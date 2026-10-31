@@ -145,7 +145,7 @@ func (lib *library) reindex(ctx context.Context, _ request) result {
 	var built *index
 
 	err := lib.locked(ctx, func() error {
-		rebuilt, err := lib.rebuild(ctx, lib.ownDir())
+		rebuilt, err := buildIndex(lib.ownDir())
 		if err != nil {
 			return err
 		}
@@ -163,6 +163,15 @@ func (lib *library) reindex(ctx context.Context, _ request) result {
 	text := fmt.Sprintf("rebuilt index.json: %d tools", len(built.Tools))
 	if built.Skipped > 0 {
 		text += fmt.Sprintf(", %d unreadable skipped", built.Skipped)
+	}
+
+	// No embedder set is no failure: the tools stay ranked by their words.
+	embedder, err := lib.embedder(ctx)
+	if err == nil {
+		_, err = lib.fillVectors(ctx, embedder, indexTexts(built))
+		if err != nil {
+			return refused("%s; embedding the descriptions failed: %v", text, err)
+		}
 	}
 
 	return done(text).with(reindexedFields{Tools: len(built.Tools), Skipped: built.Skipped})

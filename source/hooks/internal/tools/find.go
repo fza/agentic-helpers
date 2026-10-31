@@ -73,16 +73,16 @@ func (lib *library) find(ctx context.Context, req request) result {
 		queried string
 	)
 
+	stores := lib.stores(ctx)
+
 	if strings.TrimSpace(req.Query) != "" {
-		vector, fingerprint, err := lib.embedText(ctx, req.Query)
+		vector, fingerprint, err := lib.embedText(ctx, req.Query, stores)
 		if err != nil {
 			return refused("--query needs an embedder (%v): search with --term '<literal>'", err)
 		}
 
 		query, queried = vector, fingerprint
 	}
-
-	stores := lib.stores(ctx)
 
 	var scores map[string]float32
 

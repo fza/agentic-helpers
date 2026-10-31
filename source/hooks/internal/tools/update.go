@@ -136,7 +136,7 @@ func (lib *library) update(ctx context.Context, req request) result {
 // fork copies a foreign tool's current version into the own store as v1, then
 // lays the update over it as v2. The origin is never written.
 func (lib *library) fork(ctx context.Context, req request, hit found, previous []safefs.Walked, files []safefs.Walked, next spec,
-	vector []float32,
+	vector describedVectors,
 ) result {
 	old := hit.tool
 
