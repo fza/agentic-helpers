@@ -1,6 +1,6 @@
 ---
 name: agent-shell-guard
-description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) to the project and /tmp, asks before find -delete or a command holding a credential, refusing an ask a rewrite fixes twice first, bans mktemp, and refuses a command missing here (timeout) or a usage BSD sed or date gets wrong, naming the command that works; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
+description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) and the sources of moves (mv, git mv) to the project and /tmp, judges the shell scripts a command runs as its own code, asks before find -delete or a command holding a credential, refusing an ask a rewrite fixes twice first, bans mktemp, and refuses a command missing here (timeout) or a usage BSD sed or date gets wrong, naming the command that works; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
 license: MIT
 ---
 
@@ -25,6 +25,16 @@ around that; ask the user.
   text, quotes around plain text, or `$'...'` with no escape but `\n` `\t` `\r` `\\` `\'` `\"` and
   two-digit `\x` (not `\x00`): `$'rm' -rf /` is `rm -rf /`. Any other escape = an expansion.
 - **Text naming `rm`**: a sed script, a grep pattern, a commit message. Quoted text is no command.
+- **A move whose sources lie inside the project or `/tmp`**: each source of `mv` / `git mv` (every
+  operand but the target; all of them after `-t <dir>`) is judged as a lone removal's target,
+  wherever the move stands: `mv ~/Downloads/x ./` asks. The target is never judged. `cp` is not.
+- **A script whose removals stay inside**: `bash x.sh`, `sh x.sh`, `source x.sh`, `. x.sh`, and
+  `./x` or `bin/x` with a shell's `#!` line or none, are read and judged by the same guards,
+  relative to the working directory a `cd sub && ...` or a lone `cd sub;` moves. Inside a script a
+  removal is judged by its targets only (`ls` then `rm -rf build` passes; `rm -rf ~/x` and
+  `rm -rf $DIR` ask), and nothing is refused: what would deny in a typed command asks. A python (or
+  other interpreter's) `#!` line is judged as that interpreter's inline code, asking too. A script
+  written by `cat > x.sh <<'EOF'` in the same call is judged from the here-document.
 - **A time limit in front keeps it lone**: `timeout`, `gtimeout`, `uu-timeout`, `agentic-helpers
   bound` (options and duration fixed text: no `$x`, `"$(...)"`, glob or brace, quoted or not) or
   exactly `perl -e 'alarm N; exec @ARGV'` with the command as separate words
@@ -51,6 +61,7 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 | `inline code for <interpreter> names a removal or mktemp; refusing` | no removal in `python -c`, `perl -e`, `awk`, `ssh` code; a lone `rm` instead |
 | `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | literal code, or none; no code piped into a shell, `at` or `batch` |
 | `arithmetic on <name> reads a value shell-guard cannot see` (an ask) | arithmetic reads a variable set at run time (`$(...)`, `read`, `mapfile`, `printf -v`, a loop over `$(...)`, the arguments or a glob or brace): its text could run a command. Run the substitution and the comparison as two calls, the number typed literally |
+| `in the script <name>: <reason>` (an ask) | the script's own text got `<reason>`, a refusal's reason included: the user decides. Fix the script as that reason says (a target spelled out and inside the project, no `mktemp`), or run its commands as Bash calls. It prompts at once: rewriting the call changes nothing |
 | `cannot parse the command; refusing` | fix the quoting |
 
 ## Command alternatives → run what it names
@@ -103,13 +114,14 @@ Questions it asks:
 
 | Reason | Means |
 |---|---|
-| `outside project: <targets>` | a target outside the project and `/tmp`, or the project or `/tmp` itself |
+| `outside project: <targets>` | a removal target or a move's source outside the project and `/tmp`, or the project or `/tmp` itself |
 | `no project: <targets>` | the session started at `/` or `~`: no project, only `/tmp` passes |
 | `unresolvable: <targets>` | `~user` or a brace: placed only once the shell expands it |
 | `no target` | a removal naming nothing |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | a guard the user switched off no longer denies it; its target cannot be placed |
 | `cannot judge: the command name <word> is not fixed text` | a command named by an expansion (`$CMD x`, `"$tool" build`, `$'\162m'`) and passed an argument, or a name that may split into words of its own even with none (`$CMD`, `{rm,-rf,/}`, a glob): it could be a removal. Spell the name out (`/usr/local/bin/tool build`); a name wholly in double quotes passing nothing (`"$tool"`) runs. A launcher's assignment, option or option value holding an expansion, glob or brace (`env FOO=$x make`, `timeout $secs make`, `sudo -u $user make`, `sudo -u {a,b} make`) asks too: the walk cannot tell which word runs. Double-quote an option value: `sudo -u "$user" make` |
 | `find -delete` | `find ... -delete` anywhere |
+| `cannot read the script <name> (<why>)` | a script the call runs could not be read; `<why>` is `no such file`, `cannot open it`, `its path is built at run time` (`source "$venv/bin/activate"`), `the directory it runs in is not known` (a `cd` in a subshell, behind another command, or to a variable before it), `over 1 MiB`, `the command writes it before running it` (written by anything but a here-document), `scripts run scripts too deep` or `it does not parse as bash`. Spell the path out, run it from a plain `cd dir && ...`, or write it with `cat > x.sh <<'EOF'`; else the user decides |
 | `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | a token or key typed into the command, found by the shared scanner; rewrite it to read from a variable or a file rather than asking again (`scan-incomplete` = the scan could not finish) |
 | `the hook was cut short before its credential scan finished; nothing says whether the command holds one` | the hook's own interrupt ended the scan; it names no credential. Follows `shell_guard_secrets` like a finding. Run the same call again |
 

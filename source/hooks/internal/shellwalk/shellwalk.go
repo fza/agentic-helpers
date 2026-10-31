@@ -295,24 +295,32 @@ var (
 // options decide which of its words starts the command it runs, so every word
 // after a launcher is offered as a launched call; Certain marks the one past
 // the launcher's options, assignments and counts, and every call no launcher
-// runs.
+// runs. Dir is the directory the call runs in, "" where the walk cannot tell.
 type Call struct {
 	Args     []*syntax.Word
 	Launched bool
 	Certain  bool
+	Dir      string
 }
 
 // Visitor receives what a walk finds. Code is code another program runs as
-// shell, named by its runner (`bash -c`, `eval`, `trap`, `bash stdin`); Inline
-// is code for an interpreter no shell parser reads; Piped is a shell reading
-// its code from a pipe; Unseen is a variable arithmetic evaluates whose value
-// is only known at run time.
+// shell, named by its runner (`bash -c`, `eval`, `trap`, `bash stdin`), with
+// the directory it runs in, "" where the walk cannot tell; Inline is code for
+// an interpreter no shell parser reads; Piped is a shell reading its code from
+// a pipe; Unseen is a variable arithmetic evaluates whose value is only known
+// at run time. Script is the text of a script the command runs, named as
+// the command names it, with the interpreter its first line names where that
+// is no shell ("" for shell code) and what a walk of that text reads scripts
+// through; Unread is a script it runs that the walk cannot read, and why.
+// Only WalkWith reports scripts.
 type Visitor interface {
 	Command(call Call)
-	Code(runner string, words []*syntax.Word)
+	Code(runner string, words []*syntax.Word, dir string)
 	Inline(name string, words []*syntax.Word)
 	Piped(name string)
 	Unseen(variable string)
+	Script(name string, interpreter string, text string, within Scripts)
+	Unread(name string, why string)
 }
 
 func Parse(code string) (*syntax.File, error) {
@@ -325,18 +333,33 @@ func Parse(code string) (*syntax.File, error) {
 }
 
 // Walk visits a statement's here-documents before its command, and a pipe
-// before either side, in the order the tree holds them.
+// before either side, in the order the tree holds them. It reads no script.
 func Walk(node syntax.Node, visitor Visitor) {
+	walk(node, visitor, Scripts{}, false)
+}
+
+// WalkWith walks as Walk does, and reads every shell script the command runs
+// through scripts, starting in scripts.Dir.
+func WalkWith(node syntax.Node, visitor Visitor, scripts Scripts) {
+	walk(node, visitor, scripts, true)
+}
+
+func walk(node syntax.Node, visitor Visitor, scripts Scripts, reading bool) {
 	values := arithmetic{visitor: visitor, assigned: assignedValues(node), resolved: map[string]bool{}}
+	walked := &walker{
+		visitor: visitor, scripts: scripts, reading: reading, dir: scripts.Dir,
+		plainMoves: plainDirectoryMoves(node), written: map[string]writtenScript{},
+	}
 
 	syntax.Walk(node, func(visited syntax.Node) bool {
 		switch typed := visited.(type) {
 		case *syntax.CallExpr:
 			if len(typed.Args) > 0 {
-				offerCall(visitor, typed.Args)
+				walked.call(typed)
 			}
 		case *syntax.Stmt:
-			fed(visitor, typed)
+			walked.records(typed)
+			fed(visitor, typed, walked.dir)
 		case *syntax.BinaryCmd:
 			piped(visitor, typed)
 		case *syntax.Assign:
@@ -379,7 +402,7 @@ func zshCode(visitor Visitor, assign *syntax.Assign) {
 	}
 
 	if assign.Value != nil {
-		visitor.Code(assign.Name.Value, []*syntax.Word{assign.Value})
+		visitor.Code(assign.Name.Value, []*syntax.Word{assign.Value}, "")
 	}
 
 	if assign.Array == nil {
@@ -388,7 +411,7 @@ func zshCode(visitor Visitor, assign *syntax.Assign) {
 
 	for _, element := range assign.Array.Elems {
 		if element.Value != nil {
-			visitor.Code(assign.Name.Value, []*syntax.Word{element.Value})
+			visitor.Code(assign.Name.Value, []*syntax.Word{element.Value}, "")
 		}
 	}
 }
@@ -562,7 +585,7 @@ func (values arithmetic) read(name string, value *syntax.Word) []string {
 		return nil
 	case isLiteral:
 		code := &syntax.Word{Parts: []syntax.WordPart{&syntax.SglQuoted{Value: "(( " + text + " ))"}}}
-		values.visitor.Code("arithmetic on "+name, []*syntax.Word{code})
+		values.visitor.Code("arithmetic on "+name, []*syntax.Word{code}, "")
 
 		return identifier.FindAllString(text, -1)
 	}
@@ -626,9 +649,10 @@ func namesIn(expression syntax.Node) []string {
 
 // offerCall offers the call, then every word after a launcher as the call it
 // may run. A launcher among those words adds no words of its own: the outer
-// launcher already offers every one of them.
-func offerCall(visitor Visitor, args []*syntax.Word) {
-	offer(visitor, Call{Args: args, Certain: true})
+// launcher already offers every one of them. dir is where the call runs;
+// launchedDir where what its launchers run does.
+func offerCall(visitor Visitor, args []*syntax.Word, dir string, launchedDir string) {
+	offer(visitor, Call{Args: args, Certain: true, Dir: dir})
 
 	if !isLauncher(args) {
 		return
@@ -640,7 +664,7 @@ func offerCall(visitor Visitor, args []*syntax.Word) {
 	}
 
 	for index := 1; index < len(args); index++ {
-		offer(visitor, Call{Args: args[index:], Launched: true, Certain: certain[index]})
+		offer(visitor, Call{Args: args[index:], Launched: true, Certain: certain[index], Dir: launchedDir})
 	}
 }
 
@@ -652,36 +676,36 @@ func offer(visitor Visitor, call Call) {
 
 	switch {
 	case name == "eval":
-		visitor.Code("eval", args[1:])
+		visitor.Code("eval", args[1:], call.Dir)
 	case name == "trap":
 		handler := trapHandler(args[1:])
 		if handler != nil {
-			visitor.Code("trap", []*syntax.Word{handler})
+			visitor.Code("trap", []*syntax.Word{handler}, "")
 		}
 	case slices.Contains(Shells, name):
 		code := shellCode(args[1:])
 		if code != nil {
-			visitor.Code(name+" -c", []*syntax.Word{code})
+			visitor.Code(name+" -c", []*syntax.Word{code}, call.Dir)
 		}
 	case IsInterpreter(name) && prefixLaunch(args) < 0:
 		visitor.Inline(name, args[1:])
 	case name == "sched":
 		code := schedCode(args[1:])
 		if len(code) > 0 {
-			visitor.Code("sched", code)
+			visitor.Code("sched", code, "")
 		}
 	case name == "tmux":
 		tmuxCode(visitor, args[1:])
 	case name == "npx":
 		code := optionValue(args[1:launchedEnd(args)], "-c", "--call")
 		if code != nil {
-			visitor.Code("npx -c", []*syntax.Word{code})
+			visitor.Code("npx -c", []*syntax.Word{code}, call.Dir)
 		}
 	case name == "pnpm" && subcommandLaunch(args):
 		// In shell mode pnpm hands its command to sh -c.
 		start := launchedAt(args)
 		if start > 0 && start < len(args) && optionValue(args[1:start+1], "-c", "--shell-mode") != nil {
-			visitor.Code("pnpm exec -c", args[start:])
+			visitor.Code("pnpm exec -c", args[start:], call.Dir)
 		}
 	}
 }
@@ -754,7 +778,7 @@ func tmuxCode(visitor Visitor, args []*syntax.Word) {
 
 	code := values['c']
 	if code != nil {
-		visitor.Code("tmux -c", []*syntax.Word{code})
+		visitor.Code("tmux -c", []*syntax.Word{code}, "")
 	}
 
 	segment := []*syntax.Word{}
@@ -792,7 +816,7 @@ func tmuxSegment(visitor Visitor, segment []*syntax.Word) {
 
 		start, _ := shortOptions(segment[1:], command.value)
 		if 1+start < len(segment) {
-			visitor.Code("tmux "+name, segment[1+start:])
+			visitor.Code("tmux "+name, segment[1+start:], "")
 		}
 
 		return
@@ -936,7 +960,7 @@ func OneKnownWord(word *syntax.Word) bool {
 
 // fed hands on the code a here-document or here-string gives a shell or an
 // interpreter on its standard input, as code handed to it with -c.
-func fed(visitor Visitor, statement *syntax.Stmt) {
+func fed(visitor Visitor, statement *syntax.Stmt, dir string) {
 	call, isCall := statement.Cmd.(*syntax.CallExpr)
 	if !isCall || len(call.Args) == 0 {
 		return
@@ -957,7 +981,7 @@ func fed(visitor Visitor, statement *syntax.Stmt) {
 		switch {
 		case body == nil:
 		case slices.Contains(Shells, name) || slices.Contains(stdinRunners, name):
-			visitor.Code(name+" stdin", []*syntax.Word{body})
+			visitor.Code(name+" stdin", []*syntax.Word{body}, dir)
 		case IsInterpreter(name):
 			visitor.Inline(name, []*syntax.Word{body})
 		}

@@ -4,7 +4,8 @@ A stray `rm -rf` outside the project is the one mistake an agent cannot undo, an
 such as `cd ~ && rm -rf x` slips past any rule that reads targets without parsing the command.
 `agentic-shell-guard` runs before every Bash call, and every Monitor call, whose command runs in the
 same shell, parses the command as bash, and holds an agent's
-removals (`rm`, `rmdir`, `unlink`, `git rm`) to the project and `/tmp`, asks before `find -delete`
+removals (`rm`, `rmdir`, `unlink`, `git rm`) and the sources of its moves (`mv`, `git mv`) to the
+project and `/tmp`, asks before `find -delete`
 and before a command holding what looks like a credential, and bans `mktemp`. A command missing on
 the machine, or a usage its flavour of a command gets wrong, is refused with the command that works
 (see [Command alternatives](#command-alternatives)). After every tool call it withholds each line of output from outside the project that looks like a credential (see [Credentials in tool output](#credentials-in-tool-output)). A removal named inside a quoted argument (a sed script, a grep pattern, a commit
@@ -12,7 +13,9 @@ message) is text and passes; code handed to `eval`, `trap`, a shell's `-c`, zsh'
 `pnpm exec -c`, a tmux command running a shell command (`new-session`, `new-window`,
 `split-window`, `respawn-pane`, `respawn-window`, `display-popup`, `run-shell`, tmux's own `-c`),
 zsh's `functions[name]=` or `aliases[name]=`, or the standard input of a shell, `at` or `batch` by
-a here-document or here-string is parsed again. A variable arithmetic reads (`(( x ))`, `$(( x ))`,
+a here-document or here-string is parsed again. A shell script the command runs (`bash x.sh`,
+`source x.sh`, `./x`) is read and judged by the same guards, asking where they would refuse (see
+[Scripts a command runs](#scripts-a-command-runs)). A variable arithmetic reads (`(( x ))`, `$(( x ))`,
 `[[ x -eq 1 ]]`) whose assigned text is no number is parsed as the expression bash evaluates, since
 a subscript in it runs its command substitutions; one holding a value known only at run time
 (`n=$(wc -l < f); (( n > 1 ))`, `read n`, a loop over `$(...)`) is asked about:
@@ -52,12 +55,12 @@ a looser value there is ignored and named at session start
 
 | Option | Values | Default | Judges |
 |---|---|---|---|
-| `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a `..` step, which a symlink before it would carry elsewhere, a glob that can match a name starting with a dot, `..` among them), or that names no target; and a command passed an argument whose name is not fixed text (`$CMD -rf /`, `"$tool" build`, `$'\162m' -rf /`), or passed none with a name that may split into words of its own (`$CMD`, `{rm,-rf,/}`), which could be a removal |
+| `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a `..` step, which a symlink before it would carry elsewhere, a glob that can match a name starting with a dot, `..` among them), or that names no target; and a command passed an argument whose name is not fixed text (`$CMD -rf /`, `"$tool" build`, `$'\162m' -rf /`), or passed none with a name that may split into words of its own (`$CMD`, `{rm,-rf,/}`), which could be a removal; and each source of `mv` or `git mv`, wherever it stands in the command, read as a lone removal's target (see [Moves](#moves)) |
 | `shell_guard_find_delete` | `ask`, `deny`, `off` | `ask` | `find ... -delete` |
 | `shell_guard_secrets` | `ask`, `deny`, `off` | `ask` | a command whose text holds what looks like a credential, found by the shared [credential scanner](../secrets/usage.md) |
 | `shell_guard_lone_removal` | boolean | `true` | a removal that is not the whole command |
 | `shell_guard_expansion` | boolean | `true` | a removal target built from a variable or command substitution |
-| `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, `at` or `batch` code, zsh's `sched` or `functions[name]=`, a tmux shell command, text arithmetic evaluates, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it; arithmetic on a variable set at run time asks rather than denies |
+| `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, `at` or `batch` code, zsh's `sched` or `functions[name]=`, a tmux shell command, text arithmetic evaluates, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it; arithmetic on a variable set at run time, and a script the command runs that it cannot read, ask rather than deny |
 | `shell_guard_mktemp` | boolean | `true` | `mktemp` anywhere in the command |
 | `shell_guard_alternatives` | boolean | `true` | a command missing on the machine, or a usage its BSD flavour gets wrong (see [Command alternatives](#command-alternatives)); off, the session start line naming the machine's substitutions goes too |
 | `shell_guard_ask_timeout` | a span (`45s`, `2m`), at most `1h`; a bare number counts seconds | `2m` | how long an ask waits in `auto` and `bypassPermissions` mode before it denies; `0` waits without limit |
@@ -95,6 +98,75 @@ options say**: the guard cannot judge it.
   expansion and nested-code guards are what let a removal's target be placed before it runs. With one
   of them off, a removal it no longer denies takes `shell_guard_outside_project`'s verdict, reason
   `cannot place: <target> (<why>)`; with that off too, it runs.
+
+## Moves
+
+A move takes a file away from where it was, so `mv ~/x /tmp/x` followed by `rm /tmp/x` would remove
+a file outside the project in two calls that each pass. Each source of `mv` and `git mv` is judged
+as a lone removal's target, wherever the move stands in the command: `mv ~/x ./` asks
+`outside project: ~/x`, `mv "$f" ./` is refused as an expansion, a glob is judged as the pattern it
+is. The target is never judged: moving into the project or `/tmp` removes nothing there, and
+`mv ./build /tmp/old` passes.
+
+- Every operand but the last is a source. `-t <dir>`, `--target-directory=<dir>` or a short group
+  ending in `t` names the target, so every operand is a source; `-S` and `--suffix` take a value;
+  `--` ends the options.
+- A relative source resolves against the directory the move runs in: the session's working
+  directory, moved by a `cd` the walk follows (see [Scripts a command runs](#scripts-a-command-runs)),
+  and unresolvable after any other move or after `git -C`, `--git-dir` or `--work-tree`.
+- `cp` is not judged: it reads its source and removes nothing, and shell-guard guards no reads.
+
+Moving a file in from outside, a download from `~/Downloads` among them, costs the confirmation a
+removal there costs.
+
+## Scripts a command runs
+
+A script the command writes and then runs would otherwise carry any command past every check.
+shell-guard reads each script a call runs and judges its text by the guards it judges a command
+with, two rules aside:
+
+- **A removal there is judged by its targets alone**: inside the project or `/tmp` it passes,
+  outside, unresolvable or with no project it asks, with the reasons a lone removal gets. The
+  lone-removal rule does not apply, since a script holds commands beside its removals by nature.
+- **Nothing found there is refused**: whatever would deny in a typed command (a removal target
+  built from a variable, nested code, `mktemp`, a command name that is not fixed text) asks instead.
+  The person can read the script; the agent cannot fix it by rewriting the command.
+
+`bash x.sh` holding `ls` and then `rm -rf build` passes; holding `rm -rf ~/x` it asks
+`in the script x.sh: outside project: ~/x`; holding `rm -rf $DIR` it asks
+`in the script x.sh: refusing rm with a shell variable or command substitution`. A command typed in
+the call keeps every rule: `mktemp && bash x.sh` is still refused.
+
+- **What is read**: the operand of `sh`, `bash`, `zsh`, `dash`, `ksh` or `mksh` given no `-c`, `-s`
+  or input path (`bash -e x.sh`, `bash -- x.sh`), the file `source` or `.` reads, and a command named
+  by a path (`./x`, `bin/x`, `/opt/tool/run`) whose name is no shell, launcher or interpreter.
+- **A file run by its path** is judged by its first line: a shell's `#!` line, or none, as a shell
+  script; another interpreter's (`#!/usr/bin/env python3`) as that interpreter's inline code, which
+  the nested-code guard judges by the removal calls it names, asking where it names one; any other
+  `#!` line, and a file holding
+  a NUL byte in its first 8000 bytes (a binary), not at all.
+- **Where it is read from**: the session's working directory, moved by a `cd` with a fixed operand
+  that is a statement of its own or opens an `&&` chain of such cds (`cd sub && bash x.sh`), to a
+  directory that exists. Any other move (a `cd` in a subshell, behind another command or to a
+  variable, `pushd`, `popd`, a sourced script that moves) loses the place, and a launcher's chdir
+  option (`env -C`, `sudo -D`) loses it for what it runs. Code handed to `bash -c`, `eval` or a
+  shell's here-document runs where the command stands; code run later (`trap`, `tmux`, `sched`,
+  zsh functions) has no place.
+- **A here-document the command writes**: `cat > x.sh <<'EOF' ... EOF` or `tee x.sh <<'EOF'`
+  before `bash x.sh` is judged from that here-document, never from the disk. A file the command
+  writes any other way before running it (`echo ... > x.sh`, a redirection to a path built at run
+  time) is not read.
+- **What cannot be read is asked about, not refused**: `cannot read the script <name> (<why>)`, the
+  why one of `no such file`, `cannot open it`, `its path is built at run time`,
+  `the directory it runs in is not known`, `over 1 MiB`, `the command writes it before running it`,
+  `scripts run scripts too deep` (a script running scripts more than 8 deep) and
+  `it does not parse as bash`. `source "$venv/bin/activate"` costs one confirmation, not a dead end.
+- **A script's own verdict** is an ask carrying `in the script <name>: ` before its reason. It
+  prompts at once: rewriting the command cannot change the script. A script another script runs is
+  judged the same way.
+
+A script is judged as it is when the call is checked; one changed between the check and the run is
+not judged again.
 
 ## Command alternatives
 
@@ -193,8 +265,10 @@ Every reason starts `agentic-shell-guard: `:
 | `inline code for <interpreter> names a removal or mktemp; refusing` | nested code (`perl`, `python3`, ...) |
 | `arithmetic on <name> reads a value shell-guard cannot see` | nested code, an ask: arithmetic on a variable set at run time |
 | `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | nested code |
+| `cannot read the script <name> (<why>)` | nested code, an ask: a script the command runs that cannot be read (see [Scripts a command runs](#scripts-a-command-runs)) |
+| `in the script <name>: <reason>` | an ask: whichever guard judged the script's text, its own reason after the script's name, a refusal's included |
 | `outside project: <targets>`, `no project: <targets>`, `unresolvable: <targets>`, `no target` | outside project; several join with `; ` |
-| `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | outside project, for a supporting guard switched off |
+| `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | outside project, for a supporting guard switched off; `script <name>` is the target for a script that cannot be read |
 | `cannot judge: the command name <word> is not fixed text` | outside project, for a command passed an argument whose name the shell builds when it runs, or passed none with a name that may split into words of its own (`$CMD`, `{rm,-rf,/}`, a glob, `$(...)`), while a name wholly in double quotes passing none (`"$tool"`) runs; a launcher's assignment, option or option value holding an expansion asks too (`env FOO=$x make build`, `timeout $secs make test`, `nice -n$n make build`, `sudo -u $user make build`, `nice -n $n make build`, naming that word), and so does an option value or a command name holding a glob or brace (`sudo -u {root,rm} -rf /`, `nice -n ?? make build`), which expands into several words, since the walk cannot tell which word the launcher runs; an option value wholly in double quotes with no `@`, `*` or `!` expansion (`sudo -u "$user" make build`) stays one word and runs |
 | `find -delete` | find -delete |
 | `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | secrets; `scan-incomplete` as the rule when the scan could not finish |
@@ -295,8 +369,9 @@ redacted too.
 ## What it does not stop
 
 shell-guard holds a careless command, not an agent set on getting around it: a command named
-through a double-quoted variable with no argument (`"$RM"`, `ls | xargs "$RM"`), `env -S`, a script file a shell or
-interpreter runs, and inline code removing through a call it does not name all run unjudged.
+through a double-quoted variable with no argument (`"$RM"`, `ls | xargs "$RM"`), `env -S`, a script file an
+interpreter runs (`python3 x.py`), a script another command of the same call replaces (`cp`, `sed -i`)
+before running it, and inline code removing through a call it does not name all run unjudged.
 
 ## Locking it on
 

@@ -11,7 +11,8 @@ import (
 // WalkRecorder notes every event a shellwalk walk hands it, each as one line:
 // `call <words>`, `launched <words>` (with ` (certain)` where the walk is
 // sure), `code <runner>: <words>`, `inline <name>: <words>`, `piped <name>`,
-// `unseen <variable>`.
+// `unseen <variable>`, `script <name>: <text>` (`script <name> by <interpreter>: ...` for another interpreter's), `unread <name>: <why>`. A
+// call, code or script the walk places in a directory ends ` in <dir>`.
 type WalkRecorder struct {
 	Events []string
 }
@@ -27,11 +28,13 @@ func (recorder *WalkRecorder) Command(call shellwalk.Call) {
 		event += " (certain)"
 	}
 
+	event += inDir(call.Dir)
+
 	recorder.Events = append(recorder.Events, event)
 }
 
-func (recorder *WalkRecorder) Code(runner string, words []*syntax.Word) {
-	recorder.Events = append(recorder.Events, "code "+runner+": "+spelled(words))
+func (recorder *WalkRecorder) Code(runner string, words []*syntax.Word, dir string) {
+	recorder.Events = append(recorder.Events, "code "+runner+": "+spelled(words)+inDir(dir))
 }
 
 func (recorder *WalkRecorder) Inline(name string, words []*syntax.Word) {
@@ -44,6 +47,27 @@ func (recorder *WalkRecorder) Piped(name string) {
 
 func (recorder *WalkRecorder) Unseen(variable string) {
 	recorder.Events = append(recorder.Events, "unseen "+variable)
+}
+
+func (recorder *WalkRecorder) Script(name string, interpreter string, text string, within shellwalk.Scripts) {
+	if interpreter != "" {
+		name += " by " + interpreter
+	}
+
+	recorder.Events = append(recorder.Events, "script "+name+": "+strings.TrimSpace(text)+inDir(within.Dir))
+}
+
+func (recorder *WalkRecorder) Unread(name string, why string) {
+	recorder.Events = append(recorder.Events, "unread "+name+": "+why)
+}
+
+// inDir names the directory a call or code runs in, where the walk knows it.
+func inDir(dir string) string {
+	if dir == "" {
+		return ""
+	}
+
+	return " in " + dir
 }
 
 func spelled(words []*syntax.Word) string {

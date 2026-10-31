@@ -51,28 +51,44 @@ func (called call) changesDirectory() bool {
 var namesTool = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.-])(?:sdd|agentic-capture)(?:[^A-Za-z0-9_./-]|$)`)
 
 // spokenIn reads the command and every piece of code a shell inside it would
-// run. A quoted argument, a heredoc body and a word the launcher's options
-// leave unclear are never a call.
-func spokenIn(code string, nested bool) []spoken {
+// run, every shell script it runs that scripts can read among them. A quoted
+// argument, a heredoc body and a word the launcher's options leave unclear
+// are never a call.
+func spokenIn(code string, nested bool, scripts shellwalk.Scripts) []spoken {
 	file, err := shellwalk.Parse(code)
 	if err != nil {
 		return []spoken{{nested: nested, unparsed: code}}
 	}
 
 	heard := &listener{}
-	shellwalk.Walk(file, heard)
+	shellwalk.WalkWith(file, heard, scripts)
 
 	found := []spoken{{calls: heard.calls, discards: discardsStream(file), nested: nested}}
 	for _, inner := range heard.code {
-		found = append(found, spokenIn(inner, true)...)
+		found = append(found, spokenIn(inner.text, true, scripts.At(inner.dir))...)
+	}
+
+	for _, script := range heard.scripts {
+		found = append(found, spokenIn(script.text, true, script.within)...)
 	}
 
 	return found
 }
 
 type listener struct {
-	calls []call
-	code  []string
+	calls   []call
+	code    []heardCode
+	scripts []heardScript
+}
+
+type heardCode struct {
+	text string
+	dir  string
+}
+
+type heardScript struct {
+	text   string
+	within shellwalk.Scripts
 }
 
 // Command keeps every call the walk offers. One a launcher may run, past
@@ -93,13 +109,13 @@ func (heard *listener) Command(found shellwalk.Call) {
 	})
 }
 
-func (heard *listener) Code(_ string, words []*syntax.Word) {
+func (heard *listener) Code(_ string, words []*syntax.Word, dir string) {
 	parts := make([]string, 0, len(words))
 	for _, word := range words {
 		parts = append(parts, shellwalk.Spelled(word))
 	}
 
-	heard.code = append(heard.code, strings.Join(parts, " "))
+	heard.code = append(heard.code, heardCode{text: strings.Join(parts, " "), dir: dir})
 }
 
 func (*listener) Inline(string, []*syntax.Word) {}
@@ -107,6 +123,20 @@ func (*listener) Inline(string, []*syntax.Word) {}
 func (*listener) Piped(string) {}
 
 func (*listener) Unseen(string) {}
+
+// Script keeps shell code only: another interpreter's is opaque, as its
+// inline code is.
+func (heard *listener) Script(_ string, interpreter string, text string, within shellwalk.Scripts) {
+	if interpreter != "" {
+		return
+	}
+
+	heard.scripts = append(heard.scripts, heardScript{text: text, within: within})
+}
+
+// Unread leaves a script the walk cannot read to shell-guard, which asks
+// about it: no gate can say what such a script writes.
+func (*listener) Unread(string, string) {}
 
 // discardsStream reports a redirection sending output to /dev/null anywhere
 // the shell reads, never in a heredoc body or a quoted argument.

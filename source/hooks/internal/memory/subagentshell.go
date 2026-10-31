@@ -71,7 +71,7 @@ func wordAt(words []*syntax.Word, index int) (string, bool) {
 	return shellwalk.Literal(words[index])
 }
 
-func (heard *memoryListener) Code(_ string, words []*syntax.Word) {
+func (heard *memoryListener) Code(_ string, words []*syntax.Word, _ string) {
 	parts := make([]string, 0, len(words))
 	for _, word := range words {
 		parts = append(parts, shellwalk.Spelled(word))
@@ -95,6 +95,11 @@ func (heard *memoryListener) Inline(_ string, words []*syntax.Word) {
 func (*memoryListener) Piped(string) {}
 
 func (*memoryListener) Unseen(string) {}
+
+// Script and Unread never come: the plain walk reads no script.
+func (*memoryListener) Script(string, string, string, shellwalk.Scripts) {}
+
+func (*memoryListener) Unread(string, string) {}
 
 // memoryCalls is every agentic-memory call the command makes, those of code
 // a shell inside it runs marked nested; false where the command does not

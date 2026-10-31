@@ -66,6 +66,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 //go:embed refusals
@@ -157,6 +158,13 @@ type Env struct {
 	// per binary; either left empty, sdd's help is read on every probe.
 	SddCache string
 	LookPath func(string) (string, error)
+	// Files reads the shell scripts a command runs, so a call inside one counts
+	// as the command's own; left nil, no script is read.
+	Files shellwalk.Files
+}
+
+func (env Env) scripts() shellwalk.Scripts {
+	return shellwalk.Scripts{Files: env.Files, Home: env.Home, Dir: env.WorkingDir}
 }
 
 func (env Env) options() pluginconfig.Options {
@@ -288,7 +296,7 @@ func record(ctx context.Context, env Env, payload hookio.Payload) {
 		return
 	}
 
-	calls := spokenIn(command, false)[0].calls
+	calls := spokenIn(command, false, env.scripts())[0].calls
 
 	path, err := ledgerPath(env.graphRoot(), env.ledgerDir(), payload)
 	if err != nil {
@@ -603,7 +611,7 @@ func readsBadly(ctx context.Context, env Env, payload hookio.Payload) string {
 		return ""
 	}
 
-	heard := spokenIn(raw, false)
+	heard := spokenIn(raw, false, env.scripts())
 
 	// A config that does not parse still leaves bare `sdd` recognised, so a
 	// broken file never refuses a command reading nothing.
@@ -642,12 +650,12 @@ func writing(env Env, raw string) graphWrite {
 		return writesNothing
 	}
 
-	return writeIn(raw)
+	return writeIn(env, raw)
 }
 
 // writeIn says how the command writes to a graph, this project's or another's.
-func writeIn(raw string) graphWrite {
-	heard := spokenIn(raw, false)
+func writeIn(env Env, raw string) graphWrite {
+	heard := spokenIn(raw, false, env.scripts())
 
 	for _, stretch := range heard {
 		if slices.ContainsFunc(stretch.calls, callsCapture) {

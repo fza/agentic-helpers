@@ -17,6 +17,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 func main() {
@@ -56,6 +57,7 @@ func main() {
 		Getenv:     os.Getenv,
 		SddCache:   sddcaps.CacheDir(cacheRoot),
 		LookPath:   exec.LookPath,
+		Files:      shellwalk.OSFiles{},
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

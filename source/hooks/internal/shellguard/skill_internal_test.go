@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 func bundledBound(t *testing.T) alternatives.Alternative {
@@ -39,6 +40,9 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		"cannot read the code handed to <runner>; refusing", "cannot parse the code handed to <runner>; refusing",
 		"cannot read the code piped to <shell>; refusing",
 		fmt.Sprintf(reasonUnseen, "<name>"),
+		fmt.Sprintf(reasonScriptUnread, "<name>", "<why>"), fmt.Sprintf(reasonInScript, "<name>", "<reason>"),
+		unreadUnparsed, shellwalk.UnreadMissing, shellwalk.UnreadOpen, shellwalk.UnreadBuilt, shellwalk.UnreadDirectory,
+		shellwalk.UnreadLarge, shellwalk.UnreadWritten, shellwalk.UnreadDeep,
 		self + ": could not read the command; refusing", self + ": internal failure; refusing",
 		self + ": could not answer; refusing",
 		"nobody answered within <span>; <reason>",

@@ -17,6 +17,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/shellguard"
+	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 	env := shellguard.Env{
 		ProjectDir: os.Getenv("CLAUDE_PROJECT_DIR"), Home: userHome, Tmp: "/tmp",
 		Settings: pluginconfig.Paths(userHome, runtime.GOOS, os.Getenv), Getenv: os.Getenv,
-		StateDir: stateDir, Clock: shellguard.SystemClock{},
+		StateDir: stateDir, Clock: shellguard.SystemClock{}, Files: shellwalk.OSFiles{},
 	}
 	streams := shellguard.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

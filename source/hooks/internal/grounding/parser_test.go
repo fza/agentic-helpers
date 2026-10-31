@@ -1,7 +1,10 @@
 package grounding_test
 
 import (
+	"path/filepath"
 	"testing"
+
+	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func TestTheParserReadsEveryQuoting(t *testing.T) {
@@ -29,6 +32,11 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 		{name: "a call zsh's sched runs", command: "sched +0:01 sdd new d tac body", writes: true},
 		{name: "a call fed to at", command: "at now <<'EOF'\nsdd new d tac body\nEOF", writes: true},
 		{name: "a call a tmux window runs", command: "tmux new-window -d 'sdd new d tac body'", writes: true},
+		{name: "a call a sourced script runs", command: "source scripts/new.sh", writes: true},
+		{name: "a call a script bash runs", command: "bash scripts/new.sh", writes: true},
+		{name: "a call a script in shell code runs", command: "bash -c 'bash scripts/new.sh'", writes: true},
+		{name: "a mention in a script another interpreter runs", command: "./scripts/notes.py", writes: false},
+		{name: "a call a script a here-document writes runs", command: "cat > s.sh <<'EOF'\nsdd new d tac body\nEOF\nbash s.sh", writes: true},
 		{name: "a quoted mention", command: `echo "sdd new"`, writes: false},
 		{name: "an escaped quote before a mention", command: `echo "a \" b; sdd new d tac body"`, writes: false},
 		{name: "a launched command's argument", command: "git ls-files | xargs grep -l agentic-capture", writes: false},
@@ -46,6 +54,7 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			env := areaProject(t)
 			onDisk(t, env, "d.md")
+			test.FixtureTree(t, "grounding/scripts", filepath.Join(env.ProjectDir, "scripts"))
 			got := run(t, env, "gate", bash(tc.command))
 
 			if !tc.writes {

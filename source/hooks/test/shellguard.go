@@ -9,9 +9,10 @@ import (
 )
 
 // GuardTree / Project / Tmp / Home / Outside are the directories a shell-guard
-// test judges against. Project carries sub/ and link, a symlink to Outside,
+// test judges against, all under Root. Project carries sub/ and link, a symlink to Outside,
 // and .tmp/ where scratch is set.
 type GuardTree struct {
+	Root    string
 	Project string
 	Tmp     string
 	Home    string
@@ -27,6 +28,7 @@ func NewGuardTree(t *testing.T, scratch bool) GuardTree {
 	}
 
 	tree := GuardTree{
+		Root:    root,
 		Project: filepath.Join(root, "home", "project"),
 		Tmp:     filepath.Join(root, "tmp"),
 		Home:    filepath.Join(root, "home"),

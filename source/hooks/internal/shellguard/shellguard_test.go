@@ -36,7 +36,9 @@ func newGuard(t *testing.T, scratch bool, options string) guard {
 
 	return guard{
 		t: t, tree: tree,
-		env: shellguard.Env{ProjectDir: tree.Project, Home: tree.Home, Tmp: tree.Tmp, Settings: []string{settings}},
+		env: shellguard.Env{
+			ProjectDir: tree.Project, Home: tree.Home, Tmp: tree.Tmp, Settings: []string{settings}, Files: test.TreeFiles{Roots: []string{tree.Root}},
+		},
 		placeholders: strings.NewReplacer(
 			"{project}", tree.Project, "{tmp}", tree.Tmp, "{home}", tree.Home, "{outside}", tree.Outside,
 		),
@@ -144,8 +146,8 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"tmp target with no project", "{project}", "rm {tmp}/x", "allow"},
 		{"shell code without removal", "{project}", `bash -c 'echo hi'`, "allow"},
 		{"heredoc to bash without removal", "{project}", "bash <<'EOF'\necho hi\nEOF", "allow"},
-		{"input piped to a bash script", "{project}", "echo x | bash script.sh", "allow"},
-		{"input piped to a bash script with an option value", "{project}", "echo x | bash -o errexit script.sh", "allow"},
+		{"input piped to a bash script", "{project}", "echo x | bash scripts/build.sh", "allow"},
+		{"input piped to a bash script with an option value", "{project}", "echo x | bash -o errexit scripts/build.sh", "allow"},
 		{"trap listing", "{project}", "trap -p", "allow"},
 		{"glob in a project directory", "{project}", "rm -rf sub/*", "allow"},
 		{"the test command", "{project}", "[ -f x ]", "allow"},
@@ -261,7 +263,7 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"inline code for an interpreter it does not know", "{project}", `rust-script -e 'std::fs::remove_dir_all("x")'`, "allow"},
 		{"ruby code naming rm_f", "{project}", `ruby -e 'FileUtils.rm_f("x")'`, "deny"},
 		{"code piped to bash with an rcfile", "{project}", "echo 'rm x' | bash --rcfile rc", "deny"},
-		{"input piped to a bash script after a long option", "{project}", "echo x | bash --norc script.sh", "allow"},
+		{"input piped to a bash script after a long option", "{project}", "echo x | bash --norc scripts/build.sh", "allow"},
 		{"code piped to bash -es with arguments", "{project}", "echo 'rm x' | bash -es foo", "deny"},
 		{"trap after its options", "{project}", "trap -- 'rm -f x' EXIT", "deny"},
 		{"trap under a launcher", "{project}", "command trap 'rm -f x' EXIT", "deny"},
@@ -301,6 +303,28 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"rm in a respawned tmux pane", "{project}", "tmux respawn-pane -k 'rm -rf {home}/x'", "deny"},
 		{"rm in a screen session", "{project}", "screen -dmS s rm -rf {home}/x", "deny"},
 		{"a tmux session without removal", "{project}", "tmux new-session -d -s work 'make test'", "allow"},
+		{"mv inside the project", "{project}", "mv ./a ./b", "allow"},
+		{"mv into tmp", "{project}", "mv ./build {tmp}/old", "allow"},
+		{"mv to a target outside", "{project}", "mv ./a {outside}/a", "allow"},
+		{"mv with no target directory", "{project}", "mv -T ./a ./b", "allow"},
+		{"mv of a project file to a target directory outside", "{project}", "mv -t {outside} ./a", "allow"},
+		{"mv relative to a cd the walk follows", "{project}", "cd sub && mv x ../y", "allow"},
+		{"git mv inside the project", "{project}", "git mv a sub/a", "allow"},
+		{"cp from outside", "{project}", "cp {outside}/x ./", "allow"},
+		{"mv with a suffix naming a path outside", "{project}", "mv -S {outside}/x ./a ./b", "allow"},
+		{"mv given only its target directory", "{project}", "mv -t ./sub", "allow"},
+		{"mv of a project source named like an option", "{project}", "mv -- -x ./y", "allow"},
+		{"a harmless script in shell code", "{project}", "bash -c 'bash scripts/build.sh'", "allow"},
+		{"mv of a project file to a grouped target directory outside", "{project}", "mv -ft {outside} ./a", "allow"},
+		{"a harmless script sh runs", "{project}", "sh scripts/build.sh", "allow"},
+		{"a script removing inside the project", "{project}", "bash scripts/clean-build.sh", "allow"},
+		{"a harmless executed script", "{project}", "./scripts/build.sh", "allow"},
+		{"a harmless sourced script", "{project}", "source scripts/activate.sh && make", "allow"},
+		{"an executed binary", "{project}", "./scripts/tool --version", "allow"},
+		{"a script after a cd the walk follows", "{project}", "cd scripts && bash ./build.sh", "allow"},
+		{"a harmless script a here-document writes", "{project}", "cat > .tmp/x.sh <<'EOF'\necho hi\nEOF\nbash .tmp/x.sh", "allow"},
+		{"a script holding a removal beside another command", "{project}", "bash scripts/list-and-clean.sh", "allow"},
+		{"a script removing inside after a cd of its own", "{project}", "bash scripts/enters-and-cleans.sh", "allow"},
 
 		{"parent directory", "{project}", "rm -rf ../other", "ask"},
 		{"home target", "{project}", "rm ~/x", "ask"},
@@ -330,9 +354,47 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"ansi-c escaped rm outside", "{project}", "$'\\x72m' -rf ~/x", "ask"},
 		{"ansi-c quoted target outside", "{project}", "rm $'/etc/hosts'", "ask"},
 		{"ansi-c quoted find delete", "{project}", "find {tmp} $'-delete'", "ask"},
+		{"mv from outside into the project", "{project}", "mv {outside}/x ./", "ask"},
+		{"mv from home", "{project}", "mv ~/x sub/", "ask"},
+		{"git mv from outside", "{project}", "git mv {outside}/x sub/x", "ask"},
+		{"mv from outside to a target directory", "{project}", "mv -t ./sub {outside}/x", "ask"},
+		{"mv from outside to a long target directory", "{project}", "mv --target-directory=sub {outside}/x", "ask"},
+		{"mv from outside after a cd", "{project}", "cd {outside} && mv x {project}/", "ask"},
+		{"mv from outside under sudo", "{project}", "sudo mv {outside}/x .", "ask"},
+		{"mv from outside to a grouped target directory", "{project}", "mv -ft ./sub {outside}/x", "ask"},
+		{"git mv in a repository elsewhere", "{project}", "git -C {outside} mv x y", "ask"},
+		{"mv of a source named like an option", "{outside}", "mv -- -x {project}/", "ask"},
+		{"mv from outside beside another command", "{project}", "ls && mv {outside}/x .", "ask"},
+		{"mv from outside in shell code", "{project}", "bash -c 'mv {outside}/x .'", "ask"},
+		{"a script bash runs removing outside", "{project}", "bash scripts/clean-outside.sh", "ask"},
+		{"a sourced script removing outside", "{project}", "source scripts/clean-outside.sh", "ask"},
+		{"a dot-sourced script removing outside", "{project}", ". scripts/clean-outside.sh", "ask"},
+		{"an executed script with a shell shebang removing outside", "{project}", "./scripts/tidy", "ask"},
+		{"an executed script without a shebang removing outside", "{project}", "scripts/plain", "ask"},
+		{"a script sourcing one removing outside", "{project}", "bash scripts/nested.sh", "ask"},
+		{"a script in shell code removing outside", "{project}", "bash -c 'bash scripts/clean-outside.sh'", "ask"},
+		{"a missing script", "{project}", "bash scripts/none.sh", "ask"},
+		{"a script that does not parse", "{project}", "bash scripts/broken.sh", "ask"},
+		{"a script named by a variable", "{project}", `source "$venv/bin/activate"`, "ask"},
+		{"an oversized script", "{project}", "bash scripts/large.sh", "ask"},
+		{"a script after a cd the walk cannot follow", "{project}", `cd "$dir" && bash build.sh`, "ask"},
+		{"a script after a cd in a subshell", "{project}", "(cd sub); bash scripts/build.sh", "ask"},
+		{"a script after a sourced script moves", "{project}", "source scripts/leave.sh; bash scripts/build.sh", "ask"},
+		{"a script a here-document writes removing outside", "{project}", "cat > .tmp/x.sh <<'EOF'\nrm -rf {outside}/x\nEOF\nbash .tmp/x.sh", "ask"},
+		{"a script the command rewrites before running it", "{project}", "echo 'rm -rf ~' > scripts/build.sh; bash scripts/build.sh", "ask"},
+		{"mv of a variable source", "{project}", "mv $f ./", "deny"},
+		{"an executed python script naming a removal", "{project}", "./scripts/tidy.py", "ask"},
+		{"a script removing a variable target", "{project}", "bash scripts/removes-variable.sh", "ask"},
+		{"a script running mktemp", "{project}", "bash scripts/makes-temp.sh", "ask"},
+		{"a script handing a removal to a shell", "{project}", "bash scripts/nested-code.sh", "ask"},
+		{"a script holding a removal outside beside another command", "{project}", "bash scripts/list-and-clean-outside.sh", "ask"},
+		{"a typed denial beside a harmless script", "{project}", "mktemp && bash scripts/clean-build.sh", "deny"},
 	}
 
 	g := newGuard(t, true, "")
+	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)
+	test.WriteFile(t, filepath.Join(g.tree.Project, "scripts", "large.sh"), strings.Repeat("echo padding\n", 90000))
+	test.WriteFile(t, filepath.Join(g.tree.Project, "scripts", "tool"), "\x7fELF\x00\x00binary")
 	// timeout installed, so a call naming it is judged for what it runs, not
 	// refused as missing.
 	g.env.Getenv = test.Getenv(test.Stubs(t, "timeout"))
@@ -412,6 +474,7 @@ func TestASwitchedOffSupportingGuardFallsToTheOutsideVerdict(t *testing.T) {
 		{`"shell_guard_expansion":false`, `rm -rf "$HOME/x"`, `cannot place: "$HOME/x" (expansion)`},
 		{`"shell_guard_nested_code":false`, `bash -c 'rm -rf ~/x'`, "cannot place: code handed to bash -c (nested code)"},
 		{`"shell_guard_nested_code":false`, "n=$(wc -l < f); (( n > 1 ))", "cannot place: arithmetic on n (nested code)"},
+		{`"shell_guard_nested_code":false`, "bash none.sh", "cannot place: script none.sh (nested code)"},
 	}
 
 	for _, tc := range cases {
@@ -567,6 +630,64 @@ func TestTheGuardNamesWhatItAsksAbout(t *testing.T) {
 
 	if _, reason := g.judge("n=$(wc -l < f); (( n > 1 ))", "{project}"); reason != "agentic-shell-guard: arithmetic on n reads a value shell-guard cannot see" {
 		t.Errorf("the prompt should name the variable arithmetic reads unseen, got %q", reason)
+	}
+}
+
+func TestTheGuardNamesTheScriptItJudges(t *testing.T) {
+	g := newGuard(t, true, "")
+	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)
+
+	cases := []struct {
+		name    string
+		command string
+		reason  string
+	}{
+		{"a script removing outside", "bash scripts/clean-outside.sh", "in the script scripts/clean-outside.sh: outside project: {outside}/x"},
+		{"a script removing outside beside another command", "bash scripts/list-and-clean-outside.sh", "in the script scripts/list-and-clean-outside.sh: outside project: {outside}/x"},
+		{"a script removing a variable target", "bash scripts/removes-variable.sh", "in the script scripts/removes-variable.sh: refusing rm with a shell variable or command substitution"},
+		{"a script running mktemp", "bash scripts/makes-temp.sh", "in the script scripts/makes-temp.sh: mktemp is banned; write scratch files under the project's .tmp/ instead"},
+		{"an executed python script naming a removal", "./scripts/tidy.py", "in the script ./scripts/tidy.py: inline code for python3 names a removal or mktemp; refusing"},
+		{"a missing script", "source scripts/none.sh", "cannot read the script scripts/none.sh (no such file)"},
+		{"a script named by a variable", `source "$venv/bin/activate"`, "cannot read the script $venv/bin/activate (its path is built at run time)"},
+		{"a script after a cd the walk cannot follow", `cd "$dir" && bash build.sh`, "cannot read the script build.sh (the directory it runs in is not known)"},
+		{"a script the command rewrites", "echo x > scripts/build.sh; bash scripts/build.sh", "cannot read the script scripts/build.sh (the command writes it before running it)"},
+		{"a script outside the test tree", "bash /etc/profile", "cannot read the script /etc/profile (cannot open it)"},
+		{"a source from outside", "mv {outside}/x .", "outside project: {outside}/x"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision, reason := g.judge(tc.command, "{project}")
+			want := "agentic-shell-guard: " + g.placeholders.Replace(tc.reason)
+
+			if reason != want {
+				t.Errorf("the guard should name the script and what it found there, got %s %q", decision, reason)
+			}
+		})
+	}
+}
+
+func TestAnOversizedScriptIsAskedAbout(t *testing.T) {
+	g := newGuard(t, true, "")
+	test.WriteFile(t, filepath.Join(g.tree.Project, "large.sh"), strings.Repeat("echo padding\n", 90000))
+	test.WriteFile(t, filepath.Join(g.tree.Project, "small.sh"), strings.Repeat("echo padding\n", 80000))
+
+	if decision, reason := g.judge("bash large.sh", "{project}"); decision != "ask" || reason != "agentic-shell-guard: cannot read the script large.sh (over 1 MiB)" {
+		t.Errorf("a script over the limit should be asked about, got %s %q", decision, reason)
+	}
+
+	if decision, reason := g.judge("bash small.sh", "{project}"); decision != "allow" {
+		t.Errorf("a script under the limit should be read, got %s %q", decision, reason)
+	}
+}
+
+func TestScriptsRunningScriptsStopAtTheirDepth(t *testing.T) {
+	g := newGuard(t, true, "")
+	test.WriteFile(t, filepath.Join(g.tree.Project, "loop.sh"), "source loop.sh\n")
+
+	decision, reason := g.judge("bash loop.sh", "{project}")
+	if decision != "ask" || !strings.HasSuffix(reason, "cannot read the script loop.sh (scripts run scripts too deep)") {
+		t.Errorf("a script running itself should be asked about once the depth runs out, got %s %q", decision, reason)
 	}
 }
 

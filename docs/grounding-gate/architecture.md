@@ -119,7 +119,11 @@ shell-guard judges through too, lists every command it runs: in a subshell, a pi
 substitution, after a launcher (`env`, `xargs`, `sudo`, `find -exec`, `xcrun`, `uv run`, ...) past
 the launcher's options, assignments and counts, and inside code a shell runs (`bash -c`, `eval`,
 `trap`, a here-document fed to a shell or `at`, `sched`, a tmux shell command, zsh's
-`functions[name]=`, text arithmetic evaluates). A Monitor call's command is read as a Bash
+`functions[name]=`, text arithmetic evaluates), and inside a shell script it runs (`bash x.sh`,
+`source x.sh`, `./x`), read through `shellwalk.WalkWith` from the hook's working directory as
+shell-guard reads it ([shell-guard architecture](../shell-guard/architecture.md#scripts)), so an
+`sdd new` inside a sourced script owes the reads any write owes. A script the walk cannot read is
+left to shell-guard, which asks about it. A Monitor call's command is read as a Bash
 command's. An option's value that is neither fixed text without a glob
 or brace nor wholly double-quoted without an `@`, `*` or `!` expansion (`sudo -u $user sdd ...`) is
 taken for the command, as it may split into one, so a read behind it is not credited. A quoted argument and a heredoc body are words, never a call, so

@@ -113,7 +113,7 @@ func leaksCredential(ctx context.Context, env Env, payload hookio.Payload) (stri
 }
 
 func (held *scan) command(ctx context.Context, env Env, command string) {
-	heard := spokenIn(command, false)
+	heard := spokenIn(command, false, env.scripts())
 
 	for _, stretch := range heard {
 		words := []string{patternedUnparsed(stretch.unparsed)}
@@ -128,7 +128,7 @@ func (held *scan) command(ctx context.Context, env Env, command string) {
 		}
 	}
 
-	if writeIn(command) == writesNothing {
+	if writeIn(env, command) == writesNothing {
 		return
 	}
 

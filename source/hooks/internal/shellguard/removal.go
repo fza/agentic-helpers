@@ -152,6 +152,58 @@ func physical(target string) string {
 	return filepath.Join(resolved, tail)
 }
 
+// gitPlaces are git's options moving where it reads its paths from.
+var gitPlaces = []string{"-C", "--git-dir", "--work-tree"}
+
+// moveSources are the operands of a move that name what it moves: every one
+// but the last, the target, or every one where -t or --target-directory names
+// the target (mv's, where targetOption holds). -S and --suffix take a value.
+// A word with an expansion is an operand, the side a guard errs on.
+func moveSources(args []*syntax.Word, targetOption bool) []*syntax.Word {
+	var operands []*syntax.Word
+
+	targetGiven, optionsEnded := false, false
+
+	for index := 0; index < len(args); index++ {
+		value, isLiteral := shellwalk.Literal(args[index])
+
+		switch {
+		case optionsEnded || !isLiteral || !strings.HasPrefix(value, "-") || value == "-":
+			operands = append(operands, args[index])
+		case value == "--":
+			optionsEnded = true
+		case targetOption && (value == "-t" || value == "--target-directory"):
+			targetGiven = true
+			index++
+		case targetOption && strings.HasPrefix(value, "--target-directory="):
+			targetGiven = true
+		case value == "-S" || value == "--suffix":
+			index++
+		case strings.HasPrefix(value, "--"):
+		case targetOption && strings.Contains(value, "t"):
+			// A short group ending in t takes the next word as the target; one
+			// with more after the t carries it.
+			targetGiven = true
+
+			if strings.HasSuffix(value, "t") {
+				index++
+			}
+		case strings.HasSuffix(value, "S"):
+			index++
+		}
+	}
+
+	if targetGiven {
+		return operands
+	}
+
+	if len(operands) == 0 {
+		return nil
+	}
+
+	return operands[:len(operands)-1]
+}
+
 // within holds only strictly below the directory: the directory itself is
 // never a target.
 func within(target string, directory string) bool {

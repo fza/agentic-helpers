@@ -162,10 +162,14 @@ func (check *projectReads) Command(call shellwalk.Call) {
 	}
 }
 
-func (check *projectReads) Code(string, []*syntax.Word) {}
+func (check *projectReads) Code(string, []*syntax.Word, string) {}
 
 func (check *projectReads) Inline(string, []*syntax.Word) {}
 
 func (check *projectReads) Piped(string) {}
 
 func (check *projectReads) Unseen(string) {}
+
+func (check *projectReads) Script(string, string, string, shellwalk.Scripts) {}
+
+func (check *projectReads) Unread(string, string) {}

@@ -1,7 +1,8 @@
 // Package shellguard decides whether a Bash call Claude Code is about to run
-// may go ahead. It holds removals (`rm`, `rmdir`, `unlink`, `git rm`) to the
-// project and /tmp, bans `mktemp`, and asks before `find -delete`; each guard
-// has its own plugin option.
+// may go ahead. It holds removals (`rm`, `rmdir`, `unlink`, `git rm`) and the
+// sources of moves (`mv`, `git mv`) to the project and /tmp, bans `mktemp`,
+// and asks before `find -delete`; each guard has its own plugin option. A
+// shell script the command runs is read and judged as the command's own code.
 //
 // The command is parsed as bash, so `rm` inside a quoted argument of another
 // command (a sed script, a grep pattern, a commit message) is text and passes.
@@ -63,7 +64,9 @@ type Verdict struct {
 // are read from. StateDir holds, in shell-guard's slot file, each session's
 // countdowns that ran out and its refused rewritable asks; Clock times the countdowns, read only by the
 // PermissionRequest hook. The PATH read through Getenv says which commands
-// are installed, and StateDir, the cache root, keeps each command's flavour.
+// are installed, and StateDir, the cache root, keeps each command's flavour. Files
+// reads the scripts a command runs; left nil it reads none, and every script
+// is asked about.
 type Env struct {
 	ProjectDir string
 	Home       string
@@ -72,6 +75,7 @@ type Env struct {
 	Getenv     func(string) string
 	StateDir   string
 	Clock      Clock
+	Files      shellwalk.Files
 }
 
 type Streams struct {
@@ -115,6 +119,9 @@ const (
 	reasonSecretsCut    = "the hook was cut short before its credential scan finished; nothing says whether the command holds one"
 	reasonNotFixed      = "cannot judge: the command name %s is not fixed text"
 	reasonUnseen        = "arithmetic on %s reads a value shell-guard cannot see"
+	reasonScriptUnread  = "cannot read the script %s (%s)"
+	reasonInScript      = "in the script %s: %s"
+	unreadUnparsed      = "it does not parse as bash"
 	whyNotAlone         = "not alone"
 	whyExpansion        = "expansion"
 	whyNestedCode       = "nested code"
@@ -271,19 +278,24 @@ func Judge(ctx context.Context, command string, workingDir string, env Env, opti
 
 	var found verdicts
 
-	call, targetsFrom := loneRemoval(file)
-	if call != nil {
-		found.add(judgeRemoval(ctx, call.Args[targetsFrom:], workingDir, env, options))
-	} else {
-		inspection := inspector{options: options}
-		inspection.walk(file)
-		found.add(inspection.found.decided)
-	}
-
+	found.add(judgeCode(ctx, file, shellwalk.Scripts{Files: env.Files, Home: env.Home, Dir: workingDir}, env, options))
 	found.add(judgeAlternatives(ctx, command, env, options))
 	found.add(holdsCredential(ctx, command, options))
 
 	return found.decided
+}
+
+// judgeCode is the verdict of every guard the walk drives on the command.
+func judgeCode(ctx context.Context, file *syntax.File, scripts shellwalk.Scripts, env Env, options Options) Verdict {
+	call, targetsFrom := loneRemoval(file)
+	if call != nil {
+		return judgeRemoval(ctx, call.Args[targetsFrom:], scripts.Dir, env, options)
+	}
+
+	inspection := inspector{ctx: ctx, env: env, options: options, scripts: scripts}
+	inspection.walk(file)
+
+	return inspection.found.decided
 }
 
 // holdsCredential is the secrets guard's verdict on the command's whole text:
@@ -363,24 +375,37 @@ func loneRemoval(file *syntax.File) (*syntax.CallExpr, int) {
 
 // inspector judges what the walk finds. Inside code another program runs as
 // shell (inside), a removal or mktemp is only noted: the nested-code guard
-// judges it.
+// judges it. scripts is what the walk reads the scripts it runs through; ctx
+// is held since the walk's visitor methods take none.
 type inspector struct {
+	ctx     context.Context
+	env     Env
 	options Options
+	scripts shellwalk.Scripts
 	found   verdicts
 	inside  bool
-	removes bool
-	mktemps bool
+	// inScript is a script's own text, whose removals are judged by their
+	// targets alone.
+	inScript bool
+	removes  bool
+	mktemps  bool
 }
 
 func (inspection *inspector) walk(node syntax.Node) {
-	shellwalk.Walk(node, inspection)
+	shellwalk.WalkWith(node, inspection, inspection.scripts)
 }
 
 // removal is a removal that is not the whole command, its targets from
 // args[from:].
-func (inspection *inspector) removal(args []*syntax.Word, from int) {
+func (inspection *inspector) removal(args []*syntax.Word, from int, dir string) {
 	if inspection.inside {
 		inspection.removes = true
+
+		return
+	}
+
+	if inspection.inScript {
+		inspection.found.add(judgeRemoval(inspection.ctx, args[min(from, len(args)):], dir, inspection.env, inspection.options))
 
 		return
 	}
@@ -414,14 +439,26 @@ func (inspection *inspector) Command(call shellwalk.Call) {
 		reason := fmt.Sprintf(reasonNotFixed, shellwalk.Text(args[0]))
 		inspection.found.add(rewritable(inspection.options.OutsideProject, reason, rewriteNotFixed))
 	case slices.Contains(removers, name):
-		inspection.removal(args, 1)
+		inspection.removal(args, 1, call.Dir)
 	case name == "mktemp":
 		inspection.mktemp()
+	case name == "mv":
+		inspection.moved(moveSources(args[1:], true), call.Dir)
 	case name == "git":
+		dir := call.Dir
+
 		for index, arg := range args[1:] {
 			value, isLiteral := shellwalk.Literal(arg)
-			if isLiteral && value == "rm" {
-				inspection.removal(args, index+2)
+
+			switch {
+			case !isLiteral:
+			case value == "rm":
+				inspection.removal(args, index+2, dir)
+			case value == "mv":
+				inspection.moved(moveSources(args[index+2:], false), dir)
+			case slices.Contains(gitPlaces, value) || strings.HasPrefix(value, "--git-dir=") ||
+				strings.HasPrefix(value, "--work-tree="):
+				dir = ""
 			}
 		}
 	case name == "find":
@@ -476,7 +513,7 @@ func (inspection *inspector) Inline(name string, args []*syntax.Word) {
 // as a literal, or cannot parse, denies: it could be anything. With the
 // nested-code guard off, a removal in it, or code it cannot read, takes the
 // outside-project verdict, and the rest passes.
-func (inspection *inspector) Code(runner string, words []*syntax.Word) {
+func (inspection *inspector) Code(runner string, words []*syntax.Word, dir string) {
 	parts := make([]string, 0, len(words))
 	for _, word := range words {
 		value, isLiteral := shellwalk.Literal(word)
@@ -498,7 +535,9 @@ func (inspection *inspector) Code(runner string, words []*syntax.Word) {
 		return
 	}
 
-	inner := inspector{options: inspection.options, inside: true}
+	inner := inspector{
+		ctx: inspection.ctx, env: inspection.env, options: inspection.options, scripts: inspection.scripts.At(dir), inside: true,
+	}
 	inner.walk(file)
 	inspection.found.add(inner.found.decided)
 
@@ -528,6 +567,61 @@ func (inspection *inspector) Unseen(variable string) {
 	}
 
 	inspection.found.add(cannotPlace(inspection.options, "arithmetic on "+variable, whyNestedCode))
+}
+
+// Script judges a script the command runs by the walk's guards, in the
+// directory it runs in: a removal there by its targets alone, the lone-removal
+// rule set aside, since a script holds commands beside its removals by
+// nature. Nothing found there denies: a deny becomes an ask, as the person
+// can read the script the agent cannot change by rewriting the command, and
+// that ask prompts at once. Another interpreter's script is judged as its
+// inline code.
+func (inspection *inspector) Script(name string, interpreter string, text string, within shellwalk.Scripts) {
+	inner := inspector{ctx: inspection.ctx, env: inspection.env, options: inspection.options, scripts: within, inScript: true}
+
+	if interpreter != "" {
+		inner.Inline(interpreter, []*syntax.Word{{Parts: []syntax.WordPart{&syntax.Lit{Value: text}}}})
+	} else {
+		file, err := shellwalk.Parse(text)
+		if err != nil {
+			inspection.Unread(name, unreadUnparsed)
+
+			return
+		}
+
+		inner.walk(file)
+	}
+
+	verdict := inner.found.decided
+	if verdict.Decision == Allow {
+		return
+	}
+
+	inspection.found.add(Verdict{Decision: Ask, Reason: fmt.Sprintf(reasonInScript, name, verdict.Reason)})
+}
+
+// Unread asks about a script the command runs that the walk cannot read: most
+// such scripts are harmless, as an activation script named by a variable is,
+// so it asks rather than denies.
+func (inspection *inspector) Unread(name string, why string) {
+	if inspection.options.NestedCode {
+		inspection.found.add(Verdict{Decision: Ask, Reason: fmt.Sprintf(reasonScriptUnread, name, why)})
+
+		return
+	}
+
+	inspection.found.add(cannotPlace(inspection.options, "script "+name, whyNestedCode))
+}
+
+// moved judges each source of a move as a removal operand: a move takes the
+// file away from where it was. Its target is never judged.
+func (inspection *inspector) moved(sources []*syntax.Word, dir string) {
+	if len(sources) == 0 {
+		return
+	}
+
+	operands := append([]*syntax.Word{{Parts: []syntax.WordPart{&syntax.Lit{Value: "--"}}}}, sources...)
+	inspection.found.add(judgeRemoval(inspection.ctx, operands, dir, inspection.env, inspection.options))
 }
 
 func (inspection *inspector) unreadable(runner string, reason string) {

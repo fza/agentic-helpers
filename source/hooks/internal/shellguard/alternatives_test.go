@@ -20,6 +20,7 @@ func onMachine(t *testing.T, options string, installed []string, gnu []string) (
 	g := newGuard(t, true, options)
 	path := test.FlavouredPath(t, installed, gnu)
 	g.env.Getenv = test.Getenv(path)
+	g.env.Files = test.TreeFiles{Roots: []string{g.tree.Root, path}}
 
 	return g, path
 }
@@ -192,9 +193,9 @@ func TestWhatWorksOnBSDRuns(t *testing.T) {
 		"/opt/gnu/sed -i 's/a/b/' f",
 	} {
 		t.Run(command, func(t *testing.T) {
-			g, _ := onMachine(t, "", []string{"sed", "date"}, nil)
+			g, path := onMachine(t, "", []string{"sed", "date"}, nil)
 
-			if decision, reason := g.judge(command, "{project}"); decision != "allow" {
+			if decision, reason := g.judge(strings.ReplaceAll(command, "/opt/gnu", path), "{project}"); decision != "allow" {
 				t.Errorf("a usage BSD runs as written should pass, got %s %q", decision, reason)
 			}
 		})
@@ -203,6 +204,7 @@ func TestWhatWorksOnBSDRuns(t *testing.T) {
 
 func TestADialectNamedByPathRunsNothing(t *testing.T) {
 	g, path := onMachine(t, "", []string{"sed"}, nil)
+	test.WriteFile(t, filepath.Join(g.tree.Project, "sed"), test.Fixture(t, "alternatives/bsd-sed"))
 
 	for _, command := range []string{path + "/sed -i 's/a/b/' f", "./sed -i 's/a/b/' f"} {
 		decision, reason := g.judge(command, "{project}")

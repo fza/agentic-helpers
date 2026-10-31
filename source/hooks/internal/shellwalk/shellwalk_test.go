@@ -1,6 +1,7 @@
 package shellwalk_test
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -271,6 +272,138 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 				t.Errorf("the walk should offer each command it runs, in order, got: %q", recorder.Events)
 			}
 		})
+	}
+}
+
+func TestTheWalkReadsTheScriptsACommandRuns(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolving the test root: %v", err)
+	}
+
+	test.FixtureTreeReplacing(t, "shellguard/scripts", root, strings.NewReplacer("{outside}", "/elsewhere"))
+	test.WriteFile(t, filepath.Join(root, "sub", "build.sh"), test.Fixture(t, "shellguard/scripts/build.sh"))
+	test.WriteFile(t, filepath.Join(root, "tool"), "\x7fELF\x00\x00binary")
+
+	python := strings.TrimSpace(test.Fixture(t, "shellguard/scripts/tidy.py"))
+
+	cases := []struct {
+		name    string
+		command string
+		depth   int
+		events  []string
+	}{
+		{
+			name: "a script a shell runs", command: "bash build.sh",
+			events: []string{"call bash build.sh in {root}", "script build.sh: #!/bin/sh\necho building in {root}"},
+		},
+		{
+			name: "a script past the end of a shell's options", command: "sh -e -- build.sh",
+			events: []string{"call sh -e -- build.sh in {root}", "script build.sh: #!/bin/sh\necho building in {root}"},
+		},
+		{name: "a shell reading its standard input", command: "bash -s build.sh", events: []string{"call bash -s build.sh in {root}"}},
+		{name: "a shell given code", command: "bash -c 'echo hi' build.sh", events: []string{"call bash -c echo hi build.sh in {root}", "code bash -c: echo hi in {root}"}},
+		{
+			name: "a sourced script", command: ". activate.sh",
+			events: []string{"call . activate.sh in {root}", "script activate.sh: export BUILD_MODE=release in {root}"},
+		},
+		{
+			name: "a script after a cd the walk follows", command: "cd sub && bash build.sh",
+			events: []string{"call cd sub in {root}", "call bash build.sh in {root}/sub", "script build.sh: #!/bin/sh\necho building in {root}/sub"},
+		},
+		{
+			name: "a script after a cd behind another command", command: "ls && cd sub; bash build.sh",
+			events: []string{"call ls in {root}", "call cd sub in {root}", "call bash build.sh", "unread build.sh: the directory it runs in is not known"},
+		},
+		{
+			name: "a script after a cd to a missing directory", command: "cd none; bash build.sh",
+			events: []string{"call cd none in {root}", "call bash build.sh", "unread build.sh: the directory it runs in is not known"},
+		},
+		{
+			name: "a script a launcher runs elsewhere", command: "env -C sub bash build.sh",
+			events: []string{
+				"call env -C sub bash build.sh in {root}", "launched -C sub bash build.sh", "launched sub bash build.sh",
+				"launched bash build.sh (certain)", "launched build.sh", "unread build.sh: the directory it runs in is not known",
+			},
+		},
+		{
+			name: "a script after a sourced script moves", command: "source leave.sh; bash build.sh",
+			events: []string{
+				"call source leave.sh in {root}", "script leave.sh: cd /elsewhere in {root}", "call bash build.sh",
+				"unread build.sh: the directory it runs in is not known",
+			},
+		},
+		{name: "a script executed with a python shebang", command: "./tidy.py", events: []string{"call ./tidy.py in {root}", "script ./tidy.py by python3: " + python + " in {root}"}},
+		{name: "a script executed with another interpreter", command: "./Makefile.run", events: []string{"call ./Makefile.run in {root}"}},
+		{name: "an executed binary", command: "./tool", events: []string{"call ./tool in {root}"}},
+		{name: "a command by a path the walk knows", command: "/bin/bash build.sh", events: []string{"call /bin/bash build.sh in {root}", "script build.sh: #!/bin/sh\necho building in {root}"}},
+		{name: "a launcher by its path", command: "/usr/bin/env ls", events: []string{"call /usr/bin/env ls in {root}", "launched ls (certain) in {root}"}},
+		{name: "a missing script", command: "bash none.sh", events: []string{"call bash none.sh in {root}", "unread none.sh: no such file"}},
+		{name: "a script named by a variable", command: `bash "$x"`, events: []string{`call bash $x in {root}`, "unread $x: its path is built at run time"}},
+		{
+			name: "a script a here-document writes", command: "cat > s.sh <<EOF\necho \\$HOME \\\\ x\nEOF\nbash s.sh",
+			events: []string{"call cat in {root}", "call bash s.sh in {root}", `script s.sh: echo $HOME \ x in {root}`},
+		},
+		{
+			name: "a script a quoted here-document writes", command: "cat > s.sh <<'EOF'\necho \\$HOME\nEOF\nbash s.sh",
+			events: []string{"call cat in {root}", "call bash s.sh in {root}", `script s.sh: echo \$HOME in {root}`},
+		},
+		{
+			name: "a script tee writes from a here-document", command: "tee s.sh > /dev/null <<'EOF'\necho hi\nEOF\nbash s.sh",
+			events: []string{"call tee s.sh in {root}", "call bash s.sh in {root}", "script s.sh: echo hi in {root}"},
+		},
+		{
+			name: "a script a here-document appends to", command: "cat >> build.sh <<'EOF'\necho more\nEOF\nbash build.sh",
+			events: []string{"call cat in {root}", "call bash build.sh in {root}", "script build.sh: #!/bin/sh\necho building\necho more in {root}"},
+		},
+		{
+			name: "a script a here-document with an expansion writes", command: "cat > s.sh <<EOF\necho $HOME\nEOF\nbash s.sh",
+			events: []string{"call cat in {root}", "call bash s.sh in {root}", "unread s.sh: the command writes it before running it"},
+		},
+		{
+			name: "a script after a write the walk cannot place", command: `echo x > "$out"; bash build.sh`,
+			events: []string{"call echo x in {root}", "call bash build.sh in {root}", "unread build.sh: the command writes it before running it"},
+		},
+		{
+			name: "a script in shell code", command: "bash -c 'bash build.sh'",
+			events: []string{"call bash -c bash build.sh in {root}", "code bash -c: bash build.sh in {root}"},
+		},
+		{name: "a script too deep", command: "bash build.sh", depth: shellwalk.MaxDepth, events: []string{"call bash build.sh in {root}", "unread build.sh: scripts run scripts too deep"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			file, err := shellwalk.Parse(tc.command)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			recorder := &test.WalkRecorder{}
+			shellwalk.WalkWith(file, recorder, shellwalk.Scripts{Files: test.TreeFiles{Roots: []string{root}}, Dir: root, Depth: tc.depth})
+
+			want := make([]string, 0, len(tc.events))
+			for _, event := range tc.events {
+				want = append(want, strings.ReplaceAll(event, "{root}", root))
+			}
+
+			if !slices.Equal(recorder.Events, want) {
+				t.Errorf("the walk should report every script the command runs, where it runs, got: %q", recorder.Events)
+			}
+		})
+	}
+}
+
+func TestAWalkWithoutScriptsReadsNone(t *testing.T) {
+	file, err := shellwalk.Parse("bash none.sh; ./x")
+	if err != nil {
+		t.Fatalf("parsing: %v", err)
+	}
+
+	recorder := &test.WalkRecorder{}
+	shellwalk.Walk(file, recorder)
+
+	if !slices.Equal(recorder.Events, []string{"call bash none.sh", "call ./x"}) {
+		t.Errorf("a walk reading no scripts should report none, got: %q", recorder.Events)
 	}
 }
 

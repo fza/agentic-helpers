@@ -52,7 +52,14 @@ as `cannot place`.
 
 Any other command is walked call by call. A removal (or `git ... rm`) denies under
 `shell_guard_lone_removal`, else takes the outside-project verdict as `cannot place: <targets> (not
-alone)`. `mktemp` denies under `shell_guard_mktemp`, its reason naming `.tmp/` by whether the project
+alone)`. A move (`mv`, or `git ... mv`) is judged as a lone removal is, over its sources only
+(`moveSources`): every operand but the last, or every operand where `-t`, `--target-directory` or a
+short group ending in `t` names the target; `-S` and `--suffix` take a value and `--` ends the
+options. The sources go to the same path reading as a lone removal's targets, behind a `--` so a
+source named like an option still counts, from the directory the walk places the call in
+(`shellwalk.Call.Dir`); `git -C`, `--git-dir` and `--work-tree` before `mv` leave that place unknown,
+so a relative source is unresolvable. `cp` is not judged: shell-guard guards no reads.
+`mktemp` denies under `shell_guard_mktemp`, its reason naming `.tmp/` by whether the project
 carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A launcher (`sudo`,
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
 stood alone. zsh's precommand modifiers (`noglob`, `nocorrect`, `-`) and `repeat N` are launchers
@@ -212,6 +219,59 @@ every long option but the shells' known flags such as `--norc`) taking the next 
 `-c` or `--command` replaces the input as the code source; fish's `-C` init code runs before it. A shell's code is the word after an option carrying `c`,
 or fish's `C`, or after `--command` or `--init-command`. A here-document or here-string fed to another interpreter is judged as its
 inline code. Any other guard's verdict found inside nested code counts as found outside it.
+
+## Scripts
+
+`shellwalk.WalkWith` reads the shell scripts a command runs through a `shellwalk.Files`
+(`shellwalk.OSFiles` in the hook, a reader confined to the test tree in tests), starting in the
+payload's `cwd`; the plain `Walk` reads none. A script is the operand of `sh`, `bash`, `zsh`,
+`dash`, `ksh` or `mksh` given no code (`scriptOperand`, reading options as `namesScript` does, and
+taking the word after `--`), the file `source` or `.` reads, or a command named by a literal path
+holding `/` whose base name is no shell, launcher or interpreter. Only a call the walk is certain
+runs counts. fish is left out: its syntax is no shell's the parser reads.
+
+The walk keeps the directory the shell is in (`walker.dir`). A `cd` moves it only where it is a
+statement of the command's own, or opens an `&&` chain of such cds (`plainDirectoryMoves`), with a
+fixed operand (none means home, `-` and zsh's two operands mean unknown) naming a directory that
+exists. Every other directory move a call makes (`shellwalk.MovesDirectory`) loses the place for
+the rest of the command; a launcher's chdir option loses it only for what that call launches. A
+sourced script that cannot be read or holds a directory move of its own loses it too, since it runs
+in the shell itself. Each call carries its place as `Call.Dir`, and code another program runs
+carries one to its `Code` event: the call's for `eval`, a shell's `-c`, `npx -c`, `pnpm exec -c` and
+a here-document fed to a shell; none for `trap`, `sched`, tmux, zsh's code arrays and arithmetic,
+which run elsewhere or later.
+
+Each statement's writes are noted before its call is offered (`walker.records`): a redirection
+writing a file, and `tee`'s operands. `cat` with no operand, or `tee`, fed a here-document or
+here-string writes its text, read as bash does: verbatim under a quoted delimiter, with `\\`, `\$`,
+`` \` `` and line continuations resolved under a bare one, and unknown where it holds an expansion;
+an append adds to what the file held. Any other write leaves the file's text unknown, and a write to
+a path that is not fixed text, or cannot be placed, leaves every later script unknown.
+
+`walker.textOf` gives a script's text, or why not, which the walk reports as `Visitor.Unread`
+with one of the `shellwalk.Unread...` reasons: a path that is not fixed text, no place to resolve a
+relative path from, a write before it with no known text, more than `shellwalk.MaxDepth` scripts
+deep, missing, unopenable, or over `shellwalk.MaxScript` (1 MiB). A file with a NUL byte in its
+first 8000 bytes is no text and no script. A script run by its path is read by its `#!` line,
+through `env` and its options and assignments: a shell's or none goes out as `Visitor.Script` with
+no interpreter, another interpreter's as `Visitor.Script` naming it, any other as nothing. A shell
+or `source` reads the file as shell whatever its first line says. The grounding gate walks shell
+scripts only; another interpreter's text is as opaque to it as inline code is.
+
+shell-guard walks a script's text with an inspector in script mode (`inspector.inScript`), in the
+directory and depth the event carries; another interpreter's text goes to that inspector's `Inline`.
+Two rules differ from a typed command's. A removal there (`rm`, `rmdir`, `unlink`, `git rm`), lone
+or not, is judged by its targets alone through the lone removal's path reading, from the directory
+its call runs in: the lone-removal rule is set aside, since a script holds commands beside its
+removals by nature. And whatever the script's text yields, a deny included (an expansion in a
+removal target, nested code, `mktemp`, a command name that is not fixed text), is added as an ask
+with `in the script <name>: ` before its reason and no rewrite count: the person can read the
+script, and rewriting the command cannot change it. Removals inside code the script hands to a
+shell are still noted as nested code, which asks. A command typed in the call keeps every rule. Text that does not parse, and every
+unread script, asks under `shell_guard_nested_code`, reason `cannot read the script <name> (<why>)`,
+the why `it does not parse as bash` for the former; with the guard off it takes the outside-project
+verdict as `cannot place: script <name> (nested code)`. The command alternatives and credential
+guards judge the command's own text only.
 
 Every guard adds a verdict; `deny` outranks `ask`, which outranks letting the call run, and the first
 reason given for the strongest stands.
