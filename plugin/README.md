@@ -21,10 +21,10 @@ the version first installed: turn auto-update on under `/plugin`, Marketplaces, 
 ## Pieces
 
 - **agentic-memory** keeps notes the agent reads again after a compaction or in a new session, and
-  serves them over the `memory` MCP server. When an instruction file a running session loaded
-  changes (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, a nested one, `~/.claude/CLAUDE.md`), it
-  tells that session to re-read it, so an instruction written mid-session reaches sessions already
-  running. A subagent gets the scratch folder, the machine notes and as much of memory as the line
+  serves them over the `memory` MCP server. When `CLAUDE.md`, `CLAUDE.local.md`, a file they import
+  with `@` (an `AGENTS.md`, say), a `CLAUDE.md` in a subfolder or `~/.claude/CLAUDE.md` changes
+  after a running session loaded it, agentic-memory tells that session to re-read it, so an
+  instruction written mid-session reaches sessions already running. A subagent gets the scratch folder, the machine notes and as much of memory as the line
   `agentic-helpers: <level>` in its Agent prompt names (`none`, `rules`, `silent`, `shared`,
   `full`), never more than its spawner.
 - **agentic-tools** shares helper scripts between agents, over the `tools` MCP server.
