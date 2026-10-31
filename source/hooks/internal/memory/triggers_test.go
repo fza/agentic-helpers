@@ -145,7 +145,7 @@ func TestDoNowAtClaim(t *testing.T) {
 
 	claimed := h.must("", "claim", "main")
 	_, list, _ := strings.Cut(claimed, "do now (claim):\n")
-	list, _, briefed := strings.Cut(list, "agentic-memory: seat main")
+	list, _, briefed := strings.Cut(list, "rules (from the user")
 
 	if !briefed || !strings.Contains(list, monitor+" Arm the monitor on claim  proof: tool:Monitor\n") ||
 		!strings.Contains(list, board+" Read the board on claim  ack when done\n") ||

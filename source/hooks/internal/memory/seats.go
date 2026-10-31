@@ -202,7 +202,10 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 
 	here := mem.checkout(ctx)
 
-	lines := []string{fmt.Sprintf("%s: %s (pid %d)", req.Name, short(held.SessionID), held.PID)}
+	// The brief's first line heads the claim, naming the holder, so the seat
+	// is named once; it is filled in once the do-now list owed before the
+	// brief is known.
+	lines := []string{""}
 
 	for _, line := range mem.claimScratch(ctx, req.Name) {
 		if line != "" {
@@ -230,7 +233,12 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		lines = append(lines, owed)
 	}
 
-	lines = append(lines, mem.brief(ctx, here, folded, req.Name, named))
+	head, body, _ := strings.Cut(mem.brief(ctx, here, folded, req.Name, named), "\n")
+	lines[0] = fmt.Sprintf("%s, session %s (pid %d)", head, short(held.SessionID), held.PID)
+
+	if body != "" {
+		lines = append(lines, body)
+	}
 
 	hint := mem.carryForwardHint(ctx, req.Name)
 	if hint != "" {

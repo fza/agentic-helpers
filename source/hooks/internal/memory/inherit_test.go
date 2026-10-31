@@ -119,7 +119,7 @@ func TestAResumedSessionWhoseParentIsGoneTakesItsSeatOver(t *testing.T) {
 	resumed := resumedOrForked(parent, test.Session)
 
 	out := resumed.must(resumed.startHook("resume", path), "session-start")
-	if !strings.HasPrefix(out, "main: ") || !strings.Contains(out, "agentic-memory: seat main") || !strings.Contains(out, "Gate reads Bash only today") {
+	if !strings.HasPrefix(out, "agentic-memory: seat main, ") || !strings.Contains(out, "Gate reads Bash only today") {
 		t.Errorf("a resumed session should hold its parent's seat with the brief, got:\n%s", out)
 	}
 
@@ -138,7 +138,7 @@ func TestAForkOfARunningSessionGetsASeatOnItsShelf(t *testing.T) {
 	fork := resumedOrForked(parent, test.OtherSession)
 
 	out := fork.must(fork.startHook("resume", sessionTranscript(t, "fork.jsonl")), "session-start")
-	if !strings.HasPrefix(out, "main-2: ") || !strings.Contains(out, "Gate reads Bash only today") {
+	if !strings.HasPrefix(out, "agentic-memory: seat main-2 ") || !strings.Contains(out, "Gate reads Bash only today") {
 		t.Errorf("a fork of a running session should get a new seat on its parent's shelf, with its brief, got:\n%s", out)
 	}
 
@@ -163,7 +163,7 @@ func TestAForkOfACompactedSessionFindsItsParentByTheBoundary(t *testing.T) {
 	fork := resumedOrForked(parent, test.OtherSession)
 
 	out := fork.must(fork.startHook("resume", sessionTranscript(t, "fork-compacted.jsonl")), "session-start")
-	if !strings.HasPrefix(out, "main: ") {
+	if !strings.HasPrefix(out, "agentic-memory: seat main, ") {
 		t.Errorf("a fork of a compacted session whose parent is gone should take the parent's seat over, got:\n%s", out)
 	}
 }
@@ -212,7 +212,7 @@ func TestAClaimWithoutAForkUUIDStillMatchesItsSessionID(t *testing.T) {
 
 	resumed := resumedOrForked(parent, test.Session)
 
-	if out := resumed.must(resumed.startHook("resume", ""), "session-start"); !strings.HasPrefix(out, "main: ") {
+	if out := resumed.must(resumed.startHook("resume", ""), "session-start"); !strings.HasPrefix(out, "agentic-memory: seat main, ") {
 		t.Errorf("a resume should take over a claim carrying its session id, fork uuid or not, got:\n%s", out)
 	}
 }
@@ -229,7 +229,7 @@ func TestAResumedForkTakesItsOwnSeatOverItsParents(t *testing.T) {
 	parent.must(parent.promptIn(sessionTranscript(t, "parent.jsonl")), "prompt")
 	parent.processes.Kill(test.OwnerPID)
 
-	if out := fork.must(fork.startHook("resume", sessionTranscript(t, "fork.jsonl")), "session-start"); !strings.HasPrefix(out, "main-2: ") {
+	if out := fork.must(fork.startHook("resume", sessionTranscript(t, "fork.jsonl")), "session-start"); !strings.HasPrefix(out, "agentic-memory: seat main-2 ") {
 		t.Errorf("a resumed fork should take its own seat over, not the parent's it shares a fork uuid with, got:\n%s", out)
 	}
 }
@@ -288,7 +288,7 @@ func TestAForkIsSeatedAtTheFirstToolCallAfterItsTranscriptIsWritten(t *testing.T
 			test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
 
 			out := toolContext(fork.must(fork.toolIn(path), "tool"))
-			if !strings.HasPrefix(out, tc.seat+": ") || !strings.Contains(out, "Gate reads Bash only today") {
+			if !claimedAs(out, tc.seat) || !strings.Contains(out, "Gate reads Bash only today") {
 				t.Errorf("a fork should be seated with its brief at its first tool call, got:\n%s", out)
 			}
 
@@ -321,7 +321,7 @@ func TestAForkWithoutAToolCallIsSeatedAtItsNextPrompt(t *testing.T) {
 	test.WriteFile(t, path, test.Fixture(t, "memory/inherit/fork.jsonl"))
 
 	out := fork.must(fork.promptIn(path), "prompt")
-	if !strings.HasPrefix(out, "main-2: ") || !strings.Contains(out, "Gate reads Bash only today") {
+	if !strings.HasPrefix(out, "agentic-memory: seat main-2 ") || !strings.Contains(out, "Gate reads Bash only today") {
 		t.Errorf("a fork should be seated with its brief at the first prompt finding its transcript, got:\n%s", out)
 	}
 
@@ -395,7 +395,7 @@ func TestAHookWithoutASessionIDLeavesForksAlone(t *testing.T) {
 		t.Errorf("a prompt naming no session should match no fork, got:\n%s", out)
 	}
 
-	if out := fork.must(fork.promptIn(path), "prompt"); !strings.HasPrefix(out, "main-2: ") {
+	if out := fork.must(fork.promptIn(path), "prompt"); !strings.HasPrefix(out, "agentic-memory: seat main-2 ") {
 		t.Errorf("a fork should still be seated at its first prompt, got:\n%s", out)
 	}
 }

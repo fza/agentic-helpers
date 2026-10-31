@@ -126,19 +126,19 @@ func TestClaimingOntoAShelf(t *testing.T) {
 	}
 
 	minted := h.must("", "claim", "--shelf", "row-7ah")
-	if !strings.HasPrefix(minted, "row-7ah-2: ") || shelfID(t, h.store(), "row-7ah-2") != shelfID(t, h.store(), "rev") {
+	if !strings.HasPrefix(minted, "agentic-memory: seat row-7ah-2 ") || shelfID(t, h.store(), "row-7ah-2") != shelfID(t, h.store(), "rev") {
 		t.Errorf("a claim naming only a shelf should mint the lowest free <shelf>-<n> onto it, got:\n%s", minted)
 	}
 
 	h.must("", "release")
 	other.must("", "release")
 
-	if out := other.must("", "claim", "--shelf", "row-7ah"); !strings.HasPrefix(out, "row-7ah-3: ") {
+	if out := other.must("", "claim", "--shelf", "row-7ah"); !strings.HasPrefix(out, "agentic-memory: seat row-7ah-3 ") {
 		t.Errorf("a minted name should pass over a seat already minted, got:\n%s", out)
 	}
 
 	answer := h.mcp(`{"name":"claim","arguments":{"shelf":"row-9zz"}}`)
-	if !strings.Contains(answer, "row-9zz-2: ") {
+	if !strings.Contains(answer, "agentic-memory: seat row-9zz-2 ") {
 		t.Errorf("the MCP claim should mint a seat from a shelf alone, got %s", answer)
 	}
 }

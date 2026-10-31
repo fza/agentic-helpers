@@ -71,7 +71,7 @@ func TestAReservationNobodyTakesOverFrees(t *testing.T) {
 	board.must("", "claim", "impl", "--session", test.OtherSession)
 	board.clock.Advance(11 * time.Minute)
 
-	if out := board.must("", "claim", "impl"); !strings.HasPrefix(out, "impl: ") {
+	if out := board.must("", "claim", "impl"); !claimedAs(out, "impl") {
 		t.Errorf("a reservation untaken for 10 minutes should free the seat, got:\n%s", out)
 	}
 }

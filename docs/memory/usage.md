@@ -242,8 +242,8 @@ brief arrives with the tool call's result or the prompt. A memory write sent as 
 first tool call is refused for want of a seat; the seat lands with that same call's result.
 
 - **Its parent's process is gone** (a resume, or a fork after the parent ended): the hook takes the
-  parent's seat over, and prints what a claim prints, the `<seat>: <session> (pid <n>)` line and the
-  brief.
+  parent's seat over, and prints what a claim prints: the brief, its first line naming the holder
+  after the style, `, session <session> (pid <n>)`.
 - **Its parent still runs** (a fork beside it): the parent keeps its seat, and the fork gets a new
   seat on the parent's shelf, named as `claim --shelf` names one (`main-2`), with its brief. It reads
   and writes the parent's memory and keeps a state of its own.
@@ -462,7 +462,9 @@ An entry is written in the project's language, never in the language the convers
 run in: the graph's `language` from `.sdd/config.yaml` (the graph repository's, where
 `project_dir` names one), else the plugin option `memory_language`,
 else `en`. The brief's first line names it, as in
-`agentic-memory: seat main, 14 live, 6 retired, entries in de, terse`, the style last. A domain term (a word naming a thing
+`agentic-memory: seat main, 14 live, 6 retired, entries in de, terse`, the style last. A claim opens
+with that line, the holder after it, `, session a065f970 (pid 72829)`, so the seat is named once; the
+scratch folder, the do-now list and the rest of the brief follow. A domain term (a word naming a thing
 in the project's code, documents or business, such as `Lieferschein`) keeps the project's spelling
 and is never translated, so `--term` still finds the word the code uses; a gloss in the entry's
 language may follow it in parentheses.
