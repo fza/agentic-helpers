@@ -690,7 +690,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 
 		for _, anchored := range held.anchors {
 			state := staleState(here, anchored)
-			if state != "" {
+			if state != "" && held.status == statusLive {
 				paths = append(paths, anchored.Path+" ("+state+")")
 
 				continue

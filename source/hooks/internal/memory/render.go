@@ -152,20 +152,28 @@ func (held *entry) linkedFrom(withSuperseded bool) []*entry {
 
 // declared is what the filer declared about the entry's life, as a full line
 // names it: the conditions that end it, a trap's triggers, the moments a rule
-// is owed at and the calls proving it, and when it comes due.
+// is owed at and the calls proving it, and when it comes due. An ended entry
+// names no end and no due time: neither can come any more.
 func declared(held *entry) []string {
 	var flags []string
+
+	ended := held.status != statusLive
+
+	until := held.until
+	if ended {
+		until = nil
+	}
 
 	for _, part := range []struct {
 		name   string
 		values []string
-	}{{"until", held.until}, {"when", held.when}, {"on", held.on}, {"proof", held.proof}, {"forbids", held.forbids}} {
+	}{{"until", until}, {"when", held.when}, {"on", held.on}, {"proof", held.proof}, {"forbids", held.forbids}} {
 		if len(part.values) > 0 {
 			flags = append(flags, part.name+": "+strings.Join(part.values, ", "))
 		}
 	}
 
-	if !held.due.IsZero() {
+	if !held.due.IsZero() && !ended {
 		flags = append(flags, "due: "+stamp(held.due))
 	}
 
