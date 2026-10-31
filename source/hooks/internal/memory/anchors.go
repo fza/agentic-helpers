@@ -107,7 +107,9 @@ func fileHash(path string) (string, bool) {
 // relative turns a token into a path inside root, or empty where it names
 // nothing there.
 func relative(root string, token string) string {
-	token = strings.Trim(token, ".,;:()[]{}<>\"'`")
+	// A leading dot starts a dot folder or file (`.tmp/`, `.sdd/`) or `./`;
+	// only a trailing one is sentence punctuation.
+	token = strings.TrimRight(strings.TrimLeft(token, ",;:()[]{}<>\"'`"), ".,;:()[]{}<>\"'`")
 	token = lineSuffix.ReplaceAllString(token, "")
 
 	if token == "" || strings.Contains(token, "://") {
