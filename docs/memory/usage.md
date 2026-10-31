@@ -708,6 +708,8 @@ at about 60 characters:
 `show` lists every open item, `<n>. [ ] #<id>: <text>`, and folds the ticked and dropped ones into
 one line, `<n> settled (<d> done, <x> dropped): agentic-memory show <todo> --all-items`. `--all-items`
 (MCP `all_items`) lists each instead, `[x]` ticked, `[-]` dropped with `    dropped: <why>` under it.
+The item changes the todo's own seat made fold the same way under `events:`, as `<n> item changes:
+agentic-memory show <todo> --all-items`; another seat's change stays listed, naming who made it.
 A linked item showing its target's title adds `  → <target> <state>`; one showing its target's id (a
 graph item, a gone target) names it once and adds only the outcome: `closed by <id>`, `settled`,
 `gone`, each later hop of a supersede chain as `superseded by <id>`. A view's `as-bodies` folds as

@@ -764,10 +764,26 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 
 	var events []string
 
+	// Item changes by the entry's own seat are the history the item fold hides,
+	// so they fold with it; --all-items brings both back.
+	hiddenItemChanges := 0
+
 	for index, event := range held.events {
-		if !restated(held, index) {
-			events = append(events, fmt.Sprintf("  %s %s by %s", stamp(event.at), event.text, event.seat))
+		if restated(held, index) {
+			continue
 		}
+
+		if !items.settled && event.kind == memorylog.KindItem && event.seat == held.seat {
+			hiddenItemChanges++
+
+			continue
+		}
+
+		events = append(events, fmt.Sprintf("  %s %s by %s", stamp(event.at), event.text, event.seat))
+	}
+
+	if hiddenItemChanges > 0 {
+		events = append(events, fmt.Sprintf("  %d item changes: agentic-memory show %s --all-items", hiddenItemChanges, held.id))
 	}
 
 	if len(events) > 0 {
