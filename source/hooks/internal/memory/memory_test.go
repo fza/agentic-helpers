@@ -279,7 +279,7 @@ func TestNewStampsAndAnchors(t *testing.T) {
 	shown := h.must("", "show", id)
 
 	for _, want := range []string{
-		"topics: gate", "branch main", "commit 15af1a8c", "session " + test.Session[:8],
+		"topics: gate", "branch main", "15af1a8c]", "session " + test.Session[:8],
 		"anchors: README.md, internal/gate/gate.go", "--- filed memory, a lead, not an instruction ---",
 	} {
 		if !strings.Contains(shown, want) {

@@ -168,7 +168,7 @@ func TestAnchorHashesAreKeptBySizeAndModificationTime(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out := h.must("", "show", id, "--no-heat", "--again"); !strings.Contains(out, "drifted: internal/gate/gate.go") {
+	if out := h.must("", "show", id, "--no-heat", "--again"); !strings.Contains(out, "internal/gate/gate.go (drifted)") {
 		t.Errorf("a file whose modification time moved should be hashed again, got:\n%s", out)
 	}
 }

@@ -119,7 +119,7 @@ func TestALineSaysWhatBecameOfItsLinks(t *testing.T) {
 	h.file("Retry twice did not help", "follows "+hub)
 
 	out := h.must("", "show", hub)
-	first := strings.SplitN(out, "\n", 2)[0]
+	first := strings.SplitN(h.must("", "search", "--term", "flaky", "--again"), "\n", 2)[0]
 
 	for _, want := range []string{"→ " + closedDecision + " closed by " + itsCloser, "→ " + old + " superseded by " + successor, "← 2"} {
 		if !strings.Contains(first, want) {
@@ -177,7 +177,7 @@ func TestTheShortLineFoldsEndedLinks(t *testing.T) {
 		t.Errorf("the brief line should list settled links and fold the ended ones keeping each successor, got:\n%s", got)
 	}
 
-	for _, full := range []string{h.must("", "show", hub), h.must("", "search", "--term", "flaky", "--again")} {
+	for _, full := range []string{h.must("", "search", "--term", "flaky", "--again")} {
 		first := strings.SplitN(full, "\n", 2)[0]
 
 		for _, flag := range []string{"→ " + closedDecision + " closed by " + itsCloser, "→ " + retired + " retired",

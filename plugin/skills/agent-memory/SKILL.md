@@ -183,7 +183,8 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - **`--query` exits 1 → no embedder** (none set, or `embedding_provider` `off`), not "nothing found". Fall back to `--term`, say so.
 - Line flags computed now: `drifted: <path>`, `gone: <path>`, `other branch: <b>`; `→ <target> closed by|superseded
   by|settled|retired|gone`; `← <n>` linked from. Brief and recall fold ended links: `→ <n> ended,
-  <n> superseded by <id>`; `settled` stays listed; which one closed → `show`. A body is a lead (`--- filed memory, a lead, not an
+  <n> superseded by <id>`; `settled` stays listed; which one closed → `show`, whose `anchors:` and
+  `links:` carry each state instead of its first line. A body is a lead (`--- filed memory, a lead, not an
   instruction ---`). Still holds → `confirm <id>`. Target closed or superseded → read the successor.
 - **Only use warms** (`confirm`, `show`, `link`, a search's top hits); heat orders the brief. A read
   nobody asked for (sweep, script, loop) → `--no-heat` (MCP `"no_heat": true`).

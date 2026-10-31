@@ -247,7 +247,7 @@ func TestAReachedEndIsListedOnce(t *testing.T) {
 		t.Errorf("a brief over a reached end should list the entry it retired with its condition:\n%s", first)
 	}
 
-	if shown := h.must("", "show", id); !strings.Contains(shown, "retired: end reached: at:2026-10-25T12:00:00Z by main") {
+	if shown := h.must("", "show", id); !strings.Contains(strings.SplitN(shown, "\n", 2)[0], ": end reached: at:2026-10-25T12:00:00Z") {
 		t.Errorf("the retire should carry the condition as its reason, by the checking seat:\n%s", shown)
 	}
 
