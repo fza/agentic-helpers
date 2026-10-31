@@ -94,7 +94,11 @@ func TestFindWithoutAnEmbedder(t *testing.T) {
 	h.tool("word-count", "Count the words of standard input")
 	h.embedding = false
 
-	h.refused("--query needs an embedder", "find", "--query", "count words")
+	refusal := strings.TrimSpace(h.run("", "find", "--query", "count words").err)
+	if !strings.HasPrefix(refusal, "refused: --query needs an embedder (") ||
+		!strings.HasSuffix(refusal, "): search with --term '<literal>'") {
+		t.Errorf("a query without an embedder should name its cause in brackets, then the --term fallback, got %q", refusal)
+	}
 
 	if !strings.Contains(h.must("find", "--term", "WORDS"), "word-count") {
 		t.Error("a term should still find, case-insensitive")
