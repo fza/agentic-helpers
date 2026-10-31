@@ -170,7 +170,10 @@ func (lib *library) find(ctx context.Context, req request) result {
 		return lib.findJSON(seen, shown, best, len(hits), total, len(stores), page)
 	}
 
-	lines := []string{framing}
+	var lines []string
+
+	framed := false
+
 	for _, hit := range shown {
 		if seen.printed(hit.hit) {
 			lines = append(lines, seenPointer(hit.hit))
@@ -179,15 +182,58 @@ func (lib *library) find(ctx context.Context, req request) result {
 		}
 
 		lines = append(lines, hitLine(hit))
+		framed = true
 	}
 
-	closing := fmt.Sprintf("%d-%d of %d matching tools shown, of %d in %d projects; `%s take <name> ...` copies them",
-		min(start+1, end), end, len(hits), total, len(stores), self)
-	if end < len(hits) {
-		closing += fmt.Sprintf("; --page %d shows the next %d", page+1, min(limit, len(hits)-end))
+	if framed {
+		lines = append([]string{framing}, lines...)
 	}
 
-	return done(strings.Join(append(lines, closing), "\n"))
+	return done(strings.Join(append(lines, findClosing(start, end, limit, page, len(hits), total, len(stores))), "\n"))
+}
+
+// findClosing says what a find showed: one count where every hit fits the
+// page it shows, else the range shown and what the next page holds.
+func findClosing(start int, end int, limit int, page int, matching int, total int, projects int) string {
+	takes := fmt.Sprintf("`%s take <name> ...` copies them", self)
+
+	if start == 0 && end == matching {
+		closing := fmt.Sprintf("%s (%s, %s)", counted(matching, "match", "matches"), counted(total, "tool", "tools"),
+			counted(projects, "project", "projects"))
+		if matching == 0 {
+			return closing
+		}
+
+		return closing + "; " + takes
+	}
+
+	closing := fmt.Sprintf("%d-%d of %d matching tools shown, of %d in %d projects; %s",
+		min(start+1, end), end, matching, total, projects, takes)
+	if end < matching {
+		closing += fmt.Sprintf("; --page %d shows the next %d", page+1, min(limit, matching-end))
+	}
+
+	return closing
+}
+
+func counted(count int, one string, many string) string {
+	if count == 1 {
+		return fmt.Sprintf("%d %s", count, one)
+	}
+
+	return fmt.Sprintf("%d %s", count, many)
+}
+
+// framedFor is the framing a JSON listing carries: only while a tool in it
+// carries another agent's text, which a seen tool no longer does.
+func framedFor(tools []listedTool) string {
+	for _, tool := range tools {
+		if !tool.Seen {
+			return strings.TrimSuffix(framing, ":")
+		}
+	}
+
+	return ""
 }
 
 func hitLine(hit ranked) string {
@@ -287,7 +333,7 @@ func (lib *library) findJSON(seen *presented, shown []ranked, best float64, matc
 		tools = append(tools, listed)
 	}
 
-	return encoded(listing{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(shown),
+	return encoded(listing{Framing: framedFor(tools), Tools: tools, Shown: len(shown),
 		Matching: matching, Total: total, Projects: projects, Page: page})
 }
 
@@ -322,11 +368,13 @@ func (lib *library) list(ctx context.Context, req request) result {
 			total += len(held.index.Tools)
 		}
 
-		return encoded(listing{Framing: strings.TrimSuffix(framing, ":"), Tools: tools, Shown: len(tools),
+		return encoded(listing{Framing: framedFor(tools), Tools: tools, Shown: len(tools),
 			Matching: len(tools), Total: total, Projects: len(stores), Page: 1})
 	}
 
-	lines := []string{framing}
+	var lines []string
+
+	framed := false
 
 	for _, name := range own.names() {
 		tool := own.index.Tools[name]
@@ -337,6 +385,8 @@ func (lib *library) list(ctx context.Context, req request) result {
 			continue
 		}
 
+		framed = true
+
 		taken := fmt.Sprintf("taken %d", tool.Takes)
 		if tool.LastTake != "" {
 			taken += ", last " + localStamp(tool.LastTake)
@@ -345,12 +395,24 @@ func (lib *library) list(ctx context.Context, req request) result {
 		lines = append(lines, fmt.Sprintf("%s  %s  [%s]", name, tool.Summary, taken))
 	}
 
+	if framed {
+		lines = append([]string{framing}, lines...)
+	}
+
 	if len(own.index.Tools) == 0 {
 		lines = append(lines, "this project holds no tools yet")
 	}
 
+	var others []string
+
 	for _, held := range stores[1:] {
-		lines = append(lines, fmt.Sprintf("%s: %d tools, `%s find` searches them", held.label, len(held.index.Tools), self))
+		if len(held.index.Tools) > 0 {
+			others = append(others, held.label+" "+counted(len(held.index.Tools), "tool", "tools"))
+		}
+	}
+
+	if len(others) > 0 {
+		lines = append(lines, fmt.Sprintf("other projects: %s; `%s find` searches them", strings.Join(others, ", "), self))
 	}
 
 	return done(strings.Join(lines, "\n"))

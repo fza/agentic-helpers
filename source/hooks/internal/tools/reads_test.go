@@ -42,8 +42,8 @@ func TestFindRanksTermHitsThenScoreThenName(t *testing.T) {
 		t.Error("a tool below the floor and matching no term should not be found")
 	}
 
-	if !strings.Contains(out, "1-3 of 3 matching tools shown, of 4 in 2 projects; `agentic-tools take <name> ...` copies them") {
-		t.Errorf("find should close with what it showed, got:\n%s", out)
+	if !strings.Contains(out, "\n3 matches (4 tools, 2 projects); `agentic-tools take <name> ...` copies them\n") {
+		t.Errorf("a find fitting one page should close with one count, got:\n%s", out)
 	}
 }
 

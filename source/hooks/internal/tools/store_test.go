@@ -39,7 +39,7 @@ func TestARenamedFdboxLibraryReadsAsIs(t *testing.T) {
 		t.Error("another project should take the library's tools")
 	}
 
-	if !strings.Contains(h.must("list"), "format-d-fdbox: 2 tools, `agentic-tools find` searches them") {
+	if !strings.Contains(h.must("list"), "other projects: format-d-fdbox 2 tools; `agentic-tools find` searches them") {
 		t.Error("list should count the other project's tools")
 	}
 }

@@ -26,7 +26,7 @@ func TestARepeatedFindHitPrintsAPointer(t *testing.T) {
 		t.Errorf("--again should print every hit in full:\n%s", forced)
 	}
 
-	if listed := h.must("list"); !strings.Contains(listed, "\nword-count v1 (seen)") || !strings.Contains(listed, "\nline-count v1 (seen)") {
+	if listed := h.must("list"); !strings.Contains(listed, "\nword-count v1 (seen)") || !strings.HasPrefix(listed, "line-count v1 (seen)\n") {
 		t.Errorf("list should print a pointer for every version find printed:\n%s", listed)
 	}
 }
