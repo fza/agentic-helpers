@@ -110,8 +110,9 @@ func itemLine(number int, item doNowItem) string {
 // seat's previous session left pending, then every live rule the seat's brief
 // would show that is owed at this moment, numbered. Each item is pending for
 // the session from now; an item a session before left pending counts as
-// skipped.
-func (mem *memory) doNow(folded *state, seatName string, moment string, session string) string {
+// skipped. It answers the list and the id of every rule it names, which the
+// brief below it leaves out of its rules.
+func (mem *memory) doNow(folded *state, seatName string, moment string, session string) (string, map[string]bool) {
 	pending := mem.pendingDoNow(seatName)
 	if pending.Session != "" && session != "" && pending.Session != session {
 		mem.skip(seatName, pending.Items)
@@ -122,12 +123,15 @@ func (mem *memory) doNow(folded *state, seatName string, moment string, session 
 
 	var lines []string
 
+	named := map[string]bool{}
+
 	var skipped []doNowItem
 	if mem.readSlot(mem.skippedKey(seatName), &skipped) && len(skipped) > 0 {
 		lines = append(lines, "skipped last session:")
 
 		for _, item := range skipped {
 			lines = append(lines, fmt.Sprintf("  %s %s (%s)", item.ID, item.Title, item.Trigger))
+			named[item.ID] = true
 		}
 
 		mem.clearSlot(mem.skippedKey(seatName))
@@ -148,6 +152,7 @@ func (mem *memory) doNow(folded *state, seatName string, moment string, session 
 
 		for index, item := range owed {
 			lines = append(lines, itemLine(index+1, item))
+			named[item.ID] = true
 		}
 
 		pending.Items = slices.DeleteFunc(pending.Items, func(item doNowItem) bool { return item.Trigger == moment })
@@ -160,7 +165,7 @@ func (mem *memory) doNow(folded *state, seatName string, moment string, session 
 
 	mem.savePending(seatName, pending)
 
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), named
 }
 
 // proveDoNow settles every pending item a proof of which the tool call is:

@@ -20,8 +20,4 @@ notes:
   m-g6cqa7 Note about the lima finding  [4h]
   m-adr7gq Note about the kilo finding  [4h]
 +4 more notes: agentic-memory brief --kind note
-new from other seats:
-  m-atlo54 Deploy runs at noon daily  [3h, idea]
-  m-qxmnz0 Staging DB moved to db2  [3h, idea]
-  m-o7axno Review owes the API diff  [3h, idea]
 topics: gate (16) infra (2) deploy (1) grants (1)

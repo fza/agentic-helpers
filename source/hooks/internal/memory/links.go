@@ -660,12 +660,24 @@ func citing(held *entry, shown map[string]bool) []*entry {
 	return newer[:min(2, len(newer))]
 }
 
-// citingLines are a hit's inbound lines in recall and the brief: title only.
-func citingLines(held *entry, shown map[string]bool, indent string) []string {
+// citingLines are a hit's inbound lines in recall and the brief: title only,
+// the citer's seat where it is not the reader, its filing date, and its status
+// where it ended.
+func citingLines(held *entry, shown map[string]bool, reader string, indent string) []string {
 	var lines []string
 
 	for _, other := range citing(held, shown) {
-		lines = append(lines, fmt.Sprintf("%s← %s %s [%s, %s]", indent, other.id, other.title, other.seat, stamp(other.filed)))
+		bracket := stamp(other.filed)
+		if other.seat != reader {
+			bracket = other.seat + ", " + bracket
+		}
+
+		text := fmt.Sprintf("%s← %s %s [%s]", indent, other.id, other.title, bracket)
+		if other.status != statusLive {
+			text += " (" + other.status + ")"
+		}
+
+		lines = append(lines, text)
 		shown[other.id] = true
 	}
 
