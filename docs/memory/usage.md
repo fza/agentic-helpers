@@ -1195,6 +1195,18 @@ opens with the count and where the rest is:
 
     agentic-memory: the turns since seat <name>'s newest entry, in <n> pieces, newest last; <k> older pieces cut, the full transcript at <path>:
 
+Each turn is its number and UTC time under the header of its day, then its prompt, its replies and
+the tool calls it made, each part on a labelled line:
+
+    # 2026-10-31 UTC
+    ## 1  09:06
+    asked: please check the ledger seal behaviour
+    replied: The tail seals at 64 MiB; readers reopen.
+    did: Read internal/ledger/seal.go · Bash go test ./...
+
+A piece opening inside a day opens with that day's header, inside its 9,000 characters, and so does
+the slice of the previous session's last turns a claim prints, so each reads dated on its own.
+
 ### Prompt recall and credentials
 
 Recall embeds the prompt through the configured embedding endpoint, which may be remote. Each
