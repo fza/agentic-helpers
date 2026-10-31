@@ -76,7 +76,7 @@ func (lib *library) find(ctx context.Context, req request) result {
 	if strings.TrimSpace(req.Query) != "" {
 		vector, fingerprint, err := lib.embedText(ctx, req.Query)
 		if err != nil {
-			return refused("--query needs an embedder, and none answers (%v): search with --term '<literal>'", err)
+			return refused("--query needs an embedder (%v): search with --term '<literal>'", err)
 		}
 
 		query, queried = vector, fingerprint
