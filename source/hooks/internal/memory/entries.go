@@ -1127,10 +1127,10 @@ func semanticArm(candidates []*entry, scores map[string]float32, limit int) []ra
 }
 
 // fuse combines ranked arms by reciprocal rank, as sdd's hybrid search does; a
-// single arm passes through with its own values.
+// single arm passes through with its own values, cut to the limit as a fused one is.
 func fuse(arms [][]rankedHit, limit int) []rankedHit {
 	if len(arms) == 1 {
-		return arms[0]
+		return arms[0][:min(limit, len(arms[0]))]
 	}
 
 	scores := map[string]float64{}
