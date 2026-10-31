@@ -75,11 +75,20 @@ var hookEvents = map[string]hookEvent{
 	"subagent-stop": (*memory).subagentStop,
 }
 
+// payload is the hook's payload, read from stdin on first use: Main reads
+// a PreToolUse payload before the store is located, and the hook reads it
+// again.
 func (mem *memory) payload() hookio.Payload {
+	if mem.handed != nil {
+		return *mem.handed
+	}
+
 	payload, err := hookio.ReadPayload(mem.streams.In)
 	if err != nil {
-		return hookio.Payload{}
+		payload = hookio.Payload{}
 	}
+
+	mem.handed = &payload
 
 	return payload
 }

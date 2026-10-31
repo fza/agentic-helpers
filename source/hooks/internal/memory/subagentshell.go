@@ -131,13 +131,10 @@ func memoryCalls(command string, nested bool) ([]memoryCall, bool) {
 // thread types is refused; a subagent's agentic-memory call its level does not
 // allow is refused, and a full one's every call gains `--agent` naming it,
 // any it carried replaced. A call a script file makes is out of reach: it
-// works on the session's own seat.
+// works on the session's own seat. Main answered a command naming no
+// agentic-memory before the store was looked up.
 func (mem *memory) guardShell(ctx context.Context, payload hookio.Payload) int {
 	command := payload.ToolInput.Command
-	if !strings.Contains(command, self) {
-		return 0
-	}
-
 	calls, parsed := memoryCalls(command, false)
 
 	if payload.AgentID == "" {
