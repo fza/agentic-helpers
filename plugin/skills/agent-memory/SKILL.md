@@ -230,8 +230,8 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   ([view.md](view.md)).
 - **Every prompt → up to three related entries.**
 - **`Context near compaction. Write where work stands first: ...`** → write the state, file what
-  outlives the moment. Measured against the window Claude Code compacts at, however set. Ignored
-  twice → `Stop` holds with `Memory overdue, two nudges unanswered: write where work stands with
+  outlives the moment. Measured against the window Claude Code compacts at, however set. Fires at
+  most twice until answered; ignored twice → `Stop` holds with `Memory overdue, two nudges unanswered: write where work stands with
   agentic-memory state now...`.
 - **`Turns since your newest entry or state write no longer fit the post-compaction replay. ...`**
   → write the state now.
