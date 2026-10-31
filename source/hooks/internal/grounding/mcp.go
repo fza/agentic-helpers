@@ -157,21 +157,11 @@ func mcpShowTooShallow(ctx context.Context, env Env, payload hookio.Payload, owe
 		return ""
 	}
 
-	var wanted []string
+	call := fmt.Sprintf(`%s {"ids": [%s], "down": %d, "up": %d}`, mcpShow, quoted(input.IDs),
+		max(down, owed.Down), max(up, owed.Up))
 
-	if owed.Down > 0 {
-		wanted = append(wanted, fmt.Sprintf(`"down": %d`, owed.Down))
-	}
-
-	if owed.Up > 0 {
-		wanted = append(wanted, fmt.Sprintf(`"up": %d`, owed.Up))
-	}
-
-	call := fmt.Sprintf(`%s {"ids": [%s], "down": %d, "up": %d}`, mcpShow, quoted(input.IDs), down, up)
-
-	return refusal("downstream-mcp.txt", "{missing}",
-		strings.Join(short, " and ")+" reads short of `"+strings.Join(wanted, ", ")+"`.",
-		"{command}", call, "{depth}", "`"+strings.Join(wanted, ", ")+"`")
+	return refusal("downstream-mcp.txt", "{missing}", strings.Join(short, " and ")+" reads short of the depth owed",
+		"{command}", call)
 }
 
 func quoted(ids []string) string {

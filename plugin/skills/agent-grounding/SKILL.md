@@ -66,8 +66,8 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 
 **Every grounding read → `sdd show <id> --down 2 --up 1`.** Depths are part of the command, not a
 default to weigh. A project may owe another depth: `show_depth` in `.sdd/grounding.yaml` sets it,
-and the refusal names the depth owed. Through MCP → `mcp__sdd__show` with `"down": 2, "up": 1`
-spelled out: an omitted `down` reads as 1 and is refused.
+and the refusal echoes the call at the depth owed: rerun it as printed. Through MCP →
+`mcp__sdd__show` with `"down": 2, "up": 1` spelled out: an omitted `down` reads as 1 and is refused.
 
 ```yaml
 show_depth:

@@ -1,8 +1,7 @@
-GROUNDING GATE: refused. {missing}
+GROUNDING GATE: refused. {missing}; rerun as:
 
   {command}
 
-→ rerun w/ `{depth}`. Depths are part of the command, not a default to
-  weigh: `--down` carries any rename, `--up` says whether the entry still applies.
-  Only a `prc`-layer rules entry, or a seat `.sdd/grounding.yaml` exempts, may
-  read shallower.
+Depths are part of the command, not a default to weigh: `--down` carries any
+rename, `--up` says whether the entry still applies. Only a `prc`-layer rules
+entry, or a seat `.sdd/grounding.yaml` exempts, may read shallower.

@@ -384,7 +384,7 @@ func TestShowDepth(t *testing.T) {
 		command string
 		says    string
 	}{
-		{command: "--up 0 --down 0", says: "--down 2 --up 1"},
+		{command: "--up 0 --down 0", says: "  sdd show 20260907-164635-d-tac-vkm --up 1 --down 2\n"},
 		{command: "--down 0 --up 1", says: "`--down 0`"},
 		{command: "--down=0 --up 1", says: "`--down 0`"},
 		{command: "--down 1 --up 1", says: "`--down 1`"},
@@ -436,7 +436,7 @@ func TestProcessLayerRulesEntry(t *testing.T) {
 			if tc.passes {
 				passes(t, got)
 			} else {
-				refuses(t, got, "--down 2 --up 1")
+				refuses(t, got, "--down 2", "--up 1")
 			}
 		})
 	}

@@ -789,7 +789,7 @@ func hidesTheDownstream(ctx context.Context, env Env, session string, texts []st
 			return configRefusal(configErr)
 		}
 
-		missing := readsTooShallow(reads, command, owed)
+		missing, corrected := readsTooShallow(reads, command, owed)
 		if missing == "" {
 			continue
 		}
@@ -813,22 +813,26 @@ func hidesTheDownstream(ctx context.Context, env Env, session string, texts []st
 			return ""
 		}
 
-		return refusal("downstream.txt", "{command}", strings.TrimSpace(command), "{missing}", missing,
-			"{depth}", depthFlags(owed))
+		return refusal("downstream.txt", "{command}", corrected, "{missing}", missing)
 	}
 
 	return ""
 }
 
 // readsTooShallow says what a show falls short of, in the words the refusal
-// needs. A body is immutable, so a surface it names keeps that spelling after a
+// needs, and spells the call again with each short direction at the depth
+// owed. A body is immutable, so a surface it names keeps that spelling after a
 // later entry renamed it: the rename lives downstream. `--up` shows what the
 // entry answered, which says whether it still applies.
-func readsTooShallow(reads reads, command string, owed graphconfig.ShowDepth) string {
-	found := reads.show.FindString(command)
-	if found == "" {
-		return ""
+func readsTooShallow(reads reads, command string, owed graphconfig.ShowDepth) (string, string) {
+	span := reads.show.FindStringIndex(command)
+	if span == nil {
+		return "", ""
 	}
+
+	found := command[span[0]:span[1]]
+	call := strings.TrimRight(found, " \t")
+	trailing := found[len(call):]
 
 	var short []string
 
@@ -844,9 +848,12 @@ func readsTooShallow(reads reads, command string, owed graphconfig.ShowDepth) st
 			continue
 		}
 
-		given := reach.pattern.FindStringSubmatch(found)
+		owedFlag := fmt.Sprintf("--%s %d", reach.flag, reach.wanted)
+
+		given := reach.pattern.FindStringSubmatch(call)
 		if given == nil {
 			short = append(short, "no `--"+reach.flag+"`")
+			call += " " + owedFlag
 
 			continue
 		}
@@ -854,30 +861,17 @@ func readsTooShallow(reads reads, command string, owed graphconfig.ShowDepth) st
 		reached, err := strconv.Atoi(given[1])
 		if err != nil || reached < reach.wanted {
 			short = append(short, fmt.Sprintf("`--%s %d`", reach.flag, reached))
+			call = reach.pattern.ReplaceAllLiteralString(call, owedFlag)
 		}
 	}
 
 	if len(short) == 0 {
-		return ""
+		return "", ""
 	}
 
-	return strings.Join(short, " and ") + " reads short of `" + depthFlags(owed) + "`."
-}
+	corrected := command[:span[0]] + call + trailing + command[span[1]:]
 
-// depthFlags spells the depth owed as the flags a show carries, leaving out a
-// direction owing nothing.
-func depthFlags(owed graphconfig.ShowDepth) string {
-	var flags []string
-
-	if owed.Down > 0 {
-		flags = append(flags, fmt.Sprintf("--down %d", owed.Down))
-	}
-
-	if owed.Up > 0 {
-		flags = append(flags, fmt.Sprintf("--up %d", owed.Up))
-	}
-
-	return strings.Join(flags, " ")
+	return strings.Join(short, " and ") + " reads short of the depth owed", strings.TrimSpace(corrected)
 }
 
 // exempt reports whether the calling session holds a seat owing no depth: the
