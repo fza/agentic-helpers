@@ -66,6 +66,11 @@ type Claim struct {
 	// Commit is HEAD when the seat was claimed, where a hook-written draft of
 	// the seat's state counts the session's commits from.
 	Commit string `json:"commit,omitempty"`
+	// Agent marks a seat held for a subagent of the session: its agent id, or
+	// "pending" until the subagent's first hook names it. Such a claim carries
+	// its session's process, so the process lookup passes it over: a call
+	// reaches it only by naming the agent.
+	Agent string `json:"agent,omitempty"`
 }
 
 type Processes interface {
@@ -394,7 +399,7 @@ func Of(ctx context.Context, dir string, processes Processes, ownerName string) 
 
 	for _, name := range Names(held) {
 		claim := held[name]
-		if claim.PID == owner && Alive(ctx, processes, ownerName, claim) {
+		if claim.Agent == "" && claim.PID == owner && Alive(ctx, processes, ownerName, claim) {
 			return name, claim
 		}
 	}
@@ -402,11 +407,12 @@ func Of(ctx context.Context, dir string, processes Processes, ownerName string) 
 	return "", Claim{}
 }
 
-// OfSession is the seat a session holds, or empty where it holds none.
+// OfSession is the seat a session holds, or empty where it holds none. A seat
+// held for one of its subagents is not the session's.
 func OfSession(dir string, session string) (string, Claim) {
 	held := Held(dir)
 	for _, name := range Names(held) {
-		if held[name].SessionID == session {
+		if held[name].Agent == "" && held[name].SessionID == session {
 			return name, held[name]
 		}
 	}

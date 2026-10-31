@@ -261,3 +261,44 @@ func eachUUID(ctx context.Context, path string, visit func(uuid string, isBounda
 		}
 	}
 }
+
+// firstRecordLimit bounds what FirstPrompt reads of a transcript's first
+// record: a subagent's prompt, which no Agent call makes larger.
+const firstRecordLimit = 1 << 20
+
+// FirstPrompt is the text of the transcript's first record, which in a
+// subagent's own transcript is the prompt its Agent call handed it; nothing
+// where the transcript is gone or not written yet.
+func FirstPrompt(ctx context.Context, path string) (string, error) {
+	err := ctx.Err()
+	if err != nil {
+		return "", fmt.Errorf("reading the transcript: %w", err)
+	}
+
+	file, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("opening the transcript: %w", err)
+	}
+
+	defer func() { _ = file.Close() }()
+
+	line, err := bufio.NewReader(io.LimitReader(file, firstRecordLimit)).ReadBytes('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("reading the transcript: %w", err)
+	}
+
+	var first record
+
+	err = json.Unmarshal(bytes.TrimSpace(line), &first)
+	if err != nil {
+		return "", nil
+	}
+
+	texts, _ := parseContent(first.Message.Content)
+
+	return strings.Join(texts, "\n"), nil
+}

@@ -24,7 +24,9 @@ the version first installed: turn auto-update on under `/plugin`, Marketplaces, 
   serves them over the `memory` MCP server. When an instruction file a running session loaded
   changes (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, a nested one, `~/.claude/CLAUDE.md`), it
   tells that session to re-read it, so an instruction written mid-session reaches sessions already
-  running.
+  running. A subagent gets the scratch folder, the machine notes and as much of memory as the line
+  `agentic-helpers: <level>` in its Agent prompt names (`none`, `rules`, `silent`, `shared`,
+  `full`), never more than its spawner.
 - **agentic-tools** shares helper scripts between agents, over the `tools` MCP server.
 - **agentic-scratch** gives each seat or session a `.tmp/seats/` folder and empties it when the
   work ends.
@@ -87,7 +89,10 @@ Nothing leaves the machine unless one of these applies:
   lines from outside the project that look like a credential.
 - **The grounding gate** refuses graph calls and captures until the agent has read the graph.
 - **agentic-memory** can hold the end of a turn once, asking the agent to write where its work
-  stands.
+  stands. It rewrites an Agent call's prompt, swapping the `agentic-helpers: <level>` line for that
+  level's notes, without answering its permission prompt. It refuses a subagent's memory call its
+  level does not allow, and adds `--agent <id>` to a `full` subagent's `agentic-memory` commands so
+  they work on its own seat, released when the subagent stops.
 
 Every piece can be switched off in the plugin's options.
 

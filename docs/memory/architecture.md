@@ -436,6 +436,15 @@ new seat's claim from the old one, process and all, with `moved_from` naming the
 session's next hook reports it. A call finds its own
 seat by walking up the process tree to the nearest `claude` process.
 
+A seat held for a `full` subagent carries `agent`: `pending` from the spawn until the subagent's
+first hook names it, then its agent id. Its claim names the session and its `claude` process, as
+the session's own does, so every lookup by process (`seat.Of`) or by session (`seat.OfSession`), and
+the inheritance of a resumed or forked session, passes it over: a subagent's call shares its
+spawner's process and session id, and only `--agent <agent-id>` on the command line, or an MCP call
+whose `tool_use_id` the subagent's record keeps (`mcpserver.CallID`, read from the call's `_meta`
+`claudecode/toolUseId`), reaches it. The record is the session's `agents/<session>` slot: each
+subagent's level, its seat's key at `full`, and its latest MCP call ids, at most 16.
+
 `fork_uuid` is the uuid a fork of the holder's session would start its transcript with. A fork
 names no parent and runs under a session id of its own, but copies the parent's records with their
 uuids unchanged from the parent's latest compaction boundary on, or from its first message where it
@@ -544,7 +553,7 @@ Every hook exits at once in a project without a store.
 | PostToolUse (`tool`) | first the instruction-file check UserPromptSubmit runs, as `additionalContext`, where an `Edit`, `Write` or `NotebookEdit` of a recorded path takes the new hash in silently; then, for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
 | Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then, near compaction only, holds it once for a state write when work shipped since the seat's last one; then holds it with the backstop once the nudge has gone unanswered twice and the context crossed the line; every hold is Stop `additionalContext` with exit 0, which continues the turn as exit 2 would without the hook error exit 2 shows the user |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
-| SessionEnd (`session-end`) | removes the session's context reading and its `instructions/<session>` slot; writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
+| SessionEnd (`session-end`) | removes the session's context reading and its `instructions/<session>` slot; closes every seat still held for one of its subagents and forgets its `agents/<session>` record; writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
 ## The update check
 

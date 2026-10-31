@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -259,6 +260,58 @@ func TestMemoryRecordsEveryLoadedInstructionFile(t *testing.T) {
 
 	if !everyLoad {
 		t.Error("agentic-memory instructions should run on every InstructionsLoaded, whatever the load reason")
+	}
+}
+
+func TestMemoryJudgesEverySubagentSpawnAndMemoryCall(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
+	if err != nil {
+		t.Fatalf("reading hooks.json: %v", err)
+	}
+
+	var wiring struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+
+	err = json.Unmarshal(content, &wiring)
+	if err != nil {
+		t.Fatalf("parsing hooks.json: %v", err)
+	}
+
+	runsOn := func(event string, command string, tool string) bool {
+		for _, group := range wiring.Hooks[event] {
+			matcher, err := regexp.Compile("^(?:" + group.Matcher + ")$")
+			if err != nil {
+				t.Fatalf("the %s matcher %q should compile: %v", event, group.Matcher, err)
+			}
+
+			for _, hook := range group.Hooks {
+				if strings.HasSuffix(hook.Command, command) && (group.Matcher == "" || matcher.MatchString(tool)) {
+					return true
+				}
+			}
+		}
+
+		return false
+	}
+
+	for _, tool := range []string{"Agent", "Bash", "mcp__plugin_agentic-helpers_memory__new"} {
+		if !runsOn("PreToolUse", "agentic-memory pre-tool", tool) {
+			t.Errorf("agentic-memory pre-tool should run before every %s call", tool)
+		}
+	}
+
+	if runsOn("PreToolUse", "agentic-memory pre-tool", "Read") {
+		t.Error("agentic-memory pre-tool should stay off tools it never judges")
+	}
+
+	if !runsOn("SubagentStop", "agentic-memory subagent-stop", "") {
+		t.Error("agentic-memory subagent-stop should run on every SubagentStop")
 	}
 }
 

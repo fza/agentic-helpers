@@ -17,6 +17,17 @@ So opting a project in is one command, `mkdir .tmp`, `agentic-memory claim <seat
 `agentic-tools add`, and opting out is removing the directory or releasing the seat. A project using none needs no configuration, no
 allowlist entry and no marker file.
 
+## Subagents
+
+A subagent gets no SessionStart and loads no skill, so it starts without the scratch folder, the
+machine line or the user's rules. Its spawner names how much it gets with one line in the Agent
+call's prompt, `agentic-helpers: <level>`, on the ladder `none < rules < silent < shared < full`;
+no line is `none`. `agentic-memory pre-tool`, the PreToolUse hook on the Agent tool, replaces the
+line with the level's block, never above the spawner's own level, and never answers the permission
+decision. It runs with memory off too: a subagent then still gets the scratch folder and the
+machine line. What each level holds, and how its memory calls are judged and routed, is in
+[memory's usage](../memory/usage.md#subagents).
+
 ## The home
 
 Every component keeps its per-project data in one agent-neutral home, one store per project, which

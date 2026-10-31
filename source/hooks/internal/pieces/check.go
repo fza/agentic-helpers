@@ -144,16 +144,23 @@ func sweep(ctx context.Context, name string, env Env, streams hookio.Streams) in
 // alternatives shell-guard refuses: empty where it needs none, or where
 // shell-guard or its alternatives are off.
 func machineLine(ctx context.Context, env Env, options pluginconfig.Options) string {
-	if !ShellGuard.On(options) || !options.ShellGuardAlternatives {
-		return ""
-	}
-
 	path := ""
 	if env.Getenv != nil {
 		path = env.Getenv("PATH")
 	}
 
-	machine := alternatives.Machine{Path: path, CacheFile: alternatives.CacheFile(env.CacheRoot)}
+	return MachineNeeds(ctx, options, path, env.CacheRoot)
+}
+
+// MachineNeeds is machineLine for a caller other than the SessionStart hook,
+// as the line a subagent's prompt gains: the same words, read from the PATH
+// given and the flavours cached under cacheRoot.
+func MachineNeeds(ctx context.Context, options pluginconfig.Options, path string, cacheRoot string) string {
+	if !ShellGuard.On(options) || !options.ShellGuardAlternatives {
+		return ""
+	}
+
+	machine := alternatives.Machine{Path: path, CacheFile: alternatives.CacheFile(cacheRoot)}
 
 	return machine.Line(ctx)
 }

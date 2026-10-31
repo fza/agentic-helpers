@@ -10,6 +10,12 @@ compaction: `scratch: .tmp/seats/<seat>/`. An agent always knows its seat, rarel
 session holding no seat writes under `.tmp/seats/<session-id>/`, which goes when the session ends.
 Work a later session reads goes to `.tmp/keep/<name>/`, which nothing sweeps.
 
+A subagent writes into its spawner's folder: its prompt gains `scratch: .tmp/seats/<seat>/`, or
+`.tmp/seats/<session-id>/` where the session holds no seat, at every level and with memory off
+(see [memory's usage](../memory/usage.md#subagents)). A `full` subagent holding a seat of its own
+still writes there, so what it leaves stays where the spawner looks, and its seat's release sweeps
+nothing.
+
 ```
 .tmp/
 ├── seats/<seat>/          throwaway of a seat. Swept as scratch_sweep says.

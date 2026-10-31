@@ -108,6 +108,21 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 
 	mem.admission(ctx, held.name)
 
+	// The server never learns the calling agent: a full subagent's call is
+	// known by the id its PreToolUse hook kept, and works on that subagent's
+	// seat.
+	record, bySubagent := mem.subagentOfCall(ctx, mcpserver.CallID(ctx))
+	if bySubagent {
+		why := subagentRefusal(held.name, record.level())
+		if why != "" {
+			return mcpserver.Refusal(why)
+		}
+
+		mem.acting = record.Seat
+
+		defer func() { mem.acting = "" }()
+	}
+
 	err := exactKeys(held, arguments)
 	if err != nil {
 		return mcpserver.Refusal(self + ": " + err.Error())

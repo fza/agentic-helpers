@@ -27,9 +27,11 @@ files goes into `plugin/`.
 | UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt` |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `Monitor`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `agentic-grounding-gate gate` |
 | PreToolUse on `Bash`, `Monitor` | `agentic-shell-guard` |
+| PreToolUse on `Agent`, `Task`, `Bash`, `mcp__plugin_agentic-helpers_memory__*` | `agentic-memory pre-tool` |
 | PermissionRequest on `Bash`, `Monitor` | `agentic-shell-guard permission`, with a timeout past the longest countdown `shell_guard_ask_timeout` allows |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next`, `Write`, `Edit` | `agentic-grounding-gate record` |
 | PostToolUse on every tool | `agentic-shell-guard output`, `agentic-memory tool`, `agentic-tools notice` |
+| SubagentStop | `agentic-memory subagent-stop` |
 | Stop | `agentic-memory stop`, `agentic-tools stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
 | SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end`, `agentic-helpers end` |
 

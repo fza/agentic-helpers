@@ -43,6 +43,10 @@ project's decision graph under `.sdd/`.
   running session that loaded it, in a project using memory, is told to re-read it at its next
   prompt or tool call, seat or none. An instruction written mid-session holds everywhere from then
   on, not from the next session.
+- **Subagents get what their spawner names.** One line `agentic-helpers: <level>` in the Agent
+  prompt picks `none` (the scratch folder and machine notes, the default), `rules`, `silent`
+  (read-only memory), `shared` or `full` (a memory seat of its own). A subagent never gets more than
+  its spawner.
 - **Claude Code only.** The hooks read Claude Code's payloads, settings and transcripts. No other
   agent is tested or supported.
 

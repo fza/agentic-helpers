@@ -18,6 +18,7 @@ func TestOfSession(t *testing.T) {
 	test.ClaimSeat(t, store, "drive", test.OtherSession)
 	test.WriteFile(t, filepath.Join(store, "seats", "broken.json"), "{not json")
 	test.WriteFile(t, filepath.Join(store, "seats", "released.json"), `{"session_id": ""}`)
+	test.WriteFile(t, filepath.Join(store, "seats", "aide.json"), `{"session_id": "`+test.Session+`", "agent": "a1"}`)
 
 	dir := seat.Dir(store)
 
@@ -76,6 +77,13 @@ func TestOf(t *testing.T) {
 		{
 			name:  "a claim whose holder is gone is no seat",
 			claim: func(t *testing.T, store string) { test.ClaimDeadSeat(t, store, "main", test.Session) },
+		},
+		{
+			name: "a live claim held for a subagent of the owner's session is no seat of the owner",
+			claim: func(t *testing.T, store string) {
+				test.WriteFile(t, filepath.Join(store, "seats", "helper.json"),
+					`{"session_id":"`+test.Session+`","pid":200,"agent":"a1"}`)
+			},
 		},
 		{
 			name: "a claim naming the owner pid with another start time is a reused pid",

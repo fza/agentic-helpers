@@ -282,6 +282,63 @@ agentic-memory claim impl-7ah --session <uuid> --shelf row-7ah --lifetime 3d
 - A seat held by another running session, or reserved for another session, is refused either way;
   so is a seat on another shelf than `--shelf` names. MCP: key `session` on `claim`.
 
+## Subagents
+
+A subagent shares its spawner's session and runs under every tool-call hook, but SessionStart never
+fires for it and no skill is loaded. What it gets of agentic-helpers its spawner names, with one
+line in the Agent call's prompt:
+
+```
+agentic-helpers: <level>
+```
+
+The levels form a ladder, each holding everything of the one below:
+
+| Level | The subagent gets |
+|---|---|
+| `none` (no line) | the scratch folder and the machine line |
+| `rules` | the seat's live rules, each with its body, within a third of the brief |
+| `silent` | read-only memory: `search`, `show`, `brief`, `topics`, `view`, `who`; every write refused |
+| `shared` | a line at its tool calls whenever a shelf mate files or changes an entry while it runs |
+| `full` | a seat of its own on the spawner's shelf, `<shelf>-<n>`, held while it runs |
+
+- **Not every subagent should use memory.** Idea branches must not be anchored and lookups need
+  nothing: they run at `none`, which a prompt without the line gets. A builder the user's standing
+  rules govern runs at `rules`; one needing what memory knows at `silent`; long work beside other
+  seats at `shared`; work whose findings outlive it at `full`.
+- **The prompt is rewritten.** The `agentic-memory pre-tool` hook on the Agent tool replaces the
+  marker line with the level's block, or puts the block above a prompt carrying none. From `rules`
+  up the block opens with `agentic-helpers level: <level>` (`, seat <name>` at `full`), the line
+  the subagent's hooks read its level back from; a line in that shape the prompt already carried is
+  dropped. The rewrite never answers the permission decision: the call goes through the user's
+  permission rules as Claude sent it would.
+- **Capped.** A nested subagent never gets more than the subagent spawning it. With memory off,
+  outside a git work tree or with no store, a spawn gets at most `rules`; where the session holds no
+  seat, at most `silent`.
+- **Refused below `full`.** The same hook judges a subagent's `agentic-memory` calls on Bash and its
+  memory MCP tools. At `none` and `rules` every call is refused (`the subagent runs at
+  agentic-helpers level <level>, which gives it no memory access`); at `silent` and `shared` every
+  write (`..., which reads memory but never writes it; report what is worth keeping to the spawner
+  instead`). `claim`, `release`, `rename`, `private`, `lifetime`, `drop`, `bind`, `merge`, `follow`,
+  `unfollow` and `mcp` stay with the session at every level.
+- **`full` files on its own seat.** The seat is held at the spawn, waits for the subagent's first
+  hook to name its agent id, and closes when SubagentStop fires for it, or when the session ends.
+  Its entries name it, its state slot is its own, and notices run both ways through the shelf. On
+  Bash the hook adds `--agent <agent-id>` after every `agentic-memory` the command itself runs:
+  **set by the hook, never typed**. A typed `--agent` is replaced by the calling subagent's id, and
+  refused from the main thread; the command line refuses one naming no `full` subagent of the
+  session. A write inside `bash -c`, `eval` or interpreter code cannot carry the flag and is refused.
+  Over MCP the server never learns the calling agent: it finds the subagent by the call's id
+  (`_meta` `claudecode/toolUseId`), which the PreToolUse hook kept.
+- **Notices are the subagent's own.** A `shared` subagent's notices run against a mark of its own,
+  so the seat is still told of what its subagent was told; a `full` one's are its seat's.
+
+**Accepted costs.** A spawner that forgets the line leaves its subagent at `none`. A level fixed at
+the spawn does not change while the subagent runs. An `agentic-memory` call a script file makes is
+out of the hook's reach and works on the session's own seat. The MCP join on the call id is observed
+in Claude Code, not documented; the command line is the path where it breaks. A subagent's reads
+mark entries shown for the whole session, as any read in it does.
+
 ## Shelves
 
 A **shelf** is the memory one or more seats share. A seat claimed without `--shelf` gets a shelf of

@@ -262,12 +262,13 @@ func (mem *memory) arrives(folded *state, held *entry, seatName string) bool {
 	return mem.onShelf(held, seatName) || mem.receives(folded, held, seatName)
 }
 
-// arrivals is every entry seatName is told of that was filed after its seen
-// mark, oldest first. A seat without a mark has seen everything filed so far.
-func (mem *memory) arrivals(folded *state, seatName string) []*entry {
+// arrivals is every entry seatName is told of that was filed after the seen
+// mark under markKey, oldest first. A reader without a mark has seen everything
+// filed so far.
+func (mem *memory) arrivals(folded *state, seatName string, markKey string) []*entry {
 	var mark seenMark
-	if !mem.readSlot(mem.seenKey(seatName), &mark) {
-		mem.markSeen(seatName, mem.now())
+	if !mem.readSlot(markKey, &mark) {
+		mem.markSeen(markKey, mem.now())
 
 		return nil
 	}
@@ -298,13 +299,13 @@ type shelfChange struct {
 }
 
 // shelfChanges is every change a shelf mate made to an entry on seatName's
-// shelf after its mark, oldest first. A mark from before shelves starts the
-// count now.
-func (mem *memory) shelfChanges(folded *state, seatName string) []shelfChange {
+// shelf after the mark under markKey, oldest first. A mark from before shelves
+// starts the count now.
+func (mem *memory) shelfChanges(folded *state, seatName string, markKey string) []shelfChange {
 	var mark seenMark
-	if !mem.readSlot(mem.seenKey(seatName), &mark) || mark.Changed.IsZero() {
+	if !mem.readSlot(markKey, &mark) || mark.Changed.IsZero() {
 		mark.Changed = mem.now()
-		_ = mem.writeSlot(mem.seenKey(seatName), mark)
+		_ = mem.writeSlot(markKey, mark)
 
 		return nil
 	}
@@ -328,18 +329,18 @@ func (mem *memory) shelfChanges(folded *state, seatName string) []shelfChange {
 	return changed
 }
 
-func (mem *memory) markSeen(seatName string, at time.Time) {
+func (mem *memory) markSeen(markKey string, at time.Time) {
 	var mark seenMark
-	mem.readSlot(mem.seenKey(seatName), &mark)
+	mem.readSlot(markKey, &mark)
 	mark.At = at
-	_ = mem.writeSlot(mem.seenKey(seatName), mark)
+	_ = mem.writeSlot(markKey, mark)
 }
 
-func (mem *memory) markChanged(seatName string, at time.Time) {
+func (mem *memory) markChanged(markKey string, at time.Time) {
 	var mark seenMark
-	mem.readSlot(mem.seenKey(seatName), &mark)
+	mem.readSlot(markKey, &mark)
 	mark.Changed = at
-	_ = mem.writeSlot(mem.seenKey(seatName), mark)
+	_ = mem.writeSlot(markKey, mark)
 }
 
 func (mem *memory) noteLog(seatName string, signature string, traps int, nextDue time.Time) {
@@ -378,9 +379,21 @@ func arrivalLine(here tree, held *entry, reader string, now time.Time) string {
 // announce is the lines telling seatName what arrived and what its shelf mates
 // changed, and moves its mark past them; nothing where nothing did.
 func (mem *memory) announce(ctx context.Context, folded *state, seatName string) string {
-	arrived := mem.arrivals(folded, seatName)
-	changed := mem.shelfChanges(folded, seatName)
-	due := mem.comeDue(ctx, folded, seatName)
+	return mem.announceTo(ctx, folded, seatName, mem.seenKey(seatName), func() string {
+		return mem.comeDue(ctx, folded, seatName)
+	})
+}
+
+// announceTo is announce read as seatName reads the shelf, against the mark
+// under markKey, with comeDue telling what came due once the arrivals have
+// set a fresh mark: a subagent sharing its spawner's shelf keeps a mark of its
+// own, so what it is told is never marked told to the seat.
+func (mem *memory) announceTo(ctx context.Context, folded *state, seatName string, markKey string,
+	comeDue func() string,
+) string {
+	arrived := mem.arrivals(folded, seatName, markKey)
+	changed := mem.shelfChanges(folded, seatName, markKey)
+	due := comeDue()
 
 	if len(arrived) == 0 && len(changed) == 0 {
 		return due
@@ -397,7 +410,7 @@ func (mem *memory) announce(ctx context.Context, folded *state, seatName string)
 			lines = append(lines, "  "+arrivalLine(here, held, seatName, mem.now()))
 		}
 
-		mem.markSeen(seatName, arrived[len(arrived)-1].filed)
+		mem.markSeen(markKey, arrived[len(arrived)-1].filed)
 	}
 
 	if len(changed) > 0 {
@@ -408,7 +421,7 @@ func (mem *memory) announce(ctx context.Context, folded *state, seatName string)
 			lines = append(lines, fmt.Sprintf("  %s %s: %s by %s", other.held.id, other.held.title, other.text, other.seat))
 		}
 
-		mem.markChanged(seatName, changed[len(changed)-1].at)
+		mem.markChanged(markKey, changed[len(changed)-1].at)
 	}
 
 	if due != "" {

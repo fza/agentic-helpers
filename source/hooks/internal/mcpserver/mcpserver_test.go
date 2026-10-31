@@ -643,3 +643,39 @@ func TestServeIdleWaitsForQuietAfterTheLastMessage(t *testing.T) {
 		t.Errorf("the server should end cleanly at the end of its input, got %v", err)
 	}
 }
+
+func TestAHandlerReadsTheCallIDClaudeCodeSent(t *testing.T) {
+	cases := []struct {
+		name   string
+		params string
+		want   string
+	}{
+		{"a call carrying the id", `{"name":"id","arguments":{},"_meta":{"claudecode/toolUseId":"toolu_01Abc"}}`, "toolu_01Abc"},
+		{"a call carrying none", `{"name":"id","arguments":{}}`, ""},
+	}
+
+	for _, each := range cases {
+		t.Run(each.name, func(t *testing.T) {
+			named := []mcpserver.Tool{{
+				Name: "id",
+				Handle: func(ctx context.Context, _ json.RawMessage) mcpserver.Result {
+					return mcpserver.Result{Text: "id=" + mcpserver.CallID(ctx)}
+				},
+			}}
+
+			var out bytes.Buffer
+
+			input := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":` + each.params + "}\n"
+
+			err := mcpserver.Serve(t.Context(), strings.NewReader(input), &out, serverName, serverVersion, named)
+			if err != nil {
+				t.Fatalf("serving should end cleanly: %v", err)
+			}
+
+			result := decodeResult[callResult](t, decodeLines(t, out.String())[0])
+			if len(result.Content) != 1 || result.Content[0].Text != "id="+each.want {
+				t.Errorf("the handler should read the call's _meta id, got %+v", result.Content)
+			}
+		})
+	}
+}

@@ -30,6 +30,8 @@ so before reaching for `/tmp`.
 .tmp/keep/<seat>/` → something already sat at the seat's name: it is somebody's keep, now at
 `.tmp/keep/`, and the seat's folder is fresh.
 
+**Subagent → the folder its prompt's `scratch:` line names**, the spawner's, whatever seat it holds.
+
 **`.tmp/seats/` is agentic-helpers' alone.** Write inside your own seat's or session's folder there,
 never create any other name in it. Anything else there moves to `.tmp/keep/` after a quiet day.
 

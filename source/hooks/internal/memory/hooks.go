@@ -71,6 +71,8 @@ var hookEvents = map[string]hookEvent{
 	"tool":          (*memory).tool,
 	"wait":          (*memory).wait,
 	"instructions":  (*memory).instructions,
+	preToolHook:     (*memory).preToolEvent,
+	"subagent-stop": (*memory).subagentStop,
 }
 
 func (mem *memory) payload() hookio.Payload {
@@ -721,6 +723,7 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	}
 
 	payload := mem.payload()
+	mem.learnBackground(ctx, payload)
 	adopted := mem.adopt(ctx, payload)
 
 	reread := mem.instructionsChanged(ctx, payload)
@@ -762,7 +765,24 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 
 	mem.countShipped(ctx, session, payload.ToolName, cmp.Or(payload.ToolInput.FilePath, payload.ToolInput.NotebookPath), gained)
 
-	arrived, holdsTraps := mem.arrivalsAtTool(ctx, name)
+	// A subagent's call is told what its level gives it, against marks of its
+	// own: the seat's mark moving past an arrival only a subagent saw would
+	// keep it from the seat.
+	var (
+		arrived    []string
+		holdsTraps bool
+	)
+
+	if payload.AgentID != "" {
+		arrived = mem.subagentNotices(ctx, payload, name)
+
+		var mark seenMark
+		mem.readSlot(mem.seenKey(name), &mark)
+		holdsTraps = mark.Traps > 0
+	} else {
+		arrived, holdsTraps = mem.arrivalsAtTool(ctx, name)
+	}
+
 	notes = append(notes, arrived...)
 
 	// The call is read only where a trap or a pending do-now item needs it:
@@ -962,6 +982,8 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 		mem.clearSlot(mem.instructionsKey(payload.SessionID))
 	}
 
+	mem.endSubagents(ctx, payload.SessionID)
+
 	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)
@@ -1145,8 +1167,11 @@ func (mem *memory) inherit(ctx context.Context, payload hookio.Payload) string {
 
 	// A session id names the session itself, where a fork uuid is shared by
 	// every fork of one parent, so a resumed fork finds its own seat first.
+	// A seat held for one of the session's subagents was never the session's.
 	match := func(held seat.Claim) int {
 		switch {
+		case held.Agent != "":
+			return 0
 		case payload.SessionID != "" && held.SessionID == payload.SessionID:
 			return 2
 		case first != "" && held.ForkUUID == first:

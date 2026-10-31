@@ -149,6 +149,11 @@ type memory struct {
 	graphConfig *resolvedGraph
 	here        *tree
 	hashCache   *hashCache
+
+	// acting is the key of the seat a full subagent holds, where the run works
+	// for that subagent: named by `--agent` on the command line, or by the
+	// MCP call's id.
+	acting string
 }
 
 // mainRoot is the main checkout; Main remembers the lookup, so a process asks
@@ -309,8 +314,13 @@ func (mem *memory) retiredKeep() time.Duration {
 	return mem.options().RetiredBodyLifetime
 }
 
-// ownSeat is the name of the seat the calling process holds, or empty.
+// ownSeat is the name of the seat the calling process holds, or empty; a run
+// acting for a full subagent holds that subagent's seat.
 func (mem *memory) ownSeat(ctx context.Context) (string, seat.Claim) {
+	if mem.acting != "" {
+		return mem.actingSeat()
+	}
+
 	key, held := seat.Of(ctx, mem.seatsDir(), mem.env.Processes, mem.env.OwnerName)
 	if key == "" {
 		return "", held
@@ -447,13 +457,38 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	mem := &memory{env: env, streams: streams}
 	defer func() { mem.hashCache.save() }()
 
+	agentID, args, err := agentArgs(args)
+	if err != nil {
+		return mem.refuse(err)
+	}
+
 	settles := settlesMapping(args[0], args[1:])
 
+	// A subagent's prompt gains its scratch folder and machine line whether or
+	// not memory runs on the machine.
 	if !pieces.Memory.On(mem.options()) && !settles {
+		if args[0] == preToolHook {
+			mem.inHook = true
+
+			return mem.preTool(ctx, false)
+		}
+
 		return mem.off(ctx, args[0])
 	}
 
 	mem.locate(ctx)
+
+	if agentID != "" {
+		_, isHook := hookEvents[args[0]]
+		if isHook || args[0] == "mcp" {
+			return mem.refuse(ErrUsage)
+		}
+
+		refusal := mem.actAs(agentID)
+		if refusal != "" {
+			return mem.refuse(errors.New(refusal))
+		}
+	}
 
 	// who answers anywhere: outside a git work tree it lists the other projects
 	// only, and it migrates no store.
@@ -477,7 +512,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		mem.admission(ctx, name)
 	}
 
-	err := mem.prepare(ctx)
+	err = mem.prepare(ctx)
 	if errors.Is(err, ErrNewerStore) {
 		mem.unreadable = strings.TrimPrefix(err.Error(), ErrNewerStore.Error()+": ")
 	} else if err != nil {
@@ -491,6 +526,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		mem.inHook = true
 
 		if mem.outsideGit || mem.unreadable != "" {
+			if name == preToolHook {
+				return mem.preTool(ctx, false)
+			}
+
 			return 0
 		}
 

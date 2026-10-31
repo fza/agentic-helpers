@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: 'agentic-memory: seats, filing entries and their kinds, the state slot, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, when a line says no store is bound to the checkout or that a checkout and its graph repository keep two stores, when a line says an instruction file changed since loaded, when the user gives a standing instruction, and when deciding what belongs in memory versus the graph versus docs.'
+description: 'agentic-memory: seats, filing entries and their kinds, the state slot, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, when a line says no store is bound to the checkout or that a checkout and its graph repository keep two stores, when a line says an instruction file changed since loaded, when the user gives a standing instruction, before spawning a subagent and when a prompt names an agentic-helpers level, and when deciding what belongs in memory versus the graph versus docs.'
 ---
 
 # Memory
@@ -65,6 +65,22 @@ agentic-memory private on|off      # hide this seat from other projects' who --a
 - Claim turns Claude Code's auto memory off from the next session; relay nothing beyond the claim.
 - **Resumed session → seated at SessionStart; fork → at its first tool call** (a memory write as
   that call is refused: send it again). No claim either way.
+
+## Subagents
+
+**Spawning one → name its level**: one line `agentic-helpers: <level>` in the Agent prompt. No line
+= `none`. A hook swaps the line for the level's block; a subagent never gets more than its spawner.
+
+| Level | The subagent gets | Pick for |
+|---|---|---|
+| `none` | scratch folder, machine line | idea branches, lookups, anything that must not be anchored |
+| `rules` | + this seat's rules | builders, reviewers: work the user's standing rules govern |
+| `silent` | + read-only memory (search, show, brief, topics, view, who) | work that needs what memory knows |
+| `shared` | + a line at its tool calls when a shelf mate files or changes an entry | long work beside other seats |
+| `full` | + a seat of its own on this shelf, released when it stops | work whose findings outlive it |
+
+Below `full` every memory write is refused; tell the spawner instead. Details, refusals, `--agent`
+→ [subagents.md](subagents.md).
 
 ## File
 
@@ -257,3 +273,4 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 | `no store is bound to the checkout`, `keep their memory in two stores`, `from the store`, `is not offered for this checkout`, `is this checkout's own store`, `migrating to`, `writers.json cannot be read` | [store.md](store.md) |
 | `due (`, `due later`, `due for`, `--due`, `due <id>`, `retire? due`, `still holds; file it again`, `from other seats:`, `more notes:`, `holds a todolist`, `list lines in the text`, `settled (`, `→ tool`, `release <new> is out`, `seat moved from` | [reference.md](reference.md) |
 | `retain`, cross-repo links, `--json`, MCP key or value refusals, `.memory/carryforward`, `off on this machine`, launcher claims (`--session`), `holder` | [reference.md](reference.md) |
+| `agentic-helpers level:`, `the subagent runs at agentic-helpers level`, `stays with the session that spawned the subagent`, `--agent`; spawning a subagent | [subagents.md](subagents.md) |
