@@ -43,7 +43,7 @@ project's decision graph under `.sdd/`.
 
 - **One install covers the whole machine.** Each piece stays quiet in a project where it has nothing
   to do. Shell-guard is the exception: it checks every Bash call in every project, unless its
-  options turn it off.
+  options turn the guard feature off.
 - **The hooks and commands are Go binaries** built from `source/hooks`. Each release publishes them,
   and the plugin downloads them.
 - **Subagents get what their spawner names.** One line `agentic-helpers: <level>` in the Agent
