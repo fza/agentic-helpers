@@ -748,8 +748,11 @@ while any seat may supersede or confirm it. An entry line names its recipients a
 follow brings it.
 
 A seat hears about every entry it receives, once, as the lines `agentic-memory: new for <seat> (<n>):`
-and one entry line each: at the next prompt, at the agent's next tool call, and, for a session idle
-at its prompt, through a waiter that wakes it with a new turn.
+and one short line each (see [What comes back](#what-comes-back)), its bracket naming the kind and
+the source only where they are not a note's and an agent's: `m-4kq2zd Owner wants the diff today
+[3m, main, from user]`. The recipient is the reader, and the filing stamp and commit change nothing
+it does; `show` prints them. The lines come at the next prompt, at the agent's next tool call, and,
+for a session idle at its prompt, through a waiter that wakes it with a new turn.
 
 ## Links
 

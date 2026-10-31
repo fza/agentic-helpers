@@ -349,6 +349,32 @@ func (mem *memory) noteLog(seatName string, signature string, traps int, nextDue
 	_ = mem.writeSlot(mem.seenKey(seatName), mark)
 }
 
+// arrivalLine is an arrived entry's short line, its bracket naming the kind
+// and the source too where they are not a note's and an agent's: the
+// recipient is the reader, and the filing stamp and commit change nothing it
+// does.
+func arrivalLine(here tree, held *entry, reader string, now time.Time) string {
+	text := shortLine(here, held, reader, now)
+
+	var named []string
+	if held.kind != kindNote {
+		named = append(named, held.kind)
+	}
+
+	if held.from != defaultFrom {
+		named = append(named, "from "+held.from)
+	}
+
+	if len(named) == 0 {
+		return text
+	}
+
+	head := held.id + " " + held.title + "  ["
+	closing := len(head) + strings.Index(text[len(head):], "]")
+
+	return text[:closing] + ", " + strings.Join(named, ", ") + text[closing:]
+}
+
 // announce is the lines telling seatName what arrived and what its shelf mates
 // changed, and moves its mark past them; nothing where nothing did.
 func (mem *memory) announce(ctx context.Context, folded *state, seatName string) string {
@@ -368,7 +394,7 @@ func (mem *memory) announce(ctx context.Context, folded *state, seatName string)
 		lines = append(lines, fmt.Sprintf("%s: new for %s (%d):", self, seatName, len(arrived)))
 
 		for _, held := range arrived {
-			lines = append(lines, "  "+line(here, held))
+			lines = append(lines, "  "+arrivalLine(here, held, seatName, mem.now()))
 		}
 
 		mem.markSeen(seatName, arrived[len(arrived)-1].filed)
