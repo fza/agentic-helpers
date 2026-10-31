@@ -91,6 +91,7 @@ type request struct {
 	Add            []string `json:"add,omitempty"`
 	Order          string   `json:"order,omitempty"`
 	WithRemoved    bool     `json:"with_removed,omitempty"`
+	AllItems       bool     `json:"all_items,omitempty"`
 	Fresh          bool     `json:"new,omitempty"`
 	Due            dueArg   `json:"due"`
 	Clear          bool     `json:"clear,omitempty"`
@@ -279,7 +280,7 @@ func (req *request) set(spec flagSpec, value string) error {
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
 		"private": &req.Private, "again": &req.Again, "undo": &req.Undo, "remove": &req.Remove,
-		"with-removed": &req.WithRemoved, "new": &req.Fresh, "due": &req.Due.listed, "clear": &req.Clear,
+		"with-removed": &req.WithRemoved, "all-items": &req.AllItems, "new": &req.Fresh, "due": &req.Due.listed, "clear": &req.Clear,
 	}
 
 	switch spec.kind {
@@ -455,15 +456,17 @@ func allCommands() []command {
 			run: (*memory).search,
 		},
 		{
-			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--again]",
+			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--all-items] [--again]",
 			description: "entries in full: stamps, anchors, flags, events, a todo's items; takes each tool an entry names and prints its usage",
 			flags: []flagSpec{
-				{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"with-removed", flagSwitch}, {"again", flagSwitch},
+				{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"with-removed", flagSwitch}, {"all-items", flagSwitch},
+				{"again", flagSwitch},
 			},
 			positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{` + idsKey + `,` + noHeat + `,` + againKey + `,` +
 				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"},` +
-				`"with_removed":{"type":"boolean","description":"also a todo's removed items"}},"required":["ids"]}`,
+				`"with_removed":{"type":"boolean","description":"also a todo's removed items"},` +
+				`"all_items":{"type":"boolean","description":"each of a todo's done and dropped items, not their count"}},"required":["ids"]}`,
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--due] [--again]",

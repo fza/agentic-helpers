@@ -403,8 +403,9 @@ func (folded *state) briefItems(held *entry, indent string) (string, []string) {
 	return fmt.Sprintf("%d/%d", settled, total), lines
 }
 
-// showItems is every item of held's todolist, removed ones only where asked.
-func (folded *state) showItems(held *entry, withRemoved bool) []string {
+// showItems is held's todolist: open items in full, done and dropped ones
+// folded into a count unless allItems, removed ones only where asked.
+func (folded *state) showItems(held *entry, withRemoved bool, allItems bool) []string {
 	views, settled, total := folded.itemViews(held, withRemoved)
 	if len(views) == 0 {
 		return nil
@@ -412,12 +413,30 @@ func (folded *state) showItems(held *entry, withRemoved bool) []string {
 
 	lines := []string{fmt.Sprintf("items %d/%d:", settled, total)}
 
+	done, dropped := 0, 0
+
 	for _, view := range views {
+		if !allItems && (view.state == itemDone || view.state == itemDropped) {
+			if view.state == itemDone {
+				done++
+			} else {
+				dropped++
+			}
+
+			continue
+		}
+
 		box := map[string]string{itemOpen: "[ ]", itemDone: "[x]", itemDropped: "[-]", itemRemoved: "[r]"}[view.state]
 
 		line := fmt.Sprintf("  %d. %s #%s: %s", view.position, box, view.item.ID, view.text)
-		if view.flag != "" {
-			line += "  " + view.flag
+
+		flag := view.flag
+		if view.item.Link != "" && view.text == view.item.Link {
+			flag = linkOutcome(flag)
+		}
+
+		if flag != "" {
+			line += "  " + flag
 		}
 
 		lines = append(lines, line)
@@ -427,7 +446,33 @@ func (folded *state) showItems(held *entry, withRemoved bool) []string {
 		}
 	}
 
+	if done+dropped > 0 {
+		lines = append(lines, fmt.Sprintf("  %d settled (%d done, %d dropped): %s show %s --all-items",
+			done+dropped, done, dropped, self, held.id))
+	}
+
 	return lines
+}
+
+// linkOutcome is a linked item's flag for an item whose text is its target's
+// id: the target leaves, each later hop of a supersede chain reads
+// `superseded by <id>`, and the end state follows, `→ A → B closed by C`
+// becoming `superseded by B, closed by C`.
+func linkOutcome(flag string) string {
+	var parts []string
+
+	for index, hop := range strings.Split(strings.TrimPrefix(flag, "→ "), " → ") {
+		name, state, _ := strings.Cut(hop, " ")
+		if index > 0 {
+			parts = append(parts, "superseded by "+name)
+		}
+
+		if state != "" {
+			parts = append(parts, state)
+		}
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 // itemsFinished is whether every item of a todolist is done or dropped, with

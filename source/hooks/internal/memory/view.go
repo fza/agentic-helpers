@@ -518,7 +518,7 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 				}
 
 				scope.mem.seen.markBody(held)
-				lines = append(lines, showBlock(scope.here, scope.folded, held, scope.mem.options().RetiredBodyLifetime, false, false))
+				lines = append(lines, showBlock(scope.here, scope.folded, held, scope.mem.options().RetiredBodyLifetime, itemsShown{}, false))
 				lines = append(lines, scope.expandedLines(section, held, "  ")...)
 			}
 		case renderGrouped:
