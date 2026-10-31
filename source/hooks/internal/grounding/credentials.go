@@ -99,7 +99,7 @@ func leaksCredential(ctx context.Context, env Env, payload hookio.Payload) (stri
 	var held scan
 
 	switch payload.ToolName {
-	case "Bash":
+	case "Bash", "Monitor":
 		held.command(ctx, env, payload.ToolInput.Command)
 	case mcpNext:
 		held.engine(ctx, payload, "report")

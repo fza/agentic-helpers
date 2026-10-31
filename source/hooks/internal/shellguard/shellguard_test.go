@@ -270,6 +270,37 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"trap running a removal", "{project}", "trap 'rm -f x' EXIT", "deny"},
 		{"python code naming rmtree", "{project}", `python3 -c 'import shutil; shutil.rmtree("x")'`, "deny"},
 		{"node code naming rmSync", "{project}", `node -e 'require("fs").rmSync("x")'`, "deny"},
+		{"a zsh function hiding a removal", "{project}", "functions[ls]='rm -rf {home}/x'; ls", "deny"},
+		{"a zsh alias hiding a removal", "{project}", "aliases[ls]='rm -rf {home}/x'", "deny"},
+		{"a zsh function body it cannot read", "{project}", `functions[ls]="$code"; ls`, "deny"},
+		{"a zsh function without removal", "{project}", "functions[ll]='ls -la'; ll", "allow"},
+		{"arithmetic running a substitution from a variable", "{project}", "x='a[$(rm -rf {home}/x)]'; (( x ))", "deny"},
+		{"arithmetic expansion running a substitution from a variable", "{project}", "x='a[$(rm -rf {home}/x)]'; echo $((x))", "deny"},
+		{"arithmetic on a variable a command sets", "{project}", "n=$(wc -l < f); (( n > 1 ))", "ask"},
+		{"arithmetic on a variable read sets", "{project}", "read -r n; (( n > 1 ))", "ask"},
+		{"arithmetic on a loop variable over a substitution", "{project}", "for i in $(seq 3); do echo $((i * 2)); done", "ask"},
+		{"arithmetic on a loop variable over numbers", "{project}", "for i in 1 2 3; do echo $((i * 2)); done", "allow"},
+		{"an unseen value beside a removal in arithmetic text", "{project}", "n=$(wc -l < f); x='a[$(rm -rf {home}/x)]'; (( n + x ))", "deny"},
+		{"arithmetic on a counter", "{project}", "i=0; (( i++ )); echo $((i + 1))", "allow"},
+		{"rm under xcrun", "{project}", "xcrun rm -rf {home}/x", "deny"},
+		{"rm under sandbox-exec", "{project}", "sandbox-exec -n no-network rm -rf {home}/x", "deny"},
+		{"rm scheduled by zsh", "{project}", "sched +1 rm -rf {home}/x", "deny"},
+		{"rm submitted to launchd", "{project}", "launchctl submit -l job -- rm -rf {home}/x", "deny"},
+		{"rm under uv run", "{project}", "uv run rm -rf {home}/x", "deny"},
+		{"rm under npx", "{project}", "npx rm -rf {home}/x", "deny"},
+		{"rm in an npx command string", "{project}", "npx -c 'rm -rf {home}/x'", "deny"},
+		{"rm under pnpm exec", "{project}", "pnpm exec rm -rf {home}/x", "deny"},
+		{"rm under make is a target", "{project}", "make -C sub rm", "allow"},
+		{"rm fed to at", "{project}", "at now <<'EOF'\nrm -rf {home}/x\nEOF", "deny"},
+		{"code piped to at", "{project}", "echo 'rm -rf {home}/x' | at now", "deny"},
+		{"code piped to batch", "{project}", "echo 'rm -rf {home}/x' | batch", "deny"},
+		{"a job file for at", "{project}", "echo x | at -f job.sh now", "allow"},
+		{"rm in a tmux session", "{project}", "tmux new-session -d 'rm -rf {home}/x'", "deny"},
+		{"rm in a tmux window", "{project}", "tmux new-window rm -rf {home}/x", "deny"},
+		{"rm in a tmux split", "{project}", "tmux split-window -h 'rm -rf {home}/x'", "deny"},
+		{"rm in a respawned tmux pane", "{project}", "tmux respawn-pane -k 'rm -rf {home}/x'", "deny"},
+		{"rm in a screen session", "{project}", "screen -dmS s rm -rf {home}/x", "deny"},
+		{"a tmux session without removal", "{project}", "tmux new-session -d -s work 'make test'", "allow"},
 
 		{"parent directory", "{project}", "rm -rf ../other", "ask"},
 		{"home target", "{project}", "rm ~/x", "ask"},
@@ -380,6 +411,7 @@ func TestASwitchedOffSupportingGuardFallsToTheOutsideVerdict(t *testing.T) {
 		{`"shell_guard_lone_removal":false`, "cd ~ && rm -rf x", "cannot place: -rf x (not alone)"},
 		{`"shell_guard_expansion":false`, `rm -rf "$HOME/x"`, `cannot place: "$HOME/x" (expansion)`},
 		{`"shell_guard_nested_code":false`, `bash -c 'rm -rf ~/x'`, "cannot place: code handed to bash -c (nested code)"},
+		{`"shell_guard_nested_code":false`, "n=$(wc -l < f); (( n > 1 ))", "cannot place: arithmetic on n (nested code)"},
 	}
 
 	for _, tc := range cases {
@@ -532,6 +564,10 @@ func TestTheGuardNamesWhatItAsksAbout(t *testing.T) {
 	if _, reason := g.judge("ls && rm a", "{project}"); !strings.HasPrefix(reason, "agentic-shell-guard: rm runs alone: ") {
 		t.Errorf("the refusal should say a removal runs alone, got %q", reason)
 	}
+
+	if _, reason := g.judge("n=$(wc -l < f); (( n > 1 ))", "{project}"); reason != "agentic-shell-guard: arithmetic on n reads a value shell-guard cannot see" {
+		t.Errorf("the prompt should name the variable arithmetic reads unseen, got %q", reason)
+	}
 }
 
 func TestAProjectAtHomeOrRootIsNone(t *testing.T) {
@@ -561,6 +597,63 @@ func TestAnUnreadableCallIsRefused(t *testing.T) {
 			})
 			if status != 2 || !strings.Contains(errs.String(), "agentic-shell-guard: could not read the command; refusing") {
 				t.Errorf("an unreadable call should block the command, exit %d %q", status, errs.String())
+			}
+		})
+	}
+}
+
+func TestAMonitorCommandIsJudgedAsABashCommand(t *testing.T) {
+	g := newGuard(t, true, "")
+	cases := []struct {
+		name     string
+		input    map[string]any
+		decision string
+	}{
+		{
+			name: "a monitor running a removal outside", decision: "ask",
+			input: map[string]any{"tool_name": "Monitor", "tool_input": map[string]any{"command": "rm -rf " + g.tree.Home + "/x", "description": "d"}},
+		},
+		{
+			name: "a monitor holding code it cannot read", decision: "deny",
+			input: map[string]any{"tool_name": "Monitor", "tool_input": map[string]any{"command": "tail -f log | sh", "description": "d"}},
+		},
+		{
+			name: "a monitor opening a websocket", decision: "allow",
+			input: map[string]any{"tool_name": "Monitor", "tool_input": map[string]any{"ws": map[string]any{"url": "wss://example.test"}, "description": "d"}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.input["cwd"] = g.tree.Project
+
+			input, err := json.Marshal(tc.input)
+			if err != nil {
+				t.Fatalf("encoding the call: %v", err)
+			}
+
+			var out, errs bytes.Buffer
+
+			status := shellguard.Main(context.Background(), g.env, shellguard.Streams{In: bytes.NewReader(input), Out: &out, Err: &errs})
+			if status != 0 {
+				t.Fatalf("the guard should answer a monitor call, exit %d: %s", status, errs.String())
+			}
+
+			decision := "allow"
+
+			if out.Len() > 0 {
+				var decoded reply
+
+				err = json.Unmarshal(out.Bytes(), &decoded)
+				if err != nil {
+					t.Fatalf("decoding the answer: %v", err)
+				}
+
+				decision = decoded.HookSpecificOutput.PermissionDecision
+			}
+
+			if decision != tc.decision {
+				t.Errorf("a monitor's command should be judged as a Bash command is, got %s", decision)
 			}
 		})
 	}

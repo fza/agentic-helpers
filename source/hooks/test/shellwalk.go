@@ -10,7 +10,8 @@ import (
 
 // WalkRecorder notes every event a shellwalk walk hands it, each as one line:
 // `call <words>`, `launched <words>` (with ` (certain)` where the walk is
-// sure), `code <runner>: <words>`, `inline <name>: <words>`, `piped <name>`.
+// sure), `code <runner>: <words>`, `inline <name>: <words>`, `piped <name>`,
+// `unseen <variable>`.
 type WalkRecorder struct {
 	Events []string
 }
@@ -39,6 +40,10 @@ func (recorder *WalkRecorder) Inline(name string, words []*syntax.Word) {
 
 func (recorder *WalkRecorder) Piped(name string) {
 	recorder.Events = append(recorder.Events, "piped "+name)
+}
+
+func (recorder *WalkRecorder) Unseen(variable string) {
+	recorder.Events = append(recorder.Events, "unseen "+variable)
 }
 
 func spelled(words []*syntax.Word) string {

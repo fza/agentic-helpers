@@ -114,6 +114,7 @@ const (
 	reasonSecrets       = `the command holds what looks like a credential (%s, line %d); history, logs and files keep it; reference it instead: "$NAME" or a file`
 	reasonSecretsCut    = "the hook was cut short before its credential scan finished; nothing says whether the command holds one"
 	reasonNotFixed      = "cannot judge: the command name %s is not fixed text"
+	reasonUnseen        = "arithmetic on %s reads a value shell-guard cannot see"
 	whyNotAlone         = "not alone"
 	whyExpansion        = "expansion"
 	whyNestedCode       = "nested code"
@@ -123,6 +124,10 @@ const (
 )
 
 var removers = []string{"rm", "rmdir", "unlink"}
+
+// toolMonitor is Claude Code's Monitor tool, which runs its command in the
+// Bash tool's shell; with a websocket in place of a command it runs none.
+const toolMonitor = "Monitor"
 
 // namesRemoval matches the removal calls of the shell and of the interpreters'
 // own libraries, as a word.
@@ -141,6 +146,7 @@ type payload struct {
 	SessionID      string `json:"session_id"`
 	TranscriptPath string `json:"transcript_path"`
 	PermissionMode string `json:"permission_mode"`
+	ToolName       string `json:"tool_name"`
 	ToolInput      struct {
 		Command *string `json:"command"`
 	} `json:"tool_input"`
@@ -178,6 +184,10 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 	var call payload
 
 	err = json.NewDecoder(streams.In).Decode(&call)
+	if err == nil && call.ToolInput.Command == nil && call.ToolName == toolMonitor {
+		return 0
+	}
+
 	if err != nil || call.ToolInput.Command == nil {
 		_, _ = fmt.Fprintln(streams.Err, self+": could not read the command; refusing")
 
@@ -505,6 +515,19 @@ func (inspection *inspector) Code(runner string, words []*syntax.Word) {
 
 func (inspection *inspector) Piped(name string) {
 	inspection.unreadable(name+" stdin", fmt.Sprintf("cannot read the code piped to %s; refusing", name))
+}
+
+// Unseen asks about arithmetic on a variable whose value only the run shows:
+// its text may hold a subscript that runs a command, as unreadable code may,
+// but most such values are numbers, so it asks rather than denies.
+func (inspection *inspector) Unseen(variable string) {
+	if inspection.options.NestedCode {
+		inspection.found.add(Verdict{Decision: Ask, Reason: fmt.Sprintf(reasonUnseen, variable)})
+
+		return
+	}
+
+	inspection.found.add(cannotPlace(inspection.options, "arithmetic on "+variable, whyNestedCode))
 }
 
 func (inspection *inspector) unreadable(runner string, reason string) {

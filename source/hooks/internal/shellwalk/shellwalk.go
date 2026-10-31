@@ -31,11 +31,23 @@ var Shells = []string{"sh", "bash", "zsh", "dash", "ksh", "mksh", "fish"}
 // spells them (see prefixLaunch). noglob, nocorrect and `-` are zsh's
 // precommand modifiers, and zsh's `repeat N` runs its command N times: Claude
 // Code's Bash tool runs a command in zsh where that is the login shell.
+// screen runs its command as words, never through a shell, so it is a
+// launcher; make is none: its operands are targets, never commands.
 var Launchers = append([]string{
 	"sudo", "doas", "command", "builtin", "exec", "env", "nohup", "nice", "ionice",
 	"xargs", "parallel", "caffeinate", "stdbuf", "unbuffer", "time", "chronic", "flock",
 	"find", "arch", "noglob", "nocorrect", "-", "repeat",
+	"xcrun", "sandbox-exec", "npx", "screen",
 }, namedAlternatives()...)
+
+// subcommandLaunchers launch a command only through one subcommand, found as
+// the first word past the program's own options: `uv run`, `pnpm exec`,
+// `launchctl submit`.
+var subcommandLaunchers = map[string]string{"uv": "run", "pnpm": "exec", "launchctl": "submit"}
+
+// stdinRunners run the code on their standard input as shell code later: at
+// and batch queue it for sh.
+var stdinRunners = []string{"at", "batch"}
 
 var interpreters = []string{
 	"perl", "ruby", "node", "deno", "bun", "php", "osascript", "awk", "gawk", "mawk", "nawk",
@@ -70,9 +82,35 @@ var Options = withAlternatives(map[string]LauncherOptions{
 	"xargs": {Value: []string{
 		"-I", "-J", "-R", "-L", "-d", "--delimiter", "-E", "-a", "--arg-file", "-s", "--max-chars", "-n", "--max-args", "-P", "--max-procs",
 	}},
-	"nice":   {Value: []string{"-n", "--adjustment"}},
-	"flock":  {Value: []string{"-w", "--timeout", "-E", "--conflict-exit-code"}},
-	"ionice": {Value: []string{"-c", "--class", "-n", "--classdata", "-p", "--pid"}},
+	"nice":         {Value: []string{"-n", "--adjustment"}},
+	"flock":        {Value: []string{"-w", "--timeout", "-E", "--conflict-exit-code"}},
+	"ionice":       {Value: []string{"-c", "--class", "-n", "--classdata", "-p", "--pid"}},
+	"xcrun":        {Value: []string{"--sdk", "--toolchain"}},
+	"sandbox-exec": {Value: []string{"-f", "-n", "-p", "-D"}},
+	"launchctl":    {Value: []string{"-l", "-o", "-e"}},
+	"npx":          {Value: []string{"-p", "--package", "-c", "--call", "-w", "--workspace"}},
+	"screen":       {Value: []string{"-c", "-e", "-h", "-p", "-S", "-s", "-t", "-T", "-X", "-Logfile"}},
+	"pnpm": {
+		Value: []string{
+			"-C", "--dir", "--loglevel", "--resume-from", "--filter", "-F", "--filter-prod", "--test-pattern",
+			"--changed-files-ignore-pattern", "--workspace-concurrency", "--reporter",
+		},
+		Chdir: []string{"-C", "--dir"},
+	},
+	"uv": {
+		Value: []string{
+			"--extra", "--no-extra", "--group", "--no-group", "--only-group", "--no-editable-package", "--env-file",
+			"-w", "--with", "--with-editable", "--with-requirements", "--package", "--python-platform", "--index",
+			"--default-index", "-i", "--index-url", "--extra-index-url", "-f", "--find-links", "--index-strategy",
+			"--keyring-provider", "-P", "--upgrade-package", "--upgrade-group", "--resolution", "--prerelease",
+			"--prerelease-package", "--fork-strategy", "--exclude-newer", "--exclude-newer-package",
+			"--no-sources-package", "--reinstall-package", "--link-mode", "-C", "--config-setting",
+			"--config-settings-package", "--no-build-isolation-package", "--no-build-package", "--no-binary-package",
+			"--cache-dir", "--refresh-package", "-p", "--python", "--color", "--allow-insecure-host", "--directory",
+			"--project", "--config-file",
+		},
+		Chdir: []string{"--directory"},
+	},
 })
 
 func namedAlternatives() []string {
@@ -119,8 +157,15 @@ func isLauncher(args []*syntax.Word) bool {
 // subcommandLaunch reports whether args open with a launcher's program and
 // its subcommand as fixed text, as `agentic-helpers bound` does.
 func subcommandLaunch(args []*syntax.Word) bool {
+	return subcommandAt(args) > 0
+}
+
+// subcommandAt is the index of a launcher's subcommand in args, or -1: right
+// after the program for an alternative, past the program's own options for
+// one of subcommandLaunchers (`pnpm -r exec`).
+func subcommandAt(args []*syntax.Word) int {
 	if len(args) < 2 {
-		return false
+		return -1
 	}
 
 	name := CommandName(args[0])
@@ -128,11 +173,32 @@ func subcommandLaunch(args []*syntax.Word) bool {
 
 	for _, launcher := range alternatives.Launchers() {
 		if launcher.Subcommand != "" && launcher.Program == name && isLiteral && launcher.Subcommand == subcommand {
-			return true
+			return 1
 		}
 	}
 
-	return false
+	wanted, known := subcommandLaunchers[name]
+	if !known {
+		return -1
+	}
+
+	for index := 1; index < len(args); index++ {
+		value, isLiteral := Literal(args[index])
+
+		switch {
+		case !isLiteral:
+			return -1
+		case slices.Contains(Options[name].Value, value):
+			index++
+		case strings.HasPrefix(value, "-"):
+		case value == wanted:
+			return index
+		default:
+			return -1
+		}
+	}
+
+	return -1
 }
 
 // Certain is the index of every word of a call the shell certainly runs as a
@@ -239,12 +305,14 @@ type Call struct {
 // Visitor receives what a walk finds. Code is code another program runs as
 // shell, named by its runner (`bash -c`, `eval`, `trap`, `bash stdin`); Inline
 // is code for an interpreter no shell parser reads; Piped is a shell reading
-// its code from a pipe.
+// its code from a pipe; Unseen is a variable arithmetic evaluates whose value
+// is only known at run time.
 type Visitor interface {
 	Command(call Call)
 	Code(runner string, words []*syntax.Word)
 	Inline(name string, words []*syntax.Word)
 	Piped(name string)
+	Unseen(variable string)
 }
 
 func Parse(code string) (*syntax.File, error) {
@@ -259,6 +327,8 @@ func Parse(code string) (*syntax.File, error) {
 // Walk visits a statement's here-documents before its command, and a pipe
 // before either side, in the order the tree holds them.
 func Walk(node syntax.Node, visitor Visitor) {
+	values := arithmetic{visitor: visitor, assigned: assignedValues(node), resolved: map[string]bool{}}
+
 	syntax.Walk(node, func(visited syntax.Node) bool {
 		switch typed := visited.(type) {
 		case *syntax.CallExpr:
@@ -269,10 +339,289 @@ func Walk(node syntax.Node, visitor Visitor) {
 			fed(visitor, typed)
 		case *syntax.BinaryCmd:
 			piped(visitor, typed)
+		case *syntax.Assign:
+			zshCode(visitor, typed)
+		case *syntax.ArithmCmd:
+			values.judge(typed.X)
+		case *syntax.ArithmExp:
+			values.judge(typed.X)
+		case *syntax.LetClause:
+			for _, expression := range typed.Exprs {
+				values.judge(expression)
+			}
+		case *syntax.CStyleLoop:
+			for _, expression := range []syntax.ArithmExpr{typed.Init, typed.Cond, typed.Post} {
+				if expression != nil {
+					values.judge(expression)
+				}
+			}
+		case *syntax.BinaryTest:
+			if slices.Contains(arithmeticTests, typed.Op) {
+				values.judge(typed.X)
+				values.judge(typed.Y)
+			}
 		}
 
 		return true
 	})
+}
+
+// zshCodeArrays are zsh's parameters whose elements are code: setting
+// `functions[ls]` defines the function ls, setting `aliases[ls]` an alias the
+// shell expands when it reads a later line.
+var zshCodeArrays = []string{"functions", "aliases", "galiases", "saliases"}
+
+// zshCode hands on the code an assignment to one of zshCodeArrays sets: its
+// value, or each element of an array assigned whole.
+func zshCode(visitor Visitor, assign *syntax.Assign) {
+	if assign.Name == nil || !slices.Contains(zshCodeArrays, assign.Name.Value) {
+		return
+	}
+
+	if assign.Value != nil {
+		visitor.Code(assign.Name.Value, []*syntax.Word{assign.Value})
+	}
+
+	if assign.Array == nil {
+		return
+	}
+
+	for _, element := range assign.Array.Elems {
+		if element.Value != nil {
+			visitor.Code(assign.Name.Value, []*syntax.Word{element.Value})
+		}
+	}
+}
+
+var arithmeticTests = []syntax.BinTestOperator{
+	syntax.TsEql, syntax.TsNeq, syntax.TsLeq, syntax.TsGeq, syntax.TsLss, syntax.TsGtr,
+}
+
+var (
+	identifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+	number     = regexp.MustCompile(`^\s*[+-]?(?:0[xX][0-9A-Fa-f]+|[0-9]+(?:#[0-9A-Za-z@_]+)?)?\s*$`)
+)
+
+// assignedValues is every value the code gives each name, wherever it
+// stands: order and branches are not read, so a name keeps every value it
+// may hold. A nil value is one only known at run time: what read, mapfile,
+// readarray or printf -v store, and a loop variable over the arguments or
+// over a word the shell expands into others.
+func assignedValues(node syntax.Node) map[string][]*syntax.Word {
+	assigned := map[string][]*syntax.Word{}
+
+	syntax.Walk(node, func(visited syntax.Node) bool {
+		switch typed := visited.(type) {
+		case *syntax.Assign:
+			if typed.Name == nil {
+				return true
+			}
+
+			if typed.Value != nil {
+				assigned[typed.Name.Value] = append(assigned[typed.Name.Value], typed.Value)
+			}
+
+			if typed.Array != nil {
+				for _, element := range typed.Array.Elems {
+					if element.Value != nil {
+						assigned[typed.Name.Value] = append(assigned[typed.Name.Value], element.Value)
+					}
+				}
+			}
+		case *syntax.CallExpr:
+			for _, name := range storedNames(typed.Args) {
+				assigned[name] = append(assigned[name], nil)
+			}
+		case *syntax.WordIter:
+			if !typed.InPos.IsValid() {
+				assigned[typed.Name.Value] = append(assigned[typed.Name.Value], nil)
+			}
+
+			for _, item := range typed.Items {
+				if Patterned(item) {
+					item = nil
+				}
+
+				assigned[typed.Name.Value] = append(assigned[typed.Name.Value], item)
+			}
+		}
+
+		return true
+	})
+
+	return assigned
+}
+
+// storedNames are the variables a call stores what it reads in: read's and
+// mapfile's operands, and the value of printf's -v. readValues are the
+// option letters of read and mapfile taking the next word as a value; read's
+// -a and zsh's -A take the array's name.
+func storedNames(args []*syntax.Word) []string {
+	if len(args) == 0 {
+		return nil
+	}
+
+	readValues := map[string]string{"read": "dinNptu", "mapfile": "dnOsuCc", "readarray": "dnOsuCc"}
+
+	name := CommandName(args[0])
+	if name == "printf" {
+		target := optionValue(args[1:], "-v")
+		if target == nil || !variableName(target) {
+			return nil
+		}
+
+		value, _ := Literal(target)
+
+		return []string{value}
+	}
+
+	letters, stores := readValues[name]
+	if !stores {
+		return nil
+	}
+
+	var names []string
+
+	for index := 1; index < len(args); index++ {
+		value, isLiteral := Literal(args[index])
+
+		switch {
+		case !isLiteral:
+		case strings.HasPrefix(value, "-") && len(value) > 1:
+			last := value[len(value)-1:]
+			if !strings.ContainsAny(last, letters+"aA") || index+1 == len(args) {
+				continue
+			}
+
+			index++
+
+			if strings.ContainsAny(last, "aA") && variableName(args[index]) {
+				array, _ := Literal(args[index])
+				names = append(names, array)
+			}
+		case variableName(args[index]):
+			names = append(names, value)
+		}
+	}
+
+	return names
+}
+
+func variableName(word *syntax.Word) bool {
+	value, isLiteral := Literal(word)
+
+	return isLiteral && value != "" && identifier.FindString(value) == value
+}
+
+// arithmetic reads the variables arithmetic names. bash and zsh evaluate a
+// variable's text as an arithmetic expression in turn, and a subscript in it
+// runs its command substitutions: `x='a[$(rm -rf ~)]'; (( x ))` runs rm. So a
+// variable the code assigns text other than a number is handed on as code,
+// `(( text ))`, and one holding a value only known at run time is reported
+// unseen, since no reader can tell its text. A value that is another variable
+// is followed to it; one that is an arithmetic expansion is a number. Each
+// name is read once per walk.
+type arithmetic struct {
+	visitor  Visitor
+	assigned map[string][]*syntax.Word
+	resolved map[string]bool
+}
+
+func (values arithmetic) judge(expression syntax.Node) {
+	queue := namesIn(expression)
+
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+
+		if values.resolved[name] {
+			continue
+		}
+
+		values.resolved[name] = true
+
+		for _, value := range values.assigned[name] {
+			queue = append(queue, values.read(name, value)...)
+		}
+	}
+}
+
+// read hands on what a value assigned to name evaluates as, and returns the
+// names it leads to.
+func (values arithmetic) read(name string, value *syntax.Word) []string {
+	if value == nil {
+		values.visitor.Unseen(name)
+
+		return nil
+	}
+
+	text, isLiteral := Literal(value)
+
+	switch {
+	case isLiteral && number.MatchString(text):
+		return nil
+	case isLiteral:
+		code := &syntax.Word{Parts: []syntax.WordPart{&syntax.SglQuoted{Value: "(( " + text + " ))"}}}
+		values.visitor.Code("arithmetic on "+name, []*syntax.Word{code})
+
+		return identifier.FindAllString(text, -1)
+	}
+
+	parts := value.Parts
+	if len(parts) == 1 {
+		quoted, isQuoted := parts[0].(*syntax.DblQuoted)
+		if isQuoted {
+			parts = quoted.Parts
+		}
+	}
+
+	if len(parts) == 1 {
+		parameter, isParameter := parts[0].(*syntax.ParamExp)
+		if isParameter && plainParameter(parameter) {
+			return []string{parameter.Param.Value}
+		}
+	}
+
+	if !slices.ContainsFunc(parts, func(part syntax.WordPart) bool {
+		_, isArithmetic := part.(*syntax.ArithmExp)
+
+		return !isArithmetic
+	}) {
+		return nil
+	}
+
+	values.visitor.Unseen(name)
+
+	return nil
+}
+
+func plainParameter(parameter *syntax.ParamExp) bool {
+	return parameter.Param != nil && parameter.Flags == nil && parameter.NestedParam == nil &&
+		parameter.Index == nil && parameter.Slice == nil && parameter.Repl == nil && parameter.Exp == nil &&
+		len(parameter.Modifiers) == 0 && parameter.Names == 0 && !parameter.Excl && !parameter.Length &&
+		!parameter.Width && !parameter.IsSet
+}
+
+// namesIn is every variable an arithmetic expression names, bare or as an
+// expansion: `$y` holds the name `y` as text the walk visits too. A command
+// substitution inside it is a call the walk reaches on its own, never a name.
+func namesIn(expression syntax.Node) []string {
+	var names []string
+
+	syntax.Walk(expression, func(visited syntax.Node) bool {
+		switch typed := visited.(type) {
+		case *syntax.CmdSubst, *syntax.ProcSubst:
+			return false
+		case *syntax.Lit:
+			if typed.Value != "" && identifier.FindString(typed.Value) == typed.Value {
+				names = append(names, typed.Value)
+			}
+		}
+
+		return true
+	})
+
+	return names
 }
 
 // offerCall offers the call, then every word after a launcher as the call it
@@ -316,7 +665,175 @@ func offer(visitor Visitor, call Call) {
 		}
 	case IsInterpreter(name) && prefixLaunch(args) < 0:
 		visitor.Inline(name, args[1:])
+	case name == "sched":
+		code := schedCode(args[1:])
+		if len(code) > 0 {
+			visitor.Code("sched", code)
+		}
+	case name == "tmux":
+		tmuxCode(visitor, args[1:])
+	case name == "npx":
+		code := optionValue(args[1:launchedEnd(args)], "-c", "--call")
+		if code != nil {
+			visitor.Code("npx -c", []*syntax.Word{code})
+		}
+	case name == "pnpm" && subcommandLaunch(args):
+		// In shell mode pnpm hands its command to sh -c.
+		start := launchedAt(args)
+		if start > 0 && start < len(args) && optionValue(args[1:start+1], "-c", "--shell-mode") != nil {
+			visitor.Code("pnpm exec -c", args[start:])
+		}
 	}
+}
+
+// launchedEnd is the index of the word a launcher runs, or the end of args
+// where it runs none.
+func launchedEnd(args []*syntax.Word) int {
+	start := launchedAt(args)
+	if start < 0 || start > len(args) {
+		return len(args)
+	}
+
+	return start
+}
+
+// optionValue is the word after the first of names among args, or nil.
+func optionValue(args []*syntax.Word, names ...string) *syntax.Word {
+	for index, arg := range args {
+		value, isLiteral := Literal(arg)
+		if isLiteral && slices.Contains(names, value) && index+1 < len(args) {
+			return args[index+1]
+		}
+	}
+
+	return nil
+}
+
+// schedCode is the command zsh's sched runs as a string, as eval would: the
+// words past its -o flag and its time. A first word starting with `-` removes
+// an item and runs nothing.
+func schedCode(args []*syntax.Word) []*syntax.Word {
+	for index, arg := range args {
+		value, isLiteral := Literal(arg)
+		switch {
+		case isLiteral && value == "-o":
+		case isLiteral && strings.HasPrefix(value, "-"):
+			return nil
+		default:
+			return args[index+1:]
+		}
+	}
+
+	return nil
+}
+
+// tmuxCommand is a tmux command taking a shell command after its options:
+// value holds every option letter taking the next word.
+type tmuxCommand struct {
+	name  string
+	alias string
+	value string
+}
+
+var tmuxCommands = []tmuxCommand{
+	{name: "new-session", alias: "new", value: "cefFnstxy"},
+	{name: "new-window", alias: "neww", value: "ceFnt"},
+	{name: "split-window", alias: "splitw", value: "BceFlmpRsStT"},
+	{name: "respawn-pane", alias: "respawnp", value: "cet"},
+	{name: "respawn-window", alias: "respawnw", value: "cet"},
+	{name: "display-popup", alias: "popup", value: "bcdehsStTwxy"},
+	{name: "run-shell", alias: "run", value: "cdt"},
+}
+
+// tmuxCode hands on the shell command each tmux command in the call runs:
+// tmux's own -c, and the words past the options of every command above,
+// named by its full name, its alias, or any prefix of the name, as tmux
+// accepts. Commands chain with a `;` word.
+func tmuxCode(visitor Visitor, args []*syntax.Word) {
+	start, values := shortOptions(args, "cfLST")
+
+	code := values['c']
+	if code != nil {
+		visitor.Code("tmux -c", []*syntax.Word{code})
+	}
+
+	segment := []*syntax.Word{}
+
+	for _, arg := range args[start:] {
+		value, isLiteral := Literal(arg)
+		if !isLiteral || value != ";" {
+			segment = append(segment, arg)
+
+			continue
+		}
+
+		tmuxSegment(visitor, segment)
+
+		segment = []*syntax.Word{}
+	}
+
+	tmuxSegment(visitor, segment)
+}
+
+func tmuxSegment(visitor Visitor, segment []*syntax.Word) {
+	if len(segment) == 0 {
+		return
+	}
+
+	name, isLiteral := Literal(segment[0])
+	if !isLiteral || name == "" {
+		return
+	}
+
+	for _, command := range tmuxCommands {
+		if name != command.alias && !strings.HasPrefix(command.name, name) {
+			continue
+		}
+
+		start, _ := shortOptions(segment[1:], command.value)
+		if 1+start < len(segment) {
+			visitor.Code("tmux "+name, segment[1+start:])
+		}
+
+		return
+	}
+}
+
+// shortOptions reads args as getopt does: short options, grouped or not,
+// those in value taking the rest of their word or the next word, up to the
+// first operand or `--`. It returns the operand's index and each value given.
+func shortOptions(args []*syntax.Word, value string) (int, map[byte]*syntax.Word) {
+	values := map[byte]*syntax.Word{}
+
+	for index := 0; index < len(args); index++ {
+		word, isLiteral := Literal(args[index])
+		if !isLiteral || word == "-" || !strings.HasPrefix(word, "-") {
+			return index, values
+		}
+
+		if word == "--" {
+			return index + 1, values
+		}
+
+	letters:
+		for at := 1; at < len(word); at++ {
+			if !strings.ContainsRune(value, rune(word[at])) {
+				continue
+			}
+
+			switch {
+			case at+1 < len(word):
+				values[word[at]] = &syntax.Word{Parts: []syntax.WordPart{&syntax.SglQuoted{Value: word[at+1:]}}}
+			case index+1 < len(args):
+				index++
+				values[word[at]] = args[index]
+			}
+
+			break letters
+		}
+	}
+
+	return len(args), values
 }
 
 // launchedAt is the index of the word the launcher opening args runs: past
@@ -334,8 +851,8 @@ func launchedAt(args []*syntax.Word) int {
 	launcher := CommandName(args[0])
 
 	first := 1
-	if subcommandLaunch(args) {
-		first = 2
+	if at := subcommandAt(args); at > 0 {
+		first = at + 1
 	}
 
 	for index := first; index < len(args); index++ {
@@ -346,11 +863,12 @@ func launchedAt(args []*syntax.Word) int {
 			if slices.Contains([]string{"-exec", "-execdir", "-ok", "-okdir"}, value) {
 				return index + 1
 			}
-		case launcher == "command" && (value == "-v" || value == "-V"):
+		case launcher == "command" && (value == "-v" || value == "-V"),
+			launcher == "xcrun" && (value == "-f" || value == "--find"):
 			return -1
 		case value == "--":
 			return index + 1
-		case slices.Contains(Options[launcher].Value, value):
+		case slices.Contains(Options[launcher].Value, value) || groupedValue(launcher, value):
 			index++
 
 			// An unquoted expansion may split into the value and a command of its
@@ -366,6 +884,14 @@ func launchedAt(args []*syntax.Word) int {
 	}
 
 	return -1
+}
+
+var shortGroup = regexp.MustCompile(`^-[A-Za-z0-9]{2,}$`)
+
+// groupedValue is whether a word groups short options the last of which
+// takes the next word as its value, as `screen -dmS name` does.
+func groupedValue(launcher string, value string) bool {
+	return shortGroup.MatchString(value) && slices.Contains(Options[launcher].Value, "-"+value[len(value)-1:])
 }
 
 // OneKnownWord is whether the shell hands the word on as one word: fixed text
@@ -430,7 +956,7 @@ func fed(visitor Visitor, statement *syntax.Stmt) {
 
 		switch {
 		case body == nil:
-		case slices.Contains(Shells, name):
+		case slices.Contains(Shells, name) || slices.Contains(stdinRunners, name):
 			visitor.Code(name+" stdin", []*syntax.Word{body})
 		case IsInterpreter(name):
 			visitor.Inline(name, []*syntax.Word{body})
@@ -478,11 +1004,58 @@ func pipedCall(visitor Visitor, call *syntax.CallExpr) {
 	}
 
 	args := launchedShell(call.Args)
-	if args == nil || replacesInput(args[1:]) || namesScript(args[1:]) {
+	if args == nil {
 		return
 	}
 
-	visitor.Piped(CommandName(args[0]))
+	name := CommandName(args[0])
+
+	if slices.Contains(stdinRunners, name) {
+		if !atReadsElsewhere(args[1:]) {
+			visitor.Piped(name)
+		}
+
+		return
+	}
+
+	if replacesInput(args[1:]) || namesScript(args[1:]) {
+		return
+	}
+
+	visitor.Piped(name)
+}
+
+// atReadsElsewhere is whether at or batch queues no job from its standard
+// input: -f names a job file, and -l, -c, -r and -d list, print or remove
+// jobs. Its options end at the first operand, as BSD at reads them, so a
+// later -f is a time word; -q and -t take a value.
+func atReadsElsewhere(args []*syntax.Word) bool {
+	for index := 0; index < len(args); index++ {
+		value, isLiteral := Literal(args[index])
+		if !isLiteral || !strings.HasPrefix(value, "-") || value == "-" {
+			return false
+		}
+
+		if value == "--" {
+			return false
+		}
+
+		for at := 1; at < len(value); at++ {
+			if strings.ContainsRune("flcrd", rune(value[at])) {
+				return true
+			}
+
+			if strings.ContainsRune("qt", rune(value[at])) {
+				if at+1 == len(value) {
+					index++
+				}
+
+				break
+			}
+		}
+	}
+
+	return false
 }
 
 // redirectsInput is whether a statement's input is certainly no longer the
@@ -522,14 +1095,15 @@ func redirectsInput(statement *syntax.Stmt) bool {
 	return replaced
 }
 
-// launchedShell is the shell a call runs, through any launchers before it,
-// with its arguments, or nil where it runs none.
+// launchedShell is the shell, or the runner of stdinRunners, a call runs,
+// through any launchers before it, with its arguments, or nil where it runs
+// none.
 func launchedShell(args []*syntax.Word) []*syntax.Word {
 	for index, arg := range args {
 		name := CommandName(arg)
 
 		switch {
-		case slices.Contains(Shells, name):
+		case slices.Contains(Shells, name) || slices.Contains(stdinRunners, name):
 			return args[index:]
 		case index == 0 && !isLauncher(args):
 			return nil

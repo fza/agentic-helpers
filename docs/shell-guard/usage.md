@@ -2,13 +2,23 @@
 
 A stray `rm -rf` outside the project is the one mistake an agent cannot undo, and a careless chain
 such as `cd ~ && rm -rf x` slips past any rule that reads targets without parsing the command.
-`agentic-shell-guard` runs before every Bash call, parses the command as bash, and holds an agent's
+`agentic-shell-guard` runs before every Bash call, and every Monitor call, whose command runs in the
+same shell, parses the command as bash, and holds an agent's
 removals (`rm`, `rmdir`, `unlink`, `git rm`) to the project and `/tmp`, asks before `find -delete`
 and before a command holding what looks like a credential, and bans `mktemp`. A command missing on
 the machine, or a usage its flavour of a command gets wrong, is refused with the command that works
 (see [Command alternatives](#command-alternatives)). After every tool call it withholds each line of output from outside the project that looks like a credential (see [Credentials in tool output](#credentials-in-tool-output)). A removal named inside a quoted argument (a sed script, a grep pattern, a commit
-message) is text and passes; code handed to `eval`, `trap`, a shell's `-c`, or a shell's standard
-input by a here-document or here-string is parsed again.
+message) is text and passes; code handed to `eval`, `trap`, a shell's `-c`, zsh's `sched`, `npx -c`,
+`pnpm exec -c`, a tmux command running a shell command (`new-session`, `new-window`,
+`split-window`, `respawn-pane`, `respawn-window`, `display-popup`, `run-shell`, tmux's own `-c`),
+zsh's `functions[name]=` or `aliases[name]=`, or the standard input of a shell, `at` or `batch` by
+a here-document or here-string is parsed again. A variable arithmetic reads (`(( x ))`, `$(( x ))`,
+`[[ x -eq 1 ]]`) whose assigned text is no number is parsed as the expression bash evaluates, since
+a subscript in it runs its command substitutions; one holding a value known only at run time
+(`n=$(wc -l < f); (( n > 1 ))`, `read n`, a loop over `$(...)`) is asked about:
+`arithmetic on n reads a value shell-guard cannot see`. `xcrun`, `sandbox-exec`, `npx`,
+`screen`, `uv run`, `pnpm exec` and `launchctl submit` are launchers: the command they run is
+judged as if it stood alone; `make` runs targets, never a command.
 
 **It judges every project.** Every other piece waits for a directory or a seat; shell-guard's work
 is every Bash call, so it always has something to work on. A machine that wants it off turns its
@@ -47,7 +57,7 @@ a looser value there is ignored and named at session start
 | `shell_guard_secrets` | `ask`, `deny`, `off` | `ask` | a command whose text holds what looks like a credential, found by the shared [credential scanner](../secrets/usage.md) |
 | `shell_guard_lone_removal` | boolean | `true` | a removal that is not the whole command |
 | `shell_guard_expansion` | boolean | `true` | a removal target built from a variable or command substitution |
-| `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it |
+| `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, `at` or `batch` code, zsh's `sched` or `functions[name]=`, a tmux shell command, text arithmetic evaluates, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it; arithmetic on a variable set at run time asks rather than denies |
 | `shell_guard_mktemp` | boolean | `true` | `mktemp` anywhere in the command |
 | `shell_guard_alternatives` | boolean | `true` | a command missing on the machine, or a usage its BSD flavour gets wrong (see [Command alternatives](#command-alternatives)); off, the session start line naming the machine's substitutions goes too |
 | `shell_guard_ask_timeout` | a span (`45s`, `2m`), at most `1h`; a bare number counts seconds | `2m` | how long an ask waits in `auto` and `bypassPermissions` mode before it denies; `0` waits without limit |
@@ -181,6 +191,7 @@ Every reason starts `agentic-shell-guard: `:
 | `refusing rm with a shell variable or command substitution` | expansion |
 | `code handed to <runner> holds a removal or mktemp; refusing` | nested code (`eval`, `bash -c`, ...) |
 | `inline code for <interpreter> names a removal or mktemp; refusing` | nested code (`perl`, `python3`, ...) |
+| `arithmetic on <name> reads a value shell-guard cannot see` | nested code, an ask: arithmetic on a variable set at run time |
 | `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | nested code |
 | `outside project: <targets>`, `no project: <targets>`, `unresolvable: <targets>`, `no target` | outside project; several join with `; ` |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | outside project, for a supporting guard switched off |

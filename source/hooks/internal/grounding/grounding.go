@@ -449,7 +449,7 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 		return engineCaptureRefusal(ctx, env, payload, config)
 	}
 
-	if payload.ToolName == "Bash" {
+	if runsShell(payload.ToolName) {
 		found := readsBadly(ctx, env, payload)
 		if found != "" || writing(env, payload.ToolInput.Command) == writesNothing {
 			return found
@@ -462,7 +462,7 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 		return configRefusal(configErr)
 	}
 
-	if payload.ToolName == "Bash" && writing(env, payload.ToolInput.Command) == writesThroughCapture &&
+	if runsShell(payload.ToolName) && writing(env, payload.ToolInput.Command) == writesThroughCapture &&
 		!config.CLICapture && env.servesEngine(ctx) {
 		return refusal("engine.txt")
 	}
@@ -487,7 +487,7 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 	}
 
 	// A plain `sdd new` names no draft, so nothing grounded stands in for it.
-	if payload.ToolName == "Bash" && writing(env, payload.ToolInput.Command) == writesThroughCapture &&
+	if runsShell(payload.ToolName) && writing(env, payload.ToolInput.Command) == writesThroughCapture &&
 		capturesGrounded(env, held, payload.ToolInput.Command) {
 		return ""
 	}
@@ -571,6 +571,12 @@ func firstNote(ctx context.Context, env Env, payload hookio.Payload) bool {
 	_ = saveEvidence(ctx, env.graphRoot(), path, held)
 
 	return true
+}
+
+// runsShell reports a tool whose command runs in the Bash tool's shell: Bash
+// itself, and Monitor, which streams a command's output.
+func runsShell(tool string) bool {
+	return tool == "Bash" || tool == "Monitor"
 }
 
 func gated(payload hookio.Payload) bool {

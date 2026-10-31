@@ -9,7 +9,9 @@ license: MIT
 A stray `rm -rf` outside the project cannot be undone. Shell-guard parses every Bash command as bash
 before it runs. Reason starts `agentic-shell-guard: ` → this hook.
 
-**Every project, every Bash call.** No directory opts in or out. Only the user turns it off
+**Every project, every Bash call**, and every Monitor command. No directory opts in or out.
+Launchers (`sudo`, `env`, `xargs`, `xcrun`, `sandbox-exec`, `npx`, `screen`, `uv run`, `pnpm exec`,
+`launchctl submit`, ...) change nothing: what they run is judged. Only the user turns it off
 (`shell_guard_*` plugin options, in Claude Code's settings). The shared `config.yaml` only tightens a
 guard: a looser value there is ignored (`agentic-helpers: config.yaml may only tighten <key>; <value> ignored`),
 and `agentic-helpers config set` refuses it
@@ -45,9 +47,10 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 | `refusing rm with a shell variable or command substitution` | spell each target out |
 | `mktemp is banned; write scratch files under the project's .tmp/ instead` | `.tmp/seats/<seat>/`, else `.tmp/seats/<session-id>/` (agentic-helpers:agent-scratch) |
 | `mktemp is banned; create the project's .tmp/ (gitignored) and write scratch files under it` | ask the user before creating `.tmp/` |
-| `code handed to <runner> holds a removal or mktemp; refusing` | no removal inside `eval`, `trap`, `bash -c` or a heredoc fed to a shell; run it directly |
+| `code handed to <runner> holds a removal or mktemp; refusing` | no removal inside `eval`, `trap`, `bash -c`, a heredoc fed to a shell, `at` or `batch`, `sched`, `npx -c`, `pnpm exec -c`, a tmux command's shell command (`new-session`, `new-window`, `split-window`, `respawn-pane`, `run-shell`, ...), zsh's `functions[name]=` / `aliases[name]=`, or text arithmetic reads (runner `arithmetic on <name>`: `x='a[$(rm ...)]'; (( x ))`); run it directly |
 | `inline code for <interpreter> names a removal or mktemp; refusing` | no removal in `python -c`, `perl -e`, `awk`, `ssh` code; a lone `rm` instead |
-| `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | literal code, or none; no code piped into a shell |
+| `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | literal code, or none; no code piped into a shell, `at` or `batch` |
+| `arithmetic on <name> reads a value shell-guard cannot see` (an ask) | arithmetic reads a variable set at run time (`$(...)`, `read`, `mapfile`, `printf -v`, a loop over `$(...)`, the arguments or a glob or brace): its text could run a command. Run the substitution and the comparison as two calls, the number typed literally |
 | `cannot parse the command; refusing` | fix the quoting |
 
 ## Command alternatives → run what it names

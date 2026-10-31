@@ -21,6 +21,14 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 		{name: "an assignment before a launched capture", command: "env X=1 agentic-capture d.md", writes: true},
 		{name: "a capture past a launcher's options", command: "echo d.md | xargs -n 1 agentic-capture", writes: true},
 		{name: "a capture find runs", command: "find . -maxdepth 0 -exec agentic-capture d.md \\;", writes: true},
+		{name: "a call a zsh function body runs", command: "functions[f]='sdd new d tac body'; f", writes: true},
+		{name: "a call arithmetic runs through a variable", command: "x='a[$(sdd new d tac body)]'; (( x ))", writes: true},
+		{name: "a call xcrun runs", command: "xcrun sdd new d tac body", writes: true},
+		{name: "a call uv run runs", command: "uv run --with pyyaml sdd new d tac body", writes: true},
+		{name: "a call pnpm exec runs", command: "pnpm exec sdd new d tac body", writes: true},
+		{name: "a call zsh's sched runs", command: "sched +0:01 sdd new d tac body", writes: true},
+		{name: "a call fed to at", command: "at now <<'EOF'\nsdd new d tac body\nEOF", writes: true},
+		{name: "a call a tmux window runs", command: "tmux new-window -d 'sdd new d tac body'", writes: true},
 		{name: "a quoted mention", command: `echo "sdd new"`, writes: false},
 		{name: "an escaped quote before a mention", command: `echo "a \" b; sdd new d tac body"`, writes: false},
 		{name: "a launched command's argument", command: "git ls-files | xargs grep -l agentic-capture", writes: false},
@@ -52,6 +60,19 @@ func TestTheParserReadsEveryQuoting(t *testing.T) {
 			passes(t, run(t, env, "gate", bash(tc.command)))
 		})
 	}
+}
+
+func TestAMonitorCommandIsReadAsABashCommand(t *testing.T) {
+	monitor := func(command string) map[string]any {
+		return with(bash(command), "tool_name", "Monitor")
+	}
+
+	env := areaProject(t)
+	owesEveryRead(t, run(t, env, "gate", monitor("sdd new d tac body")))
+	passes(t, run(t, env, "gate", monitor("tail -f log")))
+
+	ground(t, env)
+	passes(t, run(t, env, "gate", monitor("sdd new d tac body")))
 }
 
 func TestOnlyTheShellsOwnCallsAreCredited(t *testing.T) {

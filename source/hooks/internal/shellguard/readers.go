@@ -167,3 +167,5 @@ func (check *projectReads) Code(string, []*syntax.Word) {}
 func (check *projectReads) Inline(string, []*syntax.Word) {}
 
 func (check *projectReads) Piped(string) {}
+
+func (check *projectReads) Unseen(string) {}

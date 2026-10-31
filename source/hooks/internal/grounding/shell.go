@@ -106,6 +106,8 @@ func (*listener) Inline(string, []*syntax.Word) {}
 
 func (*listener) Piped(string) {}
 
+func (*listener) Unseen(string) {}
+
 // discardsStream reports a redirection sending output to /dev/null anywhere
 // the shell reads, never in a heredoc body or a quoted argument.
 func discardsStream(file *syntax.File) bool {

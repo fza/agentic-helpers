@@ -23,7 +23,7 @@ through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code 
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__start_procedure`, `mcp__sdd__next` | `record` | credits the reads the call performed; after the session's own capture (`agentic-capture` printing `<id>.md`, or a `next` result carrying `produced.entryId`), moves the ledger to the new graph state when that entry is the only change, keeping the reads; keeps the body and topics an engine capture's start or report left it with (`recordEngineCapture`) |
 | PostToolUse on `mcp__sdd__stage_attachment` | `record` | where `.sdd/grounding.yaml` sets `draft_lint`: keeps the text the staging left under the handle sdd answered with (`recordStaged`) |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
-| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`, its first line saying the call went ahead and, for reads owed, that they are owed before the next question or draft (`letThrough`); for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
+| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `Monitor` (its command read as a Bash command), `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`, its first line saying the call went ahead and, for reads owed, that they are owed before the next question or draft (`letThrough`); for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
 | SessionEnd | `end` | removes the session's ledger |
 
 ## The ledger
@@ -116,9 +116,11 @@ user or local scope is not read.
 
 A command is parsed as bash with `mvdan.cc/sh/v3/syntax`, and `internal/shellwalk`, the walk
 shell-guard judges through too, lists every command it runs: in a subshell, a pipe or a command
-substitution, after a launcher (`env`, `xargs`, `sudo`, `find -exec`, ...) past the launcher's
-options, assignments and counts, and inside code a shell runs (`bash -c`, `eval`, `trap`, a
-here-document fed to a shell). An option's value that is neither fixed text without a glob
+substitution, after a launcher (`env`, `xargs`, `sudo`, `find -exec`, `xcrun`, `uv run`, ...) past
+the launcher's options, assignments and counts, and inside code a shell runs (`bash -c`, `eval`,
+`trap`, a here-document fed to a shell or `at`, `sched`, a tmux shell command, zsh's
+`functions[name]=`, text arithmetic evaluates). A Monitor call's command is read as a Bash
+command's. An option's value that is neither fixed text without a glob
 or brace nor wholly double-quoted without an `@`, `*` or `!` expansion (`sudo -u $user sdd ...`) is
 taken for the command, as it may split into one, so a read behind it is not credited. A quoted argument and a heredoc body are words, never a call, so
 crediting a quoted mention cannot let an `echo` satisfy the gate. Each call's words are read with

@@ -1,11 +1,12 @@
 # Shell-guard: architecture
 
-`agentic-shell-guard` is the plugin's `PreToolUse` hook on `Bash` (`plugin/hooks/hooks.json`, through
-`plugin/hooks/run`). `cmd/agentic-shell-guard` resolves `$CLAUDE_PROJECT_DIR`, the home directory,
+`agentic-shell-guard` is the plugin's `PreToolUse` hook on `Bash` and `Monitor` (`plugin/hooks/hooks.json`, through
+`plugin/hooks/run`): Monitor runs its `command` in the Bash tool's shell, so it is judged the same way. `cmd/agentic-shell-guard` resolves `$CLAUDE_PROJECT_DIR`, the home directory,
 `/tmp` and the settings files, and `internal/shellguard` decides. It reads the call's `cwd` and
 `tool_input.command`, and answers `permissionDecision` `deny` or `ask` with a reason, or nothing to
 let the call run. A call it cannot read, and a panic, exit 2, which blocks the call; any other exit
-would let it run. `agentic-shell-guard permission` is its `PermissionRequest` hook on `Bash`, which
+would let it run. A Monitor call opening a websocket (`ws`) carries no command and runs none: it
+passes. `agentic-shell-guard permission` is its `PermissionRequest` hook on `Bash` and `Monitor`, which
 ends an ask in `auto` and `bypassPermissions` mode (see Permission modes). `agentic-shell-guard
 output` is its `PostToolUse` hook on every tool, which withholds credentials from tool output (see
 Tool output).
@@ -56,7 +57,14 @@ carries one. `find` with `-delete` takes `shell_guard_find_delete`'s verdict. A 
 `env`, `xargs`, `timeout`, `find`, ...) has every judged command among its arguments judged as if it
 stood alone. zsh's precommand modifiers (`noglob`, `nocorrect`, `-`) and `repeat N` are launchers
 too, since Claude Code's Bash tool runs a command in zsh where that is the login shell, and a
-command name opening with `=` (zsh's path expansion, `=rm`) is read without it. Every alternative of the command alternatives table that launches a command joins the
+command name opening with `=` (zsh's path expansion, `=rm`) is read without it. `xcrun` (past
+`--sdk` and `--toolchain`; `-f` and `--find` only look a tool up), `sandbox-exec` (past `-p`, `-f`,
+`-n` and `-D`), `npx` (past `-p`, `--package`, `-w`, `--workspace`) and `screen` (which runs its
+command as words, never through a shell) are launchers by name; `uv run`, `pnpm exec` and
+`launchctl submit` only through that subcommand, found as the first word past the program's own
+options, with `uv --directory` and `pnpm -C` moving what they run elsewhere. Short options grouped
+in one word (`screen -dmS name`) take the next word as a value where the last of them does. `make`
+is no launcher: its operands are targets, never commands. Every alternative of the command alternatives table that launches a command joins the
 launchers from that table (`alternatives.Launchers`): one opening with options, as `gtimeout`, by
 name with its entry's value options; one with a subcommand, as `agentic-helpers bound`, only where
 that subcommand follows as fixed text, the words after it then read as after a launcher by name;
@@ -160,8 +168,28 @@ command holds one`. The guard is added after every other, so
 another guard's ask keeps its own reason, while a deny outranks it.
 
 Code another program runs as shell, `eval`'s arguments, the handler `trap` sets past its options, the word after a shell's
-`-c`-carrying option, and the body of a here-document or here-string a shell reads, is joined and
-parsed again, and walked with removals and `mktemp` only noted. Under
+`-c`-carrying option, the body of a here-document or here-string a shell, `at` or `batch` reads,
+zsh's `sched` command past its `-o` and its time (run as a string, as `eval` runs one), `npx -c`'s
+command, the command `pnpm exec` runs in shell mode (`-c`, `--shell-mode`), tmux's own `-c`, the
+command past the options of tmux's `new-session`, `new-window`, `split-window`, `respawn-pane`,
+`respawn-window`, `display-popup` and `run-shell` (by name, alias, or any prefix of the name, in
+every command of a `;` chain), and the value assigned to an element of zsh's `functions`,
+`aliases`, `galiases` or `saliases` (`functions[ls]='...'` defines `ls`), is joined and parsed
+again, and walked with removals and `mktemp` only noted. Arithmetic (`(( ))`, `$(( ))`, `let`, a
+C-style `for`, and `[[ ]]`'s `-eq`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`) evaluates a variable's text
+as an expression in turn, and a subscript there runs its command substitutions:
+`x='a[$(rm -rf ~/x)]'; (( x ))` runs `rm`. So every variable arithmetic names that the command
+assigns, anywhere, is read: text other than a number is handed on as the code `(( text ))`, under
+the runner `arithmetic on <name>`, and the names it holds are read in turn; a value naming another
+variable (`$y`, `"$y"`) leads to it; an arithmetic expansion is a number. A value known only at
+run time (`n=$(wc -l < f)`, any other expansion, what `read`, `mapfile`, `readarray` or
+`printf -v` store, a `for` variable over the arguments or over an expanded or patterned word) is
+reported unseen (`shellwalk.Visitor.Unseen`): under `shell_guard_nested_code` it asks, reason
+`arithmetic on <name> reads a value shell-guard cannot see`, rather than denying, since most such
+values are numbers; with the guard off it takes the outside-project verdict as `cannot place:
+arithmetic on <name> (nested code)`. Text that is known is judged by what it holds, a removal in
+it denying as nested code. A name the command never assigns is not read. Code handed to `sched`,
+tmux or `at` that is no literal stays unreadable code, as `eval`'s is, and denies. Under
 `shell_guard_nested_code` a noted one denies, and so does code that is no literal or does not parse;
 with it off, a noted removal and unreadable code take the outside-project verdict as `cannot place:
 code handed to <runner> (nested code)`, and a noted `mktemp` passes. Inline code for another
@@ -171,7 +199,9 @@ verdict. A shell at the end of a pipe, through any launchers before it, that is 
 script, or is told `-s`, reads its code from the pipe: code it cannot read. A compound command at
 the end of a pipe (`{ sh; }`, `if ...; then sh; fi`, a loop) hands the pipe on to every shell inside
 it unless that statement redirects its input only to here-documents or here-strings, whose code is
-judged in turn. A file never replaces the pipe, since any name may be a link to `/dev/stdin`, made
+judged in turn. `at` and `batch` at the end of a pipe read their job from it unless an option
+before the first operand says otherwise: `-f` names a job file, and `-l`, `-c`, `-r` and `-d` list,
+print or remove jobs. A file never replaces the pipe, since any name may be a link to `/dev/stdin`, made
 in the same command or before it; a duplicated descriptor (`0<&3`, or `0>&3`, any operator on a
 descriptor numbered 0, `00` included) may be the pipe; a named descriptor (`{fd}<<< x`) is a new
 one and leaves the input on the pipe; and every

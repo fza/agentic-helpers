@@ -38,6 +38,7 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		"inline code for <interpreter> names a removal or mktemp; refusing",
 		"cannot read the code handed to <runner>; refusing", "cannot parse the code handed to <runner>; refusing",
 		"cannot read the code piped to <shell>; refusing",
+		fmt.Sprintf(reasonUnseen, "<name>"),
 		self + ": could not read the command; refusing", self + ": internal failure; refusing",
 		self + ": could not answer; refusing",
 		"nobody answered within <span>; <reason>",

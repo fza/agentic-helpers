@@ -61,6 +61,13 @@ func TestAGraphWriteHoldingACredentialIsRefused(t *testing.T) {
 			refuses(t, run(t, env, "gate", bash(newWithBody(sample))), leaked)
 		})
 
+		t.Run("a monitor's sdd new "+name, func(t *testing.T) {
+			env := areaProject(t)
+			ground(t, env)
+
+			refuses(t, run(t, env, "gate", with(bash(newWithBody(sample)), "tool_name", "Monitor")), leaked)
+		})
+
 		t.Run("a capture's draft "+name, func(t *testing.T) {
 			env := areaProject(t)
 			draft := draftHolding(t, env, sample)
