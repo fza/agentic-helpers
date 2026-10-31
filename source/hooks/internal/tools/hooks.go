@@ -431,8 +431,8 @@ func (lib *library) stop(ctx context.Context) int {
 
 		state.addPending(nudge{
 			Key: "copy\x00" + held.Copy + "\x00" + current,
-			Line: fmt.Sprintf("tool library: you changed your copy of `%s` (%s): `%s update %s --from %s --why '...'`",
-				held.Tool, held.Copy, self, held.Tool, held.Copy),
+			Line: fmt.Sprintf("tool library: you changed your copy of `%s`: `%s update %s --from %s --why '...'`",
+				held.Tool, self, held.Tool, held.Copy),
 		})
 	}
 

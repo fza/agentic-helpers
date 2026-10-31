@@ -102,7 +102,7 @@ Names, paths and commands only. Act on them:
 | `` tool library: newer versions of `x`. `` | `take x` again for the new copy |
 | `` tool library: `x` in <project> has v6; yours forked at v5 `` | look at the origin's change; update yours if it applies |
 | `tool library: your scratch holds scripts the library lacks: ...` | `add` the ones worth keeping |
-| `` tool library: you changed your copy of `x` (...) `` | `update x --from <copy> --why '...'` |
+| `` tool library: you changed your copy of `x`: ... `` | `update x --from <copy> --why '...'` |
 
 ## Environment
 
