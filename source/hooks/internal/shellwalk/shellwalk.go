@@ -486,10 +486,11 @@ func pipedCall(visitor Visitor, call *syntax.CallExpr) {
 }
 
 // redirectsInput is whether a statement's input is certainly no longer the
-// pipe: its last redirection of descriptor 0 is a here-document or
-// here-string, whose code the walk judges itself, or a file named by fixed
-// text that is not the input again. A duplicated descriptor (`0<&3`), a target
-// the shell builds at run time, or `/dev/stdin` may still be the pipe.
+// pipe: it redirects descriptor 0, and only to here-documents or here-strings,
+// whose code the walk judges itself. A file never counts: any name may be a
+// link to /dev/stdin, made earlier in the same command or before it, and a
+// duplicated descriptor (`0<&3`) may be the pipe. Every redirection counts,
+// not only the last, since zsh's MULTIOS feeds all of them to the command.
 func redirectsInput(statement *syntax.Stmt) bool {
 	replaced := false
 
@@ -501,11 +502,8 @@ func redirectsInput(statement *syntax.Stmt) bool {
 		switch redirect.Op {
 		case syntax.Hdoc, syntax.DashHdoc, syntax.WordHdoc:
 			replaced = true
-		case syntax.RdrIn, syntax.RdrInOut:
-			target, isLiteral := Literal(redirect.Word)
-			replaced = isLiteral && !Patterned(redirect.Word) && !StandardInput(target)
-		case syntax.DplIn:
-			replaced = false
+		case syntax.RdrIn, syntax.RdrInOut, syntax.DplIn:
+			return false
 		}
 	}
 
