@@ -1386,14 +1386,15 @@ that made it), `linked_from` (ids, superseded entries aside) and `attachments` (
 
 Set once per machine in `config.yaml` or the plugin's configuration dialog, as
 [plugin usage](../plugin/usage.md#options) layers them; no project overrides them. Keys marked
-`config.yaml` only are never read from the dialog; `embedding_endpoint` and `embedding_api_key_env`
-are never read from `config.yaml`, since any agent can write it and the two together could send any
-environment variable to a server the writer picks.
+`config.yaml` only are never read from the dialog; `embedding_endpoint`, `embedding_path` and
+`embedding_api_key_env` are never read from `config.yaml`, since any agent can write it: the endpoint
+and key variable together could send any environment variable to a server the writer picks, the path
+to a route there the writer picks.
 
 | Option | Sets |
 |---|---|
 | `embedding_provider` | where the embedder comes from: `auto` (sdd's, where sdd sets one) unless set, `openai` or `ollama` (the own options below), or `off` (none, and sdd never run for one) |
-| `embedding_model`, `embedding_endpoint`, `embedding_dimensions`, `embedding_api_key_env`, `embedding_timeout`, `embedding_query_template`, `embedding_document_template` | the own embedder search by meaning and prompt recall run on (see README `Embedder`) |
+| `embedding_model`, `embedding_endpoint`, `embedding_path`, `embedding_dimensions`, `embedding_api_key_env`, `embedding_timeout`, `embedding_query_template`, `embedding_document_template` | the own embedder search by meaning and prompt recall run on (see README `Embedder`) |
 | `embedding_source` | no longer in the plugin's dialog, still read where a layer sets it, and named at session start: `sdd` always takes sdd's embedder, `own` never runs sdd, `auto` changes nothing; an `off` provider wins over it |
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |

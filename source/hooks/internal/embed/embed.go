@@ -17,9 +17,12 @@ import (
 )
 
 type Config struct {
-	Provider   string
-	Model      string
-	Endpoint   string
+	Provider string
+	Model    string
+	Endpoint string
+	// Path is the OpenAI-compatible route joined to Endpoint, `/v1/embeddings`
+	// where empty; Ollama keeps `/api/embed`.
+	Path       string
 	Dimensions int
 	APIKey     string
 	// Timeout bounds one embedding call of a command or MCP tool.

@@ -214,7 +214,7 @@ func embeddingLines(ctx context.Context, env Env, resolution pluginconfig.Resolu
 	settled, err := embed.Settle(ctx, embed.Config{}, true, env.SddConfig, env.Dir)
 
 	switch {
-	case errors.Is(err, embed.ErrRepositoryEndpoint):
+	case errors.Is(err, embed.ErrRepositoryEndpoint), errors.Is(err, embed.ErrRepositoryPath):
 		lines = append(lines, err.Error()+", which a clone can bring along; search by meaning stays off until "+
 			"`sdd config set` sets it in sdd's global layer, or embedding_provider and embedding_endpoint set one here")
 	case underSdd && settled.Provider == "":

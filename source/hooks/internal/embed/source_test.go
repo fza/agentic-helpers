@@ -139,3 +139,32 @@ func TestAValueCarryingALayerMarkKeepsTheLineItsOwn(t *testing.T) {
 		t.Errorf("only the last parenthesis should name the layer, got %v", err)
 	}
 }
+
+func TestSettleTakesThePathOnlyFromALayerOutsideTheRepository(t *testing.T) {
+	const block = "embedding.provider  openai  (global)\nembedding.model  m  (global)\n"
+
+	cases := []struct {
+		layer   string
+		refused bool
+	}{
+		{layer: "global"},
+		{layer: "default"},
+		{layer: "project", refused: true},
+		{layer: "local", refused: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.layer, func(t *testing.T) {
+			sdd := &sddAnswer{text: block + "embedding.path  /v3/compat/embeddings  (" + tc.layer + ")\n"}
+
+			settled, err := embed.Settle(context.Background(), embed.Config{}, true, sdd, "/project")
+			if errors.Is(err, embed.ErrRepositoryPath) != tc.refused || (settled.Provider == "") != tc.refused {
+				t.Errorf("a path should apply only from a layer outside the repository, got %+v, %v", settled, err)
+			}
+
+			if !tc.refused && settled.Path != "/v3/compat/embeddings" {
+				t.Errorf("a path from a trusted layer should be taken, got %q", settled.Path)
+			}
+		})
+	}
+}

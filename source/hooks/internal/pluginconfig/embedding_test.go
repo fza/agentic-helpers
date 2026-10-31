@@ -193,3 +193,56 @@ func TestASetEmbeddingSourceKeepsApplyingFromEveryLayer(t *testing.T) {
 		})
 	}
 }
+
+// requestURL is where the embedder a configuration settles to sends its first
+// request, through a fake endpoint.
+func requestURL(t *testing.T, config embed.Config) string {
+	t.Helper()
+
+	fake := &test.Endpoint{}
+
+	embedder, err := embed.New(config, fake.Client(t))
+	if err != nil {
+		t.Fatalf("the settled embedder should be created: %v", err)
+	}
+
+	_, err = embedder.Embed(t.Context(), []string{"1"})
+	if err != nil || len(fake.Requests) != 1 {
+		t.Fatalf("one embedding should send one request: %v", err)
+	}
+
+	return fake.Requests[0].Address
+}
+
+func TestTheEmbeddingPathFromClaudeCodesSettingsReachesTheRequest(t *testing.T) {
+	settings := filepath.Join(t.TempDir(), "settings.json")
+	test.WriteFile(t, settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{`+
+		`"embedding_provider":"openai","embedding_model":"m","embedding_endpoint":"https://gateway.example",`+
+		`"embedding_path":"/v3/compat/embeddings"}}}}`)
+
+	resolution, err := pluginconfig.Resolve([]string{settings}, nil)
+	if err != nil || len(resolution.Problems) != 0 {
+		t.Fatalf("resolving should succeed without a problem: %v %v", err, resolution.Problems)
+	}
+
+	options := resolution.Options
+
+	settled, _ := embed.Settle(context.Background(), options.OwnEmbedding(nil), options.EmbeddingFromSdd(), nil, "/project")
+
+	address := requestURL(t, settled)
+	if address != "https://gateway.example/v3/compat/embeddings" {
+		t.Errorf("the request should go to the configured route on the endpoint, got %s", address)
+	}
+}
+
+func TestTheEmbeddingPathFromSddsBlockReachesTheRequest(t *testing.T) {
+	block := "embedding.provider  openai  (global)\nembedding.model  m  (global)\n" +
+		"embedding.endpoint  https://gateway.example  (global)\nembedding.path  /v3/compat/embeddings  (global)\n"
+
+	settled, _ := settledEmbedder(t, "", block)
+
+	address := requestURL(t, settled)
+	if address != "https://gateway.example/v3/compat/embeddings" {
+		t.Errorf("sdd's path should route the request under its block, got %s", address)
+	}
+}

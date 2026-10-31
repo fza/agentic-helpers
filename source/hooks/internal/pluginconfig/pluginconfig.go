@@ -2,7 +2,7 @@
 // built-in defaults, the agent-neutral `config.yaml`, the answers a user gave
 // Claude Code's `userConfig` dialog, then Claude Code's managed settings,
 // which win. `config.yaml` only tightens a guard and never sets the
-// embedder's endpoint or key variable, since any agent can write it. Claude
+// embedder's endpoint, path or key variable, since any agent can write it. Claude
 // Code exports the answers only to hook processes, so a command the Bash tool
 // runs from the plugin's `bin/` reads them from the settings files themselves.
 package pluginconfig
@@ -160,9 +160,12 @@ type Options struct {
 	EmbeddingSource string
 	// EmbeddingProvider is `auto` (sdd's embedder), an own provider, or `off`
 	// (none, sdd never run for one).
-	EmbeddingProvider   string
-	EmbeddingModel      string
-	EmbeddingEndpoint   string
+	EmbeddingProvider string
+	EmbeddingModel    string
+	EmbeddingEndpoint string
+	// EmbeddingPath is the OpenAI-compatible route joined to the endpoint;
+	// empty keeps `/v1/embeddings`.
+	EmbeddingPath       string
 	EmbeddingDimensions int
 	EmbeddingAPIKeyEnv  string
 	// EmbeddingTimeout bounds one embedding call of a command or MCP tool;
@@ -239,8 +242,8 @@ type Options struct {
 // Keys is every option the plugin reads, as `config.yaml`, a settings file
 // and the hook environment spell it.
 var Keys = []string{
-	"embedding_source", "embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions",
-	"embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
+	"embedding_source", "embedding_provider", "embedding_model", "embedding_endpoint", "embedding_path",
+	"embedding_dimensions", "embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
 	"entry_max_words", "state_stale_after_writes", "retired_body_lifetime", "tools_version_lifetime", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
@@ -279,14 +282,17 @@ var Renamed = map[string]struct {
 // NeverConfig is every key `config.yaml` never sets. Any agent can write that
 // file in one Bash call, where Claude Code's settings sit behind its permission
 // prompts: the embedder's endpoint and key variable together would send any
-// environment variable to a host the writer picks, and the tools whose output
+// environment variable to a host the writer picks, its path to a route there
+// the writer picks, and the tools whose output
 // is never scanned can only loosen shell-guard. The CLAUDE_PLUGIN_OPTION_<KEY>
 // environment never sets one either, since an agent can prefix its own command
 // with it; none is a `sensitive` option, so Claude Code keeps them in the
 // settings files Resolve reads anyway. CLAUDE_CONFIG_DIR stays honoured as
 // Claude Code's own contract, an accepted cost: redirecting it needs a settings
 // file the agent writes there, a visible step.
-var NeverConfig = []string{"embedding_endpoint", "embedding_api_key_env", "shell_guard_secret_output_skip"}
+var NeverConfig = []string{
+	"embedding_endpoint", "embedding_path", "embedding_api_key_env", "shell_guard_secret_output_skip",
+}
 
 // TightenOnly is every guard key `config.yaml` may only set at least as strict
 // as the layers below it, for the same reason: the file must not lift a guard.
@@ -645,6 +651,7 @@ func (options *Options) fields() fields {
 		texts: map[string]*string{
 			"embedding_model":                &options.EmbeddingModel,
 			"embedding_endpoint":             &options.EmbeddingEndpoint,
+			"embedding_path":                 &options.EmbeddingPath,
 			"embedding_api_key_env":          &options.EmbeddingAPIKeyEnv,
 			"embedding_query_template":       &options.EmbeddingQueryTemplate,
 			"embedding_document_template":    &options.EmbeddingDocumentTemplate,
@@ -1079,7 +1086,8 @@ func number(raw json.RawMessage) (int, error) {
 // embeddingKeys is every own embedding option an `sdd` source ignores, in
 // the order the options list them.
 var embeddingKeys = []string{
-	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_dimensions", "embedding_api_key_env",
+	"embedding_provider", "embedding_model", "embedding_endpoint", "embedding_path", "embedding_dimensions",
+	"embedding_api_key_env",
 	"embedding_timeout", "embedding_query_template", "embedding_document_template",
 }
 
@@ -1113,6 +1121,7 @@ func (options Options) OwnEmbedding(getenv func(string) string) embed.Config {
 		Provider:         provider,
 		Model:            options.EmbeddingModel,
 		Endpoint:         options.EmbeddingEndpoint,
+		Path:             options.EmbeddingPath,
 		Dimensions:       options.EmbeddingDimensions,
 		Timeout:          options.EmbeddingTimeout,
 		QueryTemplate:    options.EmbeddingQueryTemplate,
