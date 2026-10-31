@@ -15,7 +15,7 @@ agentic-memory ack <id>... --done | --decline '<why>'   # settle what no tool ca
   tells nothing. Once per session; again after a compaction.
 - **A rule owed at a moment → `--on claim|compact`**, the user's rules only, `--proof <trigger>` for
   the call that proves it. `do now (<moment>):` then numbered items, before the brief → do each
-  now, first. `proof: <trigger>` → the matching tool call settles it. `ack when done` → do it, then
+  now, first (the brief's rules section leaves them out). `proof: <trigger>` → the matching tool call settles it. `ack when done` → do it, then
   `ack <id> --done`; can't → `ack <id> --decline '<why>'`, and tell the user why.
 - **User says something never goes into memory** → a rule with `--forbids '<regex>'` (RE2,
   `(?i)` for any case), quoting the user. `forbidden by <rule id> <rule title>` / `matched: "..."`

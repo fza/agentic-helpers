@@ -168,7 +168,7 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - **Each entry prints once per context.** Brief, recall, search, view or show already printed it, unchanged
   since → `<id> <title> (seen)` in its place (JSON `{"id", "title", "seen": true}`, a search hit's
   with its score); the full text
-  is above in your context. `show` after a search line still prints the body. Compaction, `/clear`,
+  is above in your context. In the brief a run of them → `<n> seen above, unchanged`. `show` after a search line still prints the body. Compaction, `/clear`,
   resume → full again. A fresh subagent (not a fork) shares your session and never saw them: it passes
   `--again` (MCP `"again": true`) on every read.
 

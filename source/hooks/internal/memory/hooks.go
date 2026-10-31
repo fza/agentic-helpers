@@ -184,9 +184,10 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 
 			folded, err := mem.load(ctx)
 			if err == nil {
-				mem.say(mem.doNow(folded, name, onCompact, held.SessionID))
+				owed, named := mem.doNow(folded, name, onCompact, held.SessionID)
+				mem.say(owed)
 				mem.say(mem.seatScratch(name))
-				mem.say(mem.brief(ctx, mem.checkout(ctx), folded, name))
+				mem.say(mem.brief(ctx, mem.checkout(ctx), folded, name, named))
 			}
 		}
 
@@ -1089,7 +1090,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 
 	for _, held := range hits {
 		lines = append(lines, "  "+shortLine(here, held, seatName, mem.now()))
-		lines = append(lines, citingLines(held, listed, "    ")...)
+		lines = append(lines, citingLines(held, listed, seatName, "    ")...)
 		ids = append(ids, presentedKey(here, held))
 	}
 

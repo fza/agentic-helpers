@@ -72,7 +72,8 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
   which this sdd lacks` → name it in the body, where it stays text; never retry. Lines name it
   `fdbox:<id>`, `show` the full id.
 - `unlink` removes links from `--link` / `link` only. A link named in text cannot be unlinked.
-- **`← <id> <title>`** under a hit = a newer entry citing it. Often the fix or the follow-up.
+- **`← <id> <title>`** under a hit = a newer entry citing it. Often the fix or the follow-up. The
+  bracket names its seat only when not yours; `(retired)` after it → that citer ended.
 
 ## JSON
 

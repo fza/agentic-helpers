@@ -793,7 +793,8 @@ folds the ended ones into a count, the brief's, recall's, `search`'s and `view`'
 chain being one; `show --with-superseded` (MCP `with_superseded`) lists them. A retired entry linking
 in stays listed: it ended, and nothing replaced it. Recall and the brief name, under a hit, up to two
 entries linking to it that were filed after it and not superseded, newest first, title only:
-`← <id> <title> [<seat>, <date>]`. A
+`← <id> <title> [<seat>, <date>]`, the seat only where it is not the reader's, and `(retired)` after
+a citer that was retired. A
 filing names up to three similar entries of the same seat, one line each,
 `similar: <id> <title> (<score>)`: entries that stand two deviations above the rest by meaning and
 score at least 0.6, or share enough words where no embedder answers. The same finding →
@@ -1084,6 +1085,10 @@ its place, keeping its rank:
 
     m-1oqsjs Gate reads Bash only (seen)
 
+In the brief, a run of such entries within one section folds into one line, `<n> seen above,
+unchanged`; a lone one keeps its pointer, and so does one a citer line follows. The fold holds only
+inside one context: what the seen set marks empties where the context does.
+
 Over MCP and `--json` such an entry is `{"id", "title", "seen": true}`, a ranked search hit's with
 its `score` too, as its pointer line prints it after the id. A read asking for more than
 was printed prints in full: `show` after a search line prints the body. An entry that changed since
@@ -1109,7 +1114,10 @@ and the topics. It stays within 9,000 characters; rules
 take at most a third of that, and past it the brief says
 `rules exceed a third of the brief: <n>; retire or rekind some`. Notes print the hottest up to the
 plugin option `brief_note_limit`, 10 unless set, then
-`+<n> more notes: agentic-memory brief --kind note`; traps and todos print whole.
+`+<n> more notes: agentic-memory brief --kind note`; traps and todos print whole. A rule the do-now
+list above the brief names (see [Do-now rules](#do-now-rules)) stays out of the rules section, and
+`new from other seats:` leaves out every entry a section above printed, an entry filed for the seat
+among them.
 `brief --kind rule|trap|todo|note` (MCP key `kind`) lists one kind's live entries whole, as
 `brief --topic <name>` lists one topic's and those below it, as `topic(<name>)` reads it.
 

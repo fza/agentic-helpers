@@ -217,5 +217,5 @@ func (mem *memory) moved(ctx context.Context, seatName string, held seat.Claim) 
 	}
 
 	return fmt.Sprintf("%s: seat moved from %s to %s (shelf %s)\n%s", self, from, seatName,
-		mem.shelfName(mem.shelfOf(seatName)), mem.brief(ctx, mem.checkout(ctx), folded, seatName))
+		mem.shelfName(mem.shelfOf(seatName)), mem.brief(ctx, mem.checkout(ctx), folded, seatName, nil))
 }

@@ -37,6 +37,20 @@ func (held *budget) add(text string) bool {
 	return true
 }
 
+// addSeen adds the line standing for run, entries whose lines already stand in
+// the context: a lone one's pointer, else their count. An empty run adds
+// nothing.
+func (held *budget) addSeen(run []*entry) bool {
+	switch len(run) {
+	case 0:
+		return true
+	case 1:
+		return held.add("  " + pointer(run[0]))
+	}
+
+	return held.add(fmt.Sprintf("  %d seen above, unchanged", len(run)))
+}
+
 type briefMark struct {
 	At time.Time `json:"at"`
 }
@@ -83,7 +97,7 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 		return done(mem.topicBrief(here, folded, name, req.Topics))
 	}
 
-	return done(mem.brief(ctx, here, folded, name))
+	return done(mem.brief(ctx, here, folded, name, nil))
 }
 
 // kindBrief is every live entry of one kind the seat holds, hottest first,
@@ -210,7 +224,9 @@ func (mem *memory) lowSpace() string {
 // brief is what a fresh context gets: the seat's state slot, what other seats
 // changed since its last brief, its live rules, traps, todos and notes, each by
 // heat, what other seats filed, then the topics. Claim and compaction share it.
-func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName string) string {
+// The rules named in above, the do-now list printed before it, stay out of its
+// rules section.
+func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName string, above map[string]bool) string {
 	defer mem.presenting(ctx, false)()
 
 	since := mem.previousBrief(seatName)
@@ -318,6 +334,11 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 	for _, section := range sections {
 		page, kept := scope.run(section)
+		if section.name == rulesHeading {
+			page = slices.DeleteFunc(slices.Clone(page), func(held *entry) bool { return above[held.id] })
+			kept = page
+		}
+
 		if len(kept) == 0 {
 			continue
 		}
@@ -329,9 +350,23 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		// conditions, so both print whole.
 		if section.name == rulesHeading {
 			third := &budget{limit: briefBudget / 3}
+
+			var run []*entry
+
 			for _, held := range page {
+				if mem.seen.hasLine(held) {
+					run = append(run, held)
+
+					continue
+				}
+
+				third.addSeen(run)
+				run = nil
+
 				mem.addLine(third, "  ", held, shortLine(here, held, seatName, now))
 			}
+
+			third.addSeen(run)
 
 			for _, text := range third.lines {
 				out.add(text)
@@ -344,7 +379,33 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 			continue
 		}
 
+		var run []*entry
+
+		closeRun := func() {
+			if out.addSeen(run) {
+				for _, held := range run {
+					printed[held.id] = true
+				}
+			} else {
+				missing += len(run)
+			}
+
+			run = nil
+		}
+
 		for _, one := range page {
+			// A seen entry stands for its line and its items, both printed
+			// before; a run of them folds into one line, unless a citer
+			// follows one.
+			cited := citingLines(one, listed, seatName, "    ")
+			if mem.seen.hasLine(one) && len(cited) == 0 {
+				run = append(run, one)
+
+				continue
+			}
+
+			closeRun()
+
 			extra := flagged[one.id]
 
 			count, items := folded.briefItems(one, "    ")
@@ -352,7 +413,6 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 				extra = append(slices.Clone(extra), count)
 			}
 
-			// A pointer stands for the line and its items, both printed before.
 			fresh := !mem.seen.hasLine(one)
 
 			if !mem.addLine(out, "  ", one, shortLine(here, one, seatName, now, extra...)) {
@@ -369,10 +429,12 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 				}
 			}
 
-			for _, cited := range citingLines(one, listed, "    ") {
-				out.add(cited)
+			for _, text := range cited {
+				out.add(text)
 			}
 		}
+
+		closeRun()
 
 		if capped := len(kept) - len(page); capped > 0 {
 			out.add(fmt.Sprintf("+%d more notes: %s brief --kind note", capped, self))
@@ -398,7 +460,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	var news []*entry
 
 	for _, held := range folded.entryList() {
-		if !mem.onShelf(held, seatName) && held.status == statusLive && held.filed.After(since) {
+		if !mem.onShelf(held, seatName) && held.status == statusLive && held.filed.After(since) && !printed[held.id] {
 			news = append(news, held)
 		}
 	}
@@ -408,9 +470,22 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	if len(news) > 0 {
 		out.add("new from other seats:")
 
+		var run []*entry
+
 		for _, held := range news {
+			if mem.seen.hasLine(held) {
+				run = append(run, held)
+
+				continue
+			}
+
+			out.addSeen(run)
+			run = nil
+
 			mem.addLine(out, "  ", held, shortLine(here, held, seatName, now))
 		}
+
+		out.addSeen(run)
 	}
 
 	counts := mem.topicCounts(folded)
