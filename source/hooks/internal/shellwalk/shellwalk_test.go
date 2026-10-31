@@ -393,6 +393,75 @@ func TestTheWalkReadsTheScriptsACommandRuns(t *testing.T) {
 	}
 }
 
+func TestTheWalkFollowsACdWhatFollowsRunsOnlyAfter(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolving the test root: %v", err)
+	}
+
+	test.WriteFile(t, filepath.Join(root, "sub", "build.sh"), test.Fixture(t, "shellguard/scripts/build.sh"))
+
+	const read = "script ./build.sh: #!/bin/sh\necho building in {root}/sub"
+
+	const lost = "unread ./build.sh: the directory it runs in is not known"
+
+	cases := []struct {
+		name    string
+		command string
+		events  []string
+	}{
+		{
+			name: "a cd guarded by exit", command: "cd sub || exit 1; ./build.sh",
+			events: []string{"call cd sub in {root}", "call exit 1 in {root}/sub", "call ./build.sh in {root}/sub", read},
+		},
+		{
+			name: "a cd guarded by a bare return", command: "cd sub || return; ./build.sh",
+			events: []string{"call cd sub in {root}", "call return in {root}/sub", "call ./build.sh in {root}/sub", read},
+		},
+		{
+			name: "a cd behind another command in a chain", command: "make && cd sub && ./build.sh",
+			events: []string{"call make in {root}", "call cd sub in {root}", "call ./build.sh in {root}/sub", read},
+		},
+		{
+			name: "a statement after a chain with a cd behind another command", command: "make && cd sub && true; ./build.sh",
+			events: []string{"call make in {root}", "call cd sub in {root}", "call true in {root}/sub", "call ./build.sh", lost},
+		},
+		{
+			name: "a statement after a chain a cd opens", command: "cd sub && make; ./build.sh",
+			events: []string{"call cd sub in {root}", "call make in {root}/sub", "call ./build.sh in {root}/sub", read},
+		},
+		{
+			name: "a cd followed by something else on failure", command: "cd sub || echo no; ./build.sh",
+			events: []string{"call cd sub in {root}", "call echo no", "call ./build.sh", lost},
+		},
+		{
+			name: "a cd guarded by an exit given too many operands", command: "cd sub || exit 1 2; ./build.sh",
+			events: []string{"call cd sub in {root}", "call exit 1 2", "call ./build.sh", lost},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			file, err := shellwalk.Parse(tc.command)
+			if err != nil {
+				t.Fatalf("parsing: %v", err)
+			}
+
+			recorder := &test.WalkRecorder{}
+			shellwalk.WalkWith(file, recorder, shellwalk.Scripts{Files: test.TreeFiles{Roots: []string{root}}, Dir: root})
+
+			want := make([]string, 0, len(tc.events))
+			for _, event := range tc.events {
+				want = append(want, strings.ReplaceAll(event, "{root}", root))
+			}
+
+			if !slices.Equal(recorder.Events, want) {
+				t.Errorf("the walk should place the script where the cd certainly took the shell, got: %q", recorder.Events)
+			}
+		})
+	}
+}
+
 func TestAWalkWithoutScriptsReadsNone(t *testing.T) {
 	file, err := shellwalk.Parse("bash none.sh; ./x")
 	if err != nil {

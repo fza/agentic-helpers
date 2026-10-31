@@ -146,9 +146,15 @@ the call keeps every rule: `mktemp && bash x.sh` is still refused.
   `#!` line, and a file holding
   a NUL byte in its first 8000 bytes (a binary), not at all.
 - **Where it is read from**: the session's working directory, moved by a `cd` with a fixed operand
-  that is a statement of its own or opens an `&&` chain of such cds (`cd sub && bash x.sh`), to a
-  directory that exists. Any other move (a `cd` in a subshell, behind another command or to a
-  variable, `pushd`, `popd`, a sourced script that moves) loses the place, and a launcher's chdir
+  naming a directory that exists, in three forms, each one where what follows runs only where the
+  `cd` took the shell. A `cd` that is a statement of its own or opens an `&&` chain of such cds
+  (`cd sub && bash x.sh`) moves every later statement; `cd sub || exit 1` or `cd sub || return`
+  does too, since a failed `cd` ends the shell or function there. A `cd` behind another command in a
+  top-level `&&` chain (`make && cd sub && ./x.sh`) moves the rest of that chain only: a statement
+  after the chain loses the place, since it runs whether or not the chain got as far as the `cd`.
+  Any other move (a `cd` in a subshell, a function or a branch, one followed by `|| echo` or
+  anything but `exit` or `return`, one to a variable, `pushd`, `popd`, a sourced script that moves)
+  loses the place, and a launcher's chdir
   option (`env -C`, `sudo -D`) loses it for what it runs. Code handed to `bash -c`, `eval` or a
   shell's here-document runs where the command stands; code run later (`trap`, `tmux`, `sched`,
   zsh functions) has no place.

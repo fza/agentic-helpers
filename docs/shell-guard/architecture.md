@@ -230,11 +230,16 @@ taking the word after `--`), the file `source` or `.` reads, or a command named 
 holding `/` whose base name is no shell, launcher or interpreter. Only a call the walk is certain
 runs counts. fish is left out: its syntax is no shell's the parser reads.
 
-The walk keeps the directory the shell is in (`walker.dir`). A `cd` moves it only where it is a
-statement of the command's own, or opens an `&&` chain of such cds (`plainDirectoryMoves`), with a
-fixed operand (none means home, `-` and zsh's two operands mean unknown) naming a directory that
-exists. Every other directory move a call makes (`shellwalk.MovesDirectory`) loses the place for
-the rest of the command; a launcher's chdir option loses it only for what that call launches. A
+The walk keeps the directory the shell is in (`walker.dir`). A `cd` moves it only where what
+follows runs only once the `cd` succeeded (`followedMoves`), with a fixed operand (none means home,
+`-` and zsh's two operands mean unknown) naming a directory that exists: a statement of the
+command's own, or the opening of an `&&` chain of such cds, moves every later statement; so does
+the `cd` of a `cd <dir> || exit [n]` or `|| return [n]` statement (`guardedMove`; `exit` given two
+operands fails and ends nothing, so is none). A `cd` behind another command in a top-level `&&`
+chain moves the rest of that chain, and the statement after the chain (`directoryMoves.lost`)
+starts with no place, since the chain may have stopped before the `cd`. `cd <dir> || <anything
+else>` is none: on failure what follows runs in the old directory. Every other directory move a call
+makes (`shellwalk.MovesDirectory`) loses the place for the rest of the command; a launcher's chdir option loses it only for what that call launches. A
 sourced script that cannot be read or holds a directory move of its own loses it too, since it runs
 in the shell itself. Each call carries its place as `Call.Dir`, and code another program runs
 carries one to its `Code` event: the call's for `eval`, a shell's `-c`, `npx -c`, `pnpm exec -c` and

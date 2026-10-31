@@ -87,46 +87,110 @@ type writtenScript struct {
 // walker carries what a walk follows from one call to the next: the directory
 // the shell is in, "" once it cannot tell, and what the command writes.
 type walker struct {
-	visitor    Visitor
-	scripts    Scripts
-	reading    bool
-	dir        string
-	plainMoves map[*syntax.CallExpr]bool
-	written    map[string]writtenScript
+	visitor Visitor
+	scripts Scripts
+	reading bool
+	dir     string
+	moves   directoryMoves
+	written map[string]writtenScript
 	// writesUnknown is a write earlier in the command to a path the walk
 	// cannot place: any script after it may be what it wrote.
 	writesUnknown bool
 }
 
-// plainDirectoryMoves are the `cd` calls whose move the walk follows: each a
-// statement of the command's own, or the opening of an `&&` chain of such
-// cds, so whatever runs after it runs where it went. A cd in a subshell, a
-// pipeline, a function, a branch or behind another command is none.
-func plainDirectoryMoves(node syntax.Node) map[*syntax.CallExpr]bool {
-	plain := map[*syntax.CallExpr]bool{}
+// directoryMoves / followed are the `cd` calls whose move the walk follows;
+// lost the statements of the command's own that start where the walk can no
+// longer tell, since the chain before them may have stopped short of its cd.
+type directoryMoves struct {
+	followed map[*syntax.CallExpr]bool
+	lost     map[*syntax.Stmt]bool
+}
+
+// followedMoves finds the cds a walk follows, each one whatever runs after
+// it runs only where it went. A cd that is a statement of the command's own,
+// or that opens an `&&` chain of such cds, moves every later statement. A cd
+// behind another command in a top-level `&&` chain moves the rest of that
+// chain only: the next statement runs whether or not the chain got as far as
+// the cd. `cd <dir> || exit [n]` and `|| return [n]` move every later
+// statement, since a failed cd ends the shell or function there. A cd in a
+// subshell, a pipeline, a function, a branch or before `||` anything else is
+// none: on failure what follows runs where the shell was.
+func followedMoves(node syntax.Node) directoryMoves {
+	moves := directoryMoves{followed: map[*syntax.CallExpr]bool{}, lost: map[*syntax.Stmt]bool{}}
 
 	file, isFile := node.(*syntax.File)
 	if !isFile {
-		return plain
+		return moves
 	}
 
-	for _, statement := range file.Stmts {
+	for index, statement := range file.Stmts {
+		guarded := guardedMove(statement)
+		if guarded != nil {
+			moves.followed[guarded] = true
+
+			continue
+		}
+
+		behind := false
+
 		for _, element := range andChain(statement) {
-			call := plainCall(element)
-			if call == nil || CommandName(call.Args[0]) != "cd" {
-				break
+			call := directoryMove(element)
+			if call == nil {
+				behind = true
+
+				continue
 			}
 
-			_, literal := Literal(call.Args[0])
-			if !literal {
-				break
-			}
+			moves.followed[call] = true
 
-			plain[call] = true
+			if behind && index+1 < len(file.Stmts) {
+				moves.lost[file.Stmts[index+1]] = true
+			}
 		}
 	}
 
-	return plain
+	return moves
+}
+
+func directoryMove(statement *syntax.Stmt) *syntax.CallExpr {
+	call := plainCall(statement)
+	if call == nil || CommandName(call.Args[0]) != "cd" {
+		return nil
+	}
+
+	_, literal := Literal(call.Args[0])
+	if !literal {
+		return nil
+	}
+
+	return call
+}
+
+// guardedMove is the cd of a `cd <dir> || exit [n]` or `|| return [n]`
+// statement, or nil. Given more than one operand, exit and return fail and
+// end nothing.
+func guardedMove(statement *syntax.Stmt) *syntax.CallExpr {
+	binary, isBinary := statement.Cmd.(*syntax.BinaryCmd)
+	if !isBinary || binary.Op != syntax.OrStmt || !plainStatement(statement) {
+		return nil
+	}
+
+	call := directoryMove(binary.X)
+	if call == nil {
+		return nil
+	}
+
+	ends := plainCall(binary.Y)
+	if ends == nil || len(ends.Args) > 2 {
+		return nil
+	}
+
+	name, literal := Literal(ends.Args[0])
+	if !literal || name != "exit" && name != "return" {
+		return nil
+	}
+
+	return call
 }
 
 func andChain(statement *syntax.Stmt) []*syntax.Stmt {
@@ -164,7 +228,7 @@ func (walked *walker) call(expr *syntax.CallExpr) {
 	dir := walked.dir
 	launchedDir := dir
 
-	if walked.plainMoves[expr] {
+	if walked.moves.followed[expr] {
 		walked.dir = walked.changeDirectory(args[1:])
 	} else {
 		for _, start := range Certain(args) {
