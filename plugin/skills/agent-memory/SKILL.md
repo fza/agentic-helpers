@@ -44,7 +44,7 @@ store's `identity.json`: `bind` and `merge` do.
 ```bash
 agentic-memory claim <seat>        # prints brief + last turns of the previous session, and the seat's scratch folder
 agentic-memory release [<seat>]
-agentic-memory who [--all] [--unused] # seats, shelves, state, filed / used (14d); frees dead holders
+agentic-memory who [--all] [--unused] # seats, shelves, state, filed / used over 14d; frees dead holders
 agentic-memory rename '<new name>' # this seat; id and entries stay
 agentic-memory private on|off      # hide this seat from other projects' who --all, or show it
 ```
@@ -188,7 +188,8 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
   instruction ---`). Still holds → `confirm <id>`. Target closed or superseded → read the successor.
 - **Only use warms** (`confirm`, `show`, `link`, a search's top hits); heat orders the brief. A read
   nobody asked for (sweep, script, loop) → `--no-heat` (MCP `"no_heat": true`).
-- `who` shows `filed <n> / used <m> (14d)`. Filing far more than using → file less, retire unread.
+- `who` rows end `filed <n> / used <m>`, counted over the 14d its header names; a row names its shelf
+  only when not the seat's. Filing far more than using → file less, retire unread.
   Free seats with `filed 0 / used 0` are counted, not listed: `+<n> unused seats: agentic-memory who
   --unused`. A seat the user names is missing from `who` → run that.
 

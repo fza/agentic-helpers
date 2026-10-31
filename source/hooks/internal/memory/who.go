@@ -29,11 +29,17 @@ func (mem *memory) who(ctx context.Context, req request) result {
 
 	here := ""
 
+	// firstRows is the block holding the first seat rows, which the header
+	// opens; none where no block lists a seat.
+	firstRows := -1
+
 	if mem.storeExists() {
 		here = mem.key
 
 		rows := seatLines(mem.seatRecords(ctx, mem.mayFree(ctx)), req.Unused, self+" who --unused")
-		if len(rows) == 0 {
+		if len(rows) > 0 {
+			firstRows = 0
+		} else {
 			rows = []string{"no seat in this project"}
 		}
 
@@ -42,21 +48,29 @@ func (mem *memory) who(ctx context.Context, req request) result {
 		blocks = append(blocks, "no seat in this project")
 	}
 
-	if !req.All {
-		return done(blocks[0])
+	if req.All {
+		for _, held := range mem.otherStores(here) {
+			other := mem.sibling(held.ID)
+
+			rows := seatLines(public(other.seatRecords(ctx, false)), req.Unused, self+" who --all --unused")
+			if len(rows) > 0 {
+				blocks = append(blocks, held.Name()+" ("+held.ID+"):\n"+indent(rows))
+				if firstRows < 0 {
+					firstRows = len(blocks) - 1
+				}
+			}
+		}
 	}
 
-	for _, held := range mem.otherStores(here) {
-		other := mem.sibling(held.ID)
-
-		rows := seatLines(public(other.seatRecords(ctx, false)), req.Unused, self+" who --all --unused")
-		if len(rows) > 0 {
-			blocks = append(blocks, held.Name()+" ("+held.ID+"):\n"+indent(rows))
-		}
+	if firstRows >= 0 {
+		blocks[firstRows] = whoHeader + "\n" + blocks[firstRows]
 	}
 
 	return done(strings.Join(blocks, "\n\n"))
 }
+
+// whoHeader names the window every row's figures count, once above them.
+const whoHeader = "seats, filed / used in the last 14d:"
 
 // whoJSON is who's answer for a program: every seat of this project, and
 // with --all every other project's, each naming its project.
@@ -322,16 +336,30 @@ func seatLines(rows []seatRow, every bool, listsUnused string) []string {
 		seats = max(seats, len([]rune(row.seat)))
 	}
 
+	// A shelf named as its seat says nothing the seat's name does not; the
+	// column stays only where some seat sits on a shelf of another name.
+	shelfColumn := func(row seatRow) string {
+		if row.shelf == row.seat {
+			return ""
+		}
+
+		return "shelf " + row.shelf
+	}
+
 	shelves := 0
 	for _, row := range rows {
-		shelves = max(shelves, len([]rune(row.shelf)))
+		shelves = max(shelves, len([]rune(shelfColumn(row))))
 	}
 
 	lines := make([]string, 0, len(rows)+1)
 	for _, row := range rows {
-		line := fmt.Sprintf("%s%s  shelf %s%s  %s  filed %d / used %d (14d)", row.seat,
-			strings.Repeat(" ", seats-len([]rune(row.seat))), row.shelf, strings.Repeat(" ", shelves-len([]rune(row.shelf))),
-			row.state, row.usage.filed, row.usage.used)
+		shelf := ""
+		if shelves > 0 {
+			shelf = "  " + shelfColumn(row) + strings.Repeat(" ", shelves-len([]rune(shelfColumn(row))))
+		}
+
+		line := fmt.Sprintf("%s%s%s  %s  filed %d / used %d", row.seat, strings.Repeat(" ", seats-len([]rune(row.seat))),
+			shelf, row.state, row.usage.filed, row.usage.used)
 		if row.private {
 			line += "  private"
 		}

@@ -1295,14 +1295,17 @@ answer carries are the ones below. The command line keeps its text and its `--js
 `agentic-memory who` lists the seats of the current project, one row each, grouped by shelf, then
 by seat:
 
-    impl   shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET  filed 6 / used 2 (14d)
-    rev    shelf row-7ah  reserved a1b2c3d4  filed 0 / used 0 (14d)
-    main   shelf main     free  filed 3 / used 5 (14d)
-    gone   shelf gone     free (holder a1b2c3d4 gone, freed)  filed 0 / used 0 (14d)
+    seats, filed / used in the last 14d:
+    impl  shelf row-7ah  c3fb65eb pid 200  since 2026-10-25 23:10 CET  filed 6 / used 2
+    rev   shelf row-7ah  reserved a1b2c3d4  filed 0 / used 0
+    main                 free  filed 3 / used 5
+    gone                 free (holder a1b2c3d4 gone, freed)  filed 0 / used 0
     +12 unused seats: agentic-memory who --unused
 
 Each row ends with the seat's entries filed in the last 14 days and how many of all its entries a
-use warmed in that time (see [Search](#search)), so a seat filing far more than it uses shows it.
+use warmed in that time (see [Search](#search)), so a seat filing far more than it uses shows it;
+the header names that window once. A row names its shelf only where the shelf's name is not the
+seat's.
 
 A free seat with `filed 0 / used 0` is left out and counted in the block's last line, `+<n> unused
 seats: agentic-memory who --unused`; `who --unused` (MCP `unused`) lists it too. Every seat ever claimed stays in
