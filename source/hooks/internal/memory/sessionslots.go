@@ -24,7 +24,7 @@ const (
 
 // sessionPurposes are the keys a session's own state goes under: what the
 // housekeeping reclaims once nobody came back to it.
-var sessionPurposes = []string{"shown/", "ladder/", "graph-seen/", "fork/", "waiter/", "migration-failed/"}
+var sessionPurposes = []string{"shown/", "ladder/", "graph-seen/", "fork/", "waiter/", "migration-failed/", "instructions/"}
 
 func (mem *memory) slotFile() *slots.File {
 	file := slots.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), sessionSlotsName), sessionSlotWidth)

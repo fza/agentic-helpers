@@ -1,8 +1,9 @@
 # agentic-helpers
 
 A coding agent forgets. When its context fills up, the session is summarised and the next one
-starts from scratch. It answers questions about a project from whatever it read last, and it leaves
-probes and half-finished drafts lying around.
+starts from scratch. An instruction written into `CLAUDE.md` while it runs never reaches it. It
+answers questions about a project from whatever it read last, and it leaves probes and
+half-finished drafts lying around.
 
 agentic-helpers is a Claude Code plugin that builds better habits into every session. It adds hooks
 that run on their own, commands the agent can call, and one skill per piece that explains the piece
@@ -10,7 +11,7 @@ to the agent. Memory and the tool library are also available as MCP servers, `me
 
 | Piece | Command | What it does |
 |---|---|---|
-| memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session |
+| memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session, and tells every running session to re-read an instruction file it loaded once that file changes |
 | tool library | `agentic-tools` | Shares helper scripts between agents, so none is written twice |
 | scratch sweep | `agentic-scratch` | Gives each seat or session one place for throwaway files, and empties it when the work ends |
 | grounding gate | `agentic-grounding-gate` | Makes the agent read the decision graph before it asks, drafts or captures |
@@ -37,6 +38,11 @@ project's decision graph under `.sdd/`.
   options turn it off.
 - **The hooks and commands are Go binaries** built from `source/hooks`. Each release publishes them,
   and the plugin downloads them.
+- **Instructions reach sessions already running.** When `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`
+  or another file they import, a nested instruction file or `~/.claude/CLAUDE.md` changes, every
+  running session that loaded it, in a project using memory, is told to re-read it at its next
+  prompt or tool call, seat or none. An instruction written mid-session holds everywhere from then
+  on, not from the next session.
 - **Claude Code only.** The hooks read Claude Code's payloads, settings and transcripts. No other
   agent is tested or supported.
 

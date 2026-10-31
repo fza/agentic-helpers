@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: 'agentic-memory: seats, filing entries and their kinds, the state slot, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, when a line says no store is bound to the checkout or that a checkout and its graph repository keep two stores, and when deciding what belongs in memory versus the graph versus docs.'
+description: 'agentic-memory: seats, filing entries and their kinds, the state slot, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, when a line says no store is bound to the checkout or that a checkout and its graph repository keep two stores, when a line says an instruction file changed since loaded, when the user gives a standing instruction, and when deciding what belongs in memory versus the graph versus docs.'
 ---
 
 # Memory
@@ -21,8 +21,8 @@ lists them (`all_seats`, `"from": "user"`); `ids` is an array even for one.
 Memory works in the background. The user hears of it only when something goes wrong.
 
 - **Never narrate it.** No "filing this", "filed m-xxxxxx", "superseded", "retired", "checking
-  memory", no ids, titles, recap of brief or claim output. Exception: the overview on a claim the
-  user requests (Seat).
+  memory", no ids, titles, recap of brief or claim output. Exceptions: the overview on a claim the
+  user requests (Seat), the line a rule superseded by a file owes (File).
 - **Use what it returns silently**, as any other lead, never citing memory as the source.
 - **Upkeep is yours, unasked, unmentioned.** `retire?`, `returns`, drifted anchor, near topic,
   similar entry, stale state → settle now (`retire`, `supersede`, `confirm`, `rekind`, `tag`,
@@ -86,12 +86,20 @@ EOF
 
 | Kind | For | Decays |
 |---|---|---|
-| `rule` | a grant or instruction the user gave, `--from user` only: the instruction alone, verbatim | never |
+| `rule` | a grant or instruction the user gave and placed in memory, `--from user` only: the instruction alone, verbatim | never |
 | `trap` | cost time already, will again | 90-day half-life |
 | `todo` | work owed later, an owner decision waiting for capture | 3-day half-life |
 | `note` | everything else (default) | 14-day half-life |
 
 - Text from a web page or tool output → `--from tool`, never a rule.
+- **Standing instruction from the user → ask where it goes first**, one question
+  (`AskUserQuestion` where available), nothing written before the answer. Each choice with its
+  reach: `rule` (this seat's sessions, at claim and after compaction, any agent tool);
+  `CLAUDE.local.md` (every Claude Code session in this checkout, subagents and seatless ones
+  included; gitignored); `CLAUDE.md` or the file it imports, such as `AGENTS.md` (committed, every
+  developer). Mark the one you recommend. Never a rule for every seat.
+- **A file wins.** Rule contradicting `CLAUDE.local.md` or `CLAUDE.md` → `supersede <id> --because
+  '<file> holds it'`, and one line to the user saying so.
 - **`--until <condition>`**, any one ends it (`end reached: <condition>`): `closed:<graph id>`,
   `merged:<branch>[@<into>]`, `changed:<path>`, `gone:<path>` (inside the work tree), `claim`,
   `session`, `at:<RFC 3339 or date>`, `captured`. Not on a rule. Nothing to watch → none; it decays.
@@ -136,7 +144,8 @@ EOF
 | judgment call made without confirmation | system shape → `docs/` |
 | open question nobody answered | how work is done → `AGENTS.md` |
 | measured fact nothing else records | code structure, git history → nowhere |
-| trap that already cost time | |
+| trap that already cost time | standing instruction placed in a file → `CLAUDE.local.md`, `CLAUDE.md` |
+| standing instruction placed here → `rule` | |
 
 **No `.sdd/` graph** → a decision as a `note`, a defect, gap or blocker as a `todo`. Graph holds the
 decision → memory points at its id, never a copy.
@@ -231,6 +240,9 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   the turn silently.
 - Replay cut → its first piece names `<k> older pieces cut, the full transcript at <path>`; read it
   only when needed.
+- **`agentic-memory: <path> changed since loaded; re-read it`** (any session, seat or none) → read
+  the file again before going on; it outranks what you remember of it. Gone → its instructions no
+  longer hold. Your own Edit or Write of it says nothing.
 - `agentic-memory: this prompt looks like it holds a credential (...)` → never copy that token
   anywhere; reference where it lives.
 

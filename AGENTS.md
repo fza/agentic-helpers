@@ -85,6 +85,7 @@ session on the next hook event after `go install` runs again. A release is cut o
 
 ## Memory
 
-**No parallel memory store for this project.** A rule about how the work happens here belongs in this
-file, a decision about the hooks in the graph, and anything one developer's own in their gitignored
-`CLAUDE.local.md`.
+**No parallel memory store for this project.** A decision about the hooks belongs in the graph. Where
+a standing instruction goes, a memory rule, `CLAUDE.local.md` or this file, the agent-memory skill
+and [`docs/memory/usage.md`](docs/memory/usage.md#kinds) decide: the user picks, and a file wins over
+a contradicting rule.

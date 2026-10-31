@@ -380,6 +380,21 @@ filing time:
 
 - **A rule is the user's.** `--kind rule` without `--from user` is refused:
   `a rule is the user's grant or instruction: --kind rule needs --from user`.
+- **A standing instruction goes where the user places it.** For every new standing instruction the
+  agent asks one question (`AskUserQuestion` where the agent has it) and writes nothing before the
+  answer. Each choice names its reach, and the agent marks the one it recommends:
+
+  | Choice | Reaches |
+  |---|---|
+  | a `rule` on this seat | this seat's sessions, at claim and after compaction, in any agent tool |
+  | `CLAUDE.local.md` | every Claude Code session in this checkout, subagents and seatless sessions included; gitignored |
+  | `CLAUDE.md`, or the file it imports such as `AGENTS.md` | committed: every developer |
+
+  A rule filed for every seat is not offered: it reaches what `CLAUDE.local.md` reaches, with a
+  second copy to drift. Rules already in memory keep their seat-only reach until the user moves them.
+- **A file wins over a rule.** Where a rule contradicts `CLAUDE.local.md` or `CLAUDE.md`, the file
+  holds: the agent supersedes the rule, naming the file, and says so in one line. A file edited while
+  sessions run reaches them through [Instruction files that change](#instruction-files-that-change).
 - **An entry states the outcome**: the finding, the decision, the step owed. It never plays back the
   user's prompt or answer, nor narrates what the owner chose, asked or said: `--from user` records
   whose it is, and the playback costs output tokens at filing and input on every `show` for nothing
@@ -1236,6 +1251,31 @@ agent hears once:
 
 The prompt itself is the user's and is not refused. `<rule ids>` are every gitleaks rule found on
 the first line holding one; the matched text is never printed.
+
+### Instruction files that change
+
+Claude Code reads its instruction files when a session starts, when the session first touches a
+folder holding nested ones, and after a compaction; a session running when one of them changes
+keeps working on the old text. agentic-memory tells it instead, in any session of a project holding
+a store, seat or none, as hidden context at the next prompt or tool call:
+
+    agentic-memory: <path> changed since loaded; re-read it
+
+The agent reads the file again before going on. `<path>` is relative to the project's root inside
+it, `~/` for a file in the home, else as Claude Code reported it. A file removed since counts as
+changed and is told the same way: the re-read finds it gone, and its instructions no longer hold.
+
+- **Which files.** Each one Claude Code reports through its `InstructionsLoaded` hook event, of every
+  memory type and load reason: `CLAUDE.md`, `CLAUDE.local.md`, the files they import with `@`,
+  nested ones, `~/.claude/CLAUDE.md`, managed ones. A nested file is watched only by the session
+  that loaded it.
+- **Without the event** (a Claude Code firing none), the first prompt or tool call takes in a fixed
+  set: the project's root `CLAUDE.md` and `CLAUDE.local.md`, the files they import with `@` (outside
+  code spans and fenced blocks, resolved against the importing file's folder), and
+  `~/.claude/CLAUDE.md`. Only files there count.
+- **Each change is told once.** The session's own Edit, Write or NotebookEdit of a watched file says
+  nothing; a change a Bash command of the same session makes is told like anyone else's.
+- **Subagents** hear it only where Claude Code fires the event inside them.
 
 ### Writes holding a credential
 

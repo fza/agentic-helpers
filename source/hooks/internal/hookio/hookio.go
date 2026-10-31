@@ -26,6 +26,9 @@ type Payload struct {
 	LastReply      string          `json:"last_assistant_message"`
 	Prompt         string          `json:"prompt"`
 	Reason         string          `json:"reason"`
+	// FilePath is the instruction file an InstructionsLoaded event reports;
+	// a tool's own path is ToolInput.FilePath.
+	FilePath string `json:"file_path"`
 }
 
 type ToolInput struct {

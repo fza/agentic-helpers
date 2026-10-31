@@ -23,6 +23,7 @@ files goes into `plugin/`.
 | Event | Binaries |
 |---|---|
 | SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-grounding-gate start` |
+| InstructionsLoaded | `agentic-memory instructions` |
 | UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt` |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `agentic-grounding-gate gate` |
 | PreToolUse on `Bash` | `agentic-shell-guard` |

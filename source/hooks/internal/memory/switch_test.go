@@ -12,7 +12,7 @@ func TestMemoryOffOnTheMachine(t *testing.T) {
 	h.must("", "claim", "main")
 	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"memory_enabled":false}}}}`)
 
-	for _, verb := range []string{"session-start", "prompt", "tool", "stop", "session-end"} {
+	for _, verb := range []string{"session-start", "prompt", "tool", "stop", "session-end", "instructions"} {
 		got := h.run(hookPayload("startup", "", "gate"), verb)
 		if got.code != 0 || got.out != "" || got.err != "" {
 			t.Errorf("the %s hook should say nothing while memory is off, got %+v", verb, got)

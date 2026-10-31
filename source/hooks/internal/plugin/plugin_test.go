@@ -178,6 +178,41 @@ func TestShellGuardScansEveryToolsOutput(t *testing.T) {
 	}
 }
 
+func TestMemoryRecordsEveryLoadedInstructionFile(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
+	if err != nil {
+		t.Fatalf("reading hooks.json: %v", err)
+	}
+
+	var wiring struct {
+		Hooks map[string][]struct {
+			Matcher *string `json:"matcher"`
+			Hooks   []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+
+	err = json.Unmarshal(content, &wiring)
+	if err != nil {
+		t.Fatalf("parsing hooks.json: %v", err)
+	}
+
+	everyLoad := false
+
+	for _, group := range wiring.Hooks["InstructionsLoaded"] {
+		for _, hook := range group.Hooks {
+			if strings.HasSuffix(hook.Command, "agentic-memory instructions") {
+				everyLoad = everyLoad || group.Matcher == nil || *group.Matcher == "" || *group.Matcher == "*"
+			}
+		}
+	}
+
+	if !everyLoad {
+		t.Error("agentic-memory instructions should run on every InstructionsLoaded, whatever the load reason")
+	}
+}
+
 func TestTheMCPServerRunsThroughTheCommandLauncher(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(pluginRoot, ".mcp.json"))
 	if err != nil {

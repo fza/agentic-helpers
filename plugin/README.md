@@ -21,7 +21,10 @@ the version first installed: turn auto-update on under `/plugin`, Marketplaces, 
 ## Pieces
 
 - **agentic-memory** keeps notes the agent reads again after a compaction or in a new session, and
-  serves them over the `memory` MCP server.
+  serves them over the `memory` MCP server. When an instruction file a running session loaded
+  changes (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, a nested one, `~/.claude/CLAUDE.md`), it
+  tells that session to re-read it, so an instruction written mid-session reaches sessions already
+  running.
 - **agentic-tools** shares helper scripts between agents, over the `tools` MCP server.
 - **agentic-scratch** gives each seat or session a `.tmp/seats/` folder and empties it when the
   work ends.

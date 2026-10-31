@@ -70,6 +70,7 @@ var hookEvents = map[string]hookEvent{
 	"session-end":   (*memory).sessionEnd,
 	"tool":          (*memory).tool,
 	"wait":          (*memory).wait,
+	"instructions":  (*memory).instructions,
 }
 
 func (mem *memory) payload() hookio.Payload {
@@ -622,23 +623,27 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	payload := mem.payload()
 	mem.adopt(ctx, payload)
 
+	reread := mem.instructionsChanged(ctx, payload)
+
 	name, held := mem.ownSeat(ctx)
 
 	seated := mem.seatFork(ctx, payload, name != "")
 	if seated != "" {
-		mem.say(seated)
+		mem.say(strings.Join(append(reread, seated), "\n"))
 
 		return 0
 	}
 
 	if name == "" {
+		mem.say(strings.Join(reread, "\n"))
+
 		return 0
 	}
 
 	held = mem.track(ctx, name, held, payload)
 	session := cmp.Or(held.SessionID, payload.SessionID)
 
-	var out []string
+	out := reread
 
 	movedHere := mem.moved(ctx, name, held)
 	if movedHere != "" {
@@ -709,20 +714,26 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	payload := mem.payload()
 	mem.adopt(ctx, payload)
 
+	reread := mem.instructionsChanged(ctx, payload)
+
 	name, held := mem.ownSeat(ctx)
 
 	seated := mem.seatFork(ctx, payload, name != "")
 	if seated != "" {
-		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", seated)
+		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", strings.Join(append(reread, seated), "\n"))
 
 		return 0
 	}
 
 	if name == "" {
+		if len(reread) > 0 {
+			_ = hookio.AddContext(mem.streams.Out, "PostToolUse", strings.Join(reread, "\n"))
+		}
+
 		return 0
 	}
 
-	var notes []string
+	notes := reread
 
 	movedHere := mem.moved(ctx, name, held)
 	if movedHere != "" {
@@ -933,6 +944,11 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 
 	payload := mem.payload()
 	mem.forgetSensor(payload.SessionID)
+
+	if payload.SessionID != "" {
+		mem.clearSlot(mem.instructionsKey(payload.SessionID))
+	}
+
 	mem.adopt(ctx, payload)
 
 	name, held := mem.ownSeat(ctx)

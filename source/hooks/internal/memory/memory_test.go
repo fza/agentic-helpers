@@ -1677,7 +1677,7 @@ func TestOutsideAGitWorkTreeMemoryRefusesAndCreatesNothing(t *testing.T) {
 		}
 	}
 
-	for _, event := range []string{"session-start", "prompt", "stop", "session-end"} {
+	for _, event := range []string{"session-start", "prompt", "stop", "session-end", "instructions"} {
 		got := h.run(hookPayload("startup", "", "hello"), event)
 		if got.code != 0 || got.out != "" || got.err != "" {
 			t.Errorf("the %s hook outside a work tree should stay silent, got %d %q %q", event, got.code, got.out, got.err)

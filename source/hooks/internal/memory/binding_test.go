@@ -59,7 +59,7 @@ func TestASecondCheckoutIsAskedAboutUntilBound(t *testing.T) {
 		}
 	}
 
-	for _, verb := range []string{"prompt", "tool", "stop", "session-end"} {
+	for _, verb := range []string{"prompt", "tool", "stop", "session-end", "instructions"} {
 		got := other.run(hookPayload("", "", "gate"), verb)
 		if got.code != 0 || got.out != "" || got.err != "" {
 			t.Errorf("the %s hook should stay silent while the question stands, got %d %q %q", verb, got.code, got.out, got.err)
