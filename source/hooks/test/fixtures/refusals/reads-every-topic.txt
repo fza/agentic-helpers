@@ -1,10 +1,11 @@
 GROUNDING GATE: let through, reads owed before the next question or draft.
 
-No `--query` search since the graph last changed.
+Owed since the graph last changed:
+`--query` search
   sdd search --query '<subject>' --limit 5 --max-citations 0
-No `--term` search since the graph last changed.
+`--term` search
   sdd search --term '<literal>' --limit 5 --max-citations 0
-No listing of every topic since the graph last changed.
+listing of every topic
   sdd view --layout "active:as-counts"
 
 Empty search ≠ absence; a listing settles membership.

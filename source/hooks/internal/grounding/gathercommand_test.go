@@ -111,9 +111,9 @@ func TestAGatherCallGroundsTheTurn(t *testing.T) {
 		record(t, env, bash(gather+" "+subject+" --query 'a subject' --entry "+subject))
 
 		got := run(t, env, "gate", ask("s1"))
-		refuses(t, got, "No `--term` search since the graph last changed.")
+		refuses(t, got, "\n`--term` search\n")
 
-		if strings.Contains(got.said, "No `--query`") || strings.Contains(got.said, "listing ran") {
+		if strings.Contains(got.said, "\n`--query` search\n") || strings.Contains(got.said, "` listing\n") {
 			t.Errorf("only the missing mode should be owed, got: %s", got.said)
 		}
 
@@ -125,7 +125,7 @@ func TestAGatherCallGroundsTheTurn(t *testing.T) {
 		env := configured(t, "gather-command.yaml")
 		record(t, env, bash(gather+" s --query q --term x --area hooks --entry "+subject))
 
-		refuses(t, run(t, env, "gate", ask("s1")), "No `area-` listing since the graph last changed.")
+		refuses(t, run(t, env, "gate", ask("s1")), "\n`area-` listing\n")
 	})
 
 	t.Run("a failed call", func(t *testing.T) {
@@ -147,8 +147,8 @@ func TestRefusalsOfferTheGatherCall(t *testing.T) {
 	got := run(t, configured(t, "gather-command.yaml"), "gate", ask("s1"))
 
 	for _, line := range []string{
-		"One call runs all three:\n\n  pilot graph gather <entry> --query '<subject>' --term '<literal>' --entry <entry>\n",
-		"Or each read owed apart:\n\nNo `--query` search since the graph last changed.\n  pilot graph search --query '<subject>' --entry <entry>\n",
+		"One call runs all three:\n\n  pilot graph gather <entry> --query '<subject>' --term '<literal>' --entry <entry>\n\n" +
+			"Owed since the graph last changed:\n`--query` search\n  pilot graph search --query '<subject>' --entry <entry>\n",
 		"  pilot graph search --term '<literal>' --entry <entry>\n",
 		`  pilot graph view --layout "topic(area-<name>):as-list" --entry <entry>` + "\n",
 	} {
@@ -164,7 +164,7 @@ func TestTheGatherCallStaysBesideOneReadOwed(t *testing.T) {
 
 	got := run(t, env, "gate", ask("s1"))
 	refuses(t, got, "One call runs all three:\n\n  pilot graph gather <entry>",
-		"No `area-` listing since the graph last changed.\n  pilot graph view")
+		"\n`area-` listing\n  pilot graph view")
 
 	if strings.Contains(got.said, "pilot graph search") {
 		t.Errorf("searches already credited should not be asked for apart, got: %s", got.said)

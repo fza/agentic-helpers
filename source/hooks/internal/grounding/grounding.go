@@ -131,6 +131,7 @@ const (
 	letThroughAnyway = "GROUNDING GATE: let through."
 	ungroundedDraft  = "This draft is not grounded: its capture owes the reads."
 	searchHint       = "Empty search ≠ absence; a listing settles membership."
+	owedHeader       = "Owed since the graph last changed:"
 	configRetry      = ", then run this call again."
 )
 
@@ -496,29 +497,29 @@ func judge(ctx context.Context, env Env, payload hookio.Payload) string {
 	return refusal("reads.txt", "{gather}", gatherLine(reads), "{owed}", owedReads(held, reads, prefix))
 }
 
-// owedReads names each read still missing, the reason it is owed above the
-// command that answers it. A read already credited is left out: naming it
-// again sends an agent to repeat a read the gate holds.
+// owedReads names each read still missing under one header, a short label
+// above the command that answers it. A read already credited is left out:
+// naming it again sends an agent to repeat a read the gate holds.
 func owedReads(held evidence, reads reads, prefix string) string {
-	var owed []string
+	owed := []string{owedHeader}
 
 	if held.Query == 0 {
-		owed = append(owed, "No `--query` search since the graph last changed.\n  "+
+		owed = append(owed, "`--query` search\n  "+
 			reads.command+" search --query '<subject>'"+reads.searchFlags+reads.suffix)
 	}
 
 	if held.Term == 0 {
-		owed = append(owed, "No `--term` search since the graph last changed.\n  "+
+		owed = append(owed, "`--term` search\n  "+
 			reads.command+" search --term '<literal>'"+reads.searchFlags+reads.suffix)
 	}
 
 	if len(held.Listings) == 0 {
-		reason := "No listing of every topic since the graph last changed."
+		label := "listing of every topic"
 		if prefix != "" {
-			reason = "No `" + prefix + "` listing since the graph last changed."
+			label = "`" + prefix + "` listing"
 		}
 
-		owed = append(owed, reason+"\n  "+reads.command+" "+listingCommand(prefix)+reads.suffix)
+		owed = append(owed, label+"\n  "+reads.command+" "+listingCommand(prefix)+reads.suffix)
 	}
 
 	if held.Query == 0 || held.Term == 0 {
@@ -1035,7 +1036,7 @@ func gatherLine(reads reads) string {
 	}
 
 	return "\nOne call runs all three:\n\n  " + reads.gather +
-		" <entry> --query '<subject>' --term '<literal>'" + reads.suffix + "\n\nOr each read owed apart:\n"
+		" <entry> --query '<subject>' --term '<literal>'" + reads.suffix + "\n"
 }
 
 func listingCommand(prefix string) string {
