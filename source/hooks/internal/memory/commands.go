@@ -610,7 +610,7 @@ func allCommands() []command {
 				`,"title":{"type":"string","description":"new title, 3-10 words"}},"required":["id","title"]}`,
 		},
 		{
-			name: "due", usage: "due <id> <time> | due <id> --clear", description: "move or clear a todo's or note's due time",
+			name: "due", usage: "due <id> <time> | due <id> --clear", description: "move or clear a todo's or note's due time; takes due or clear, not both",
 			flags:      []flagSpec{{"clear", flagSwitch}},
 			positional: duePositional,
 			run:        (*memory).dueCommand,
@@ -649,7 +649,7 @@ func allCommands() []command {
 		},
 		{
 			name: "link", usage: "link <id> <target> | link <id> --tool <name>[@<project>] [--no-heat]",
-			description: "link an entry to a graph or memory entry, or to an agentic-tools tool show then takes",
+			description: "link an entry to a graph or memory entry, or to an agentic-tools tool show then takes; takes target or one tool, not both",
 			flags:       []flagSpec{{"no-heat", flagSwitch}, {"tool", flagList}},
 			positional:  linkPositional, run: (*memory).link,
 			schema: `{"type":"object","properties":{` + idKey + `,"target":{"type":"string","description":"full graph id or memory id"},` +
@@ -718,7 +718,7 @@ func allCommands() []command {
 		},
 		{
 			name: "claim", usage: "claim <seat> [--shelf <shelf>] [--lifetime durable|temporary|<span>] [--private] [--session <id>] | claim --shelf <shelf> [...]",
-			description: "take a seat; prints the brief and the slice",
+			description: "take a seat; prints the brief and the slice; needs name, or shelf alone for a new seat on it",
 			flags:       []flagSpec{{"shelf", flagText}, {"lifetime", flagText}, {"private", flagSwitch}, {"session", flagText}},
 			positional:  optionalName,
 			run:         (*memory).claim,

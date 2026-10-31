@@ -90,7 +90,7 @@ func commands() []command {
 		{
 			name:        "find",
 			usage:       "find [--query '<need>'] [--term '<literal>']... [--limit <n>] [--page <n>] [--again] [--json]",
-			description: "search the tool library of every project on the machine, the own project first; one line per tool, its usage comes with take" + foldClause,
+			description: "search the tool library of every project on the machine, the own project first; needs query, term or both; one line per tool, its usage comes with take" + foldClause,
 			flags: []flagSpec{{"query", flagText}, {"term", flagList}, {"limit", flagNumber}, {"page", flagNumber},
 				{"json", flagSwitch}, {"again", flagSwitch}},
 			run: (*library).find,
@@ -133,7 +133,7 @@ func commands() []command {
 		{
 			name:        "update",
 			usage:       "update <name> [--from <path>] [--summary ...] [--usage ...] [--inputs ...] [--outputs ...] --why '<what changed>'",
-			description: "write a tool's next version, at most 1 MB in all; a tool of another project is forked into this one first; summary, usage and notes terse unless writing_style is plain",
+			description: "write a tool's next version, at most 1 MB in all; needs a change in from, summary, usage, inputs or outputs; a tool of another project is forked into this one first; summary, usage and notes terse unless writing_style is plain",
 			flags:       append([]flagSpec{{"from", flagText}, {"why", flagText}}, describing...),
 			positional:  oneName,
 			run:         (*library).update,

@@ -34,7 +34,9 @@ func TestEveryToolDescribesItsCallInKeys(t *testing.T) {
 	t.Fatal("the server should answer the tool listing")
 }
 
-func TestEveryReadThatFoldsStatesTheFoldRule(t *testing.T) {
+func toolDescriptions(t *testing.T) map[string]string {
+	t.Helper()
+
 	h := newHarness(t)
 
 	lines := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
@@ -60,11 +62,32 @@ func TestEveryReadThatFoldsStatesTheFoldRule(t *testing.T) {
 		descriptions[tool.Name] = tool.Description
 	}
 
+	return descriptions
+}
+
+func TestEveryReadThatFoldsStatesTheFoldRule(t *testing.T) {
+	descriptions := toolDescriptions(t)
+
 	for _, tool := range []string{"find", "list"} {
 		t.Run(tool, func(t *testing.T) {
 			if !strings.HasSuffix(descriptions[tool], "; a fold (a more, a count of what is not listed) hides unread data: "+
 				"before acting on, answering about or concluding the absence of what it folds, fetch it") {
 				t.Errorf("the description of a read that folds should close with the fold rule: %q", descriptions[tool])
+			}
+		})
+	}
+}
+
+func TestEveryRuleBetweenKeysIsStatedInItsToolDescription(t *testing.T) {
+	descriptions := toolDescriptions(t)
+
+	for _, rule := range []struct{ tool, stated string }{
+		{"find", "needs query, term or both"},
+		{"update", "needs a change in from, summary, usage, inputs or outputs"},
+	} {
+		t.Run(rule.tool, func(t *testing.T) {
+			if !strings.Contains(descriptions[rule.tool], rule.stated) {
+				t.Errorf("the tool description should state the rule between its keys: %q", descriptions[rule.tool])
 			}
 		})
 	}

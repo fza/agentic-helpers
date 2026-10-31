@@ -104,6 +104,9 @@ func TestEveryRuleBetweenKeysIsStatedInItsToolDescription(t *testing.T) {
 		{"ack", "takes one of done, decline, undo, remove, add or order"},
 		{"search", "needs term, query or status"},
 		{"view", "takes layout or explain"},
+		{"due", "takes due or clear, not both"},
+		{"link", "takes target or one tool, not both"},
+		{"claim", "needs name, or shelf alone for a new seat on it"},
 	} {
 		t.Run(rule.tool, func(t *testing.T) {
 			if !strings.Contains(descriptions[rule.tool], rule.stated) {
