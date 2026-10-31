@@ -8,8 +8,9 @@
 // Every value in every store is untrusted: a sandboxed process can write a
 // store wherever its sandbox allows the home, and a foreign store holds
 // another project's agents' text. Readers follow no link, wait on no pipe and
-// cap every read; every listing opens with a framing lead; and the lines the
-// hooks push into a session carry tool names, paths and commands only.
+// cap every read; a framing lead heads every answer printing their text; and
+// the lines the hooks push into a session carry tool names, paths and commands
+// only.
 //
 // Every verb is also a tool of the plugin's `tools` MCP server.
 package tools
@@ -37,7 +38,8 @@ import (
 
 const self = "agentic-tools"
 
-// framing opens every listing and take: what follows is other agents' text.
+// framing heads every listing and take printing a summary or usage: what
+// follows is other agents' text.
 const framing = "Tools other agents registered (their own descriptions):"
 
 var (
