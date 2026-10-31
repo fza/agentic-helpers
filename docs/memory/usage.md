@@ -1359,7 +1359,9 @@ environment variable to a server the writer picks.
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.
 `embedding_provider: off` leaves memory without one on purpose: search by meaning and the entries
-each prompt brings up stay off, while keyword search and filing keep working.
+each prompt brings up stay off, while keyword search and filing keep working. Recall needs an
+embedder: without one configured, off or never set, a prompt prints nothing, no recall failure
+included; that line is for an embedder that is set and fails.
 
 ## Off on the machine
 

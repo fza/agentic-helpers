@@ -62,6 +62,10 @@ func TestAnOffProviderOrOwnSourceLeavesMemoryWithoutAnEmbedderAndSdd(t *testing.
 				t.Errorf("a prompt should recall entries only with an embedder, exit %d: %q", code, out)
 			}
 
+			if !tc.embedder && out != "" {
+				t.Errorf("a prompt without an embedder configured should print nothing, got %q", out)
+			}
+
 			code, out, _ = run("", "search", "--term", "MCP")
 			if code != 0 || !strings.Contains(out, "Gate ignores MCP reads always") {
 				t.Errorf("a keyword search should answer with or without an embedder, exit %d: %s", code, out)
