@@ -440,10 +440,21 @@ A seat held for a `full` subagent carries `agent`: `pending` from the spawn unti
 first hook names it, then its agent id. Its claim names the session and its `claude` process, as
 the session's own does, so every lookup by process (`seat.Of`) or by session (`seat.OfSession`), and
 the inheritance of a resumed or forked session, passes it over: a subagent's call shares its
-spawner's process and session id, and only `--agent <agent-id>` on the command line, or an MCP call
-whose `tool_use_id` the subagent's record keeps (`mcpserver.CallID`, read from the call's `_meta`
-`claudecode/toolUseId`), reaches it. The record is the session's `agents/<session>` slot: each
-subagent's level, its seat's key at `full`, and its latest MCP call ids, at most 16.
+spawner's process and session id, and only `--agent <agent-id>` on the command line, the key `agent`
+of an MCP call, or an MCP call whose `tool_use_id` the subagent's record keeps
+(`mcpserver.CallID`, read from the call's `_meta` `claudecode/toolUseId`), reaches it. The record
+is the session's `agents/<session>` slot: each subagent's level, its seat's key at `full`, and its
+latest MCP call ids, at most 16. The command line looks the agent up under
+`CLAUDE_CODE_SESSION_ID`; the server under the session its caller's seat claim names, else the one
+it started in, since a `/clear` leaves the server's environment behind.
+
+A subagent's level is read back from the level line its own transcript opens with, or from the
+PostToolUse of a background Agent call. A fork's transcript opens with a `fork-context-ref` record
+instead, so the PreToolUse hook on an Agent call whose `subagent_type` is `fork` keeps the level
+granted, a `full` one's seat, and the spawner's shown set as it stands (the session's, or the
+spawning subagent's own) in the slot `spawn/<session>/<tool_use_id>`. The fork's first hook finds
+the call's id in `agent-<agent-id>.meta.json` (`toolUseId`) beside its transcript, learns its level
+from that slot, and its first memory call copies the set into its own and removes the slot.
 
 `fork_uuid` is the uuid a fork of the holder's session would start its transcript with. A fork
 names no parent and runs under a session id of its own, but copies the parent's records with their
@@ -551,10 +562,11 @@ Every hook exits at once in a project without a store.
 | UserPromptSubmit (`prompt`) | first, for any session, seat or none, hashes every file its `instructions/<session>` slot records and prints `agentic-memory: <path> changed since loaded; re-read it` for each whose hash moved, recording the new hash; a session with no slot yet seeds it with the fixed set ([usage](usage.md#instruction-files-that-change)) and prints nothing for it; then, for a fork carrying a marker, once its transcript is written, removes the marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction (at most twice per rung, the Stop backstop holding past that), the shipped-work request once work shipped since the seat's last state write (spent without a line where the nudge fires), and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `<cache>/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once; without an embedder configured (`embed.ErrNotConfigured`), recall prints nothing; a recall the embedder fails prints `agentic-memory: prompt recall failed, retried each prompt: <error>` once per outage, and the next working recall re-arms it |
 | InstructionsLoaded (`instructions`) | records the file Claude Code reports (`file_path`) with its content hash under the session's `instructions/<session>` slot, through the slot file's `Update`, so files reported at once never lose each other; needs no seat; says nothing |
 | PostToolUse (`tool`) | first the instruction-file check UserPromptSubmit runs, as `additionalContext`, where an `Edit`, `Write` or `NotebookEdit` of a recorded path takes the new hash in silently; then, for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
-| PreToolUse (`pre-tool`) | on a Bash call whose `tool_input.command` does not contain `agentic-memory`, exits 0 writing nothing as soon as the payload is read, before the store and the seat are looked up: every Bash call runs the hook side by side with shell-guard, and the slower of the two sets the delay; on every other Bash call, on the Agent tool and on the memory MCP tools, runs the subagent checks ([usage](usage.md#subagents)) |
+| PreToolUse (`pre-tool`) | on a Bash call whose `tool_input.command` does not contain `agentic-memory`, exits 0 writing nothing as soon as the payload is read, before the store and the seat are looked up: every Bash call runs the hook side by side with shell-guard, and the slower of the two sets the delay; on every other Bash call, on the Agent tool and on the memory MCP tools, runs the subagent checks ([usage](usage.md#subagents)): rewrites the Agent prompt and, for a fork, keeps its spawn slot; refuses a subagent's call its level does not allow; sets `--agent` on a reading subagent's every direct `agentic-memory` call and `agent` on its every memory tool call; refuses either from the main thread |
+| SubagentStop (`subagent-stop`) | removes the subagent's shown set and any spawn slot kept for it, and releases a `full` subagent's seat |
 | Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then, near compaction only, holds it once for a state write when work shipped since the seat's last one; then holds it with the backstop once the nudge has gone unanswered twice and the context crossed the line; every hold is Stop `additionalContext` with exit 0, which continues the turn as exit 2 would without the hook error exit 2 shows the user |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
-| SessionEnd (`session-end`) | removes the session's context reading and its `instructions/<session>` slot; closes every seat still held for one of its subagents and forgets its `agents/<session>` record; writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
+| SessionEnd (`session-end`) | removes the session's context reading and its `instructions/<session>` slot; closes every seat still held for one of its subagents and forgets its `agents/<session>` record, its subagents' shown sets and its spawn slots; writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
 ## The update check
 
@@ -800,7 +812,12 @@ whose line a brief, recall or read printed, and `bodies`, each whose body `show`
 both as `<id>@<digest>`, the digest over the entry's full line and its event count, so an entry that
 changed since never matches. A read opens the set once for the seated session it runs in and writes
 it back only where it marked something; a read inside another (the brief a claim prints) shares the
-outer one's. `--again` bypasses the lookup and still marks. The index lists notes hottest first when built, but a `show` warms without a log
+outer one's. A read naming a subagent (`--agent`, or the MCP key `agent`) opens that subagent's own
+set instead, the slot `shown/<session>/agent/<agent-id>`: empty for a fresh subagent, a copy of its
+spawner's set at the spawn for a fork. Keeping the session's set aside for the length of a
+subagent's call was rejected: a spawner's read landing while the call runs would read with the
+subagent's set. SubagentStop removes the subagent's set, and the session's end every one of its
+subagents' sets and spawn slots. `--again` bypasses the lookup and still marks. The index lists notes hottest first when built, but a `show` warms without a log
 event, so the hook ranks the matching notes by the heat read at the call.
 
 A `state` row the Stop or SessionEnd hook writes carries `draft: true`, the files the session

@@ -26,6 +26,7 @@ const (
 // housekeeping reclaims once nobody came back to it.
 var sessionPurposes = []string{
 	"shown/", "ladder/", "graph-seen/", "fork/", "waiter/", "migration-failed/", "instructions/", "agents/", "seen/agent/",
+	"spawn/",
 }
 
 func (mem *memory) slotFile() *slots.File {
@@ -71,6 +72,18 @@ func (mem *memory) clearSlot(key string) {
 }
 
 func (mem *memory) shownKey(session string) string { return "shown/" + session }
+
+// agentShownKey is the shown set of one subagent of the session, which no
+// read of its spawner's touches.
+func (mem *memory) agentShownKey(session string, agentID string) string {
+	return "shown/" + session + "/agent/" + agentID
+}
+
+// spawnKey is what a fork spawned by the session's Agent call callID takes
+// over at its first hook.
+func (mem *memory) spawnKey(session string, callID string) string {
+	return "spawn/" + session + "/" + callID
+}
 
 func (mem *memory) ladderKey(session string) string { return "ladder/" + session }
 

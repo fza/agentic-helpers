@@ -97,7 +97,7 @@ func TestMemoryCallsAndTheirFlag(t *testing.T) {
 				}
 			}
 
-			if got := flagCalls(each.command, calls, "a1", true); got != each.flagged {
+			if got := flagCalls(each.command, calls, "a1"); got != each.flagged {
 				t.Errorf("every direct call should carry the agent alone, got %q", got)
 			}
 		})

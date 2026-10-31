@@ -325,24 +325,37 @@ The levels form a ladder, each holding everything of the one below:
   write (`..., which reads memory but never writes it; report what is worth keeping to the spawner
   instead`). `claim`, `release`, `rename`, `private`, `lifetime`, `drop`, `bind`, `merge`, `follow`,
   `unfollow` and `mcp` stay with the session at every level.
+- **Every memory call names its subagent.** From `silent` up, the hook adds `--agent <agent-id>`
+  after every `agentic-memory` a Bash command itself runs, and sets the key `agent` to the
+  subagent's id on every memory MCP tool call, the one key every memory tool's schema carries for
+  it: **set by the hook, never typed**. A typed `--agent` or `agent` is replaced by the calling
+  subagent's id, and refused from the main thread (`--agent is set by the hook for a subagent
+  reading memory, never typed`); the command line and the server refuse one naming no subagent of
+  the session reading memory. A call inside `bash -c`, `eval` or interpreter code cannot carry the
+  flag and is refused.
 - **`full` files on its own seat.** The seat is held at the spawn, waits for the subagent's first
   hook to name its agent id, and closes when SubagentStop fires for it, or when the session ends.
-  Its entries name it, its state slot is its own, and notices run both ways through the shelf. On
-  Bash the hook adds `--agent <agent-id>` after every `agentic-memory` the command itself runs:
-  **set by the hook, never typed**. A typed `--agent` is replaced by the calling subagent's id, and
-  refused from the main thread; the command line refuses one naming no `full` subagent of the
-  session. A write inside `bash -c`, `eval` or interpreter code cannot carry the flag and is refused.
-  Over MCP the server never learns the calling agent: it finds the subagent by the call's id
-  (`_meta` `claudecode/toolUseId`), which the PreToolUse hook kept.
+  Its entries name it, its state slot is its own, and notices run both ways through the shelf. The
+  `--agent` or `agent` of its calls points them at that seat. Over MCP a call carrying no `agent`
+  is still found by its call id (`_meta` `claudecode/toolUseId`), which the PreToolUse hook kept.
+- **Each subagent has its own shown set** ([Each entry once per context](#each-entry-once-per-context)).
+  A fresh subagent's starts empty, so its first read of an entry prints it in full; a fork's starts
+  as a copy of its spawner's set at the spawn, since a fork inherits its spawner's context. The hook
+  tells a fork by the Agent call's `subagent_type` `fork`, keeps the copy and the fork's level under
+  that call's id, and hands both to the fork at its first hook, which finds the call's id in the
+  `agent-<agent-id>.meta.json` Claude Code writes beside the subagent's transcript. A subagent's
+  reads never touch its spawner's set. SubagentStop and the session's end remove the subagent's set.
 - **Notices are the subagent's own.** A `shared` subagent's notices run against a mark of its own,
   so the seat is still told of what its subagent was told; a `full` one's are its seat's.
 
 **Accepted costs.** A spawner that forgets the line leaves its subagent at `none`. A prompt
 carrying two marker lines meant for the same child shows it the second as text. A level fixed at
 the spawn does not change while the subagent runs. An `agentic-memory` call a script file makes is
-out of the hook's reach and works on the session's own seat. The MCP join on the call id is observed
-in Claude Code, not documented; the command line is the path where it breaks. A subagent's reads
-mark entries shown for the whole session, as any read in it does.
+out of the hook's reach: it works on the session's own seat and marks the session's shown set. The
+MCP join on the call id and the spawn's id in the subagent's `.meta.json` are observed in Claude
+Code, not documented. One more key, `agent`, in every memory MCP tool's schema, which every agent
+loading a memory tool sees. A subagent continued after its SubagentStop prints in full again what
+it read before.
 
 ## Shelves
 
@@ -1190,8 +1203,9 @@ was printed prints in full: `show` after a search line prints the body. An entry
 (a retire, a new link, a drifted anchor) prints in full again, and so does a view section adding
 return reasons, expanded links or sizes. Recall names no entry a read printed. A compaction, `/clear`
 and a resume start afresh. `--again` (MCP `"again": true`) on `search`, `view`, `show` and `brief`
-prints every entry in full. A freshly spawned subagent shares its parent's session and the memory
-tools see no agent, so it passes `again`; a forked one inherits the context and needs none. Only a
+prints every entry in full. Each subagent reading memory keeps a set of its own, named by the
+`--agent` or `agent` its hook sets: a fresh one's starts empty, a fork's as a copy of its
+spawner's at the spawn ([Subagents](#subagents)), and none of its reads marks the spawner's. Only a
 seated session keeps the set; heat counts as before.
 
 ## What comes back
@@ -1387,7 +1401,9 @@ takes exactly the keys its schema lists, spelled exactly (`all_seats`, not `ALL_
 schema says so with `additionalProperties: false`; any other key refuses the call with
 `agentic-memory: <tool> takes no key "<key>"; it takes <keys>`. The one exception is the key a
 read's command line takes as its JSON switch: no schema lists it, since a read answers JSON
-whatever it says, and a call still sending it is answered as without it.
+whatever it says, and a call still sending it is answered as without it. Every listed schema also
+carries `agent`, the subagent a call comes from, which the PreToolUse hook sets
+([Subagents](#subagents)); the refusal's `it takes` list leaves it out.
 
 A tool's description says what it does in the words of its keys, never in command-line form: a
 flag or a `<placeholder>` there would name a shape the call does not take (`<id>...` where the key

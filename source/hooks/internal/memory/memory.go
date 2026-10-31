@@ -150,6 +150,10 @@ type memory struct {
 	here        *tree
 	hashCache   *hashCache
 
+	// reader is the subagent a read runs for, named by `--agent` or the MCP
+	// call's `agent`: its reads mark its own shown set.
+	reader string
+
 	// handed is the hook payload once read from stdin.
 	handed *hookio.Payload
 
@@ -497,7 +501,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 			return mem.refuse(ErrUsage)
 		}
 
-		refusal := mem.actAs(agentID)
+		refusal := mem.actAs(mem.env.SessionID, agentID, args[0], agentFlag)
 		if refusal != "" {
 			return mem.refuse(errors.New(refusal))
 		}

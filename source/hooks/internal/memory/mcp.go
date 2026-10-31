@@ -2,6 +2,7 @@ package memory
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,7 +48,7 @@ func (mem *memory) serveMCP(ctx context.Context) int {
 		tools = append(tools, mcpserver.Tool{
 			Name:        held.name,
 			Description: held.description,
-			InputSchema: json.RawMessage(closedSchema(held.schema)),
+			InputSchema: json.RawMessage(closedSchema(withAgentKey(held.schema))),
 			Handle: func(ctx context.Context, arguments json.RawMessage) mcpserver.Result {
 				return mem.callTool(ctx, held, arguments)
 			},
@@ -108,22 +109,32 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 
 	mem.admission(ctx, held.name)
 
-	// The server never learns the calling agent: a full subagent's call is
-	// known by the id its PreToolUse hook kept, and works on that subagent's
-	// seat.
-	record, bySubagent := mem.subagentOfCall(ctx, mcpserver.CallID(ctx))
-	if bySubagent {
+	defer func() { mem.acting, mem.reader = "", "" }()
+
+	agentID, arguments, err := takeAgent(arguments)
+	if err != nil {
+		return mcpserver.Refusal(fmt.Sprintf("%s: the arguments do not fit %s: %v", self, held.name, err))
+	}
+
+	// The PreToolUse hook names the calling subagent in `agent`; a full
+	// subagent's call reaching the server without it is still known by the
+	// call id the hook kept, and works on that subagent's seat.
+	switch record, bySubagent := mem.subagentOfCall(ctx, mcpserver.CallID(ctx)); {
+	case agentID != "":
+		why := mem.actAs(mem.callerSession(ctx), agentID, held.name, agentKey)
+		if why != "" {
+			return mcpserver.Refusal(self + ": " + why)
+		}
+	case bySubagent:
 		why := subagentRefusal(held.name, record.level())
 		if why != "" {
 			return mcpserver.Refusal(why)
 		}
 
 		mem.acting = record.Seat
-
-		defer func() { mem.acting = "" }()
 	}
 
-	err := exactKeys(held, arguments)
+	err = exactKeys(held, arguments)
 	if err != nil {
 		return mcpserver.Refusal(self + ": " + err.Error())
 	}
@@ -155,6 +166,66 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 	}
 
 	return mcpserver.Result{Structured: mcpserver.Messaged(answer.text, nil)}
+}
+
+// agentProperty is the key every listed tool takes beside its own, naming the
+// subagent a call comes from.
+const agentProperty = `"` + agentKey + `":{"type":"string","description":"set by the hook, never sent"}`
+
+// withAgentKey adds agentProperty to a tool's schema. The command keeps its
+// schema without it, so a refusal's list of the keys a tool takes leaves it
+// out.
+func withAgentKey(schema string) string {
+	if strings.Contains(schema, `"properties":{}`) {
+		return strings.Replace(schema, `"properties":{}`, `"properties":{`+agentProperty+`}`, 1)
+	}
+
+	return strings.Replace(schema, `"properties":{`, `"properties":{`+agentProperty+`,`, 1)
+}
+
+// takeAgent takes the `agent` key off a call's arguments, answering its value
+// and the arguments without it.
+func takeAgent(arguments json.RawMessage) (string, json.RawMessage, error) {
+	var given map[string]json.RawMessage
+
+	if len(bytes.TrimSpace(arguments)) == 0 {
+		return "", arguments, nil
+	}
+
+	err := json.Unmarshal(arguments, &given)
+	if err != nil {
+		return "", arguments, fmt.Errorf("reading the arguments: %w", err)
+	}
+
+	raw, named := given[agentKey]
+	if !named {
+		return "", arguments, nil
+	}
+
+	var agentID string
+
+	err = json.Unmarshal(raw, &agentID)
+	if err != nil || agentID == "" {
+		return "", nil, errors.New("agent takes a subagent's id")
+	}
+
+	delete(given, agentKey)
+
+	rest, err := json.Marshal(given)
+	if err != nil {
+		return "", nil, fmt.Errorf("encoding the arguments: %w", err)
+	}
+
+	return agentID, rest, nil
+}
+
+// callerSession is the session the server's caller runs: the one its seat's
+// claim names, which every hook keeps current, else the one the server
+// started in, which a `/clear` leaves behind.
+func (mem *memory) callerSession(ctx context.Context) string {
+	_, claim := mem.ownSeat(ctx)
+
+	return cmp.Or(claim.SessionID, mem.env.SessionID)
 }
 
 // closedSchema marks a tool's schema as taking no key beyond its properties,

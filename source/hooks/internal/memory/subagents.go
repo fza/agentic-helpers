@@ -15,6 +15,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
+	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
 )
 
@@ -228,11 +229,116 @@ func (mem *memory) subagent(ctx context.Context, payload hookio.Payload) subagen
 	}
 
 	prompt, err := transcript.FirstPrompt(ctx, path)
+	if err == nil {
+		_, _, carries := levelIn(prompt)
+		if carries {
+			return mem.learnSubagent(ctx, payload.SessionID, payload.AgentID, prompt)
+		}
+	}
+
+	// A fork's transcript opens with a reference to its spawner's context,
+	// not with its prompt: its level is the one its spawn kept.
+	spawned, found := mem.spawnOf(payload)
+	if found {
+		line := "agentic-helpers level: " + spawned.Level
+		if spawned.Seat != "" {
+			line += ", seat " + spawned.Seat
+		}
+
+		return mem.learnSubagent(ctx, payload.SessionID, payload.AgentID, line)
+	}
+
 	if err != nil || prompt == "" {
 		return subagentRecord{Level: levelNone.String()}
 	}
 
 	return mem.learnSubagent(ctx, payload.SessionID, payload.AgentID, prompt)
+}
+
+// forkSpawn is what an Agent call spawning a fork keeps for it under the
+// call's id: the level granted, a full one's seat, and its spawner's shown
+// set as the spawn found it, since a fork's context is its spawner's.
+type forkSpawn struct {
+	Level string   `json:"level"`
+	Seat  string   `json:"seat,omitempty"`
+	Shown shownSet `json:"shown"`
+}
+
+func (spawned *forkSpawn) trim() bool { return spawned.Shown.trim() }
+
+// spawnCall is the id of the Agent call that spawned the subagent, which
+// Claude Code writes into the `agent-<id>.meta.json` beside its transcript.
+func spawnCall(payload hookio.Payload) string {
+	path := subagentTranscript(payload)
+	if path == "" {
+		return ""
+	}
+
+	data, err := os.ReadFile(strings.TrimSuffix(path, filepath.Ext(path)) + ".meta.json")
+	if err != nil {
+		return ""
+	}
+
+	var meta struct {
+		ToolUseID string `json:"toolUseId"`
+	}
+
+	err = json.Unmarshal(data, &meta)
+	if err != nil {
+		return ""
+	}
+
+	return meta.ToolUseID
+}
+
+// spawnOf is what the subagent's spawn kept for it, where it is a fork.
+func (mem *memory) spawnOf(payload hookio.Payload) (forkSpawn, bool) {
+	var spawned forkSpawn
+
+	call := spawnCall(payload)
+	if call == "" || !mem.recordable() {
+		return spawned, false
+	}
+
+	found := mem.readSlot(mem.spawnKey(payload.SessionID, call), &spawned)
+
+	return spawned, found && spawned.Level != ""
+}
+
+// keepForFork keeps what a fork the Agent call spawns takes over at its
+// first hook: the spawner's shown set as it stands, the main thread's or the
+// spawning subagent's own.
+func (mem *memory) keepForFork(payload hookio.Payload, granted level, seatName string) {
+	if payload.ToolInput.SubagentType != "fork" || payload.ToolUseID == "" || granted < levelSilent ||
+		!mem.recordable() || payload.SessionID == "" {
+		return
+	}
+
+	spawned := forkSpawn{Level: granted.String(), Seat: seatName}
+
+	key := mem.shownKey(payload.SessionID)
+	if payload.AgentID != "" {
+		key = mem.agentShownKey(payload.SessionID, payload.AgentID)
+	}
+
+	mem.readSlot(key, &spawned.Shown)
+	_ = mem.writeSlot(mem.spawnKey(payload.SessionID, payload.ToolUseID), &spawned)
+}
+
+// adoptSpawn starts the calling subagent's shown set, once: a fork's from
+// the set its spawn kept, which is then spent; a fresh one's stays empty.
+func (mem *memory) adoptSpawn(payload hookio.Payload) {
+	if !mem.recordable() || payload.SessionID == "" || mem.hasSlot(mem.agentShownKey(payload.SessionID, payload.AgentID)) {
+		return
+	}
+
+	spawned, found := mem.spawnOf(payload)
+	if !found {
+		return
+	}
+
+	_ = mem.writeSlot(mem.agentShownKey(payload.SessionID, payload.AgentID), &spawned.Shown)
+	mem.clearSlot(mem.spawnKey(payload.SessionID, spawnCall(payload)))
 }
 
 // learnSubagent keeps the level the prompt's level line names for the agent,
@@ -329,6 +435,8 @@ func (mem *memory) spawn(ctx context.Context, payload hookio.Payload, usable boo
 
 		held = name
 	}
+
+	mem.keepForFork(payload, granted, held)
 
 	block := mem.subagentBlock(ctx, payload, granted, parent, held)
 
@@ -563,11 +671,25 @@ func subagentRefusal(verb string, at level) string {
 // offers.
 const memoryToolPrefix = "mcp__plugin_agentic-helpers_memory__"
 
-// guardTool answers the PreToolUse hook on a memory MCP tool: a subagent's
-// call its level does not allow is refused, and a full one's call id is kept
-// for the server, which never learns the calling agent.
+// agentKey is the key every memory MCP tool takes for the subagent a call
+// comes from, which the PreToolUse hook sets.
+const agentKey = "agent"
+
+// guardTool answers the PreToolUse hook on a memory MCP tool: an `agent` the
+// main thread sends is refused; a subagent's call its level does not allow is
+// refused, and every other call of one gains `agent` naming it, any it
+// carried replaced. A full one's call id is kept too, for the server to find
+// a call reaching it without the key.
 func (mem *memory) guardTool(ctx context.Context, payload hookio.Payload) int {
 	if payload.AgentID == "" {
+		var sent map[string]json.RawMessage
+
+		_ = json.Unmarshal(payload.ToolInput.Raw, &sent)
+		if _, named := sent[agentKey]; named {
+			_ = hookio.Deny(mem.streams.Out, self+": agent is set by the hook for a subagent reading memory, never "+
+				"sent; call the tool without it")
+		}
+
 		return 0
 	}
 
@@ -586,6 +708,15 @@ func (mem *memory) guardTool(ctx context.Context, payload hookio.Payload) int {
 			held.Calls = held.Calls[max(0, len(held.Calls)-subagentCalls):]
 		})
 	}
+
+	mem.adoptSpawn(payload)
+
+	updated, err := payload.ToolInput.WithField(agentKey, payload.AgentID)
+	if err != nil {
+		return 0
+	}
+
+	_ = hookio.Rewrite(mem.streams.Out, updated)
 
 	return 0
 }
@@ -624,17 +755,28 @@ func (mem *memory) subagentOfCall(ctx context.Context, callID string) (subagentR
 	return subagentRecord{}, false
 }
 
-// actAs points the run at the seat of the session's full subagent agentID,
-// which the `--agent` flag the PreToolUse hook sets names; why not where the
-// session keeps no such subagent.
-func (mem *memory) actAs(agentID string) string {
-	record, found := mem.subagentTable(mem.env.SessionID).Agents[agentID]
-	if mem.env.SessionID == "" || !found || record.level() != levelFull || record.Seat == "" {
-		return fmt.Sprintf("--agent names no subagent of the calling session at level full; the PreToolUse hook "+
-			"sets it for one, and it is never typed: run %s without it", self)
+// actAs points the run at the session's subagent agentID, which the PreToolUse
+// hook sets under name (`--agent` or the MCP key `agent`): its reads mark its
+// own shown set, and a full one's calls work on its seat. It answers why not
+// where the session keeps no such subagent, a full one's seat is gone, or the
+// subagent's level does not allow the verb, which refuses every verb below
+// silent.
+func (mem *memory) actAs(session string, agentID string, verb string, name string) string {
+	record, found := mem.subagentTable(session).Agents[agentID]
+	if session == "" || !found || (record.level() == levelFull && record.Seat == "") {
+		return fmt.Sprintf("%s names no subagent of the calling session reading memory; the PreToolUse hook "+
+			"sets it for one, and it is never typed: run %s without it", name, self)
 	}
 
-	mem.acting = record.Seat
+	refusal := subagentRefusal(verb, record.level())
+	if refusal != "" {
+		return strings.TrimPrefix(refusal, self+": ")
+	}
+
+	mem.reader = agentID
+	if record.level() == levelFull {
+		mem.acting = record.Seat
+	}
 
 	return ""
 }
@@ -650,9 +792,10 @@ func (mem *memory) actingSeat() (string, seat.Claim) {
 	return mem.seatName(mem.acting), held
 }
 
-// subagentStop releases the seat a full subagent held, as SubagentStop
-// fires for it: its claim closes and its end conditions are reached, as a
-// release does.
+// subagentStop removes the subagent's shown set, and what its spawn kept for
+// a fork that never called memory, as SubagentStop fires for it, and
+// releases the seat a full one held: its claim closes and its end conditions
+// are reached, as a release does.
 func (mem *memory) subagentStop(ctx context.Context, _ []string) int {
 	if !mem.storeExists() {
 		return 0
@@ -661,6 +804,15 @@ func (mem *memory) subagentStop(ctx context.Context, _ []string) int {
 	payload := mem.payload()
 	if payload.AgentID == "" {
 		return 0
+	}
+
+	if mem.recordable() && payload.SessionID != "" {
+		mem.clearSlot(mem.agentShownKey(payload.SessionID, payload.AgentID))
+
+		call := spawnCall(payload)
+		if call != "" {
+			mem.clearSlot(mem.spawnKey(payload.SessionID, call))
+		}
 	}
 
 	record := mem.subagent(ctx, payload)
@@ -690,7 +842,7 @@ func (mem *memory) releaseSubagentSeat(ctx context.Context, key string) {
 
 // endSubagents releases every seat still held for a subagent of the session
 // that ends, as one whose SubagentStop never fired, and forgets its
-// subagents.
+// subagents, their shown sets and what spawns kept for forks.
 func (mem *memory) endSubagents(ctx context.Context, session string) {
 	if session == "" {
 		return
@@ -704,6 +856,13 @@ func (mem *memory) endSubagents(ctx context.Context, session string) {
 	}
 
 	mem.clearSlot(mem.subagentsKey(session))
+
+	if mem.recordable() {
+		_ = mem.slotFile().Reclaim(ctx, func(slot slots.Slot) bool {
+			return strings.HasPrefix(slot.Key, mem.agentShownKey(session, "")) ||
+				strings.HasPrefix(slot.Key, mem.spawnKey(session, ""))
+		})
+	}
 }
 
 // subagentNotices are the lines a subagent's tool call gains: at shared what

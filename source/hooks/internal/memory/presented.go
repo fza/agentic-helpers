@@ -14,7 +14,8 @@ import (
 // body, printed by show or a view's bodies. A read printing either again
 // prints a pointer instead, since the agent still has the text; the set
 // empties where the context does, at a compaction, `/clear` and resume.
-// Fresh subagents share their parent's session and pass again. Each mark
+// A subagent's read, named by the `--agent` or `agent` its hook sets, keeps
+// a set of its own, since its context is not its spawner's. Each mark
 // carries the entry's state as it was printed, so an entry that changed since
 // (a retire, a new link, a drifted anchor) prints in full again.
 type presented struct {
@@ -37,7 +38,12 @@ func (mem *memory) presenting(ctx context.Context, again bool) func() {
 		return func() {}
 	}
 
-	seen := &presented{key: mem.shownKey(claim.SessionID), again: again, here: mem.checkout(ctx)}
+	key := mem.shownKey(claim.SessionID)
+	if mem.reader != "" {
+		key = mem.agentShownKey(claim.SessionID, mem.reader)
+	}
+
+	seen := &presented{key: key, again: again, here: mem.checkout(ctx)}
 	mem.readSlot(seen.key, &seen.set)
 	mem.seen = seen
 

@@ -36,10 +36,13 @@ type Payload struct {
 }
 
 type ToolInput struct {
-	Command      string          `json:"command"`
-	Prompt       string          `json:"prompt"`
-	FilePath     string          `json:"file_path"`
-	NotebookPath string          `json:"notebook_path"`
+	Command      string `json:"command"`
+	Prompt       string `json:"prompt"`
+	FilePath     string `json:"file_path"`
+	NotebookPath string `json:"notebook_path"`
+	// SubagentType is the Agent call's agent type, `fork` for a fork of the
+	// calling context.
+	SubagentType string          `json:"subagent_type"`
 	Raw          json.RawMessage `json:"-"`
 }
 
