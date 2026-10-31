@@ -205,15 +205,25 @@ type Embedder struct {
 	// Answering, where set, lets that many calls answer before Err applies,
 	// as an embedder failing partway through a fill.
 	Answering int
-	mutex     sync.Mutex
-	calls     int
+	// Delay is how long each call takes, cut short by the caller's deadline.
+	Delay time.Duration
+	mutex sync.Mutex
+	calls int
 	// texts is every text it was asked to embed.
 	texts []string
 }
 
 const embedDims = 64
 
-func (fake *Embedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
+func (fake *Embedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	if fake.Delay > 0 {
+		select {
+		case <-time.After(fake.Delay):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("embedding: %w", ctx.Err())
+		}
+	}
+
 	fake.mutex.Lock()
 	fake.calls++
 	fake.texts = append(fake.texts, texts...)

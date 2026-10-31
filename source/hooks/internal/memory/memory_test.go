@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
+	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
 	"io"
 	"os"
 	"path/filepath"
@@ -440,14 +441,9 @@ func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
+	h.fileUnembedded()
+
 	h.embedder.Err = errors.New("connection refused")
-
-	// Ten entries of eight chunks each: more texts than one request carries.
-	paragraph := strings.Repeat("finding ", 390)
-	for number := range 10 {
-		h.file(fmt.Sprintf("Finding number %d", number), strings.Repeat(paragraph+"\n\n", 8))
-	}
-
 	h.embedder.Answering = h.embedder.Calls() + 1
 	h.run("", "search", "--query", "finding")
 
@@ -458,6 +454,64 @@ func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
 	// The chunks the failed request held, and the query.
 	if sent := len(h.embedder.Texts()) - before; sent != 10*8-embed.RequestTexts+1 {
 		t.Errorf("a fill failing partway should keep each request that answered and send only the rest next, sent %d texts", sent)
+	}
+}
+
+// fileUnembedded files ten entries of eight chunks each while the embedder is
+// down: more texts than one request carries.
+func (h *harness) fileUnembedded() {
+	h.t.Helper()
+
+	h.embedder.Err = errors.New("connection refused")
+
+	paragraph := strings.Repeat("finding ", 390)
+	for number := range 10 {
+		h.file(fmt.Sprintf("Finding number %d", number), strings.Repeat(paragraph+"\n\n", 8))
+	}
+
+	h.embedder.Err = nil
+}
+
+func TestAFillBoundsEachRequestNotTheWholeFill(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.fileUnembedded()
+
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"embedding_provider":"openai","embedding_model":"fake","embedding_timeout":"1s"}}}}`)
+	h.embedder.Delay = 600 * time.Millisecond
+
+	if got := h.run("", "search", "--query", "finding"); got.code != 0 {
+		t.Errorf("a fill whose requests each fit the timeout should complete however many it takes, got %d %q", got.code, got.err)
+	}
+}
+
+func TestAFillAnotherProcessHoldsLeavesTheEmbeddingToIt(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.file("Seal writes the manifest atomically", "rename then fsync of the directory")
+	h.must("", "search", "--query", "manifest")
+	h.fileUnembedded()
+
+	segments, err := filepath.Glob(filepath.Join(h.cacheDir(), "*", "segments"))
+	if err != nil || len(segments) != 1 {
+		t.Fatalf("the store should hold one vector folder, got %v %v", segments, err)
+	}
+
+	release, taken, err := vectorseg.Open(h.cacheDir(), segments[0]).TryFill()
+	if err != nil || !taken {
+		t.Fatalf("taking the fill lock: %v %v", taken, err)
+	}
+	defer release()
+
+	before := len(h.embedder.Texts())
+	out := h.must("", "search", "--query", "manifest rename fsync directory")
+
+	if !strings.Contains(out, "Seal writes the manifest") {
+		t.Errorf("a search while another process fills should answer from the rows held:\n%s", out)
+	}
+
+	if len(h.embedder.Texts())-before != 1 {
+		t.Error("a search while another process fills should embed its query alone")
 	}
 }
 

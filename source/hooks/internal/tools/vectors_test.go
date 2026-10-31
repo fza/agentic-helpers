@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
@@ -183,8 +184,10 @@ func TestTheOfferEmbedsNoPromptWhereNoOwnToolHasAVector(t *testing.T) {
 	}
 }
 
-func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
-	h := newHarness(t)
+// addUnembedded adds more tools than one request carries while the embedder
+// is down, answering their names.
+func (h *harness) addUnembedded() []string {
+	h.t.Helper()
 
 	h.embedder.Err = errors.New("connection refused")
 
@@ -195,8 +198,13 @@ func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
 		names = append(names, name)
 	}
 
-	h.embedder.Answering = h.embedder.Calls() + 1
-	h.run("", "reindex")
+	h.embedder.Err = nil
+
+	return names
+}
+
+func (h *harness) heldOf(names []string) int {
+	h.t.Helper()
 
 	held := 0
 	for _, name := range names {
@@ -205,7 +213,49 @@ func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
 		}
 	}
 
-	if held != embed.RequestTexts {
+	return held
+}
+
+func TestAFillBoundsEachRequestNotTheWholeFill(t *testing.T) {
+	h := newHarness(t)
+	names := h.addUnembedded()
+
+	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"embedding_provider":"openai","embedding_model":"fake","embedding_timeout":"1s"}}}}`)
+	h.embedder.Delay = 600 * time.Millisecond
+	h.run("", "reindex")
+
+	if held := h.heldOf(names); held != len(names) {
+		t.Errorf("a rebuild whose requests each fit the timeout should complete however many it takes, held %d", held)
+	}
+}
+
+func TestAFillAnotherProcessHoldsLeavesTheEmbeddingToIt(t *testing.T) {
+	h := newHarness(t)
+	names := h.addUnembedded()
+
+	release, taken, err := vectorseg.Open(h.vectorDir(), h.vectorDir()).TryFill()
+	if err != nil || !taken {
+		t.Fatalf("taking the fill lock: %v %v", taken, err)
+	}
+	defer release()
+
+	before := h.embedder.Calls()
+	h.run("", "reindex")
+
+	if h.embedder.Calls() != before || h.heldOf(names) != 0 {
+		t.Error("a rebuild while another process fills should leave the embedding to it")
+	}
+}
+
+func TestAFillFailingPartwayKeepsWhatLanded(t *testing.T) {
+	h := newHarness(t)
+	names := h.addUnembedded()
+
+	h.embedder.Err = errors.New("connection refused")
+	h.embedder.Answering = h.embedder.Calls() + 1
+	h.run("", "reindex")
+
+	if held := h.heldOf(names); held != embed.RequestTexts {
 		t.Errorf("a fill failing partway should keep the request that answered, kept %d vectors", held)
 	}
 }
