@@ -31,7 +31,7 @@ func TestAPrivateSeatLeavesNoTraceInAnotherProjectsWho(t *testing.T) {
 	}
 
 	own := h.must("", "who")
-	if !regexp.MustCompile(`(?m)^secret\s+shelf secret\s+.+  filed 1 / used \d+ \(14d\)  private$`).MatchString(own) {
+	if !regexp.MustCompile(`(?m)^secret\s+.+  filed 1 / used \d+  private$`).MatchString(own) {
 		t.Errorf("its own project's who should list the private seat, its line ending private, got:\n%s", own)
 	}
 

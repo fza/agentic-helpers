@@ -126,8 +126,8 @@ func TestWhoCountsFiledAndUsedEntriesPerSeat(t *testing.T) {
 	other.file("Drive finding filed once", "a drive finding")
 
 	counts := map[string]string{
-		"main":  `(?m)^main\s+shelf main\s+.*  filed 2 / used 2 \(14d\)$`,
-		"drive": `(?m)^drive\s+shelf drive\s+.*  filed 1 / used 0 \(14d\)$`,
+		"main":  `(?m)^main\s+.*  filed 2 / used 2$`,
+		"drive": `(?m)^drive\s+.*  filed 1 / used 0$`,
 	}
 
 	out := h.must("", "who")
@@ -139,7 +139,7 @@ func TestWhoCountsFiledAndUsedEntriesPerSeat(t *testing.T) {
 
 	h.clock.Advance(15 * 24 * time.Hour)
 
-	if out := h.must("", "who"); !regexp.MustCompile(`(?m)^main\s+shelf main\s+.*  filed 0 / used 0 \(14d\)$`).MatchString(out) {
+	if out := h.must("", "who"); !regexp.MustCompile(`(?m)^main\s+.*  filed 0 / used 0$`).MatchString(out) {
 		t.Errorf("filings and uses older than 14 days should fall out of the counts, got:\n%s", out)
 	}
 }
