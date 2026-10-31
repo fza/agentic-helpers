@@ -1103,7 +1103,7 @@ func TestClaimRules(t *testing.T) {
 		t.Error("a swept seat should read as free")
 	}
 
-	if !strings.Contains(other.must("", "claim", "main"), "main: ") {
+	if !strings.Contains(other.must("", "claim", "main"), "agentic-memory: seat main, ") {
 		t.Error("a seat whose holder is gone should be claimed without any flag")
 	}
 
@@ -1725,7 +1725,7 @@ func TestTheBriefNamesTheEntryLanguage(t *testing.T) {
 				test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"memory_language":"`+tc.option+`"}}}}`)
 			}
 
-			header := regexp.MustCompile(`(?m)^agentic-memory: seat main, \d+ live, \d+ retired, entries in (\S+), terse$`)
+			header := regexp.MustCompile(`(?m)^agentic-memory: seat main, \d+ live, \d+ retired, entries in (\S+), terse(, session \S+ \(pid \d+\))?$`)
 
 			claimed := header.FindStringSubmatch(h.must("", "claim", "main"))
 			if claimed == nil || claimed[1] != tc.want {
@@ -1759,7 +1759,7 @@ func TestTheBriefHeaderNamesTheWritingStyle(t *testing.T) {
 				test.WriteFile(t, h.config, tc.config)
 			}
 
-			if out := h.must("", "claim", "main"); !strings.Contains(out, ", entries in en, "+tc.style+"\n") {
+			if out := h.must("", "claim", "main"); !strings.Contains(out, ", entries in en, "+tc.style+", session ") {
 				t.Errorf("the brief header should name the writing style beside the language, got:\n%s", out)
 			}
 		})

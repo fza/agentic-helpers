@@ -75,7 +75,7 @@ func TestAResumeTellsOfNoNewerRelease(t *testing.T) {
 	resumed := resumedOrForked(parent, test.Session).onStaleRelease()
 
 	out := resumed.must(resumed.startHook("resume", path), "session-start")
-	if !strings.HasPrefix(out, "main: ") || strings.Contains(out, "is out") {
+	if !strings.HasPrefix(out, "agentic-memory: seat main, ") || strings.Contains(out, "is out") {
 		t.Errorf("a resumed session taking its seat back should not tell of a newer release, got:\n%s", out)
 	}
 
