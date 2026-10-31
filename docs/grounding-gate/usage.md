@@ -203,7 +203,8 @@ gone from its context. Grounded drafts survive a compaction: their own graph sta
 ## Configuration: `.sdd/grounding.yaml`
 
 A show owes `--down 2 --up 1` unless the file sets another depth, and a project can name seats that
-owe none. A seat is agentic-memory's: the gate looks up the seat the `claude` process running the
+owe none. A show short of the depth is refused with the call echoed at the depth owed: each
+direction that fell short corrected, every other word as given. A seat is agentic-memory's: the gate looks up the seat the `claude` process running the
 hook claimed, so a session holding no claim owes the depth. The exemption lifts the depth alone;
 every other refusal holds for every seat.
 

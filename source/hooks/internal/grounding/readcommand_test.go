@@ -117,7 +117,7 @@ func TestReadsThroughTheReadCommand(t *testing.T) {
 	}
 
 	t.Run("a show short of the depth", func(t *testing.T) {
-		refuses(t, run(t, configured(t, "read-command.yaml"), "gate", bash(wrapper+" show 20260907-164635-d-tac-vkm --down 1 --entry e")), "reads short of `--down 2 --up 1`")
+		refuses(t, run(t, configured(t, "read-command.yaml"), "gate", bash(wrapper+" show 20260907-164635-d-tac-vkm --down 1 --entry e")), "show 20260907-164635-d-tac-vkm --down 2 --entry e --up 1\n")
 		passes(t, run(t, configured(t, "read-command.yaml"), "gate", bash(wrapper+" show 20260907-164635-d-tac-vkm --down 2 --up 1 --entry e")))
 	})
 

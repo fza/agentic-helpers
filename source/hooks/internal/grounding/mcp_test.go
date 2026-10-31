@@ -101,7 +101,9 @@ func TestMCPShowOwesTheDepth(t *testing.T) {
 		says  string
 	}{
 		{name: "no depth reads at the server's default", input: map[string]any{"ids": entry},
-			says: "`down 1` reads short of `\"down\": 2, \"up\": 1`."},
+			says: "`down 1` reads short of the depth owed; rerun as:\n\n  mcp__sdd__show {\"ids\": [\"20260907-164635-d-tac-vkm\"], \"down\": 2, \"up\": 2}\n"},
+		{name: "a deeper direction stays as given", input: map[string]any{"ids": entry, "down": 1, "up": 4},
+			says: "{\"ids\": [\"20260907-164635-d-tac-vkm\"], \"down\": 2, \"up\": 4}"},
 		{name: "a shallow down", input: map[string]any{"ids": entry, "down": 1, "up": 1}, says: "`down 1`"},
 		{name: "a shallow up", input: map[string]any{"ids": entry, "down": 2, "up": 0}, says: "`up 0`"},
 		{name: "the depth owed", input: map[string]any{"ids": entry, "down": 2, "up": 1}},

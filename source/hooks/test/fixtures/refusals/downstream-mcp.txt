@@ -1,0 +1,8 @@
+GROUNDING GATE: refused. `down 1` reads short of the depth owed; rerun as:
+
+  mcp__sdd__show {"ids": ["20260907-164635-d-tac-vkm"], "down": 2, "up": 2}
+
+Depths are part of the call, not a default to weigh: `down` carries any rename,
+`up` says whether the entry still applies. An omitted `down` reads as 1, an
+omitted `up` as 2. Only a `prc`-layer rules entry, or a seat
+`.sdd/grounding.yaml` exempts, may read shallower.

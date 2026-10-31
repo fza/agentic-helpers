@@ -2,6 +2,7 @@ package grounding_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/grounding"
@@ -33,11 +34,11 @@ func TestConfiguredShowDepth(t *testing.T) {
 		command string
 		says    string
 	}{
-		{name: "a deeper down refuses the default", fixture: "show-depth-down.yaml", command: " --down 2 --up 1", says: "reads short of `--down 3 --up 1`"},
-		{name: "the refusal reruns at the depth owed", fixture: "show-depth-down.yaml", command: " --down 2 --up 1", says: "rerun w/ `--down 3 --up 1`"},
-		{name: "both directions set", fixture: "show-depth.yaml", command: " --down 3 --up 1", says: "`--up 1` reads short of `--down 3 --up 2`"},
-		{name: "the default stands without a block", fixture: "area-prefix.yaml", command: " --down 1 --up 1", says: "reads short of `--down 2 --up 1`"},
-		{name: "the default stands under an empty block", fixture: "show-depth-empty.yaml", command: "", says: "reads short of `--down 2 --up 1`"},
+		{name: "a deeper down refuses the default", fixture: "show-depth-down.yaml", command: " --down 2 --up 1", says: "`--down 2` reads short of the depth owed; rerun as:"},
+		{name: "the refusal reruns at the depth owed", fixture: "show-depth-down.yaml", command: " --down 2 --up 1", says: "rerun as:\n\n  " + shownEntry + " --down 3 --up 1\n"},
+		{name: "both directions set", fixture: "show-depth.yaml", command: " --down 3 --up 1", says: "`--up 1` reads short of the depth owed; rerun as:\n\n  " + shownEntry + " --down 3 --up 2\n"},
+		{name: "the default stands without a block", fixture: "area-prefix.yaml", command: " --down 1 --up 1", says: "  " + shownEntry + " --down 2 --up 1\n"},
+		{name: "the default stands under an empty block", fixture: "show-depth-empty.yaml", command: "", says: "  " + shownEntry + " --down 2 --up 1\n"},
 	}
 
 	for _, tc := range cases {
@@ -108,17 +109,17 @@ func TestAnExemptSeat(t *testing.T) {
 	other.Processes = processes.Other()
 
 	t.Run("a session holding no seat owes the depth", func(t *testing.T) {
-		refuses(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))), "reads short of `--down 2 --up 1`")
+		refuses(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))), "  "+shownEntry+" --down 2 --up 1\n")
 	})
 
 	t.Run("a seat not named owes the depth", func(t *testing.T) {
 		test.ClaimOtherSeat(t, store, "scout", test.OtherSession)
-		refuses(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))), "reads short of `--down 2 --up 1`")
+		refuses(t, run(t, other, "gate", as(test.OtherSession, bash(shownEntry))), "  "+shownEntry+" --down 2 --up 1\n")
 	})
 
 	t.Run("a claim whose holder is gone exempts nobody", func(t *testing.T) {
 		processes.Kill(test.OwnerPID)
-		refuses(t, run(t, env, "gate", as(test.Session, bash(shownEntry))), "reads short of `--down 2 --up 1`")
+		refuses(t, run(t, env, "gate", as(test.Session, bash(shownEntry))), "  "+shownEntry+" --down 2 --up 1\n")
 	})
 }
 
@@ -132,4 +133,49 @@ func TestSeatsLiveInTheMainCheckout(t *testing.T) {
 	test.ClaimSeat(t, test.MemoryStore(t, env.Roots, main, env.Checkout), "reviewer", test.Session)
 
 	passes(t, run(t, env, "gate", as(test.Session, bash(shownEntry))))
+}
+
+func TestTheShowRefusalNamesTheDepthOnce(t *testing.T) {
+	cases := []struct {
+		name    string
+		payload map[string]any
+		fixture string
+		depth   string
+	}{
+		{name: "a Bash show", payload: bash(shownEntry + " --down 1 | head -40"), fixture: "refusals/downstream.txt", depth: "--down 2"},
+		{name: "an MCP show", payload: mcp("show", map[string]any{"ids": []string{"20260907-164635-d-tac-vkm"}}),
+			fixture: "refusals/downstream-mcp.txt", depth: `"down": 2`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := run(t, bare(t), "gate", tc.payload)
+			if got.said != test.Fixture(t, tc.fixture) {
+				t.Errorf("the refusal should echo the call at the depth owed above the rule, got: %s", got.said)
+			}
+
+			if strings.Count(got.said, tc.depth) != 1 {
+				t.Errorf("the refusal should name the depth owed only in the call it echoes, got: %s", got.said)
+			}
+		})
+	}
+}
+
+func TestTheShowRefusalCorrectsOnlyWhatFellShort(t *testing.T) {
+	cases := []struct {
+		name    string
+		command string
+		rerun   string
+	}{
+		{name: "a deeper direction stays as given", command: " --down 5 --up 0", rerun: shownEntry + " --down 5 --up 1"},
+		{name: "an equals sign", command: " --down=0 --up 1", rerun: shownEntry + " --down 2 --up 1"},
+		{name: "a missing direction is appended", command: " --up 3", rerun: shownEntry + " --up 3 --down 2"},
+		{name: "a subject flag stays", command: " --down 1 --entry e", rerun: shownEntry + " --down 2 --entry e --up 1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			refuses(t, run(t, bare(t), "gate", bash(shownEntry+tc.command)), "rerun as:\n\n  "+tc.rerun+"\n\n")
+		})
+	}
 }

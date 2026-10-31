@@ -102,7 +102,7 @@ func TestAStreamDiscardedInAnotherStretchIsNotTheReads(t *testing.T) {
 }
 
 func TestAShowThatDoesNotParseKeepsItsDepth(t *testing.T) {
-	refuses(t, run(t, areaProject(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm --down 0 'x")), "--down 2 --up 1")
+	refuses(t, run(t, areaProject(t), "gate", bash("sdd show 20260907-164635-d-tac-vkm --down 0 'x")), "`--down 0` and no `--up` reads short")
 	refuses(t, run(t, areaProject(t), "gate", bash("$'sdd' show 20260907-164635-d-tac-vkm --down 0")), "--down 2 --up 1")
 	passes(t, run(t, areaProject(t), "gate", bash("echo 'sdd show 20260907-164635-d-tac-vkm --down 0'")))
 }

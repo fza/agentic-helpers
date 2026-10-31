@@ -1,0 +1,7 @@
+GROUNDING GATE: refused. `--down 1` and no `--up` reads short of the depth owed; rerun as:
+
+  sdd show 20260907-164635-d-tac-vkm --down 2 --up 1
+
+Depths are part of the command, not a default to weigh: `--down` carries any
+rename, `--up` says whether the entry still applies. Only a `prc`-layer rules
+entry, or a seat `.sdd/grounding.yaml` exempts, may read shallower.
