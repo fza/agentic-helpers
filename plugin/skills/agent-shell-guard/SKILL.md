@@ -140,9 +140,8 @@ that looks like a credential reaches you as
 
     [agentic-shell-guard: credential withheld (<rule ids>)]
 
-with the note
-`agentic-shell-guard: <n> line(s) of this <tool> output held what looks like a credential and were withheld; the source is unchanged`.
-Every other line is as the tool returned it. The file or response itself is untouched.
+in its place, with no note. Every other line is as the tool returned it. The file or response
+itself is untouched.
 
 | Output | Counts as |
 |---|---|
@@ -155,7 +154,8 @@ Every other line is as the tool returned it. The file or response itself is unto
   run time. Never route around the marker (another tool, an encoding, a copy into the project).
 - **A credential in a project file you must fix** → Read it by its project path; it shows whole.
 - `agentic-shell-guard: the credential scan of this <tool> output could not finish, so all of it was withheld (<n> line(s)); the source is unchanged`
-  → every string replaced by the marker with `scan-incomplete`. Run the same call again.
+  → every string replaced by the marker with `scan-incomplete`. Run the same call again. An Edit,
+  Write or NotebookEdit result gets the markers without this note: its write already landed.
 - `agentic-shell-guard: could not read the tool output; it reached the agent unscanned`,
   `agentic-shell-guard: internal failure; the tool output reached the agent unscanned` and
   `agentic-shell-guard: could not answer; the tool output reached the agent unscanned` go to the

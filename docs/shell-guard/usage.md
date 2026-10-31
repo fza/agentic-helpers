@@ -213,9 +213,9 @@ holds what looks like a credential reaches the agent as
 
     [agentic-shell-guard: credential withheld (<rule ids>)]
 
-and the rest of the output as the tool returned it, with the note
-`agentic-shell-guard: <n> line(s) of this <tool> output held what looks like a credential and were withheld; the source is unchanged`.
-A key over several lines is withheld on every line it spans. Output with nothing to withhold is left
+and the rest of the output as the tool returned it. The marker in place of each line says all a note
+would, so a scan that finished adds none; the file or response itself is unchanged. A key over
+several lines is withheld on every line it spans. Output with nothing to withhold is left
 alone, the hook answering nothing.
 
 Where output counts as outside the project:
@@ -269,6 +269,8 @@ redacted too.
 - **A scan that cannot finish withholds everything**: every string of the output becomes the marker
   with rule `scan-incomplete`, and the note says
   `agentic-shell-guard: the credential scan of this <tool> output could not finish, so all of it was withheld (<n> line(s)); the source is unchanged`.
+  An Edit, Write or NotebookEdit result carries the markers without the note, since its write
+  already landed and running the call again would repeat it.
 - **The tool has run**: only what it returns is withheld. A command that sends a file elsewhere
   without printing it is not covered, and a whole line is withheld, its other text with it.
 - **A failure lets the output through and says so**, exit 1, which Claude Code shows the user:

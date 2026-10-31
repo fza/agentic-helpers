@@ -48,7 +48,6 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		fmt.Sprintf(strings.Replace(noteRewrite, "%d", "<n>", 1), "<reason>", rewriteLimit),
 		fmt.Sprintf(markerWithheld, "<rule ids>"),
 		strings.NewReplacer("%s", "<tool>", "%d", "<n>").Replace(noteScanUnfinished),
-		strings.NewReplacer("%d", "<n>", "%s", "<tool>").Replace(noteWithheld),
 		self + ": " + reasonOutputUnread, self + ": " + reasonOutputFailure, self + ": " + reasonOutputAnswer,
 		"shell_guard_secret_output", "shell_guard_secret_output_skip", "agentic-shell-guard output",
 		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), "<rewritten command>"),

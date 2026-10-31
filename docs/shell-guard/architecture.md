@@ -182,7 +182,8 @@ reason given for the strongest stands.
 the `hooks.json` group without a matcher. It reads `cwd`, `tool_name`, `tool_input` and
 `tool_response`, and returns nothing, which leaves the output as the tool returned it, unless it
 withholds a line: then `hookSpecificOutput.updatedToolOutput`, which Claude Code shows the agent in
-place of the tool's output, and `additionalContext` with the note. It returns before reading stdin
+place of the tool's output, and `additionalContext` with a note only for a scan that could not
+finish, never for an Edit, Write or NotebookEdit result. It returns before reading stdin
 when the piece is off or `shell_guard_secret_output` is `off`, and before scanning when the tool
 matches `shell_guard_secret_output_skip` or its output counts as the project's, so neither costs a
 scan.
