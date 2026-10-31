@@ -172,7 +172,8 @@ script, or is told `-s`, reads its code from the pipe: code it cannot read. A co
 the end of a pipe (`{ sh; }`, `if ...; then sh; fi`, a loop) hands the pipe on to every shell inside
 it unless that statement redirects its input only to here-documents or here-strings, whose code is
 judged in turn. A file never replaces the pipe, since any name may be a link to `/dev/stdin`, made
-in the same command or before it; a duplicated descriptor (`0<&3`) may be the pipe; and every
+in the same command or before it; a duplicated descriptor (`0<&3`, or `0>&3`, any operator on a
+descriptor numbered 0) may be the pipe; and every
 redirection counts, not only the last, since zsh's MULTIOS feeds all of them to the command. Its first operand past
 its options is the script, unless it names the input itself (`-`, `/dev/stdin`, a descriptor under
 `/dev/fd/` or `/proc/<pid>/fd/`, read cleaned, so `//dev/./stdin` counts), an option taking a value (`-o`, `-O`, fish's `-C`, grouped as `-eo`, and

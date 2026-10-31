@@ -495,16 +495,26 @@ func redirectsInput(statement *syntax.Stmt) bool {
 	replaced := false
 
 	for _, redirect := range statement.Redirs {
-		if redirect.N != nil && redirect.N.Value != "0" {
+		hereDocument := slices.Contains([]syntax.RedirOperator{syntax.Hdoc, syntax.DashHdoc, syntax.WordHdoc}, redirect.Op)
+
+		// Unnumbered, only an input operator reaches descriptor 0; numbered 0,
+		// any operator does, `0>&3` duplicating as `0<&3` does.
+		targetsInput := hereDocument || slices.Contains([]syntax.RedirOperator{syntax.RdrIn, syntax.RdrInOut, syntax.DplIn}, redirect.Op)
+		if redirect.N != nil {
+			// `00<&3` is descriptor 0 too; a number not read stays the input.
+			descriptor, err := strconv.Atoi(redirect.N.Value)
+			targetsInput = err != nil || descriptor == 0
+		}
+
+		if !targetsInput {
 			continue
 		}
 
-		switch redirect.Op {
-		case syntax.Hdoc, syntax.DashHdoc, syntax.WordHdoc:
-			replaced = true
-		case syntax.RdrIn, syntax.RdrInOut, syntax.DplIn:
+		if !hereDocument {
 			return false
 		}
+
+		replaced = true
 	}
 
 	return replaced
