@@ -147,6 +147,16 @@ func (lib *library) rebuild(ctx context.Context, at string) (*index, error) {
 
 	store := lib.vectorStore(embedder.Fingerprint())
 
+	// Another process filling this vector store leaves the embedding to it, as
+	// sdd's lazy index fill does; taken before the snapshot, so nothing it
+	// landed is embedded again.
+	release, taken, err := store.TryFill()
+	if err != nil || !taken {
+		return built, nil
+	}
+
+	defer release()
+
 	snapshot, err := store.Snapshot()
 	if err != nil {
 		return built, nil
@@ -175,15 +185,15 @@ func (lib *library) rebuild(ctx context.Context, at string) (*index, error) {
 		return built, nil
 	}
 
-	bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
-	defer cancel()
-
-	// Each request's vectors are saved as it answers, so a fill outlasting its
-	// bound keeps what landed and the next fill sends only the rest.
+	// Each request has its own deadline and its vectors are saved as it
+	// answers, as sdd's index fill does.
 	for start := 0; start < len(missing); start += embed.RequestTexts {
 		end := min(start+embed.RequestTexts, len(missing))
 
+		bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
 		vectors, err := embedder.Documents(bounded, texts[start:end])
+		cancel()
+
 		if err != nil || len(vectors) != end-start {
 			return built, nil
 		}

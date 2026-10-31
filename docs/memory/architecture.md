@@ -259,9 +259,13 @@ vectors  chunk count * dims little-endian float32, an entry's chunks contiguous,
 - **A write** embeds only the live entries no segment holds for their current content and writes
   them one segment per embedding request (`embed.RequestTexts` texts at most, whole entries), each
   through a temporary `.segment-*` file renamed to the first 16 hex digits of the content's sha256:
-  its cost follows the rows written, never the store. A write the embedder fails or the deadline cuts
-  short keeps every request answered before, so a re-embed of the whole store lands across calls
-  instead of starting over.
+  its cost follows the rows written, never the store. As sdd fills its index, each request has its
+  own `embedding_timeout` deadline, so one search lands a re-embed of the whole store however many
+  requests it takes; a write the embedder fails or the caller's own deadline (a prompt's recall)
+  cuts short keeps every request answered before.
+- **A fill** runs under `fill.lock` in the store's directory, taken without waiting before the
+  snapshot: a process finding another one filling embeds nothing and scores the rows held so far,
+  so concurrent sessions never embed the same texts at once.
 - **A merge** runs after every write, under `segments.lock`, where every temporary file is one a
   killed writer left, and is deleted. A segment with no counted row is deleted; one whose dead rows
   outnumber its live ones is rewritten alone; and size classes, each 4 times the one below, merge

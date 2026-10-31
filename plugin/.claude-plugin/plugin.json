@@ -49,7 +49,7 @@
     "embedding_timeout": {
       "type": "string",
       "title": "Embedding timeout",
-      "description": "How long one embedding call of a command may take, a span such as 30s or 2m; hooks keep a shorter limit; default 2m",
+      "description": "How long one embedding request may take, a span such as 30s or 2m; a fill of many requests gives each its own; hooks keep a shorter limit; default 2m",
       "required": false
     },
     "embedding_query_template": {

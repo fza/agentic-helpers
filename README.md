@@ -183,7 +183,7 @@ OpenAI-compatible server) or as a hosted service.
 | `embedding_endpoint` | the provider's | Claude Code's settings only. The server's base URL. Empty means `https://api.openai.com` or `http://localhost:11434` |
 | `embedding_dimensions` | `0` | Vector size to ask the provider for. `0` keeps the model's own |
 | `embedding_api_key_env` | none | Claude Code's settings only. Name of the environment variable holding a hosted service's API key. The key itself is never stored |
-| `embedding_timeout` | `2m` | How long one embedding call of a command or MCP tool may take, a span. Hooks keep a shorter limit of their own (20s), never longer than this |
+| `embedding_timeout` | `2m` | How long one embedding request may take, a span; a fill sending several requests gives each its own, as sdd's `embedding.timeout` does. Hooks keep a shorter limit of their own (20s), never longer than this |
 | `embedding_query_template` | none | Wraps a search query or a prompt before it is embedded, `{text}` marking where it goes, as sdd's `embedding.query_template` does (`task: search result \| query: {text}`) |
 | `embedding_document_template` | none | Wraps a memory entry or a tool description before it is embedded (`title: none \| text: {text}`) |
 

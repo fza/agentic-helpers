@@ -143,6 +143,19 @@ func migrate(store *vectorseg.Store, live vectorseg.Live) error {
 // content, and returns the snapshot to search: filing never waits on the
 // embedder, so the next call reaching it catches up.
 func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *vectorseg.Store, folded *state, live vectorseg.Live) (*vectorseg.Snapshot, error) {
+	// Taken before the snapshot, so a fill never embeds again what another
+	// process landed while this one waited to start.
+	release, taken, err := store.TryFill()
+	if err != nil {
+		return nil, err
+	}
+
+	if !taken {
+		return store.Snapshot()
+	}
+
+	defer release()
+
 	snapshot, err := store.Snapshot()
 	if err != nil {
 		return nil, err
@@ -176,11 +189,10 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 
 	_ = snapshot.Close()
 
-	bounded, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
-	defer cancel()
-
-	// Each request's vectors are saved as it answers, so a fill outlasting its
-	// bound keeps what landed and the next fill sends only the rest.
+	// Each request has its own deadline and its vectors are saved as it
+	// answers, as sdd's index fill does: a re-embed of the whole store lands in
+	// one call however many requests it takes, and a call the caller's own
+	// deadline cuts short keeps what landed.
 	for len(todo) > 0 {
 		var texts []string
 
@@ -190,7 +202,10 @@ func (mem *memory) fill(ctx context.Context, embedder embed.Templated, store *ve
 			size++
 		}
 
+		bounded, cancel := context.WithTimeout(ctx, mem.embedLimitFor())
 		vectors, err := embedder.Documents(bounded, texts)
+		cancel()
+
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrNoEmbedder, err)
 		}

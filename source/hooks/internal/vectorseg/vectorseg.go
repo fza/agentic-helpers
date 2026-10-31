@@ -38,6 +38,7 @@ const (
 	segmentExt = ".seg"
 	tempPrefix = ".segment-"
 	lockName   = "segments.lock"
+	fillName   = "fill.lock"
 	// mergeRatio is how much larger each size class is than the one below it;
 	// a class holding this many segments merges into one.
 	mergeRatio = 4
@@ -141,6 +142,39 @@ func (store *Store) lock() (func(), error) {
 		_ = filelock.Unlock(file)
 		_ = file.Close()
 	}, nil
+}
+
+// TryFill takes the store's fill lock without waiting, as sdd's lazy index
+// fill does: a process finding another one filling embeds nothing and reads
+// the rows held so far. It answers false while another process holds it.
+func (store *Store) TryFill() (release func(), taken bool, err error) {
+	err = safefs.MkdirAll(store.root, store.dir, 0o700)
+	if err != nil {
+		return nil, false, fmt.Errorf("creating the vector segments: %w", err)
+	}
+
+	file, err := safefs.Lock(store.root, filepath.Join(store.dir, fillName), 0o600)
+	if err != nil {
+		return nil, false, fmt.Errorf("opening the vector fill lock: %w", err)
+	}
+
+	taken, err = filelock.TryExclusive(file)
+	if err != nil {
+		_ = file.Close()
+
+		return nil, false, fmt.Errorf("locking the vector fill: %w", err)
+	}
+
+	if !taken {
+		_ = file.Close()
+
+		return nil, false, nil
+	}
+
+	return func() {
+		_ = filelock.Unlock(file)
+		_ = file.Close()
+	}, true, nil
 }
 
 // writeSegment names a segment by its content, so two writers filing the same

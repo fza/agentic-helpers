@@ -108,8 +108,10 @@ entry vectors in (`docs/memory/architecture.md`, "The vector store"). A row is o
 vector, keyed by the description's hash, so one vector serves every store naming that description
 and a rebuild embeds only a description no row is held for. `add`, `update` and `merge` each file
 one segment holding only the rows they embedded, after the own index names them, then merge; a
-rebuild files one segment per embedding request (`embed.RequestTexts` descriptions at most), so a
-rebuild the embedder fails or the deadline cuts short keeps what answered. A row counts while some store on the machine names its description, read from every store's
+rebuild files one segment per embedding request (`embed.RequestTexts` descriptions at most), each
+with its own `embedding_timeout` deadline, so a rebuild the embedder fails keeps what answered. A
+rebuild runs under `fill.lock` in the vector directory, taken without waiting: held by another
+process, it embeds nothing. A row counts while some store on the machine names its description, read from every store's
 index whatever `AGENTIC_TOOLS_SCOPE` says, so a merge drops the vector of a description every store
 replaced. `find --query`, `add`'s near-duplicate check and the offer score through one mapped
 snapshot; the offer embeds the prompt only where an own tool not yet shown has a row. A cache
