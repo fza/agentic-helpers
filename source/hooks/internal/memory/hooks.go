@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
@@ -1022,6 +1024,13 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	defer cancel()
 
 	scores, err := mem.recallScores(bounded, folded, live, prompt, session, withheld)
+
+	// An embedder switched off or never set is no outage: recall needs one,
+	// and stays silent without it.
+	if errors.Is(err, embed.ErrNotConfigured) {
+		return ""
+	}
+
 	if err != nil {
 		if shown.Notified {
 			return ""
