@@ -225,8 +225,22 @@ func TestCondense(t *testing.T) {
 
 	t.Run("a turn without a prompt renders no asked section", func(t *testing.T) {
 		got := transcript.Condense([]transcript.Turn{{Number: 1, At: at("10:00:00"), Replied: []string{"resumed"}}})
-		if strings.Contains(got, "### asked") || !strings.Contains(got, "### replied\n\nresumed") {
-			t.Errorf("only the sections a turn holds should render, got:\n%s", got)
+		if strings.Contains(got, "asked:") || !strings.Contains(got, "\nreplied: resumed\n") {
+			t.Errorf("only the parts a turn holds should render, got:\n%s", got)
+		}
+	})
+
+	t.Run("each day opens under its own header", func(t *testing.T) {
+		got := transcript.Condense([]transcript.Turn{
+			{Number: 1, At: at("23:50:00"), Asked: "late"},
+			{Number: 2, At: at("23:55:00"), Asked: "later"},
+			{Number: 3, At: at("23:55:00").Add(10 * time.Minute), Asked: "next day"},
+		})
+
+		want := "# 2026-01-02 UTC\n## 1  23:50\nasked: late\n\n## 2  23:55\nasked: later\n\n" +
+			"# 2026-01-03 UTC\n## 3  00:05\nasked: next day\n\n"
+		if got != want {
+			t.Errorf("turns of one day should share its header and a new day open its own, got:\n%s", got)
 		}
 	})
 
@@ -236,6 +250,11 @@ func TestCondense(t *testing.T) {
 		}
 	})
 }
+
+const (
+	dayOne = "# 2026-01-02 UTC\n"
+	dayTwo = "# 2026-01-03 UTC\n"
+)
 
 func TestPieces(t *testing.T) {
 	cases := []struct {
@@ -257,6 +276,18 @@ func TestPieces(t *testing.T) {
 		{"a line exactly filling pieces leaves no empty piece", "abcdefgh", 4, 5, []string{"abcd", "efgh"}, 0},
 		{"a negative piece size yields nothing", "a\n", -1, 5, nil, 0},
 		{"a negative piece count yields nothing", "a\n", 10, -1, nil, 0},
+		{"a piece after the first opens with its day's header", dayOne + "aaaaaaaa\nbbbbbbbb\ncccccccc\n", 34, 5,
+			[]string{dayOne + "aaaaaaaa\n", dayOne + "bbbbbbbb\n", dayOne + "cccccccc\n"}, 0},
+		{"a new day's header opens the pieces after it", dayOne + "aaaaaaaa\n" + dayTwo + "bbbbbbbb\ncccccccc\n", 34, 5,
+			[]string{dayOne + "aaaaaaaa\n", dayTwo + "bbbbbbbb\n", dayTwo + "cccccccc\n"}, 0},
+		{"a line too long for a dated piece splits under its header", dayOne + "abcdefghijklmnopqrstuvwxyz\n", 34, 5,
+			[]string{dayOne + "abcdefghijklmnopq", dayOne + "rstuvwxyz\n"}, 0},
+		{"a kept piece after cut ones still dates its turns", dayOne + "aaaaaaaa\nbbbbbbbb\ncccccccc\n", 34, 1,
+			[]string{dayOne + "cccccccc\n"}, 2},
+		{"a header taking over half a piece is not repeated", dayOne + "aaaa\nbbbb\n", 20, 5,
+			[]string{dayOne, "aaaa\nbbbb\n"}, 0},
+		{"a day header closing the text opens no piece", dayOne + "aaaaaaaaaaaaaaa\n" + dayTwo, 34, 5,
+			[]string{dayOne + "aaaaaaaaaaaaaaa\n"}, 0},
 	}
 
 	for _, tc := range cases {
@@ -317,6 +348,17 @@ func TestTail(t *testing.T) {
 		{"a text exactly the limit stays whole", "ab\n", 3, "ab\n"},
 		{"no size yields nothing", "a\n", 0, ""},
 		{"a negative size yields nothing", "a\n", -1, ""},
+		{"a cut inside a day opens with its header", dayOne + "one\ntwo\nthree\nfour\nfive\nsix\n", 34,
+			dayOne + "four\nfive\nsix\n"},
+		{"a cut on a day's header keeps it once", dayOne + "one\n" + dayTwo + "two\nthree\nfour\n", 34,
+			dayTwo + "two\nthree\nfour\n"},
+		{"a re-cut landing on a later day's header keeps that one alone", dayOne + "one\ntwo\n" + dayTwo + "x\n", 36,
+			dayTwo + "x\n"},
+		{"a header with no line end is no header", "# 2026-01-02 UTC" + strings.Repeat("x", 40), 40,
+			strings.Repeat("x", 40)},
+		{"a cut past a later day's header takes that day's", dayOne + "one\n" + dayTwo + "two\nthree\nfour\nfive\nsix\n", 34,
+			dayTwo + "four\nfive\nsix\n"},
+		{"a header taking over half the size is not repeated", dayOne + "one\ntwo\nthree\n", 20, "one\ntwo\nthree\n"},
 	}
 
 	for _, tc := range cases {
