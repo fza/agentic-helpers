@@ -129,20 +129,19 @@ func memoryCalls(command string, nested bool) ([]memoryCall, bool) {
 
 // guardShell answers the PreToolUse hook on Bash: an `--agent` the main
 // thread types is refused; a subagent's agentic-memory call its level does not
-// allow is refused, and a full one's every call gains `--agent` naming it,
-// any it carried replaced. A call a script file makes is out of reach: it
-// works on the session's own seat.
+// allow is refused, and every call of one reading memory gains `--agent`
+// naming it, any it carried replaced, so it reads with its own shown set and,
+// at full, works on its own seat. A call inside code another program runs
+// cannot carry the flag and is refused. A call a script file makes is out of
+// reach: it works on the session's own seat. Main answered a command naming
+// no agentic-memory before the store was looked up.
 func (mem *memory) guardShell(ctx context.Context, payload hookio.Payload) int {
 	command := payload.ToolInput.Command
-	if !strings.Contains(command, self) {
-		return 0
-	}
-
 	calls, parsed := memoryCalls(command, false)
 
 	if payload.AgentID == "" {
 		if slices.ContainsFunc(calls, func(held memoryCall) bool { return held.flagged }) {
-			_ = hookio.Deny(mem.streams.Out, self+": --agent is set by the hook for a subagent at level full, "+
+			_ = hookio.Deny(mem.streams.Out, self+": --agent is set by the hook for a subagent reading memory, "+
 				"never typed; run "+self+" without it")
 		}
 
@@ -164,9 +163,9 @@ func (mem *memory) guardShell(ctx context.Context, payload hookio.Payload) int {
 
 	for _, held := range calls {
 		refusal := subagentRefusal(held.verb, record.level())
-		if refusal == "" && held.nested && record.level() == levelFull && !slices.Contains(subagentReads, held.verb) {
+		if refusal == "" && held.nested {
 			refusal = self + ": run " + self + " directly, not inside code another program runs: only a direct " +
-				"call can be routed to the subagent's seat"
+				"call carries the subagent's agent id"
 		}
 
 		if refusal != "" {
@@ -176,20 +175,9 @@ func (mem *memory) guardShell(ctx context.Context, payload hookio.Payload) int {
 		}
 	}
 
-	// Below full a typed --agent is replaced too: the run then names the
-	// calling subagent, which the command line refuses, never a sibling's seat.
-	full := record.level() == levelFull
-	if !full && !slices.ContainsFunc(calls, func(held memoryCall) bool { return held.flagged }) {
-		return 0
-	}
+	mem.adoptSpawn(payload)
 
-	if slices.ContainsFunc(calls, func(held memoryCall) bool { return held.nested && held.flagged }) {
-		_ = hookio.Deny(mem.streams.Out, self+": --agent is set by the hook, never typed; run "+self+" without it")
-
-		return 0
-	}
-
-	updated, err := payload.ToolInput.WithField("command", flagCalls(command, calls, payload.AgentID, full))
+	updated, err := payload.ToolInput.WithField("command", flagCalls(command, calls, payload.AgentID))
 	if err != nil {
 		return 0
 	}
@@ -200,13 +188,12 @@ func (mem *memory) guardShell(ctx context.Context, payload hookio.Payload) int {
 }
 
 // flagCalls puts `--agent <id>` after the program name of every call the
-// command makes itself, in place of any `--agent` it carried; where every is
-// false, only of those carrying one.
-func flagCalls(command string, calls []memoryCall, agentID string, every bool) string {
+// command makes itself, in place of any `--agent` it carried.
+func flagCalls(command string, calls []memoryCall, agentID string) string {
 	var direct []memoryCall
 
 	for _, held := range calls {
-		if !held.nested && (every || held.flagged) && !slices.ContainsFunc(direct, func(other memoryCall) bool { return other.at == held.at }) {
+		if !held.nested && !slices.ContainsFunc(direct, func(other memoryCall) bool { return other.at == held.at }) {
 			direct = append(direct, held)
 		}
 	}

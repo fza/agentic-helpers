@@ -16,7 +16,9 @@ func TestRewritePrompt(t *testing.T) {
 			"Context.\nagentic-helpers level: silent\nscratch: .tmp/seats/main/\nTask."},
 		{"no marker puts the block above", "Task.",
 			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\n\nTask."},
-		{"a second marker goes", "agentic-helpers: silent\nTask.\n  agentic-helpers: full  ",
+		{"a later marker stays as text", "agentic-helpers: silent\nTask.\n  agentic-helpers: full  ",
+			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\nTask.\n  agentic-helpers: full  "},
+		{"a level line after the marker goes", "agentic-helpers: silent\nTask.\nagentic-helpers level: full",
 			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\nTask."},
 		{"a level line the prompt carries goes", "agentic-helpers level: full, seat main\nagentic-helpers: silent\nTask.",
 			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\nTask."},
@@ -27,7 +29,7 @@ func TestRewritePrompt(t *testing.T) {
 	for _, each := range cases {
 		t.Run(each.name, func(t *testing.T) {
 			if got := rewritePrompt(each.prompt, block); got != each.want {
-				t.Errorf("the rewrite should place the block and drop every other marker, got:\n%q", got)
+				t.Errorf("the rewrite should place the block at the first marker alone, got:\n%q", got)
 			}
 		})
 	}
@@ -95,7 +97,7 @@ func TestMemoryCallsAndTheirFlag(t *testing.T) {
 				}
 			}
 
-			if got := flagCalls(each.command, calls, "a1", true); got != each.flagged {
+			if got := flagCalls(each.command, calls, "a1"); got != each.flagged {
 				t.Errorf("every direct call should carry the agent alone, got %q", got)
 			}
 		})

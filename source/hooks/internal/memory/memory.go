@@ -150,6 +150,13 @@ type memory struct {
 	here        *tree
 	hashCache   *hashCache
 
+	// reader is the subagent a read runs for, named by `--agent` or the MCP
+	// call's `agent`: its reads mark its own shown set.
+	reader string
+
+	// handed is the hook payload once read from stdin.
+	handed *hookio.Payload
+
 	// acting is the key of the seat a full subagent holds, where the run works
 	// for that subagent: named by `--agent` on the command line, or by the
 	// MCP call's id.
@@ -458,6 +465,16 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return mem.refuse(err)
 	}
 
+	// Every Bash call runs this hook, side by side with shell-guard, and the
+	// slower of the two sets the delay: a command naming no agentic-memory is
+	// answered before the store and the seat are looked up.
+	if args[0] == preToolHook && agentID == "" {
+		payload := mem.payload()
+		if payload.ToolName == "Bash" && !strings.Contains(payload.ToolInput.Command, self) {
+			return 0
+		}
+	}
+
 	settles := settlesMapping(args[0], args[1:])
 
 	// A subagent's prompt gains its scratch folder and machine line whether or
@@ -480,7 +497,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 			return mem.refuse(ErrUsage)
 		}
 
-		refusal := mem.actAs(agentID)
+		refusal := mem.actAs(mem.env.SessionID, agentID, args[0], agentFlag)
 		if refusal != "" {
 			return mem.refuse(errors.New(refusal))
 		}

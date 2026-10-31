@@ -185,8 +185,8 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - **Each entry prints once per context.** Printed already, unchanged since → `<id> <title> (seen)`
   (JSON `{"id", "title", "seen": true}`, a search hit's with its score); its text is above. A run
   in the brief → `<n> seen above, unchanged`. `show` after a search line still prints the body.
-  Compaction, `/clear`, resume → full again. A fresh subagent (not a fork) never saw them: `--again`
-  on every read.
+  Compaction, `/clear`, resume → full again. A subagent has its own: a fresh one starts empty, a
+  fork with its spawner's.
 - Own shelf by default; `--all-seats` → other seats' work, to take over, never redo.
 - `--term`: case-insensitive RE2, all required. `--query`: by meaning. Both → fused. `--status`
   alone → a listing by time.

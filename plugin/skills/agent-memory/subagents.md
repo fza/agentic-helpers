@@ -12,7 +12,20 @@ agentic-helpers: shared
 ```
 
 `none`, `rules`, `silent`, `shared` or `full`. No line, or a word that is none of these, is `none`.
-Only the first marker line counts; the PreToolUse hook on the Agent tool drops every other one.
+Only the first marker line counts: the PreToolUse hook on the Agent tool swaps it for the block and
+keeps every later one as text.
+
+**Passing a level on.** For a subagent that spawns its own (a builder spawning a reviewer), write
+the nested line alone on its line below your own marker, saying what it is for:
+
+```
+agentic-helpers: silent
+Spawn the reviewer with this line, alone on its line, in its prompt:
+agentic-helpers: rules
+```
+
+The child copies it into its Agent prompt as is, no backticks. It never raises the nested child
+above the child's own level: a `silent` child copying `agentic-helpers: full` spawns at `silent`.
 
 ## What each level gets
 
@@ -50,17 +63,23 @@ read its level back from that line. A line in that shape written into a prompt b
 | `the subagent runs at agentic-helpers level <level>, which gives it no memory access` | `none` or `rules`: no memory call at all |
 | `the subagent runs at agentic-helpers level <level>, which reads memory but never writes it` | a write below `full`: report the finding to the spawner |
 | `<verb> stays with the session that spawned the subagent` | `claim`, `release`, `rename`, `private`, `lifetime`, `drop`, `bind`, `merge`, `follow`, `unfollow`, `mcp`: never from a subagent |
-| `run agentic-memory directly, not inside code another program runs` | `full`: a write inside `bash -c`, `eval` or interpreter code cannot reach its seat |
+| `run agentic-memory directly, not inside code another program runs` | `silent` and up: a call inside `bash -c`, `eval` or interpreter code cannot carry the subagent's id |
 
-## `--agent`
+## `--agent` and `agent`
 
-`agentic-memory --agent <agent-id> <subcommand>` works on the seat of that `full` subagent. **The
-PreToolUse hook sets it, never type it**: on a `full` subagent's every direct `agentic-memory` call
-it inserts the flag, replacing any already there; a typed one from a lower level is replaced by the
-calling subagent's own id, and one from the main thread is refused. The command line refuses an
-`--agent` naming no `full` subagent of the calling session.
+`agentic-memory --agent <agent-id> <subcommand>`, and the key `agent` of every memory MCP tool,
+name the subagent a call comes from: its own shown set, and at `full` its seat. **The PreToolUse
+hook sets them, never type them**: on every direct `agentic-memory` call and every memory tool call
+of a subagent at `silent` and up it sets its id, replacing any already there; one from the main
+thread is refused. The command line and the server refuse one naming no subagent of the calling
+session reading memory.
 
-Over MCP the server finds the subagent by the call's id, which the PreToolUse hook kept.
+## Seen pointers
 
-An `agentic-memory` call a script file makes is out of the hook's reach and works on the session's
-own seat.
+Each subagent has its own record of what it was shown. A fresh subagent's starts empty: its first
+read of an entry prints it in full, its next one `<id> <title> (seen)`, so no `--again`. A fork's
+starts with what its spawner was shown before the spawn, which its inherited context holds. What a
+subagent reads never turns into a pointer for its spawner.
+
+An `agentic-memory` call a script file makes is out of the hook's reach: it works on the session's
+own seat and counts as the session's read.

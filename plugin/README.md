@@ -91,8 +91,10 @@ Nothing leaves the machine unless one of these applies:
 - **agentic-memory** can hold the end of a turn once, asking the agent to write where its work
   stands. It rewrites an Agent call's prompt, swapping the `agentic-helpers: <level>` line for that
   level's notes, without answering its permission prompt. It refuses a subagent's memory call its
-  level does not allow, and adds `--agent <id>` to a `full` subagent's `agentic-memory` commands so
-  they work on its own seat, released when the subagent stops.
+  level does not allow, and names a subagent reading memory in each of its memory calls
+  (`--agent <id>` on its `agentic-memory` commands, `agent` on its memory tool calls), so it reads
+  with its own record of what it was shown and a `full` one works on its own seat, released when the
+  subagent stops.
 
 Every piece can be switched off in the plugin's options.
 
