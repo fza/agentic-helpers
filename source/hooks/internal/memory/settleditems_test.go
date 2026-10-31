@@ -29,7 +29,16 @@ func TestShowFoldsSettledItemsIntoACount(t *testing.T) {
 		t.Errorf("a settled item and its reason should leave show without --all-items:\n%s", shown)
 	}
 
+	_, events, _ := strings.Cut(shown, "events:")
+	if strings.Contains(events, " item #") || !strings.Contains(events, " item changes: agentic-memory show "+id+" --all-items") {
+		t.Errorf("the seat's own item changes should fold into one line naming the flag:\n%s", events)
+	}
+
 	all := h.must("", "show", id, "--again", "--all-items")
+	if !strings.Contains(all, " item #"+items[0]) || strings.Contains(all, "item changes:") {
+		t.Errorf("--all-items should print each item change:\n%s", all)
+	}
+
 	for _, want := range []string{"1. [x] #" + items[0] + ": one", "2. [-] #" + items[1] + ": two\n    dropped: moot", "4. [x] #" + items[3] + ": four"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("--all-items should print each settled item, missing %q:\n%s", want, all)
