@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -19,9 +18,9 @@ const marker = "[agentic-shell-guard: credential withheld ("
 
 type outputReply struct {
 	HookSpecificOutput struct {
-		HookEventName     string `json:"hookEventName"`
-		UpdatedToolOutput any    `json:"updatedToolOutput"`
-		AdditionalContext string `json:"additionalContext"`
+		HookEventName     string  `json:"hookEventName"`
+		UpdatedToolOutput any     `json:"updatedToolOutput"`
+		AdditionalContext *string `json:"additionalContext"`
 	} `json:"hookSpecificOutput"`
 }
 
@@ -271,11 +270,8 @@ func TestOutputFromOutsideTheProjectIsWithheldLineByLine(t *testing.T) {
 
 			assertWithheld(t, response, call.reply.HookSpecificOutput.UpdatedToolOutput, token, key)
 
-			lines := 1 + strings.Count(key, "\n") + 1
-			want := "agentic-shell-guard: " + strconv.Itoa(lines) + " line(s) of this " + tc.tool +
-				" output held what looks like a credential and were withheld; the source is unchanged"
-			if call.reply.HookSpecificOutput.HookEventName != "PostToolUse" || call.reply.HookSpecificOutput.AdditionalContext != want {
-				t.Errorf("the note should count the lines withheld and say the source is unchanged, got %+v", call.reply.HookSpecificOutput)
+			if call.reply.HookSpecificOutput.HookEventName != "PostToolUse" || call.reply.HookSpecificOutput.AdditionalContext != nil {
+				t.Errorf("a finished scan should leave its inline markers to speak and add no note, got %+v", call.reply.HookSpecificOutput)
 			}
 		})
 	}
@@ -395,8 +391,29 @@ func TestAScanThatCannotFinishWithholdsEveryString(t *testing.T) {
 	}
 
 	note := "agentic-shell-guard: the credential scan of this Bash output could not finish, so all of it was withheld (4 line(s)); the source is unchanged"
-	if call.reply.HookSpecificOutput.AdditionalContext != note {
-		t.Errorf("the note should say the scan could not finish, got %q", call.reply.HookSpecificOutput.AdditionalContext)
+	said := call.reply.HookSpecificOutput.AdditionalContext
+	if said == nil || *said != note {
+		t.Errorf("the note should say the scan could not finish, got %+v", call.reply.HookSpecificOutput)
+	}
+}
+
+func TestAnEditsUnfinishedScanCarriesNoNote(t *testing.T) {
+	for _, tool := range []string{"Edit", "Write", "NotebookEdit"} {
+		t.Run(tool, func(t *testing.T) {
+			g := newGuard(t, false, "")
+
+			cancelled, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			call := g.output(cancelled, tool, map[string]any{"file_path": "{project}/config.yaml"}, map[string]any{"filePath": "config.yaml", "content": "x"})
+			if !call.answered {
+				t.Fatal("a scan that could not finish should withhold the output rather than pass it")
+			}
+
+			if call.reply.HookSpecificOutput.AdditionalContext != nil {
+				t.Errorf("an edit's result should carry its markers and no note, got %q", *call.reply.HookSpecificOutput.AdditionalContext)
+			}
+		})
 	}
 }
 

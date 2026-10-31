@@ -16,7 +16,6 @@ import (
 
 const (
 	markerWithheld      = "[agentic-shell-guard: credential withheld (%s)]"
-	noteWithheld        = "agentic-shell-guard: %d line(s) of this %s output held what looks like a credential and were withheld; the source is unchanged"
 	noteScanUnfinished  = "agentic-shell-guard: the credential scan of this %s output could not finish, so all of it was withheld (%d line(s)); the source is unchanged"
 	reasonOutputUnread  = "could not read the tool output; it reached the agent unscanned"
 	reasonOutputFailure = "internal failure; the tool output reached the agent unscanned"
@@ -49,7 +48,7 @@ type outputAnswer struct {
 	HookSpecificOutput struct {
 		HookEventName     string `json:"hookEventName"`
 		UpdatedToolOutput any    `json:"updatedToolOutput"`
-		AdditionalContext string `json:"additionalContext"`
+		AdditionalContext string `json:"additionalContext,omitempty"`
 	} `json:"hookSpecificOutput"`
 }
 
@@ -105,8 +104,10 @@ func Output(ctx context.Context, env Env, streams Streams) (code int) {
 
 	reply.HookSpecificOutput.HookEventName = "PostToolUse"
 	reply.HookSpecificOutput.UpdatedToolOutput = redacted
-	reply.HookSpecificOutput.AdditionalContext = fmt.Sprintf(noteWithheld, withheld, call.ToolName)
-	if unfinished {
+	// The inline marker names what each withheld line held, so only a scan
+	// that withheld lines it never judged earns a note. An edit's result
+	// echoes a write that already landed, so it carries none either way.
+	if unfinished && !slices.Contains(editTools, call.ToolName) {
 		reply.HookSpecificOutput.AdditionalContext = fmt.Sprintf(noteScanUnfinished, call.ToolName, withheld)
 	}
 
