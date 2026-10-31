@@ -92,6 +92,20 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 		{name: "a heredoc fed to anything else", command: "cat <<'EOF'\nsdd new\nEOF", events: []string{"call cat"}},
 		{name: "code piped to a shell", command: "echo x | sh", events: []string{"piped sh", "call echo x", "call sh"}},
 		{name: "a script piped into", command: "echo x | sh run.sh", events: []string{"call echo x", "call sh run.sh"}},
+		{name: "code piped to a shell in a group", command: "echo x | { sh; }", events: []string{"piped sh", "call echo x", "call sh"}},
+		{name: "code piped past a shell reading a file", command: "echo x | { sh < run.sh; }", events: []string{"call echo x", "call sh"}},
+		{name: "code piped to a shell reading its input by path", command: "echo x | sh //dev/./stdin", events: []string{"piped sh", "call echo x", "call sh //dev/./stdin"}},
+		{
+			name: "xargs past BSD's replace count", command: "xargs -R x sdd",
+			events: []string{"call xargs -R x sdd", "launched -R x sdd", "launched x sdd", "launched sdd (certain)"},
+		},
+		{
+			name: "xargs past BSD's replace string", command: "xargs -J x sdd",
+			events: []string{"call xargs -J x sdd", "launched -J x sdd", "launched x sdd", "launched sdd (certain)"},
+		},
+		{name: "zsh's noglob", command: "noglob sdd", events: []string{"call noglob sdd", "launched sdd (certain)"}},
+		{name: "zsh's repeat past its count", command: "repeat 2 sdd", events: []string{"call repeat 2 sdd", "launched 2 sdd", "launched sdd (certain)"}},
+		{name: "zsh's equals expansion", command: "=nohup sdd", events: []string{"call =nohup sdd", "launched sdd (certain)"}},
 		{name: "inline code", command: "perl -e 'unlink 1'", events: []string{"call perl -e unlink 1", "inline perl: -e unlink 1"}},
 		{
 			name: "gtimeout past its options and duration", command: "gtimeout -k 5 9 sdd info",

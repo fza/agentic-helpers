@@ -28,11 +28,13 @@ var Shells = []string{"sh", "bash", "zsh", "dash", "ksh", "mksh", "fish"}
 // A launcher runs its arguments as a command. Every alternative of the
 // command alternatives table that launches one joins by name; one opening
 // with fixed words, as the perl alarm form, is a launcher only where a call
-// spells them (see prefixLaunch).
+// spells them (see prefixLaunch). noglob, nocorrect and `-` are zsh's
+// precommand modifiers, and zsh's `repeat N` runs its command N times: Claude
+// Code's Bash tool runs a command in zsh where that is the login shell.
 var Launchers = append([]string{
 	"sudo", "doas", "command", "builtin", "exec", "env", "nohup", "nice", "ionice",
 	"xargs", "parallel", "caffeinate", "stdbuf", "unbuffer", "time", "chronic", "flock",
-	"find", "arch",
+	"find", "arch", "noglob", "nocorrect", "-", "repeat",
 }, namedAlternatives()...)
 
 var interpreters = []string{
@@ -66,7 +68,7 @@ var Options = withAlternatives(map[string]LauncherOptions{
 		Chdir: []string{"-D", "--chdir", "-i", "--login"},
 	},
 	"xargs": {Value: []string{
-		"-I", "-L", "-d", "--delimiter", "-E", "-a", "--arg-file", "-s", "--max-chars", "-n", "--max-args", "-P", "--max-procs",
+		"-I", "-J", "-R", "-L", "-d", "--delimiter", "-E", "-a", "--arg-file", "-s", "--max-chars", "-n", "--max-args", "-P", "--max-procs",
 	}},
 	"nice":   {Value: []string{"-n", "--adjustment"}},
 	"flock":  {Value: []string{"-w", "--timeout", "-E", "--conflict-exit-code"}},
@@ -443,20 +445,56 @@ func piped(visitor Visitor, binary *syntax.BinaryCmd) {
 	}
 
 	call, isCall := binary.Y.Cmd.(*syntax.CallExpr)
-	if !isCall || len(call.Args) == 0 {
+	if isCall {
+		pipedCall(visitor, call)
+
+		return
+	}
+
+	// A compound command hands the pipe on to every call inside it that does
+	// not redirect its own input.
+	syntax.Walk(binary.Y, func(node syntax.Node) bool {
+		statement, isStatement := node.(*syntax.Stmt)
+		if !isStatement {
+			return true
+		}
+
+		if redirectsInput(statement) {
+			return false
+		}
+
+		inner, isInnerCall := statement.Cmd.(*syntax.CallExpr)
+		if isInnerCall {
+			pipedCall(visitor, inner)
+		}
+
+		return true
+	})
+}
+
+func pipedCall(visitor Visitor, call *syntax.CallExpr) {
+	if len(call.Args) == 0 {
 		return
 	}
 
 	args := launchedShell(call.Args)
-	if args == nil {
-		return
-	}
-
-	if replacesInput(args[1:]) || namesScript(args[1:]) {
+	if args == nil || replacesInput(args[1:]) || namesScript(args[1:]) {
 		return
 	}
 
 	visitor.Piped(CommandName(args[0]))
+}
+
+func redirectsInput(statement *syntax.Stmt) bool {
+	return slices.ContainsFunc(statement.Redirs, func(redirect *syntax.Redirect) bool {
+		if redirect.N != nil && redirect.N.Value != "0" {
+			return false
+		}
+
+		return slices.Contains([]syntax.RedirOperator{
+			syntax.RdrIn, syntax.RdrInOut, syntax.DplIn, syntax.Hdoc, syntax.DashHdoc, syntax.WordHdoc,
+		}, redirect.Op)
+	})
 }
 
 // launchedShell is the shell a call runs, through any launchers before it,
@@ -477,7 +515,8 @@ func launchedShell(args []*syntax.Word) []*syntax.Word {
 }
 
 // namesScript is whether a shell's arguments name a script for it to run: its
-// first operand, unless -s sends it to standard input. An option taking a
+// first operand, unless -s sends it to standard input or the operand names
+// the input itself. An option taking a
 // value (-o, -O, grouped as -eo, and every long option but the shells' known
 // flags) takes the next word with it.
 func namesScript(args []*syntax.Word) bool {
@@ -487,7 +526,7 @@ func namesScript(args []*syntax.Word) bool {
 		switch {
 		case !isLiteral:
 			return true
-		case value == "-" || value == "--":
+		case value == "--" || StandardInput(value):
 			return false
 		case slices.Contains(longFlags, value):
 		case strings.HasPrefix(value, "--"):
@@ -510,6 +549,16 @@ func namesScript(args []*syntax.Word) bool {
 	}
 
 	return false
+}
+
+var standardInput = regexp.MustCompile(`^(?:-|/dev/stdin|/dev/fd/[0-9]+|/proc/[^/]+/fd/[0-9]+)$`)
+
+// StandardInput is whether a shell's operand names its standard input instead
+// of a script: `-`, /dev/stdin, or a descriptor under /dev/fd or
+// /proc/<pid>/fd, which a redirection may point at the input as well. The
+// path is read cleaned, so `//dev/./stdin` names it too.
+func StandardInput(value string) bool {
+	return value == "-" || standardInput.MatchString(path.Clean(value))
 }
 
 // trapHandler is the code trap sets, past its options, or nil where it sets none.
@@ -574,6 +623,11 @@ func CommandName(word *syntax.Word) string {
 	value, isLiteral := Literal(word)
 	if !isLiteral {
 		return ""
+	}
+
+	// zsh expands `=git` to git's path.
+	if len(value) > 1 {
+		value = strings.TrimPrefix(value, "=")
 	}
 
 	return strings.ToLower(path.Base(value))
