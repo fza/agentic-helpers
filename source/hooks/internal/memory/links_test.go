@@ -292,6 +292,74 @@ func TestTheSimilarHintIsOneLine(t *testing.T) {
 	}
 }
 
+func TestAFilingNamesTheClosestSimilarEntryAndFoldsTheRest(t *testing.T) {
+	cases := []struct {
+		name    string
+		similar []string
+		fold    string
+	}{
+		{
+			name:    "one match",
+			similar: []string{"Gate seals the tail first"},
+		},
+		{
+			name:    "three matches",
+			similar: []string{"Gate seals the tail first", "Gate seals the tail second", "Gate seals the tail third"},
+			fold: `+2 more similar: agentic-memory search --query 'Gate seals the tail'\''s manifest'  ` +
+				"(run before concluding none is the same finding)",
+		},
+		{
+			name: "five matches",
+			similar: []string{
+				"Gate seals the tail first", "Gate seals the tail second", "Gate seals the tail third",
+				"Gate seals the tail fourth", "Gate seals the tail fifth",
+			},
+			fold: `+4 more similar: agentic-memory search --query 'Gate seals the tail'\''s manifest'  ` +
+				"(run before concluding none is the same finding)",
+		},
+	}
+
+	const body = "the gate seals the tail and renames the manifest"
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			filed := map[string]func(h *harness) string{
+				"cli": func(h *harness) string {
+					return h.must(body, "new", "--title", "Gate seals the tail's manifest", "--topic", "gate")
+				},
+				"mcp": func(h *harness) string {
+					return mcpMessage(t, h.mcp(`{"name":"new","arguments":{"title":"Gate seals the tail's manifest",`+
+						`"topic":["gate"],"body":"`+body+`"}}`))
+				},
+			}
+
+			for surface, file := range filed {
+				h := newHarness(t)
+				h.must("", "claim", "main")
+
+				for _, title := range tc.similar {
+					h.file(title, body)
+				}
+
+				out := file(h)
+
+				if strings.Count(out, "similar: m-") != 1 {
+					t.Errorf("%s: the filing should name the closest similar entry alone, got:\n%s", surface, out)
+				}
+
+				if tc.fold == "" && strings.Contains(out, "more similar") {
+					t.Errorf("%s: a single match should come with no fold line, got:\n%s", surface, out)
+				}
+
+				if tc.fold != "" && !strings.Contains(out, tc.fold) {
+					t.Errorf("%s: further matches should fold into a count with the search naming them, got:\n%s",
+						surface, out)
+				}
+			}
+		})
+	}
+}
+
 func TestRecallNamesTheNewerEntriesCitingAHit(t *testing.T) {
 	h, other := twoSeats(t)
 	hub := h.file("Zebra quokka narwhal sighting", "zebra quokka narwhal")

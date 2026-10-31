@@ -145,8 +145,9 @@ EOF
   paths, ids, quotes, domain terms exact. `plain`: full sentences. Only agents read memory.
 - Title 3-10 words (unspaced scripts: a character a word), at least one topic, body within
   `entry_max_words` (500). Wrong → lands; the reply names the fix. One finding per entry.
-- **`similar: <id> <title> (<score>)`** in the reply → the same finding: `supersede <id> --by
-  <new>`; related: `link <new> <id>`; else nothing. A near topic comes with its `merge`: run it if
+- **`similar: <id> <title> (<score>)`** in the reply (the closest only) → the same finding:
+  `supersede <id> --by <new>`; related: `link <new> <id>`; else nothing. `+<n> more similar:
+  agentic-memory search --query '<title>'` folds the rest: the fold rule holds. A near topic comes with its `merge`: run it if
   it fits. `agentic-memory topics` lists topics; reuse before coining.
 - Paths in title or body anchor the entry; `--about <path>` also tells the next call naming it.
 - **No credential, ever.** `agentic-memory: <where> looks like a credential (<rule ids>, line <n>);

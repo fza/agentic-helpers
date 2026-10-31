@@ -884,10 +884,12 @@ in stays listed: it ended, and nothing replaced it. Recall and the brief name, u
 entries linking to it that were filed after it and not superseded, newest first, title only:
 `← <id> <title> [<seat>, <date>]`, the seat only where it is not the reader's, and `(retired)` after
 a citer that was retired. A
-filing names up to three similar entries of the same seat, one line each,
+filing (CLI and MCP `new`) names the closest similar entry of the same seat on one line,
 `similar: <id> <title> (<score>)`: entries that stand two deviations above the rest by meaning and
-score at least 0.6, or share enough words where no embedder answers. The same finding →
-`supersede <old> --by <new>`; a related one → `link <new> <old>`; else nothing.
+score at least 0.6, or share enough words where no embedder answers. Where more pass, the rest fold
+into `+<n> more similar: agentic-memory search --query '<title>'  (run before concluding none is
+the same finding)`, `<title>` being the new entry's. The same finding → `supersede <old> --by
+<new>`; a related one → `link <new> <old>`; else nothing.
 
 ### Tool links
 
