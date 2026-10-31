@@ -105,18 +105,27 @@ cap (a helper tool is a script, and 1 MiB holds any reasonable one).
 Vectors live outside every store, in `<cache>/tools/vectors/<embedder>/`, one directory
 per embedder fingerprint (provider, model, dimensions, template hash, as memory's), as segments of `internal/vectorseg`, the store agentic-memory keeps its
 entry vectors in (`docs/memory/architecture.md`, "The vector store"). A row is one description's
-vector, keyed by the description's hash, so one vector serves every store naming that description
-and a rebuild embeds only a description no row is held for. `add`, `update` and `merge` each file
+vectors, keyed by the description's hash, so one vector serves every store naming that description
+and a fill embeds only a description no row is held for. Texts are sized as memory sizes them: the
+endpoint's calibration, shared with memory under `<cache>/embedding-calibration/`, gives the cap,
+`manifest.json` in the vector directory records it as `max_runes`, a row's hash is
+`embed.RowHash` of the description's hash and that cap, and a description longer than the cap is
+embedded in pieces of it, scored by its best. A fill runs before `find --query` and before the
+offer compares a prompt, so an upgrade re-embeds the library on its own, once; `add`, `update` and
+`merge` cut to the cap the directory records, calibrating where it records none. `find --query`
+cuts its phrase and the offer its prompt to the recorded cap, never probing. `add`, `update` and `merge` each file
 one segment holding only the rows they embedded, after the own index names them, then merge; a
 rebuild files one segment per embedding request (`embed.RequestTexts` descriptions at most), each
 with its own `embedding_timeout` deadline, so a rebuild the embedder fails keeps what answered. A
-rebuild runs under `fill.lock` in the vector directory, taken without waiting: held by another
-process, it embeds nothing. A row counts while some store on the machine names its description, read from every store's
+fill runs under `fill.lock` in the vector directory, taken without waiting: held by another
+process, it embeds nothing, and a `find --query` finding no cap recorded yet refuses. A failed
+probe or a calibration that does not read refuses `find --query` and `reindex` naming it; the offer
+stays silent. A row counts while some store on the machine names its description, read from every store's
 index whatever `AGENTIC_TOOLS_SCOPE` says, so a merge drops the vector of a description every store
 replaced. `find --query`, `add`'s near-duplicate check and the offer score through one mapped
 snapshot; the offer embeds the prompt only where an own tool not yet shown has a row. A cache
-`<embedder>.json` left from the whole-file store becomes one segment on first open, embedding
-nothing, and is removed.
+`<embedder>.json` left from the whole-file store is removed on first open: its vectors were embedded
+uncut, so the next fill embeds its descriptions again.
 
 Every write takes `.lock` with `flock`, waiting at most two seconds; the holder writes its pid into
 the file, and a refusal names it. Before the lock, the writer's checkout is bound to its store: a
@@ -205,6 +214,6 @@ releases (`mcpserver.ServeIdle` with `migration.Idle`), silently; `memory` does 
 verb and refusal, names across projects, the scope, the lock held by another descriptor, links and
 pipes planted in a store and in a write's path, the credential refusals of `add`, `update` and `merge` (CLI and
 MCP) and of every version `writeVersion` lays down, the vector segments (a write leaving every
-segment written before untouched, the whole-file cache migrated without an embed, a replaced
+segment written before untouched, the whole-file cache removed and embedded again, a replaced
 description merged away, another store's kept), the hooks, and the MCP server. fdbox's backfilled
 library is the fixture `test/fixtures/tools/fdbox-library`, renamed into place and read as is.

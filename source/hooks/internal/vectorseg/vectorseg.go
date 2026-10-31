@@ -3,7 +3,8 @@
 // only the rows it embedded, so its cost follows the rows written, never the
 // store; merges fold segments of a similar size, so a row is rewritten a
 // logarithmic number of times over its life. Which rows count is the caller's
-// to say, by entry id and content hash: the store keeps no manifest.
+// to say, by entry id and content hash; the store's manifest records only the
+// cap its rows' texts were cut to.
 //
 // A segment file is only ever created by rename and removed by unlink, and a
 // mapping is released only once the last snapshot holding it closes, so a
@@ -15,6 +16,7 @@ package vectorseg
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -24,6 +26,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
@@ -39,6 +42,8 @@ const (
 	tempPrefix = ".segment-"
 	lockName   = "segments.lock"
 	fillName   = "fill.lock"
+	// manifestName holds the Manifest, named as sdd names its own.
+	manifestName = "manifest.json"
 	// mergeRatio is how much larger each size class is than the one below it;
 	// a class holding this many segments merges into one.
 	mergeRatio = 4
@@ -55,6 +60,16 @@ type Row struct {
 // entry's current content.
 type Live func(id string, hash string) bool
 
+// Manifest is what a store records of how its rows were built: MaxRunes is
+// the cap every text of its rows was cut to, 0 where none is recorded. A fill
+// writes it; a search cuts its query to it.
+type Manifest struct {
+	MaxRunes int `json:"max_runes,omitempty"`
+}
+
+// ErrManifest is a manifest that is there and does not read.
+var ErrManifest = errors.New("unreadable vector store manifest")
+
 type Store struct {
 	root string
 	dir  string
@@ -66,6 +81,44 @@ func Open(root string, dir string) *Store {
 
 func (store *Store) Dir() string {
 	return store.dir
+}
+
+// Manifest is the store's manifest, the zero one where none is written yet.
+func (store *Store) Manifest() (Manifest, error) {
+	path := filepath.Join(store.dir, manifestName)
+
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return Manifest{}, nil
+	}
+
+	if err != nil {
+		return Manifest{}, fmt.Errorf("reading the vector store manifest: %w", err)
+	}
+
+	var held Manifest
+
+	err = json.Unmarshal(data, &held)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("%w %s: %w", ErrManifest, path, err)
+	}
+
+	return held, nil
+}
+
+// SetManifest replaces the store's manifest whole.
+func (store *Store) SetManifest(held Manifest) error {
+	data, err := json.Marshal(held)
+	if err != nil {
+		return fmt.Errorf("encoding the vector store manifest: %w", err)
+	}
+
+	err = safefs.MkdirAll(store.root, store.dir, 0o700)
+	if err != nil {
+		return fmt.Errorf("creating the vector segments: %w", err)
+	}
+
+	return atomicfile.Write(store.root, filepath.Join(store.dir, manifestName), data, 0o600)
 }
 
 func (store *Store) names() ([]string, error) {

@@ -72,7 +72,7 @@ func (h *harness) holds(described string) bool {
 
 	defer func() { _ = snapshot.Close() }()
 
-	return snapshot.Holds(described, described)
+	return snapshot.Holds(described, embed.RowHash(described, embed.FallbackRunes))
 }
 
 func TestAToolAddedFilesItsVectorWithoutRewritingAnother(t *testing.T) {
@@ -100,7 +100,7 @@ func TestAToolAddedFilesItsVectorWithoutRewritingAnother(t *testing.T) {
 	}
 }
 
-func TestAWholeFileVectorCacheMigratesWithoutEmbedding(t *testing.T) {
+func TestAWholeFileVectorCacheGoesAndItsToolsAreEmbeddedAgain(t *testing.T) {
 	h := newHarness(t)
 	h.tool("word-count", "Count the words of standard input")
 
@@ -128,12 +128,13 @@ func TestAWholeFileVectorCacheMigratesWithoutEmbedding(t *testing.T) {
 
 	h.must("find", "--term", "words")
 
-	if h.embedder.Calls() != embedded {
-		t.Error("a rebuild over a migrated cache should embed nothing")
+	// Its vectors were embedded uncut, so none counts under a cap.
+	if h.embedder.Calls() == embedded || !h.holds(described) {
+		t.Error("a rebuild over the whole-file cache should embed its tools again, cut to the cap")
 	}
 
-	if test.Exists(t, legacy) || !h.holds(described) {
-		t.Error("the whole-file cache should become a segment and go")
+	if test.Exists(t, legacy) {
+		t.Error("the whole-file cache should go")
 	}
 }
 
@@ -170,17 +171,29 @@ func TestAVectorAnotherStoreNamesStays(t *testing.T) {
 	}
 }
 
-func TestTheOfferEmbedsNoPromptWhereNoOwnToolHasAVector(t *testing.T) {
+func TestTheOfferFillsAnOwnToolWithoutAVectorFirst(t *testing.T) {
 	h := newHarness(t)
 
 	h.embedding = false
 	h.tool("word-split", "Put each word on its own line")
 	h.embedding = true
 
+	if !strings.Contains(h.hook("prompt", map[string]any{"prompt": "put each word on its own line"}), "word-split") ||
+		!h.holds(h.described("word-split")) {
+		t.Error("the offer should embed an own tool no vector is held for before it compares the prompt")
+	}
+}
+
+func TestTheOfferEmbedsNoPromptWhereNoOwnToolCanHaveAVector(t *testing.T) {
+	h := newHarness(t)
+
+	h.embedding = false
+	h.tool("word-split", "Put each word on its own line")
+
 	embedded := h.embedder.Calls()
 
 	if h.hook("prompt", map[string]any{"prompt": "put each word on its own line"}) != "" || h.embedder.Calls() != embedded {
-		t.Error("the offer should neither embed the prompt nor name a tool where no own tool has a vector")
+		t.Error("the offer should neither embed the prompt nor name a tool where no embedder is set")
 	}
 }
 

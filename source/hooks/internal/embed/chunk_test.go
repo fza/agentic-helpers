@@ -14,11 +14,13 @@ const (
 	maximumChunk   = 3200
 	maximumOverlap = 320
 	heading        = "Entry: Seats survive a compaction\n\n"
+	// wideCap leaves the body pieces at their own ceiling.
+	wideCap = 8192
 )
 
 func chunkBodies(t *testing.T, body string) []string {
 	t.Helper()
-	chunks := embed.Chunks("Seats survive a compaction", body)
+	chunks := embed.Chunks("Seats survive a compaction", body, wideCap)
 	bodies := make([]string, len(chunks))
 	for index, chunk := range chunks {
 		text, found := strings.CutPrefix(chunk, heading)
@@ -49,7 +51,7 @@ func ideographs(count int) string {
 
 func TestChunksOfAnEmptyBody(t *testing.T) {
 	for _, body := range []string{"", " \n\n \n"} {
-		chunks := embed.Chunks("Seats survive a compaction", body)
+		chunks := embed.Chunks("Seats survive a compaction", body, wideCap)
 		if !reflect.DeepEqual(chunks, []string{"Entry: Seats survive a compaction"}) {
 			t.Errorf("a body without text should still yield one chunk naming the entry, got %q", chunks)
 		}
@@ -173,7 +175,7 @@ func TestChunksPreferTheCoarsestSeparator(t *testing.T) {
 
 func TestChunksAreDeterministic(t *testing.T) {
 	body := words(3000) + "\n\n" + strings.Repeat("ü", 5000)
-	if !reflect.DeepEqual(embed.Chunks("Title", body), embed.Chunks("Title", body)) {
+	if !reflect.DeepEqual(embed.Chunks("Title", body, wideCap), embed.Chunks("Title", body, wideCap)) {
 		t.Errorf("the same entry should always yield the same chunks")
 	}
 }

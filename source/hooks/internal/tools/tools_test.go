@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/test"
@@ -38,6 +39,9 @@ type harness struct {
 	variables map[string]string
 	lockWait  time.Duration
 	worktrees map[string]string
+	// embedders, where set, makes the embedder in place of the fake bag of
+	// words, as one behind a fake HTTP endpoint.
+	embedders func(embed.Config) (embed.Embedder, error)
 }
 
 func newHarness(t *testing.T) *harness {
@@ -92,12 +96,18 @@ func (h *harness) roots() home.Roots {
 }
 
 func (h *harness) env() tools.Env {
-	return tools.Env{
+	env := tools.Env{
 		Base: h.repo, Home: h.home, Roots: h.roots(), OwnerName: "claude", SessionID: h.session,
 		Settings: []string{h.config, h.settings}, Getenv: func(name string) string { return h.variables[name] },
 		Now: h.clock.Now, Processes: h.processes, Checkout: test.GitDirOf{Worktrees: h.worktrees},
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: "test", LockWait: h.lockWait,
 	}
+
+	if h.embedders != nil {
+		env.Embedders = h.embedders
+	}
+
+	return env
 }
 
 type ran struct {

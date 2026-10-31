@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
@@ -97,6 +98,17 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 		return ""
 	}
 
+	bounded, cancel := context.WithTimeout(ctx, recallLimit)
+	defer cancel()
+
+	// The fill first: the prompt is cut to the cap the vector store records,
+	// which only a fill writes. A fill the deadline cuts short keeps what
+	// landed, and the offer stays silent on any failure.
+	maxRunes, err := lib.fillVectors(bounded, embedder, indexTexts(own.index))
+	if err != nil || maxRunes == 0 {
+		return ""
+	}
+
 	// The prompt is embedded only where some own tool not yet shown has a
 	// vector to compare it with.
 	snapshot, err := lib.vectorStore(embedder.Fingerprint()).Snapshot()
@@ -120,7 +132,7 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 		described := hit.tool.Described
 
 		offered := seen != nil && (slices.Contains(seen.set.Offered, name) || slices.Contains(seen.set.Lines, versionKey(hit)))
-		if !offered && snapshot.Holds(described, described) {
+		if !offered && snapshot.Holds(described, embed.RowHash(described, maxRunes)) {
 			candidates = append(candidates, name)
 			wanted[described] = true
 		}
@@ -130,15 +142,14 @@ func (lib *library) offer(ctx context.Context, prompt string) string {
 		return ""
 	}
 
-	bounded, cancel := context.WithTimeout(ctx, recallLimit)
-	defer cancel()
-
-	vector, _, err := lib.embedPrompt(bounded, prompt)
+	vector, _, err := lib.embedPrompt(bounded, prompt, maxRunes)
 	if err != nil {
 		return ""
 	}
 
-	scores, err := snapshot.Scores(vector, func(id string, _ string) bool { return wanted[id] })
+	scores, err := snapshot.Scores(vector, func(id string, hash string) bool {
+		return wanted[id] && hash == embed.RowHash(id, maxRunes)
+	})
 	if err != nil {
 		return ""
 	}
@@ -211,7 +222,7 @@ func (lib *library) ownOnly() *store {
 // finished first, and leaves its own for agentic-memory otherwise. A prompt
 // holding a credential is never embedded, and the offer stays silent on it:
 // agentic-memory's recall tells the agent once.
-func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, string, error) {
+func (lib *library) embedPrompt(ctx context.Context, prompt string, maxRunes int) ([]float32, string, error) {
 	if promptvector.Withheld(ctx, prompt) != "" {
 		return nil, "", ErrPromptWithheld
 	}
@@ -222,32 +233,49 @@ func (lib *library) embedPrompt(ctx context.Context, prompt string) ([]float32, 
 	}
 
 	fingerprint := embedder.Fingerprint()
+	slotKey := promptvector.Key(fingerprint, maxRunes)
 
-	cached, hit := promptvector.Load(ctx, lib.promptVectors(), lib.session, prompt, fingerprint)
+	cached, hit := promptvector.Load(ctx, lib.promptVectors(), lib.session, prompt, slotKey)
 	if hit {
 		return cached, fingerprint, nil
 	}
 
-	vectors, err := embedder.Queries(ctx, []string{prompt})
+	vectors, err := embedder.Capped(maxRunes).Queries(ctx, []string{prompt})
 	if err != nil || len(vectors) != 1 {
 		return nil, "", fmt.Errorf("embedding the prompt: %w", cmp.Or(err, fmt.Errorf("no vector answered")))
 	}
 
-	_ = promptvector.Save(ctx, lib.promptVectors(), lib.session, prompt, fingerprint, vectors[0])
+	_ = promptvector.Save(ctx, lib.promptVectors(), lib.session, prompt, slotKey, vectors[0])
 
 	return vectors[0], fingerprint, nil
 }
 
-func (lib *library) embedText(ctx context.Context, phrase string) ([]float32, string, error) {
+// embedText fills the vectors of every description stores hold, then embeds
+// phrase cut to the cap the vector store records.
+func (lib *library) embedText(ctx context.Context, phrase string, stores []*store) ([]float32, string, error) {
 	embedder, err := lib.embedder(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
+	indexes := make([]*index, 0, len(stores))
+	for _, held := range stores {
+		indexes = append(indexes, held.index)
+	}
+
+	maxRunes, err := lib.fillVectors(ctx, embedder, indexTexts(indexes...))
+	if err != nil {
+		return nil, "", err
+	}
+
+	if maxRunes == 0 {
+		return nil, "", ErrNoCap
+	}
+
 	bounded, cancel := context.WithTimeout(ctx, lib.embedLimitFor())
 	defer cancel()
 
-	vectors, err := embedder.Queries(bounded, []string{phrase})
+	vectors, err := embedder.Capped(maxRunes).Queries(bounded, []string{phrase})
 	if err != nil {
 		return nil, "", fmt.Errorf("embedding the query: %w", err)
 	}

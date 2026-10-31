@@ -295,8 +295,10 @@ func (lib *library) identical(ctx context.Context, files []safefs.Walked) string
 
 // nearest names up to limit current tools in reach whose vector lies at or
 // above the duplicate floor of vector, closest first.
-func (lib *library) nearest(ctx context.Context, vector []float32, fingerprint string, limit int) []string {
-	if len(vector) == 0 {
+// A description cut into pieces is compared by its first, the head that
+// names what the tool does.
+func (lib *library) nearest(ctx context.Context, vector describedVectors, fingerprint string, limit int) []string {
+	if len(vector.Chunks) == 0 {
 		return nil
 	}
 
@@ -318,7 +320,7 @@ func (lib *library) nearest(ctx context.Context, vector []float32, fingerprint s
 		}
 	}
 
-	scores := lib.scores(vector, fingerprint, wanted)
+	scores := lib.scores(vector.Chunks[0], fingerprint, wanted)
 
 	for _, held := range stores {
 		for _, name := range held.names() {

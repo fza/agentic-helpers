@@ -29,8 +29,9 @@ agentic-tools take <name>...                                     # copy into .tm
 - **take checks every name first.** One unknown → `nothing taken:`, nothing copied. A copy already
   there is reused, never overwritten: your edits stay.
 - No embedder (none set, or `embedding_provider` `off`) → `--query` refused, `add` skips the
-  near-duplicate description check. Use `--term`. Its endpoint and key variable come from Claude
-  Code's settings only: `agentic-helpers config set` refuses both
+  near-duplicate description check. Use `--term`. A failing input-limit calibration refuses
+  `--query` and `reindex` too, naming the probe or file. Its endpoint, path and key variable come
+  from Claude Code's settings only: `agentic-helpers config set` refuses them
   (`refused: config.yaml never sets <key>; set it in Claude Code's settings`), and it refuses any
   guard value looser than the default.
 - **JSON (MCP, `--json`): an absent key is empty.** `[]`, `null`, `""` and `false` are left out: no

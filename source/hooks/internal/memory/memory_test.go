@@ -68,6 +68,9 @@ type harness struct {
 	// build; nil asks nothing, and an empty version is no release.
 	releases *test.Releases
 	version  string
+	// embedders, where set, makes the embedder in place of the fake bag of
+	// words, as one behind a fake HTTP endpoint.
+	embedders func(embed.Config) (embed.Embedder, error)
 }
 
 func newHarness(t *testing.T) *harness {
@@ -167,6 +170,10 @@ func (h *harness) env() memory.Env {
 
 	if h.releases != nil {
 		env.Releases = h.releases
+	}
+
+	if h.embedders != nil {
+		env.Embedders = h.embedders
 	}
 
 	return env
@@ -463,7 +470,7 @@ func (h *harness) fileUnembedded() {
 
 	h.embedder.Err = errors.New("connection refused")
 
-	paragraph := strings.Repeat("finding ", 390)
+	paragraph := strings.Repeat("finding ", 240)
 	for number := range 10 {
 		h.file(fmt.Sprintf("Finding number %d", number), strings.Repeat(paragraph+"\n\n", 8))
 	}
@@ -1890,14 +1897,14 @@ func TestRecallLeavesThePromptVectorForAgenticTools(t *testing.T) {
 	question := "how does the tail seal manifest rename work"
 	h.must(hookPayload("", "", question), "prompt")
 
-	_, held := promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Space())
+	_, held := promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, promptvector.Key(h.embedder.Space(), embed.FallbackRunes))
 	if !held {
 		t.Error("recall should leave the prompt's vector in the session's slot")
 	}
 
 	h.must(hookPayload("", "", ""), "session-end")
 
-	_, held = promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, h.embedder.Space())
+	_, held = promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, promptvector.Key(h.embedder.Space(), embed.FallbackRunes))
 	if held {
 		t.Error("the session's end should empty its slot")
 	}

@@ -8,6 +8,7 @@ import (
 
 const (
 	ollamaEndpoint  = "http://localhost:11434"
+	ollamaPath      = "/api/embed"
 	ollamaBatchSize = 64
 )
 
@@ -27,7 +28,8 @@ type ollamaRequest struct {
 }
 
 type ollamaAnswer struct {
-	Embeddings [][]float32 `json:"embeddings"`
+	Embeddings      [][]float32 `json:"embeddings"`
+	PromptEvalCount int         `json:"prompt_eval_count"`
 }
 
 func newOllama(cfg Config, client *http.Client) *ollama {
@@ -51,11 +53,29 @@ func (embedder *ollama) Fingerprint() string {
 	return fmt.Sprintf("ollama/%s/%d", embedder.model, embedder.dimensions)
 }
 
+func (embedder *ollama) Route() (string, string) {
+	return embedder.endpoint, ollamaPath
+}
+
+func (embedder *ollama) Measure(ctx context.Context, text string) (int, error) {
+	answer, err := embedder.request(ctx, []string{text})
+	if err != nil {
+		return 0, fmt.Errorf("measuring with %s: %w", embedder.endpoint, err)
+	}
+
+	return answer.PromptEvalCount, nil
+}
+
 func (embedder *ollama) embedBatch(ctx context.Context, batch []string) ([][]float32, error) {
-	var answer ollamaAnswer
-	err := post(ctx, embedder.client, embedder.endpoint+"/api/embed", "", ollamaRequest{Model: embedder.model, Input: batch, Dimensions: embedder.dimensions}, &answer)
+	answer, err := embedder.request(ctx, batch)
 	if err != nil {
 		return nil, err
 	}
 	return answer.Embeddings, nil
+}
+
+func (embedder *ollama) request(ctx context.Context, batch []string) (ollamaAnswer, error) {
+	var answer ollamaAnswer
+	err := post(ctx, embedder.client, embedder.endpoint+ollamaPath, "", ollamaRequest{Model: embedder.model, Input: batch, Dimensions: embedder.dimensions}, &answer)
+	return answer, err
 }

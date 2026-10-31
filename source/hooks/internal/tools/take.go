@@ -243,5 +243,5 @@ func (lib *library) recordTake(name string, line takeLine) error {
 		return err
 	}
 
-	return lib.reindexTool(name, nil)
+	return lib.reindexTool(name, describedVectors{})
 }
