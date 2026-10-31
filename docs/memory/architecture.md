@@ -16,6 +16,7 @@
 ├── credentials-found.json                              what the migration scan found, until each seat's brief tells it
 ├── .ledger                                             the size ledger: every file below the store, its length and crc32c
 ├── scratch-paths.json                                  marks the scratch path pass done
+├── clock.json                                          the newest time the store holds (The clock mark)
 ├── backup/format-<n>-<UTC stamp>/                      what a format migration changed, as it was before, for 30 days
 └── backup/scratch-paths-<UTC stamp>/                   the log before the scratch path pass, for 30 days
 <data>/stores/<id>/identity.json                        the store's checkouts and identifiers (internal/home)
@@ -122,7 +123,14 @@ seat has now, so a `rename` shows everywhere at once. No seat may be named in an
 `seats.json` is written under the store's lock (`.lock` in the store root), through a temporary
 file renamed into place. A seat's `"private": true` lives there too, beside its name, so the mark
 outlasts every claim file: `who --all` reads each other store's registry and drops its private seats
-before counting or listing any.
+before counting or listing any, as plain `who` does before counting them into its fold line.
+
+`who` names a live holder's session from Claude Code's own per-process record,
+`sessions/<pid>.json` under its configuration folder, read for the claim's pid and trusted only where
+its `sessionId` is the claim's: a pid is reused once its process ends, so a record left behind or
+written for another session names no holder. The file is Claude Code's, not memory's: where its
+shape changes, the `message:` part disappears and nothing else in the row changes. The process
+table names no session, which is why `ps` is not asked.
 
 ## Shelves
 
@@ -389,6 +397,32 @@ UTC keeps every string in time order when sorted as text and never repeats an ho
 go back. The binary segments keep their little-endian Unix nanoseconds. A log row an earlier release
 wrote with Unix nanoseconds reads as that. Printed stamps turn every time local, with the zone's
 abbreviation.
+
+### The clock mark
+
+A system clock set back would make everything stored before look as if it lay in the future. The
+store keeps a high-water mark of the newest time it holds, `clock.json` beside the log
+(`{"mark": <time>}`), and memory's time (`now` in `clock.go`) is the system clock, or one nanosecond
+past the mark while the clock trails it. Every place that stamps or compares a time reads it: filing
+and every log row, claims and their closes, reservations, brief and seen marks, nudge ladders and
+the state request, heat, due times, `at:` ends, `who`'s 14-day window, the purge's retention and
+`revive`'s window. So an entry filed after a rollback sorts after the earlier ones and arrives as
+new in another seat's brief, no heat is computed from a negative age, and a nudge or state request
+answered after a rollback does not repeat.
+
+The mark rises with every stored time: a write to the log or a claim (through the size ledger's
+refresh), a slot, the heat cache. Each raises it to the latest time `now` answered in the process,
+never lower than the mark another process left, and refreshes the store's size ledger. A store
+without the file starts from the newest stamp in its log. A process reads the mark once, the MCP
+server once per call. It is written only where memory writes the store anyway: never into a store
+that does not exist, one of a newer format, or one outside git where memory keeps to git. The file
+is new beside the log and changes nothing an earlier release reads, so the store format stays 7.
+
+Not covered: while the system clock trails the mark, memory's time stands at the mark, so due times
+and `at:` ends fire late by up to the rollback and decay pauses for that span. Content-hash anchors
+(`changed:`) compare hashes, not times, and are unaffected. A clock set forward and then corrected
+leaves the mark ahead, which reads the same as a rollback of that span. The scratch sweep ages
+folders by their modification times, which the file system stamps, not memory.
 
 ## Heat
 

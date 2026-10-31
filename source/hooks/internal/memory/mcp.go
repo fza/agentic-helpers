@@ -93,6 +93,7 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 	mem.here = nil
 	mem.forgetRegistry()
 	mem.forgetShelves()
+	mem.clock.read = false
 
 	defer func() { mem.hashCache.save() }()
 

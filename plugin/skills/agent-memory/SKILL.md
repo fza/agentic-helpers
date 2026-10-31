@@ -54,6 +54,9 @@ agentic-memory private on|off      # hide this seat from other projects' who --a
   one`).
 - **User names a seat loosely** ("main seat", "Haupt-Session") → `who`, claim the seat whose name
   means the same. None or several fit → ask, naming the seats. Never coin one from a translation.
+- **Reaching a seat's holder** → `who`: a live holder's row carries `message: <name>`, the name
+  `SendMessage` takes. No such part → no name known; never guess one. Other projects' seats fold
+  into `+<n> seats in other projects: agentic-memory who --all`: the fold rule holds.
 - **Claimed on the user's request → answer with where work stands**, from the brief just printed:
   state, what is due, open todos with their next items, decisions waiting on the user. User's
   language, outcomes only, a few lines; an id only for work the user must act on. A claim at
@@ -145,8 +148,9 @@ EOF
   paths, ids, quotes, domain terms exact. `plain`: full sentences. Only agents read memory.
 - Title 3-10 words (unspaced scripts: a character a word), at least one topic, body within
   `entry_max_words` (500). Wrong → lands; the reply names the fix. One finding per entry.
-- **`similar: <id> <title> (<score>)`** in the reply → the same finding: `supersede <id> --by
-  <new>`; related: `link <new> <id>`; else nothing. A near topic comes with its `merge`: run it if
+- **`similar: <id> <title> (<score>)`** in the reply (the closest only) → the same finding:
+  `supersede <id> --by <new>`; related: `link <new> <id>`; else nothing. `+<n> more similar:
+  agentic-memory search --query '<title>'` folds the rest: the fold rule holds. A near topic comes with its `merge`: run it if
   it fits. `agentic-memory topics` lists topics; reuse before coining.
 - Paths in title or body anchor the entry; `--about <path>` also tells the next call naming it.
 - **No credential, ever.** `agentic-memory: <where> looks like a credential (<rule ids>, line <n>);

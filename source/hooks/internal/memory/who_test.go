@@ -1,8 +1,10 @@
 package memory_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -93,6 +95,80 @@ func TestWhoAllAddsEveryOtherProjectReadOnly(t *testing.T) {
 
 	if out := h.must("", "who", "--all"); !strings.HasPrefix(out, "no seat in this project") || !strings.Contains(out, "gitlab.com/acme/tool") {
 		t.Errorf("who outside a project should still list the others with --all, got:\n%s", out)
+	}
+}
+
+// sessionRecord writes Claude Code's record of the session running as pid
+// under the harness's fake home.
+func (h *harness) sessionRecord(pid int, session string, name string) {
+	h.t.Helper()
+
+	test.WriteFile(h.t, filepath.Join(h.home, ".claude", "sessions", strconv.Itoa(pid)+".json"),
+		fmt.Sprintf(`{"pid": %d, "sessionId": %q, "name": %q, "cwd": "/somewhere"}`, pid, session, name))
+}
+
+func TestWhoNamesTheSessionToMessageForEachLiveHolder(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	h.processes.Other()
+	h.sessionRecord(test.OwnerPID, test.Session, "memory\nrework")
+
+	elsewhereID := test.OtherStore(t, h.roots(), "gitlab.com/acme/tool")
+	elsewhere := h.roots().Store(elsewhereID, home.Memory)
+	test.ClaimOtherSeat(t, elsewhere, "drive", test.OtherSession)
+	test.ClaimOtherSeat(t, elsewhere, "ride", test.OtherSession)
+	test.ClaimDeadSeat(t, elsewhere, "left", test.Session)
+	h.sessionRecord(test.OtherOwnerPID, test.OtherSession, "tool release")
+
+	out := h.must("", "who")
+	if !regexp.MustCompile(`(?m)^main\s+c3fb65eb pid 200  since [^\n]+  message: memory rework  filed \d+ / used \d+$`).MatchString(out) {
+		t.Errorf("who should name the session a live holder takes messages by, on one line, got:\n%s", out)
+	}
+
+	if strings.Contains(out, "drive") || !strings.HasSuffix(out,
+		"\n+2 seats in other projects: agentic-memory who --all  (run before concluding a seat is not held)\n") {
+		t.Errorf("who should fold other projects' seats into a count naming the command listing them, got:\n%s", out)
+	}
+
+	all := h.must("", "who", "--all")
+	if !regexp.MustCompile(`(?m)^  drive\s+a1b2c3d4 pid 300  message: tool release  filed \d+ / used \d+$`).MatchString(all) ||
+		strings.Contains(all, "in other projects") {
+		t.Errorf("who --all should list other projects' seats with the same part and no fold line, got:\n%s", all)
+	}
+
+	if answer := mcpMessage(t, h.mcp(`{"name":"who","arguments":{}}`)); !strings.Contains(answer, "message: memory rework") ||
+		!strings.Contains(answer, "+2 seats in other projects: agentic-memory who --all") {
+		t.Errorf("the MCP who should answer as the command does, got:\n%s", answer)
+	}
+
+	if listed := h.must("", "who", "--json"); !strings.Contains(listed, `"message":"memory rework"`) {
+		t.Errorf("who --json should carry the holder's session name, got:\n%s", listed)
+	}
+}
+
+func TestWhoNamesNoSessionWithoutARecordOfTheHolder(t *testing.T) {
+	cases := []struct {
+		name   string
+		record func(h *harness)
+	}{
+		{name: "no record", record: func(*harness) {}},
+		{name: "another session's record", record: func(h *harness) { h.sessionRecord(test.OwnerPID, test.OtherSession, "elsewhere") }},
+		{name: "an unreadable record", record: func(h *harness) {
+			test.WriteFile(h.t, filepath.Join(h.home, ".claude", "sessions", strconv.Itoa(test.OwnerPID)+".json"), "{not json")
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+			tc.record(h)
+
+			if out := h.must("", "who"); strings.Contains(out, "message:") || strings.Contains(out, "in other projects") ||
+				!regexp.MustCompile(`(?m)^main\s+c3fb65eb pid 200  since [^\n]+  filed \d+ / used \d+$`).MatchString(out) {
+				t.Errorf("a holder without its own session record should get no message part, the row unchanged, got:\n%s", out)
+			}
+		})
 	}
 }
 

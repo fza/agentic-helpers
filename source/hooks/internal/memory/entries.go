@@ -375,15 +375,35 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 			fmt.Sprintf("  → %s merge %s %s", self, topic, near[0]))
 	}
 
-	for _, similar := range mem.similar(ctx, folded, held) {
-		if slices.Contains(absorbed, similar.id) {
-			continue
-		}
+	var offered []scored
 
-		notes = append(notes, fmt.Sprintf("similar: %s %s (%.2f)", similar.id, similar.title, similar.score))
+	for _, similar := range mem.similar(ctx, folded, held) {
+		if !slices.Contains(absorbed, similar.id) {
+			offered = append(offered, similar)
+		}
 	}
 
-	return notes
+	return append(notes, similarLines(offered, held.title)...)
+}
+
+// similarLines names the closest of the offered entries alone and folds the
+// rest into a count: the agent acts on the closest in nearly every filing, and
+// each further line repeated the same hint.
+func similarLines(offered []scored, title string) []string {
+	if len(offered) == 0 {
+		return nil
+	}
+
+	best := offered[0]
+	lines := []string{fmt.Sprintf("similar: %s %s (%.2f)", best.id, best.title, best.score)}
+
+	if len(offered) > 1 {
+		quotedTitle := "'" + strings.ReplaceAll(title, "'", `'\''`) + "'"
+		lines = append(lines, runBefore(fmt.Sprintf("+%d more similar: %s search --query %s", len(offered)-1, self,
+			quotedTitle), "concluding none is the same finding"))
+	}
+
+	return lines
 }
 
 type scored struct {
@@ -392,8 +412,8 @@ type scored struct {
 	score float64
 }
 
-// similar is up to three live entries of the same seat that stand out from the
-// rest as close to the new one: by meaning where the embedder answers, by
+// similar is the live entries of the same seat that stand out from the rest as
+// close to the new one, closest first: by meaning where the embedder answers, by
 // shared words where it does not, since filing never waits on it.
 func (mem *memory) similar(ctx context.Context, folded *state, held *entry) []scored {
 	var peers []*entry
@@ -428,7 +448,7 @@ func (mem *memory) similar(ctx context.Context, folded *state, held *entry) []sc
 
 	slices.SortFunc(found, func(a, b scored) int { return cmp.Compare(b.score, a.score) })
 
-	return found[:min(3, len(found))]
+	return found
 }
 
 // similarFloor is the least score by meaning a similar entry needs, however

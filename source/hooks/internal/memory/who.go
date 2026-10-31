@@ -3,13 +3,17 @@ package memory
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -17,7 +21,7 @@ import (
 // its shelf, and frees the project's claims whose holder is gone and its
 // reservations nobody took over. With --all it adds every other project's
 // seats on the machine under a heading naming the project, and never writes
-// to another project. A free seat nothing was filed by or used from in
+// to another project; without it, a line counts the seats --all would add. A free seat nothing was filed by or used from in
 // usedWindow is counted rather than listed, unless --unused. It runs from
 // anywhere and migrates no store.
 func (mem *memory) who(ctx context.Context, req request) result {
@@ -48,16 +52,23 @@ func (mem *memory) who(ctx context.Context, req request) result {
 		blocks = append(blocks, "no seat in this project")
 	}
 
-	if req.All {
-		for _, held := range mem.otherStores(here) {
-			other := mem.sibling(held.ID)
+	elsewhere := 0
 
-			rows := seatLines(public(other.seatRecords(ctx, false)), req.Unused, self+" who --all --unused")
-			if len(rows) > 0 {
-				blocks = append(blocks, held.Name()+" ("+held.ID+"):\n"+indent(rows))
-				if firstRows < 0 {
-					firstRows = len(blocks) - 1
-				}
+	for _, held := range mem.otherStores(here) {
+		other := mem.sibling(held.ID)
+		records := public(other.seatRecords(ctx, false))
+
+		if !req.All {
+			elsewhere += len(slices.DeleteFunc(records, seatRow.unused))
+
+			continue
+		}
+
+		rows := seatLines(records, req.Unused, self+" who --all --unused")
+		if len(rows) > 0 {
+			blocks = append(blocks, held.Name()+" ("+held.ID+"):\n"+indent(rows))
+			if firstRows < 0 {
+				firstRows = len(blocks) - 1
 			}
 		}
 	}
@@ -66,7 +77,13 @@ func (mem *memory) who(ctx context.Context, req request) result {
 		blocks[firstRows] = whoHeader + "\n" + blocks[firstRows]
 	}
 
-	return done(strings.Join(blocks, "\n\n"))
+	text := strings.Join(blocks, "\n\n")
+	if elsewhere > 0 {
+		text += "\n" + runBefore("+"+plural(elsewhere, "seat")+" in other projects: "+self+" who --all",
+			"concluding a seat is not held")
+	}
+
+	return done(text)
 }
 
 // whoHeader names the window every row's figures count, once above them.
@@ -178,6 +195,32 @@ type seatRow struct {
 	holder  *seat.Claim
 	freed   bool
 	private bool
+	// message is the name Claude Code gave the holder's session, the one
+	// another session sends it a message by; empty where none is known.
+	message string
+}
+
+// sessionName is the name of the session holding claim, from the record Claude
+// Code keeps per process, `sessions/<pid>.json` in its configuration folder.
+// A record that is missing, unreadable or another session's names none: a pid
+// is reused once its process ends.
+func (mem *memory) sessionName(claim seat.Claim) string {
+	path := filepath.Join(pluginconfig.ConfigDir(mem.env.Home, mem.env.Getenv), "sessions", strconv.Itoa(claim.PID)+".json")
+
+	var record struct {
+		SessionID string `json:"sessionId"`
+		Name      string `json:"name"`
+	}
+
+	// A record missing or not JSON leaves record empty, naming no session.
+	data, _ := os.ReadFile(path)
+	_ = json.Unmarshal(data, &record)
+
+	if record.SessionID != claim.SessionID {
+		return ""
+	}
+
+	return strings.Join(strings.Fields(record.Name), " ")
 }
 
 // unused is a free seat nothing was filed by or used from within usedWindow.
@@ -270,6 +313,11 @@ func (mem *memory) seatRecords(ctx context.Context, free bool) []seatRow {
 			at, err := time.Parse(time.RFC3339Nano, claim.Claimed)
 			if err == nil {
 				row.state += "  since " + stamp(at)
+			}
+
+			row.message = mem.sessionName(claim)
+			if row.message != "" {
+				row.state += "  message: " + row.message
 			}
 		case mem.freshReservation(claim):
 			row.status, row.holder = seatReserved, &claim
