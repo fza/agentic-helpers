@@ -210,7 +210,21 @@ func (l *Log) Merge(ctx context.Context, policy Policy) error {
 // Rewrite seals the tail, then merges every segment through policy: every
 // event the log holds passes the policy, the tail's included.
 func (l *Log) Rewrite(ctx context.Context, policy Policy) error {
+	return l.RewriteAfter(ctx, nil, policy)
+}
+
+// RewriteAfter is Rewrite running first, where given, under the log lock
+// before anything changes: a copy it takes holds every row the rewrite
+// passes, none appended in between.
+func (l *Log) RewriteAfter(ctx context.Context, first func() error, policy Policy) error {
 	return l.locked(ctx, func(current manifest) error {
+		if first != nil {
+			err := first()
+			if err != nil {
+				return err
+			}
+		}
+
 		info, err := os.Stat(l.path(tailName))
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("measuring the tail: %w", err)

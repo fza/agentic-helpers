@@ -40,6 +40,7 @@ const (
 	lockName    = ".migration.lock"
 	failedDir   = "migration-failed"
 	attachments = "attachments"
+	backupDir   = "backup"
 )
 
 // Processes lists the executable of every process of this user whose name
@@ -158,12 +159,26 @@ func exists(path string) bool {
 }
 
 // Prepare migrates the old layout where that is due and says once per
-// session when it fails. Every entry point calls it before it reads the home.
+// session when it fails, then removes the home's expired backups. Every entry
+// point calls it before it reads the home.
 func Prepare(ctx context.Context, env Env, stderr io.Writer) {
 	_, err := Run(ctx, env)
 	if err != nil {
 		env.reportOnce(stderr, err)
 	}
+
+	ExpireBackups(ctx, env)
+}
+
+// ExpireBackups removes every `<data>/backup/legacy-<stamp>/` older than
+// home.BackupLifetime. A home without `backup/` costs one lstat; a removal
+// failing is left to the next call, which tries again.
+func ExpireBackups(ctx context.Context, env Env) {
+	if !env.usable() {
+		return
+	}
+
+	_ = home.ExpireBackups(ctx, env.Roots.Data, filepath.Join(env.Roots.Data, backupDir), env.now())
 }
 
 // Run migrates the old layout where an old tree exists and the home has no

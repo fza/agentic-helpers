@@ -20,8 +20,9 @@ import (
 // first, so `main.last.json` reads as `main`, not `main.last`.
 var seatFileSuffixes = []string{".last.json", ".json", ".slice"}
 
-// prepare brings the store to the current format before anything reads it. A
-// store already there costs one stat; a store of a newer format is refused.
+// prepare brings the store to the current format, its scratch paths
+// rewritten, before anything reads it. A store already there costs two
+// stats; a store of a newer format is refused.
 func (mem *memory) prepare(ctx context.Context) error {
 	if mem.outsideGit || !mem.storeExists() {
 		return nil
@@ -33,13 +34,16 @@ func (mem *memory) prepare(ctx context.Context) error {
 	}
 
 	switch {
-	case version == storeFormat:
-		return nil
 	case version > storeFormat:
 		return fmt.Errorf("%w: this store has format %d; this release reads up to %d", ErrNewerStore, version, storeFormat)
+	case version < storeFormat:
+		err = mem.migrate(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
-	return mem.migrate(ctx)
+	return mem.rewriteScratchPaths(ctx)
 }
 
 // migrate brings an older store to the current format one step at a time,

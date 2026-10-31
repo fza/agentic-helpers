@@ -70,8 +70,8 @@ func writeFormat(root string, store string, version int) error {
 	return nil
 }
 
-// initStore creates a fresh store at the current format, so it never needs
-// migrating.
+// initStore creates a fresh store at the current format, its scratch paths
+// marked rewritten, so it never needs migrating.
 func (mem *memory) initStore() error {
 	err := safefs.MkdirAll(mem.env.Roots.Data, mem.store(), 0o700)
 	if err != nil {
@@ -104,6 +104,11 @@ func (mem *memory) initStore() error {
 
 	mem.forgetRegistry()
 	mem.forgetShelves()
+
+	err = mem.markScratchPaths()
+	if err != nil {
+		return err
+	}
 
 	return writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
 }

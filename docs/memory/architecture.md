@@ -15,7 +15,9 @@
 ├── attachments.refs                                    the attachment hashes its entries still holding a body name
 ├── credentials-found.json                              what the migration scan found, until each seat's brief tells it
 ├── .ledger                                             the size ledger: every file below the store, its length and crc32c
-└── backup/format-<n>-<UTC stamp>/                      what a migration changed, as it was before
+├── scratch-paths.json                                  marks the scratch path pass done
+├── backup/format-<n>-<UTC stamp>/                      what a format migration changed, as it was before, for 30 days
+└── backup/scratch-paths-<UTC stamp>/                   the log before the scratch path pass, for 30 days
 <data>/stores/<id>/identity.json                        the store's checkouts and identifiers (internal/home)
 <data>/sessions/claude/<session>/context.json           the context reading the plugin writes, with the compaction window
 <data>/update-check.json                                the latest release GitHub named, when it was asked, the day the notice showed
@@ -187,6 +189,69 @@ the release knows is refused: `agentic-memory: this store has format <n>; this r
 <m>`, with hooks silent and nothing written; a binary of an earlier release refuses a newer store
 that way. A store created by this release starts at the current format. The log's manifest no longer
 carries a format number; one that does still reads.
+
+### The scratch path pass
+
+Scratch moved from `.tmp/claude/<name>/` to `.tmp/seats/<seat or session id>/` and
+`.tmp/keep/<name>/`, so every store rewrites the scratch paths its entries quote, once, in place.
+The first call of a release carrying the pass on a store without `scratch-paths.json`, after any
+format migration and under the store lock:
+
+1. runs the scratch path pass over a copy of the log's events; a log it does not change stays as it
+   is, with no backup, and only the marker is written;
+2. takes the log lock and, holding it, copies `log/` to `backup/scratch-paths-<UTC stamp>/`, so no
+   row appended in between is missing from the copy;
+3. still holding it, rewrites the log through its own merge, every event through the pass: the
+   merge builds one segment and lists it in place of the old ones in a single manifest write, so
+   the rebuilt log swaps in whole;
+4. writes `scratch-paths.json` last.
+
+The pass maps by rule, never by a record of moves: `.tmp/claude/<seat>/...` becomes
+`.tmp/seats/<seat>/...` for any seat the store's `seats.json` names, expired ones included;
+`.tmp/claude/<session id>/...`, a lower-case UUID, becomes `.tmp/seats/<session id>/...`; any other
+`.tmp/claude/<name>...` becomes `.tmp/keep/<name>...`. `.tmp/claude/` followed by no name, by a
+placeholder (`<seat>`, `$SESSION`) or by a glob (`*`) names the old layout, and stays. It rewrites a
+`new` row's title, body and anchor paths, a `retitle`'s title, a `confirm`'s anchor paths, an
+`item`'s text and a `state` row's body, of every entry, retired and superseded ones included. A
+`new` row's path fields are mapped too, since an end or trigger naming a moved folder would
+misfire: every `--about` path, the path of each `changed:` and `gone:` end (and the
+`changed:` hash keyed by it), and the glob of each `path:` trigger in `when` and `proof`. A glob
+maps only where its name is literal, `.tmp/claude/<name>/` or the name closing it; one whose
+wildcard lies within or before the name (`.tmp/claude/ma*`, `.tmp/claude/*`) stays, since it
+could match a seat folder and a keep alike. No other event kind carries those fields; a retire's
+or supersede's reason stays as written. Releases before it trimmed a path's leading dot as
+punctuation, storing `.tmp/claude/<name>` as `tmp/claude/<name>` in anchors, `--about` paths and
+ends: in those stored path fields alone, a path opening with `tmp/claude/` maps as its dotted form,
+to the dotted new path; any other dotless `tmp/` path stays as stored, since nothing says it once
+had a dot, and text and triggers keep what was written. A
+payload it does not change stays byte for byte. An anchor keeps its hash under its new path, since
+the move left the file's content as it was. Ids, rows, times, seats, links and heat stay; an entry
+whose title or body changed has a new content hash, so the next fill embeds it again.
+
+The format stays 7: the pass changes payload text only and adds no event kind, so a format-7 binary
+without it reads the rewritten store, where a format step would lock it out as newer. A run stopped
+anywhere leaves a log either release reads: before the manifest write the old one, after it the
+rewritten one. The next call runs the pass again, which finds nothing left to change in a rewritten
+log. A store created by this release carries the marker from the start. Text an older release writes
+after the pass still names old paths. A failure says
+`agentic-memory: rewriting the scratch paths the store's entries name failed: <cause>; the next call tries again`
+once per session, and the call runs on the store as it is.
+
+Rejected: superseding each affected entry with a corrected copy, whose new ids every link and note
+would have to follow; rewriting what memory prints while the store keeps the old text, which costs
+every read a lookup and keeps the stale text in exports and searches; a new event kind for body
+edits, which an older binary reads as a corrupt log.
+
+### Backup lifetime
+
+Every backup a migration writes, `backup/format-<n>-<UTC stamp>/` and
+`backup/scratch-paths-<UTC stamp>/`, is removed once it is 30 days old, a lifetime fixed in code
+(`home.BackupLifetime`) with no option. A session's start removes its store's expired backups under
+the store lock. The age is the stamp in the folder's name, never its times, so a copy or a touch
+neither keeps a backup alive nor ages it early. A folder whose name carries no readable stamp, a
+loose file and a link under `backup/` stay; the removal goes through `internal/safefs`, never
+following a link. Rejected: an option, a value nobody tunes; keeping only the newest backup, which
+loses the one from before the first of two migrations close together.
 
 Which store a checkout works on is `internal/home`'s answer: the pointer in its git common
 directory, else the identifiers the stores' `identity.json` record, so every worktree of a

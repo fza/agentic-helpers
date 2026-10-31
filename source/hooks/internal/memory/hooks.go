@@ -303,7 +303,8 @@ func (mem *memory) seatless(ctx context.Context) string {
 		"to claim it: claim it, then answer with where work stands (agentic-helpers:agent-memory)", self, seats, self)
 }
 
-// housekeep clears the per-session slots nobody came back to.
+// housekeep clears the per-session slots nobody came back to and the store's
+// expired migration backups.
 func (mem *memory) housekeep(ctx context.Context) {
 	cutoff := mem.now().Add(-staleAfter)
 
@@ -314,6 +315,7 @@ func (mem *memory) housekeep(ctx context.Context) {
 		version, err := readFormat(mem.store())
 		if err == nil && version == storeFormat {
 			mem.removeLegacyCache()
+			mem.expireBackups(ctx)
 		}
 	}
 }

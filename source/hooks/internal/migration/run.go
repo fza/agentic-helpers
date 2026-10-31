@@ -256,7 +256,7 @@ func removeCreated(data string, before []string) error {
 // backUp copies every writers list, seat registry, shelf list and format of
 // the old trees to `<data>/backup/legacy-<UTC stamp>/`.
 func (env Env) backUp(stamp time.Time) error {
-	target := filepath.Join(env.Roots.Data, "backup", "legacy-"+stamp.Format(stampLayout))
+	target := filepath.Join(env.Roots.Data, backupDir, "legacy-"+stamp.Format(stampLayout))
 
 	for _, root := range []string{env.memoryRoot(), env.toolsRoot(), env.writersRoot()} {
 		if !isDir(root) {

@@ -89,7 +89,11 @@ release with the home, any hook, command or MCP server, finds that layout with n
 A key's memory store (seats, shelves, seat files and `backup/` included) and its tool library join
 in one store; the session tree moves to `<data>/sessions/claude/`, each context reading
 `<session>.ctx` becoming `<session>/context.json`, and the attachments to `<data>/attachments/`. Every writers list, `seats.json`, `shelves.json` and `format.json` is copied
-to `<data>/backup/legacy-<UTC stamp>/` first. A moved memory store keeps its format and is migrated
+to `<data>/backup/legacy-<UTC stamp>/` first. That backup, like every backup a migration writes, is
+kept for 30 days, a lifetime with no option: every call removes each `<data>/backup/legacy-<UTC
+stamp>/` whose stamp is 30 days old or more, reading the age from the name, and leaves a folder
+without a readable stamp, a loose file and a link where they are. A memory store's own backups follow
+the same rule ([memory architecture](../memory/architecture.md#backup-lifetime)). A moved memory store keeps its format and is migrated
 by its first call, as ever.
 
 Every other call waits for the run. Should it fail, every tree goes back, no pointer stays, and each
