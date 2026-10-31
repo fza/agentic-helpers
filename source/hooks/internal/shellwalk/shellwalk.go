@@ -501,9 +501,11 @@ func redirectsInput(statement *syntax.Stmt) bool {
 		// any operator does, `0>&3` duplicating as `0<&3` does.
 		targetsInput := hereDocument || slices.Contains([]syntax.RedirOperator{syntax.RdrIn, syntax.RdrInOut, syntax.DplIn}, redirect.Op)
 		if redirect.N != nil {
-			// `00<&3` is descriptor 0 too; a number not read stays the input.
+			// `00<&3` is descriptor 0 too. A named descriptor (`{fd}<<< x`) is a
+			// new one the shell allocates, never the input: skipping it leaves
+			// the shell reading the pipe.
 			descriptor, err := strconv.Atoi(redirect.N.Value)
-			targetsInput = err != nil || descriptor == 0
+			targetsInput = err == nil && descriptor == 0
 		}
 
 		if !targetsInput {

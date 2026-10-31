@@ -173,7 +173,8 @@ the end of a pipe (`{ sh; }`, `if ...; then sh; fi`, a loop) hands the pipe on t
 it unless that statement redirects its input only to here-documents or here-strings, whose code is
 judged in turn. A file never replaces the pipe, since any name may be a link to `/dev/stdin`, made
 in the same command or before it; a duplicated descriptor (`0<&3`, or `0>&3`, any operator on a
-descriptor numbered 0) may be the pipe; and every
+descriptor numbered 0, `00` included) may be the pipe; a named descriptor (`{fd}<<< x`) is a new
+one and leaves the input on the pipe; and every
 redirection counts, not only the last, since zsh's MULTIOS feeds all of them to the command. Its first operand past
 its options is the script, unless it names the input itself (`-`, `/dev/stdin`, a descriptor under
 `/dev/fd/` or `/proc/<pid>/fd/`, read cleaned, so `//dev/./stdin` counts), an option taking a value (`-o`, `-O`, fish's `-C`, grouped as `-eo`, and

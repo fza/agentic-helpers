@@ -98,6 +98,7 @@ func TestTheWalkOffersEveryCommandItRuns(t *testing.T) {
 		{name: "code piped to a shell fed a here-string and a duplicate", command: "echo x | { sh <<< 'echo hi' 0<&3; }", events: []string{"piped sh", "call echo x", "code sh stdin: echo hi", "call sh"}},
 		{name: "code piped to a shell fed a here-string and a duplicate by an output operator", command: "echo x | { sh <<< 'echo hi' 0>&3; }", events: []string{"piped sh", "call echo x", "code sh stdin: echo hi", "call sh"}},
 		{name: "code piped to a shell fed a here-string and a duplicate on a padded descriptor", command: "echo x | { sh 3<&0 <<< 'echo hi' 00<&3; }", events: []string{"piped sh", "call echo x", "code sh stdin: echo hi", "call sh"}},
+		{name: "code piped to a shell fed a here-string on a named descriptor", command: "echo x | { sh {fd}<<< 'echo hi'; }", events: []string{"piped sh", "call echo x", "code sh stdin: echo hi", "call sh"}},
 		{name: "code piped past a shell fed a here-string with its output redirected", command: "echo x | { sh <<< 'echo hi' &> log; }", events: []string{"call echo x", "code sh stdin: echo hi", "call sh"}},
 		{name: "code piped past a shell fed a here-string reading a file on another descriptor", command: "echo x | { sh <<< 'echo hi' 3< extra; }", events: []string{"call echo x", "code sh stdin: echo hi", "call sh"}},
 		{name: "code piped past a shell fed a here-document on another descriptor", command: "echo x | { sh <<< 'echo hi' 3<<< 'y'; }", events: []string{"call echo x", "code sh stdin: echo hi", "code sh stdin: y", "call sh"}},
