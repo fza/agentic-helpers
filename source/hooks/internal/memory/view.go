@@ -557,9 +557,15 @@ func (section viewSection) plain() bool {
 // entryLines is one entry of a listed section: its line, then the reasons it
 // returns and the links expand(refs) lists, indented beneath it.
 func (scope *viewScope) entryLines(section viewSection, held *entry, indent string, now time.Time) []string {
+	reasons := scope.returnsOf(held, section.returns)
+
 	text := line(scope.here, held)
-	if section.compact {
+
+	switch {
+	case section.compact:
 		text = shortLine(scope.here, held, scope.reader, now)
+	case len(reasons) > 0:
+		text = scope.returnsLine(held, reasons)
 	}
 
 	if section.plain() {
@@ -570,7 +576,7 @@ func (scope *viewScope) entryLines(section viewSection, held *entry, indent stri
 
 	lines := []string{indent + text}
 
-	for _, reason := range scope.returnsOf(held, section.returns) {
+	for _, reason := range reasons {
 		lines = append(lines, indent+"  "+reason.text())
 	}
 
@@ -579,6 +585,44 @@ func (scope *viewScope) entryLines(section viewSection, held *entry, indent stri
 	}
 
 	return append(lines, scope.expandedLines(section, held, indent)...)
+}
+
+// returnsLine is held's line above its return reasons, less the flags they
+// restate: a drifted or gone anchor, a link that ended, the other branch.
+func (scope *viewScope) returnsLine(held *entry, reasons []returnReason) string {
+	restated := map[string]bool{}
+
+	var targets []string
+
+	for _, reason := range reasons {
+		switch reason.kind {
+		case returnAnchor:
+			restated[reason.detail] = true
+		case returnBranch:
+			restated["other branch: "+strings.TrimPrefix(reason.detail, "filed on ")] = true
+		case returnLink:
+			target, _, _ := strings.Cut(reason.detail, " ")
+			targets = append(targets, "→ "+foreignName(target)+" ")
+		}
+	}
+
+	var links []string
+
+	for _, flag := range held.flags() {
+		if !slices.ContainsFunc(targets, func(prefix string) bool { return strings.HasPrefix(flag, prefix) }) {
+			links = append(links, flag)
+		}
+	}
+
+	var flags []string
+
+	for _, flag := range append(flagsOf(scope.here, held, foldedLinks(links)), declared(held)...) {
+		if !restated[flag] {
+			flags = append(flags, flag)
+		}
+	}
+
+	return withFlags(lineHead(held), flags)
 }
 
 // expandedLines is each link of held, where its section expands them: a

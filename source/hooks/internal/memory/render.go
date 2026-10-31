@@ -17,9 +17,10 @@ func stamp(at time.Time) string {
 
 // line is how an entry shows in every list: id, title, the bracket naming seat,
 // kind, a retain override that differs from the kind's decay, source, filing
-// time and commit, then its flags.
+// time and commit, then its flags with the ended links folded as the short
+// line folds them; show's links section names each.
 func line(here tree, held *entry) string {
-	return withFlags(lineHead(held), append(flagsOf(here, held, held.flags()), declared(held)...))
+	return withFlags(lineHead(held), append(flagsOf(here, held, foldedLinks(held.flags())), declared(held)...))
 }
 
 // lineHead is a full line before its flags: id, title and the bracket.

@@ -24,8 +24,8 @@ agentic-memory view --explain brief                 # the brief's fixed sections
   relying on old entries. Under each entry: `anchor drifted` → `confirm` if it still holds, else
   `supersede`; `anchor gone` → `supersede`/`retire`; `link ... closed by|superseded by <id>` → read
   `<id>`, then `supersede`/`retire`; `link ... gone` → `unlink`; `until end met|inferred` → `retire`;
-  `branch filed on <b>` → nothing until it merges. `unchecked` = could not tell: check by hand. A
-  view reads only cached graph statuses; `link unchecked: ... cache is cold` → `show <id>` asks sdd,
+  `branch filed on <b>` → nothing until it merges. The entry's line drops the flags a reason
+  restates. `unchecked` = could not tell: check by hand. A view reads only cached graph statuses; `link unchecked: ... cache is cold` → `show <id>` asks sdd,
   then view again.
 - `attached` keeps entries holding attachments; `rank(size)` puts the most attachment bytes first.
   Either one lists each file's name and size and the total under the entry:

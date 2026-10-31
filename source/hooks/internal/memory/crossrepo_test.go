@@ -79,8 +79,8 @@ func TestAConnectedRepoEntryLinksQualified(t *testing.T) {
 			}
 
 			first := strings.SplitN(h.must("", "search", "--term", "citing fdbox", "--no-heat", "--again"), "\n", 2)[0]
-			if !strings.Contains(first, "→ fdbox:"+foreignClosed+" closed by "+foreignCloser) {
-				t.Errorf("a line should name the target by its repo's last path segment, got:\n%s", first)
+			if !strings.HasSuffix(first, "→ 1 ended") {
+				t.Errorf("a line should fold the connected repo's closed entry into its ended count, got:\n%s", first)
 			}
 		})
 	}
