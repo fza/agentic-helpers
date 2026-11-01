@@ -508,6 +508,8 @@ func TestTheAskedLineSkipsClaudeCodesOwnTurns(t *testing.T) {
 	h.must("", "claim", "main")
 	h.must(h.promptSaying("fix the gate for MCP reads"), "prompt")
 	h.must(h.promptSaying("<task-notification>\n<summary>done</summary>\n</task-notification>"), "prompt")
+	h.must(h.promptSaying("<agent-message from=\"a1b2c3\">\n[Subagent hand-back] all done\n</agent-message>"), "prompt")
+	h.must(h.promptSaying("<cross-session-message from=\"uds:/tmp/s.sock\">\nthe field names\n</cross-session-message>"), "prompt")
 	h.must(h.stop(), "stop")
 
 	if brief := h.must("", "brief"); !strings.Contains(brief, "hook: asked fix the gate for MCP reads") {

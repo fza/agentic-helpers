@@ -563,8 +563,8 @@ again at the next read.
   that `git status` still reports changed, kept current and ticked once every one is committed or
   reverted;
 - one `asked <last prompt>` line at `Stop`, cut to `entry_target_words`. The last prompt is the user's:
-  a background task's notification or a local command's output, which Claude Code also delivers as a
-  prompt, never takes its place, and a prompt that looks like it holds a credential never reaches it.
+  a background task's notification, a local command's output, a subagent's hand-back or another
+  session's message, which Claude Code also delivers as a prompt, never takes its place, and a prompt that looks like it holds a credential never reaches it.
 
 A hook writes only where a line would change, and prints nothing. The agent may cite, tick or remove
 a hook line and never has to. Where a [landed round](#landed-work) matches a commit to an open agent

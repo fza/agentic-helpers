@@ -633,8 +633,12 @@ func (mem *memory) answer(ctx context.Context, seatName string, session string, 
 
 // systemTurnTags open the turns Claude Code itself sends through
 // UserPromptSubmit: a background task's notification, a local command's
-// output. None of them is the user asking for anything.
-var systemTurnTags = []string{"<task-notification>", "<local-command-caveat>", "<local-command-stdout>", "<bash-stdout>"}
+// output, a subagent's hand-back, another session's message. None of them is
+// the user asking for anything.
+var systemTurnTags = []string{
+	"<task-notification>", "<local-command-caveat>", "<local-command-stdout>", "<bash-stdout>",
+	"<agent-message ", "<cross-session-message ",
+}
 
 func systemTurn(prompt string) bool {
 	trimmed := strings.TrimSpace(prompt)
