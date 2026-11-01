@@ -21,6 +21,10 @@ var localStamp = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2} [A-Z0-9+-]+`)
 
 // lineID is a state line's id in the text and in JSON, drawn at random as a todo
 // item's is.
+// localClock is the brief's first line's local time, which the machine's zone
+// decides as localStamp's does.
+var localClock = regexp.MustCompile(`time \d{2}:\d{2} [A-Z0-9+-]+ \([+-]\d{2}:\d{2}\)`)
+
 var lineID = regexp.MustCompile(`(  #|"id":")[a-z0-9]{3}(: ten words|","text":"ten words)`)
 
 // goldenStore files a store touching every section the brief prints and every
@@ -135,6 +139,7 @@ func TestReadsMatchTheirGoldenText(t *testing.T) {
 			// full text again, as the golden text holds it.
 			got := h.must("", append(slices.Clone(tc.args), "--again")...)
 			got = localStamp.ReplaceAllString(got, "<stamp>")
+			got = localClock.ReplaceAllString(got, "time <clock>")
 			got = lineID.ReplaceAllString(got, "${1}<line>${2}")
 			got = strings.ReplaceAll(got, h.repo, "<repo>")
 

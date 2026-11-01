@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var claimHeader = regexp.MustCompile(`^agentic-memory: seat main, 0 live, 0 retired, entries in \S+, \S+, session [0-9a-f]{8} \(pid \d+\)$`)
+var claimHeader = regexp.MustCompile(`^agentic-memory: seat main, 0 live, 0 retired, entries in \S+, \S+, time \d{2}:\d{2} \S+ \([+-]\d{2}:\d{2}\), session [0-9a-f]{8} \(pid \d+\)$`)
 
 // claimedAs is whether out opens as a claim of seat does: the brief's first
 // line, naming the seat and any shelf of another name.

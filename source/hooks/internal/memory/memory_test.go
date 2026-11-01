@@ -1763,7 +1763,7 @@ func TestTheBriefNamesTheEntryLanguage(t *testing.T) {
 				test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"memory_language":"`+tc.option+`"}}}}`)
 			}
 
-			header := regexp.MustCompile(`(?m)^agentic-memory: seat main, \d+ live, \d+ retired, entries in (\S+), terse(, session \S+ \(pid \d+\))?$`)
+			header := regexp.MustCompile(`(?m)^agentic-memory: seat main, \d+ live, \d+ retired, entries in (\S+), terse, time \d{2}:\d{2} \S+ \([+-]\d{2}:\d{2}\)(, session \S+ \(pid \d+\))?$`)
 
 			claimed := header.FindStringSubmatch(h.must("", "claim", "main"))
 			if claimed == nil || claimed[1] != tc.want {
@@ -1797,10 +1797,21 @@ func TestTheBriefHeaderNamesTheWritingStyle(t *testing.T) {
 				test.WriteFile(t, h.config, tc.config)
 			}
 
-			if out := h.must("", "claim", "main"); !strings.Contains(out, ", entries in en, "+tc.style+", session ") {
+			if out := h.must("", "claim", "main"); !strings.Contains(out, ", entries in en, "+tc.style+", time ") {
 				t.Errorf("the brief header should name the writing style beside the language, got:\n%s", out)
 			}
 		})
+	}
+}
+
+func TestTheBriefsFirstLineNamesTheLocalTime(t *testing.T) {
+	h := newHarness(t)
+	h.clock.Hold()
+	h.must("", "claim", "main")
+
+	first, _, _ := strings.Cut(h.must("", "brief", "--again"), "\n")
+	if !strings.HasSuffix(first, ", time "+h.clock.Now().Local().Format("15:04 MST (-07:00)")) {
+		t.Errorf("the first line should close on the local time and zone, got:\n%s", first)
 	}
 }
 

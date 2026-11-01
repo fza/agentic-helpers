@@ -620,8 +620,9 @@ An entry is written in the project's language, never in the language the convers
 run in: the graph's `language` from `.sdd/config.yaml` (the graph repository's, where
 `project_dir` names one), else the plugin option `memory_language`,
 else `en`. The brief's first line names it, as in
-`agentic-memory: seat main, 14 live, 6 retired, entries in de, terse`, the style last. A claim opens
-with that line, the holder after it, `, session a065f970 (pid 72829)`, so the seat is named once; the
+`agentic-memory: seat main, 14 live, 6 retired, entries in de, terse, time 21:40 CET (+01:00)`, the
+style, then the local time and zone an agent has no other way of telling from its context. A claim
+opens with that line, the holder after it, `, session a065f970 (pid 72829)`, so the seat is named once; the
 scratch folder, the do-now list and the rest of the brief follow. A domain term (a word naming a thing
 in the project's code, documents or business, such as `Lieferschein`) keeps the project's spelling
 and is never translated, so `--term` still finds the word the code uses; a gloss in the entry's

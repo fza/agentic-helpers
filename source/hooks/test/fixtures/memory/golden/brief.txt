@@ -1,4 +1,4 @@
-agentic-memory: seat main, 17 live, 1 retired, entries in en, terse
+agentic-memory: seat main, 17 live, 1 retired, entries in en, terse, time <clock>
 state (ack state#<item> --done | --remove):
   #<line>: ten words of where the gate fix stands
 changed by other seats:
