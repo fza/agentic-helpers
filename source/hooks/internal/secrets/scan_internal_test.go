@@ -29,16 +29,18 @@ func TestScanCompilesNoPatternForTextWithoutKeywords(t *testing.T) {
 	}
 }
 
-func TestEveryVendoredRuleCompiles(t *testing.T) {
-	set, err := parseRules(rulesJSON)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, current := range set.Rules {
-		err = current.compilePatterns()
+func TestEveryRuleCompiles(t *testing.T) {
+	for _, data := range [][]byte{rulesJSON, rulesLocalJSON} {
+		set, err := parseRules(data)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
+		}
+
+		for _, current := range set.Rules {
+			err = current.compilePatterns()
+			if err != nil {
+				t.Error(err)
+			}
 		}
 	}
 }

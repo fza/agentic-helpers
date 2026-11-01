@@ -30,6 +30,12 @@ const Incomplete = "scan-incomplete"
 //go:embed rules.json
 var rulesJSON []byte
 
+// rulesLocalJSON holds the rules gitleaks' pin lacks. They stay out of
+// rules.json, which must remain the vendored file byte for byte.
+//
+//go:embed rules-local.json
+var rulesLocalJSON []byte
+
 // Finding / Line is the 1-based line the match starts on, LastLine the one it
 // ends on: a private key spans many.
 type Finding struct {
@@ -72,7 +78,19 @@ type ruleSet struct {
 }
 
 var loadRules = sync.OnceValues(func() (*ruleSet, error) {
-	return parseRules(rulesJSON)
+	set, err := parseRules(rulesJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	local, err := parseRules(rulesLocalJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	set.Rules = append(set.Rules, local.Rules...)
+
+	return set, nil
 })
 
 func parseRules(data []byte) (*ruleSet, error) {

@@ -26,6 +26,12 @@ Descriptions and tags are dropped, and gitleaks' singular and plural allowlist f
 list. The sdd fza fork vendors the same pin with the same converter, and the two `rules.json` files
 are byte-identical, so both tools refuse the same strings.
 
+`internal/secrets/rules-local.json`, in the same rule shape, adds what the pin lacks: Context7,
+Figma personal access, Melious, Mistral and Opper keys. They sit in a file of their own because
+`rules.json` must stay the vendored file byte for byte, so agentic-helpers alone knows them; the
+sdd fork's scanner does not refuse those strings. Figma's prefix-less legacy tokens and OAuth tokens
+are not covered: a UUID would match too much, and no published prefix exists for the OAuth form.
+
 ## The engine
 
 `secrets.Scan(ctx, text, name)` returns the findings, each a rule id and the 1-based lines the match
