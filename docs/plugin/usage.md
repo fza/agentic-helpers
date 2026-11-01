@@ -149,7 +149,10 @@ in a process of its own, so nothing waits for it; on any other day each pays one
 `<data>/cache-prune.json`. The run takes `cache-prune.run.lock` without waiting and exits where
 another run holds it, takes each store's `segments.lock` without waiting and skips a store
 another process is writing, and never takes `fill.lock`, which would make a foreground fill skip;
-a search takes no lock at all. It records when it ran, what it deleted and any error in
+a search takes no lock at all. A store the run may not touch, as from inside a sandboxed job, is
+skipped and never reported as a failure, and the day's run is claimed again an hour later by
+whichever session comes next. The run stops after five minutes, starts with no terminal and no
+open pipes in a session of its own, so nothing a hook or job waits for holds it. It records when it ran, what it deleted and any error in
 `<data>/cache-prune.json`, and after a failed run the next SessionStart says once:
 `agentic-memory: cache prune failed at <time>: <error>; see <path>`. While agentic-tools is on, the
 same run prunes the tool library's versions past `tools_version_lifetime` or over `tools_total_mb`

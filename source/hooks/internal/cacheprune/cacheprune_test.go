@@ -261,14 +261,19 @@ func TestAFailedRunIsWarnedOnce(t *testing.T) {
 	stale := now.Add(-retention - 24*time.Hour)
 	placeStore(t, roots, toolStore(roots, "aaa"), stale, map[string]time.Time{vectorseg.Format: stale})
 
+	// A link in the store's path is refused by every safe open: an error that
+	// is no denial.
 	parent := filepath.Dir(toolStore(roots, "aaa"))
 
-	err := os.Chmod(parent, 0o500)
+	err := os.Rename(parent, parent+"-real")
 	if err != nil {
-		t.Fatalf("locking the parent: %v", err)
+		t.Fatalf("moving the parent: %v", err)
 	}
 
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	err = os.Symlink(parent+"-real", parent)
+	if err != nil {
+		t.Fatalf("linking the parent: %v", err)
+	}
 
 	result := cacheprune.Run(context.Background(), roots, retention, now)
 	if result.Error == "" {
@@ -283,19 +288,6 @@ func TestAFailedRunIsWarnedOnce(t *testing.T) {
 	if cacheprune.Warning(roots) != "" {
 		t.Error("a failure should be warned once")
 	}
-
-	// The first run emptied the store it could not remove; a store elsewhere
-	// fails the next one.
-	placeStore(t, roots, memoryStore(roots, "s1", "bbb"), stale, map[string]time.Time{vectorseg.Format: stale})
-
-	memoryParent := roots.StoreCache("s1", home.Memory)
-
-	err = os.Chmod(memoryParent, 0o500)
-	if err != nil {
-		t.Fatalf("locking the memory parent: %v", err)
-	}
-
-	t.Cleanup(func() { _ = os.Chmod(memoryParent, 0o700) })
 
 	cacheprune.Run(context.Background(), roots, retention, now.Add(48*time.Hour))
 
@@ -426,5 +418,43 @@ func TestTheChecksOnAQuietDayTakeNoLock(t *testing.T) {
 
 	if exists(lock) {
 		t.Error("the claim and the warning check should only read the status on a day the run started already")
+	}
+}
+
+func TestARunDeniedTheCacheIsSkippedAndRetried(t *testing.T) {
+	roots := newRoots(t)
+	stale := now.Add(-retention - 24*time.Hour)
+	store := placeStore(t, roots, toolStore(roots, "aaa"), stale, map[string]time.Time{vectorseg.Format: stale})
+
+	claimed, err := cacheprune.Claim(roots, now)
+	if err != nil || !claimed {
+		t.Fatalf("claiming the run: %v", err)
+	}
+
+	// A sandbox denies the cache: the store's folder takes no lock file.
+	err = os.Chmod(store.Dir(), 0o500)
+	if err != nil {
+		t.Fatalf("denying the store: %v", err)
+	}
+
+	t.Cleanup(func() { _ = os.Chmod(store.Dir(), 0o700) })
+
+	result := cacheprune.Run(context.Background(), roots, retention, now)
+	if result.Error != "" || result.Denied != 1 || !exists(store.Dir()) {
+		t.Fatal("a store the run may not touch should be skipped, not failed")
+	}
+
+	if cacheprune.Warning(roots) != "" {
+		t.Error("a denied store should warn nothing")
+	}
+
+	soon, err := cacheprune.Claim(roots, now.Add(30*time.Minute))
+	if err != nil || soon {
+		t.Error("a denied run should not be claimed again within the hour")
+	}
+
+	later, err := cacheprune.Claim(roots, now.Add(2*time.Hour))
+	if err != nil || !later {
+		t.Error("a denied run should leave the day's run to a later session")
 	}
 }
