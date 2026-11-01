@@ -132,6 +132,23 @@ stubs and files, the context readings older sessions kept writing below
 SessionEnd hook `agentic-helpers end` starts `agentic-helpers sweep` in a process of its own; both
 are silent, and `agentic-helpers sweep` can be run by hand.
 
+## Cache pruning
+
+A changed embedder starts a new vector store, one per embedder fingerprint, for memory under
+`<cache>/stores/<id>/memory/<fp12>/` and for the tool library under `<cache>/tools/vectors/<fp>/`;
+the old one is deleted once no binary has read or written it for `cache_retention` (90 days unless
+set, never below 14, `config.yaml` only). Every read and write of a store refreshes `used.json` in
+it at most once a day, keyed by the store format of the binary using it; a store written by a
+release before the stamp is judged by its files' last write. There is no size limit: one would
+delete stores still in use and force an early re-embed.
+
+At most once a day the first of agentic-memory's SessionStart hook and the `memory` and `tools` MCP
+servers' idle work to find no run since starts `agentic-helpers prune` in a process of its own,
+so nothing waits for it. It skips a store another process is writing or filling, records when it
+ran, what it deleted and any error in `<data>/cache-prune.json`, and after a failed run the next
+SessionStart says once: `agentic-memory: cache prune failed at <time>: <error>; see <path>`.
+`agentic-helpers prune` can be run by hand; it prints each store it deletes.
+
 ## sdd
 
 The grounding gate and `agentic-capture` work with stock sdd
@@ -199,7 +216,7 @@ sdd, `auto` changes nothing, and an `off` provider wins over it. While a layer s
 saved for it stays in effect until removed from `pluginConfigs` by hand.
 
 **Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:
-`retired_body_lifetime`, `tools_version_lifetime`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value
+`retired_body_lifetime`, `tools_version_lifetime`, `cache_retention`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value
 in the user settings or the hook environment is ignored, since two agents set apart would leave the
 lowest value deciding for both. Managed settings still set them. A key deleting only what one session
 made for itself, `capture_remove_draft`, stays in the dialog. At session start `agentic-helpers check`

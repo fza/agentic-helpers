@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
@@ -298,6 +299,8 @@ func (mem *memory) purgeEverywhere(ctx context.Context) {
 
 	grace, _ := home.Grace(mem.options().OrphanStoreGrace)
 	_, _ = mem.resolver().SweepUnclaimed(ctx, grace)
+
+	_ = cacheprune.Start(ctx, mem.env.Roots, mem.env.Starter, mem.env.Executable, mem.now())
 }
 
 // drop purges a temporary shelf no seat uses at once.

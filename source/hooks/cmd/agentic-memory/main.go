@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
@@ -92,7 +93,7 @@ func main() {
 		Version:    version,
 		Terminal:   hookio.Terminal{File: os.Stdin},
 		Tmp:        "/tmp",
-		Idle:       migration.Idle(machine),
+		Idle:       cacheprune.Idle(migration.Idle(machine), machine.Roots, process.Detached{}, executable, time.Now),
 		Releases:   &http.Client{Timeout: updates.RequestTimeout},
 		Starter:    process.Detached{},
 		Executable: executable,

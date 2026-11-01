@@ -1642,6 +1642,7 @@ to a route there the writer picks.
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |
 | `update_notice` | `true` unless set: a claim says once a day that a newer release waits while auto-update is off ([A newer release](#a-newer-release)); `false` shows no notice and asks GitHub nothing |
 | `temporary_seat_lifetime` | `config.yaml` only: how long a closed temporary shelf keeps its entries, a span as `lifetime` takes one (`12h`, `1d`, `0`); `1d` unless set, and `1d`, with a note in the reply, where it holds no span |
+| `cache_retention` | `config.yaml` only: how long a vector store of memory or the tool library survives once no binary has read or written it, a span, 90 days unless set, never below 14; the daily `agentic-helpers prune` deletes it after ([plugin usage](../plugin/usage.md#cache-pruning)) |
 | `orphan_store_grace` | `config.yaml` only: how long an unclaimed store waits for a checkout to promote it before SessionStart deletes it, a span as `lifetime` takes one; `30d` unless set or where it holds no span ([plugin usage](../plugin/usage.md#the-home)) |
 
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,

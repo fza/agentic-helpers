@@ -175,6 +175,8 @@ func (store *Store) Write(rows []Row, live Live) error {
 		return err
 	}
 
+	store.touch()
+
 	return store.merge(live)
 }
 

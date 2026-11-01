@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
+	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/dump"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
@@ -33,7 +35,7 @@ type Env struct {
 	Dir       string
 }
 
-const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | dump <file> | bound <duration> <command>"
+const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | prune | dump <file> | bound <duration> <command>"
 
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into
@@ -51,6 +53,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 	if len(args) == 1 && (args[0] == "sweep" || args[0] == "end") {
 		return sweep(ctx, args[0], env, streams)
+	}
+
+	if len(args) == 1 && args[0] == cacheprune.Command {
+		return prune(ctx, env, streams)
 	}
 
 	if len(args) > 0 && args[0] == "dump" {
@@ -133,6 +139,37 @@ func sweep(ctx context.Context, name string, env Env, streams hookio.Streams) in
 
 	if err != nil && name == "sweep" {
 		_, _ = fmt.Fprintln(streams.Err, self+": "+err.Error())
+
+		return 1
+	}
+
+	return 0
+}
+
+// prune deletes the vector stores no binary used within cache_retention,
+// as the detached daily run starts it; run by hand it names each store it
+// deleted and fails on an error the run recorded.
+func prune(ctx context.Context, env Env, streams hookio.Streams) int {
+	options := pluginconfig.Defaults()
+
+	resolution, err := pluginconfig.Resolve(env.Settings, env.Getenv)
+	if err == nil {
+		options = resolution.Options
+	}
+
+	now := time.Now
+	if env.Migration.Now != nil {
+		now = env.Migration.Now
+	}
+
+	result := cacheprune.Run(ctx, env.Migration.Roots, options.CacheRetention, now())
+
+	for _, deleted := range result.Deleted {
+		_, _ = fmt.Fprintln(streams.Out, "deleted "+deleted)
+	}
+
+	if result.Error != "" {
+		_, _ = fmt.Fprintln(streams.Err, self+": "+result.Error)
 
 		return 1
 	}

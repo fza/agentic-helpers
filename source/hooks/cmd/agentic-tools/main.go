@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
@@ -66,7 +67,7 @@ func main() {
 		},
 		SddConfig: process.SddConfig{},
 		Version:   version,
-		Idle:      migration.Idle(machine),
+		Idle:      cacheprune.Idle(migration.Idle(machine), machine.Roots, process.Detached{}, machine.Executable, time.Now),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

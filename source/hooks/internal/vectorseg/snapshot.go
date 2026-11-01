@@ -72,6 +72,8 @@ type Snapshot struct {
 }
 
 func (store *Store) Snapshot() (*Snapshot, error) {
+	store.touch()
+
 	for range snapshotAttempts {
 		snapshot, err := store.snapshot()
 		if !errors.Is(err, fs.ErrNotExist) {

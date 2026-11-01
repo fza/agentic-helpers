@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -29,7 +30,14 @@ func newLandedHarness(t *testing.T) *harness {
 	withGraph(t, h)
 	h.git.Commits = []test.Commit{{SHA: baseCommit, At: landedAt.Add(-6 * time.Hour), Message: "Initial import"}}
 	h.starter = &test.Starter{}
-	h.starter.Run = func(args []string) { h.must("", args...) }
+	// The daily cache prune runs agentic-helpers, not this binary.
+	h.starter.Run = func(args []string) {
+		if slices.Equal(args, []string{cacheprune.Command}) {
+			return
+		}
+
+		h.must("", args...)
+	}
 
 	return h
 }

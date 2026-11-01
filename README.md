@@ -141,7 +141,7 @@ editing `config.yaml`. A project's `.claude/settings.json` and
 `.claude/settings.local.json` are never read for plugin options: Claude Code itself ignores them
 there, and one embedder and one set of guards serve every project on the machine.
 
-**`config.yaml` only:** `retired_body_lifetime`, `tools_version_lifetime`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace` decide when
+**`config.yaml` only:** `retired_body_lifetime`, `tools_version_lifetime`, `cache_retention`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace` decide when
 stored data every agent shares is deleted, so Claude Code's dialog lacks them and an answer there is
 ignored; two agents set apart would otherwise leave the lowest value deciding for both. A key deleting
 only what one session made for itself, such as `capture_remove_draft`, stays in the dialog.
@@ -258,6 +258,7 @@ measurement, after an upgrade or a change of endpoint, embeds each index again o
 | `tools_duplicate_floor` | `0.85` | Similarity from which a new tool is refused as a duplicate of another |
 | `tools_total_mb` | `500` | `config.yaml` only. Size limit for every stored version of every tool library on the machine, in MB. Past it, versions that are neither current nor a fork's origin are removed oldest first; never below the fixed 1 MB a tool may hold |
 | `tools_version_lifetime` | `90d` | `config.yaml` only. How long a tool version stays once a newer one replaced it, whatever space is left (at least `14d`); a current version or a fork's origin never goes |
+| `cache_retention` | `90d` | `config.yaml` only. How long a vector store of memory or the tool library survives once no binary has read or written it (at least `14d`); a daily background run deletes it after, and a changed embedder's store goes this way |
 
 ### Capture
 
