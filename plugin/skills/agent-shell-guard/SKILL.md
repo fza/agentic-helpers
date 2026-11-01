@@ -10,47 +10,21 @@ A stray `rm -rf` outside the project cannot be undone. Shell-guard parses every 
 before it runs. Reason starts `agentic-shell-guard: ` → this hook.
 
 **Every project, every Bash call**, and every Monitor command. No directory opts in or out.
-Launchers (`sudo`, `env`, `xargs`, `xcrun`, `sandbox-exec`, `npx`, `screen`, `uv run`, `pnpm exec`,
-`launchctl submit`, ...) change nothing: what they run is judged. Only the user turns it off
-(`shell_guard_*` plugin options, in Claude Code's settings). The shared `config.yaml` only tightens a
-guard: a looser value there is ignored (`agentic-helpers: config.yaml may only tighten <key>; <value> ignored`),
-and `agentic-helpers config set` refuses it
-(`refused: config.yaml may only tighten <key>; loosen it in Claude Code's settings`). Never route
-around that; ask the user.
+Launchers (`sudo`, `env`, `xargs`, ...) change nothing: what they run is judged. Only the user turns
+it off (`shell_guard_*` plugin options, in Claude Code's settings); `config.yaml` only tightens a
+guard ([reference.md](reference.md#settings)). Never route around that; ask the user.
 
 ## What passes
 
 - **A lone removal**: the whole Bash call is one `rm` / `rmdir` / `unlink` / `git rm`, literal
-  targets, each strictly inside the project or `/tmp`. Nothing before or after it. Literal = plain
-  text, quotes around plain text, or `$'...'` with no escape but `\n` `\t` `\r` `\\` `\'` `\"` and
-  two-digit `\x` (not `\x00`): `$'rm' -rf /` is `rm -rf /`. Any other escape = an expansion.
+  targets, each strictly inside the project or `/tmp`. Nothing before or after it.
 - **Text naming `rm`**: a sed script, a grep pattern, a commit message. Quoted text is no command.
-- **A move whose sources lie inside the project or `/tmp`**: each source of `mv` / `git mv` (every
-  operand but the target; all of them after `-t <dir>`) is judged as a lone removal's target,
-  wherever the move stands: `mv ~/Downloads/x ./` asks. The target is never judged. `cp` is not.
-- **A script whose removals stay inside**: `bash x.sh`, `sh x.sh`, `source x.sh`, `. x.sh`, and
-  `./x` or `bin/x` with a shell's `#!` line or none, are read and judged by the same guards,
-  relative to the working directory a `cd sub && ...`, a lone `cd sub;` or `cd sub || exit 1;`
-  moves (a `cd` behind another command, `make && cd sub && ./x.sh`, moves the rest of its `&&`
-  chain only). Inside a script a
-  removal is judged by its targets only (`ls` then `rm -rf build` passes; `rm -rf ~/x` and
-  `rm -rf $DIR` ask), and nothing is refused: what would deny in a typed command asks. A python (or
-  other interpreter's) `#!` line is judged as that interpreter's inline code, asking too; so is a
-  fish script (`fish x.fish`, or a fish `#!` line), asking
-  `in the script x.fish: inline code for fish names a removal or mktemp; refusing` where its text
-  names a removal or `mktemp`, a comment or string among it. A script
-  written by `cat > x.sh <<'EOF'` in the same call is judged from the here-document. A script an
-  earlier command of the call names as an argument (`cp new.sh x.sh`, `sed -i ... x.sh`,
-  `curl -o x.sh`, any command it does not know) is not read and asks, unless that command only
-  reads or changes metadata: `cat`, `head`, `tail`, `less`, `more`, `wc`, `grep`, `rg`, `file`,
-  `stat`, `ls`, `test`, `[`, `diff`, `cmp`, `shasum`, `md5`, `od`, `xxd`, `chmod`, `chown`, or an
-  earlier run of the same script.
+- **A move whose sources lie inside the project or `/tmp`** (`mv`, `git mv`); the target is never
+  judged.
+- **A script whose removals stay inside** (`bash x.sh`, `source x.sh`, `./x`): read and judged by
+  the same guards ([scripts.md](scripts.md)).
 - **A time limit in front keeps it lone**: `timeout`, `gtimeout`, `uu-timeout`, `agentic-helpers
-  bound` (options and duration fixed text: no `$x`, `"$(...)"`, glob or brace, quoted or not) or
-  exactly `perl -e 'alarm N; exec @ARGV'` with the command as separate words
-  after it: the program a plain word (no `-`, no spaces, no shell characters), every word after it
-  fixed text or `"$var"` (never `$var`, `"$@"` or a glob). Anything else is inline perl code. They
-  bound only how long it runs.
+  bound`, with fixed options and duration.
 
 ```bash
 rm -rf sub/build .tmp/seats/<session>/probe     # passes: one call, literal, inside
@@ -58,6 +32,14 @@ gtimeout 30 rm -rf sub/build                     # passes: a time limit keeps it
 cd sub && rm x                                   # denied: not alone. Absolute path instead
 rm -rf "$dir"                                    # denied: expansion. Spell the path
 ```
+
+## Read when
+
+| You meet | Read |
+|---|---|
+| `in the script`, `cannot read the script`; writing or running a script with a removal in it | [scripts.md](scripts.md) |
+| `[agentic-shell-guard: credential withheld`, `the credential scan of this`; which tool output is scanned | [output.md](output.md) |
+| what counts as literal, a move's sources, a time limit or launcher in front, `cannot judge`, `arithmetic on`, `config.yaml may only tighten`, `agentic-helpers bound`, which sed and date usages are checked | [reference.md](reference.md) |
 
 ## Refusals → what to do
 
@@ -70,8 +52,8 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 | `code handed to <runner> holds a removal or mktemp; refusing` | no removal inside `eval`, `trap`, `bash -c`, a heredoc fed to a shell, `at` or `batch`, `sched`, `npx -c`, `pnpm exec -c`, a tmux command's shell command (`new-session`, `new-window`, `split-window`, `respawn-pane`, `run-shell`, ...), zsh's `functions[name]=` / `aliases[name]=`, or text arithmetic reads (runner `arithmetic on <name>`: `x='a[$(rm ...)]'; (( x ))`); run it directly |
 | `inline code for <interpreter> names a removal or mktemp; refusing` | no removal in `python -c`, `perl -e`, `awk`, `ssh` code; a lone `rm` instead |
 | `cannot read the code handed to <runner>; refusing`, `cannot parse the code handed to <runner>; refusing`, `cannot read the code piped to <shell>; refusing` | literal code, or none; no code piped into a shell, `at` or `batch` |
-| `arithmetic on <name> reads a value shell-guard cannot see` (an ask) | arithmetic reads a variable set at run time (`$(...)`, `read`, `mapfile`, `printf -v`, a loop over `$(...)`, the arguments or a glob or brace): its text could run a command. Run the substitution and the comparison as two calls, the number typed literally |
-| `in the script <name>: <reason>` (an ask) | the script's own text got `<reason>`, a refusal's reason included: the user decides. Fix the script as that reason says (a target spelled out and inside the project, no `mktemp`), or run its commands as Bash calls. It prompts at once: rewriting the call changes nothing |
+| `arithmetic on <name> reads a value shell-guard cannot see` (an ask) | run the substitution and the comparison as two calls, the number typed literally ([reference.md](reference.md#arithmetic)) |
+| `in the script <name>: <reason>` (an ask) | the script's own text got `<reason>`: the user decides. Fix the script as that reason says, or run its commands as Bash calls. It prompts at once: rewriting the call changes nothing |
 | `cannot parse the command; refusing` | fix the quoting |
 
 ## Command alternatives → run what it names
@@ -88,10 +70,8 @@ nothing is needed (Linux with GNU tools).
 | `<command> here is BSD <command>: <usage>; use: <rewritten command>` | the GNU tool (`gsed`, `gdate`) is installed: run the rewritten command |
 | `<command> here is BSD <command>: <usage>; instead <form>` | no GNU tool installed: rewrite as the form says |
 
-`agentic-helpers bound` runs the command in a process group of its own; when the duration runs out
-it sends the group `SIGTERM`, then `SIGKILL` 5 seconds later, and exits 124, as GNU `timeout`
-does. Never bound a run with `perl -e 'alarm N; exec @ARGV'`: a Go program (`go test`, any
-`agentic-*` binary) ignores the alarm and runs on.
+Never bound a run with `perl -e 'alarm N; exec @ARGV'`: a Go program (`go test`, any `agentic-*`
+binary) ignores the alarm and runs on.
 
 The usages, `<usage>` → `<form>`:
 
@@ -103,11 +83,6 @@ The usages, `<usage>` → `<form>`:
 - `a 0,/re/ address matches nothing` → `use 1,/re/ where line 1 cannot match, or install GNU sed (gsed)`
 - `a, i and c take their text only after a backslash and a newline` → `write a\ and a newline before the text`
 - `it has no -d` (date) → `use gdate -d, or date -j -f <format> <value>`
-
-Only these usages are refused: `sed -E`, `sed -i ''`, `\+` in a replacement, `readlink -f` and
-`grep -P` run. Code handed to `bash -c` and a command named by a path (`/usr/bin/sed`) are not
-checked. The user turns this off with
-`shell_guard_alternatives`.
 
 ## Questions → the user decides
 
@@ -129,9 +104,9 @@ Questions it asks:
 | `unresolvable: <targets>` | `~user` or a brace: placed only once the shell expands it |
 | `no target` | a removal naming nothing |
 | `cannot place: <target> (not alone)`, `(expansion)`, `(nested code)` | a guard the user switched off no longer denies it; its target cannot be placed |
-| `cannot judge: the command name <word> is not fixed text` | a command named by an expansion (`$CMD x`, `"$tool" build`, `$'\162m'`) and passed an argument, or a name that may split into words of its own even with none (`$CMD`, `{rm,-rf,/}`, a glob): it could be a removal. Spell the name out (`/usr/local/bin/tool build`); a name wholly in double quotes passing nothing (`"$tool"`) runs. A launcher's assignment, option or option value holding an expansion, glob or brace (`env FOO=$x make`, `timeout $secs make`, `sudo -u $user make`, `sudo -u {a,b} make`) asks too: the walk cannot tell which word runs. Double-quote an option value: `sudo -u "$user" make` |
+| `cannot judge: the command name <word> is not fixed text` | a command named by an expansion (`$CMD x`) could be a removal. Spell the name out (`/usr/local/bin/tool build`); double-quote a launcher's option value: `sudo -u "$user" make` ([reference.md](reference.md#cannot-judge)) |
 | `find -delete` | `find ... -delete` anywhere |
-| `cannot read the script <name> (<why>)` | a script the call runs could not be read; `<why>` is `no such file`, `cannot open it`, `its path is built at run time` (`source "$venv/bin/activate"`), `the directory it runs in is not known` (a `cd` in a subshell, followed by `|| echo`, or to a variable before it, or one behind another command in an earlier statement's `&&` chain), `over 1 MiB`, `the command writes it before running it` (written by anything but a here-document, or named by an earlier command that is no reader), `scripts run scripts too deep` or `it does not parse as bash`. Spell the path out, run it from a plain `cd dir && ...`, or write it with `cat > x.sh <<'EOF'`; else the user decides |
+| `cannot read the script <name> (<why>)` | `<why>` is `no such file`, `cannot open it`, `its path is built at run time`, `the directory it runs in is not known`, `over 1 MiB`, `the command writes it before running it`, `scripts run scripts too deep` or `it does not parse as bash`. Spell the path out, run it from a plain `cd dir && ...`, or write it with `cat > x.sh <<'EOF'`; else the user decides ([scripts.md](scripts.md#unread)) |
 | `the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file` | a token or key typed into the command, found by the shared scanner; rewrite it to read from a variable or a file rather than asking again (`scan-incomplete` = the scan could not finish) |
 | `the hook was cut short before its credential scan finished; nothing says whether the command holds one` | the hook's own interrupt ended the scan; it names no credential. Follows `shell_guard_secrets` like a finding. Run the same call again |
 
@@ -165,30 +140,16 @@ that looks like a credential reaches you as
 
     [agentic-shell-guard: credential withheld (<rule ids>)]
 
-in its place, with no note. Every other line is as the tool returned it. The file or response
-itself is untouched.
+in its place. **Need the value?** Don't read it: use it by reference, `"$NAME"` or a file a command
+reads at run time. Never route around the marker (another tool, an encoding, a copy into the
+project). A credential in a project file you must fix → Read it by its project path; it shows whole.
 
-| Output | Counts as |
-|---|---|
-| Read, Grep, NotebookRead | by the path named: inside the project (through symlinks) → shown whole |
-| Edit, Write, NotebookEdit | always scanned, project files included: a credential line in the file they echo comes back withheld; the file itself is written as asked |
-| Bash | shown whole only when every command is `cat`, `head`, `tail`, `grep`, `egrep`, `fgrep`, `sed`, `wc`, `sort`, `uniq`, `cut`, `tr` or `nl`, by bare name, only options on its list, all before the first operand (long ones spelled in full), every word literal, every file existing inside the project, no `cd`, no glob, no variable, no script, no nested code. Anything else, a test run included → scanned |
-| every other tool (WebFetch, MCP tools, a subagent) | outside |
-
-- **Need the value?** Don't read it. Use it by reference: `"$NAME"` or a file a command reads at
-  run time. Never route around the marker (another tool, an encoding, a copy into the project).
-- **A credential in a project file you must fix** → Read it by its project path; it shows whole.
 - `agentic-shell-guard: the credential scan of this <tool> output could not finish, so all of it was withheld (<n> line(s)); the source is unchanged`
-  → every string replaced by the marker with `scan-incomplete`. Run the same call again. An Edit,
-  Write or NotebookEdit result gets the markers without this note: its write already landed.
+  → run the same call again.
 - `agentic-shell-guard: could not read the tool output; it reached the agent unscanned`,
   `agentic-shell-guard: internal failure; the tool output reached the agent unscanned` and
   `agentic-shell-guard: could not answer; the tool output reached the agent unscanned` go to the
   user; the output passed as the tool returned it.
-
-The user sets `shell_guard_secret_output` (`all` unless set, `files` for Read, Grep, NotebookRead,
-Edit, Write, NotebookEdit and Bash only, `off`) and `shell_guard_secret_output_skip` (tool names or patterns never scanned),
-the skip list in Claude Code's settings only: `config.yaml` never sets it.
 
 ## Fails closed
 

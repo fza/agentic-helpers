@@ -229,6 +229,23 @@ added to a release once it is published: the draft is what lets the archives lan
 breaking change marked without `!` ships as a minor.
 Pull before pushing after a release: `main` carries the release commit.
 
+## Skill budgets
+
+A skill's `SKILL.md` loads whole into context each time it is needed, so its growth is paid on every
+load. Each one has a budget in characters, `skillBudgets` in
+`source/hooks/internal/plugin/skillbudget_test.go`, recorded there with the reason for its figure;
+`TestEverySkillFitsItsBudget` fails where a `SKILL.md` exceeds its budget, where a skill has none,
+and where a budget names no skill. Each figure sat a little above the skill's size when it was set.
+Raising one is a change of its own, stating what the added text earns. Rejected: one budget for the
+whole skill directory, under which one file's growth hides behind another's cut.
+
+A skill too large for its budget splits into a core plus reference files beside it, as
+`agent-memory` and `agent-shell-guard` do: the core keeps what an agent acts on at a refusal (every
+reason it meets and its fix) and names each reference file from its "Read when" table; a reference
+file loads only when its trigger shows up and carries no budget.
+`TestEveryReferenceFileIsNamedFromItsSkill` fails where a reference file is linked from no
+`SKILL.md`, and shell-guard's `TestTheSkillQuotesEveryRefusal` holds every reason to the core.
+
 ## Tests
 
 ```bash
