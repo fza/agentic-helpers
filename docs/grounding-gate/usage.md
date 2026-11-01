@@ -154,7 +154,7 @@ the answer gains a `shown_earlier_note` saying how the text comes back:
 - **The record empties where the context does**: at a compaction, `/clear` and resume.
 - **A changed piece prints in full**: a new status, summary or text is a new piece.
 
-It needs sdd's structured answers, which sdd (the fza fork) gives with
+It needs sdd's structured answers, which sdd (the fza fork, `v0.18.0-alpha.2.fza.41` or later) gives with
 `sessions.token_saving` off, set once per machine:
 
 ```bash

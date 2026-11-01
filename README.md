@@ -59,7 +59,7 @@ project's decision graph under `.sdd/`.
 - Claude Code. The one-step `/plugin install` with `--marketplace` needs 2.1.275 or later.
 - git. Memory works only inside a git work tree, unless `memory_require_git` is off.
 - [sdd](https://github.com/networkteam/sdd), only for projects with a graph under `.sdd/`. Collapsing
-  repeated sdd output needs the fza fork with `sessions.token_saving` and its structured answers;
+  repeated sdd output needs the fza fork, `v0.18.0-alpha.2.fza.41` or later (`sessions.token_saving`);
   with any other sdd, answers pass through as sdd gives them.
 
 ## Installing
