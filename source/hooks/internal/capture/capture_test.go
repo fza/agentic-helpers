@@ -31,6 +31,8 @@ type fixture struct {
 	// settings is the user settings file carrying the plugin's options, or
 	// none.
 	settings string
+	// working is the directory the capture runs from, root where empty.
+	working string
 }
 
 type result struct {
@@ -72,7 +74,12 @@ func (f *fixture) runIn(ctx context.Context, args ...string) result {
 	f.t.Helper()
 
 	captured := &test.Captured{}
-	env := capture.Env{WorkingDir: f.root, Runner: f.runner, Limit: f.limit, Pause: f.pauses.Pause, Git: f.repo, TempRoot: f.temp, Margin: time.Millisecond}
+	working := f.root
+	if f.working != "" {
+		working = f.working
+	}
+
+	env := capture.Env{WorkingDir: working, Runner: f.runner, Limit: f.limit, Pause: f.pauses.Pause, Git: f.repo, TempRoot: f.temp, Margin: time.Millisecond}
 	if f.settings != "" {
 		env.Settings = []string{f.settings}
 	}

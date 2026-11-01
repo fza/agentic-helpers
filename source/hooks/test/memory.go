@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -43,6 +44,11 @@ type Git struct {
 	Tracked               []string
 	ListOutsideRepository bool
 	ListFails             bool
+	// Repos lists work trees by their top level. Set, it answers
+	// `rev-parse --show-toplevel` and `ls-files` by the directory asked, as
+	// git does: from the deepest work tree holding it, else as outside any
+	// repository.
+	Repos []string
 	// Before runs ahead of every call it answers, the way a file changes on
 	// disk while git runs.
 	Before func(args []string)
@@ -70,7 +76,7 @@ func (fake *Git) Calls() [][]string {
 	return slices.Clone(fake.calls)
 }
 
-func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, error) {
+func (fake *Git) Output(_ context.Context, dir string, args ...string) (string, error) {
 	if fake.Before != nil {
 		fake.Before(args)
 	}
@@ -79,6 +85,13 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 	fake.calls = append(fake.calls, slices.Clone(args))
 	branch := fake.Branch
 	fake.mutex.Unlock()
+
+	if fake.Repos != nil {
+		answer, answered, err := fake.byDirectory(dir, args)
+		if answered {
+			return answer, err
+		}
+	}
 
 	switch strings.Join(args, " ") {
 	case "rev-parse --is-inside-work-tree --show-toplevel HEAD --abbrev-ref HEAD":
@@ -168,6 +181,34 @@ func (fake *Git) Output(_ context.Context, _ string, args ...string) (string, er
 	}
 
 	return "", errors.New("unexpected git call")
+}
+
+// byDirectory answers the calls whose answer depends on the work tree around
+// dir, and reports whether the call was one of them.
+func (fake *Git) byDirectory(dir string, args []string) (string, bool, error) {
+	top := ""
+
+	for _, each := range fake.Repos {
+		holds := dir == each || strings.HasPrefix(dir, each+string(filepath.Separator))
+		if holds && len(each) > len(top) {
+			top = each
+		}
+	}
+
+	outside := fmt.Errorf("running git %v in %s: %w", args, dir, process.ErrNotARepository)
+
+	switch {
+	case slices.Equal(args, []string{"rev-parse", "--show-toplevel"}) && top == "":
+		return "", true, outside
+	case slices.Equal(args, []string{"rev-parse", "--show-toplevel"}):
+		return top + "\n", true, nil
+	case len(args) == 3 && args[0] == "ls-files" && top == "":
+		return "", true, outside
+	case len(args) == 3 && args[0] == "ls-files" && !strings.HasPrefix(args[2], top+string(filepath.Separator)):
+		return "", true, fmt.Errorf("fatal: %s: '%s' is outside repository at '%s'", args[2], args[2], top)
+	}
+
+	return "", false, nil
 }
 
 // branches answers the calls a `merged:` end condition makes, and reports

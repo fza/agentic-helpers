@@ -63,6 +63,93 @@ func TestADraftUnderTheTemporaryDirectoryIsRemoved(t *testing.T) {
 	}
 }
 
+// crossRepository runs the capture from a work tree of its own into the graph
+// at f.root, which lies in a second work tree.
+func (f *fixture) crossRepository(working string) string {
+	f.t.Helper()
+
+	graphRoot := graphconfig.RealPath(f.root)
+	f.working = working
+	f.repo.Repos = []string{graphRoot, working}
+
+	return graphRoot
+}
+
+func TestADraftInTheGraphRepositoryIsRemoved(t *testing.T) {
+	f := newFixture(t, "")
+	graphRoot := f.crossRepository(graphconfig.RealPath(t.TempDir()))
+	path := f.draftAt(filepath.Join(graphRoot, ".tmp", "drafts", "entry.md"))
+
+	got := f.run(path)
+	if got.code != 0 {
+		t.Fatalf("a clean draft should capture, got: %+v", got)
+	}
+
+	if test.Exists(t, path) {
+		t.Error("an untracked draft in the work tree of the graph written to should be gone")
+	}
+
+	if !strings.Contains(got.stderr, "draft removed: "+path+"\n") {
+		t.Errorf("the caller should learn the draft is gone, got: %s", got.stderr)
+	}
+}
+
+func TestADraftBeyondTheGraphRepositoryIsKept(t *testing.T) {
+	cases := []struct {
+		name  string
+		place func(f *fixture) string
+		says  string
+	}{
+		{
+			name: "git tracks it in the graph's work tree",
+			place: func(f *fixture) string {
+				graphRoot := f.crossRepository(graphconfig.RealPath(f.t.TempDir()))
+				path := f.draftAt(filepath.Join(graphRoot, "drafts", "entry.md"))
+				f.repo.Tracked = []string{path}
+
+				return path
+			},
+			says: " is tracked by git",
+		},
+		{
+			// The working directory is a checkout nested in the graph's, so the
+			// graph governs a capture of a draft held by neither.
+			name: "it lies in a third work tree",
+			place: func(f *fixture) string {
+				working := filepath.Join(graphconfig.RealPath(f.root), "nested")
+				test.WriteFile(f.t, filepath.Join(working, "README.md"), "a nested checkout\n")
+				f.crossRepository(working)
+
+				third := graphconfig.RealPath(f.t.TempDir())
+				f.repo.Repos = append(f.repo.Repos, third)
+
+				return f.draftAt(filepath.Join(third, ".tmp", "drafts", "entry.md"))
+			},
+			says: " is outside the work tree",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, "")
+			path := tc.place(f)
+
+			got := f.run(path)
+			if got.code != 0 {
+				t.Fatalf("a clean draft should capture, got: %+v", got)
+			}
+
+			if !test.Exists(t, path) {
+				t.Error("the draft should stay")
+			}
+
+			if !strings.Contains(got.stderr, "draft kept: "+path+tc.says+"\n") {
+				t.Errorf("the caller should learn why the draft stays, got: %s", got.stderr)
+			}
+		})
+	}
+}
+
 func TestAFailedCaptureKeepsTheDraft(t *testing.T) {
 	cases := []struct {
 		name    string
