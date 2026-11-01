@@ -70,6 +70,30 @@ func inDir(dir string) string {
 	return " in " + dir
 }
 
+// RemovalPlaces walks every shell script the walk hands it as the walk would
+// read it, and notes the directory each rm call there runs in, "" where the
+// walk cannot tell.
+type RemovalPlaces struct {
+	WalkRecorder
+
+	Dirs []string
+}
+
+func (places *RemovalPlaces) Command(call shellwalk.Call) {
+	if shellwalk.CommandName(call.Args[0]) == "rm" {
+		places.Dirs = append(places.Dirs, call.Dir)
+	}
+}
+
+func (places *RemovalPlaces) Script(_ string, interpreter string, text string, within shellwalk.Scripts) {
+	file, err := shellwalk.Parse(text)
+	if interpreter != "" || err != nil {
+		return
+	}
+
+	shellwalk.WalkWith(file, places, within)
+}
+
 func spelled(words []*syntax.Word) string {
 	values := make([]string, 0, len(words))
 	for _, word := range words {

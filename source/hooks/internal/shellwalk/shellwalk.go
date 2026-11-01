@@ -348,7 +348,7 @@ func walk(node syntax.Node, visitor Visitor, scripts Scripts, reading bool) {
 	values := arithmetic{visitor: visitor, assigned: assignedValues(node), resolved: map[string]bool{}}
 	walked := &walker{
 		visitor: visitor, scripts: scripts, reading: reading, dir: scripts.Dir,
-		moves: followedMoves(node), written: map[string]writtenScript{},
+		moves: followedMoves(node), values: fixedValuesOf(node), written: map[string]writtenScript{},
 	}
 
 	syntax.Walk(node, func(visited syntax.Node) bool {

@@ -39,14 +39,14 @@ rm -rf "$dir"                                    # denied: expansion. Spell the 
 |---|---|
 | `in the script`, `cannot read the script`; writing or running a script with a removal in it | [scripts.md](scripts.md) |
 | `[agentic-shell-guard: credential withheld`, `the credential scan of this`; which tool output is scanned | [output.md](output.md) |
-| what counts as literal, a move's sources, a time limit or launcher in front, `cannot judge`, `arithmetic on`, `config.yaml may only tighten`, `agentic-helpers bound`, which sed and date usages are checked | [reference.md](reference.md) |
+| what counts as literal, a variable the text fixes, a move's sources, a time limit or launcher in front, `cannot judge`, `arithmetic on`, `config.yaml may only tighten`, `agentic-helpers bound`, which sed and date usages are checked | [reference.md](reference.md) |
 
 ## Refusals → what to do
 
 | Reason (after `agentic-shell-guard: `) | Do |
 |---|---|
 | `rm runs alone: no command before or after it, no pipe, redirection, subshell or wrapper; run it as its own Bash call with literal targets` | the removal as its own Bash call, absolute literal targets, no `cd` in front |
-| `refusing rm with a shell variable or command substitution` | spell each target out |
+| `refusing rm with a shell variable or command substitution` | spell each target out, or assign it fixed text first ([reference.md](reference.md#fixed-values)) |
 | `mktemp is banned; write scratch files under the project's .tmp/ instead` | `.tmp/seats/<seat>/`, else `.tmp/seats/<session-id>/` (agentic-helpers:agent-scratch) |
 | `mktemp is banned; create the project's .tmp/ (gitignored) and write scratch files under it` | ask the user before creating `.tmp/` |
 | `code handed to <runner> holds a removal or mktemp; refusing` | no removal inside `eval`, `trap`, `bash -c`, a heredoc fed to a shell, `at` or `batch`, `sched`, `npx -c`, `pnpm exec -c`, a tmux command's shell command (`new-session`, `new-window`, `split-window`, `respawn-pane`, `run-shell`, ...), zsh's `functions[name]=` / `aliases[name]=`, or text arithmetic reads (runner `arithmetic on <name>`: `x='a[$(rm ...)]'; (( x ))`); run it directly |

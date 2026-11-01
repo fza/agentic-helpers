@@ -34,16 +34,24 @@ func (OSFiles) Open(name string) (fs.File, error) {
 // Scripts is what a walk reads the scripts a command runs through: Files, Home
 // for a path opening with `~`, Dir where the command starts ("" where it is
 // not known), and Depth, how many scripts deep the walked code already lies.
+// Program is the walked script's path as the call ran it, its `$0`, and Bash
+// whether bash runs it; Program is "" for code that is no script run as one
+// (a command line, a sourced file, code handed to a shell).
 type Scripts struct {
-	Files Files
-	Home  string
-	Dir   string
-	Depth int
+	Files   Files
+	Home    string
+	Dir     string
+	Depth   int
+	Program string
+	Bash    bool
 }
 
-// At is scripts for code that runs in dir, as deep as this.
+// At is scripts for code that runs in dir, as deep as this, and run as no
+// script of its own.
 func (scripts Scripts) At(dir string) Scripts {
 	scripts.Dir = dir
+	scripts.Program = ""
+	scripts.Bash = false
 
 	return scripts
 }
@@ -95,6 +103,7 @@ type walker struct {
 	reading bool
 	dir     string
 	moves   directoryMoves
+	values  fixedValues
 	written map[string]writtenScript
 	// writesUnknown is a write earlier in the command to a path the walk
 	// cannot place: any script after it may be what it wrote.
@@ -103,10 +112,13 @@ type walker struct {
 
 // directoryMoves / followed are the `cd` calls whose move the walk follows;
 // lost the statements of the command's own that start where the walk can no
-// longer tell, since the chain before them may have stopped short of its cd.
+// longer tell, since the chain before them may have stopped short of its cd;
+// inert the cd of a `$(cd "$(dirname "$0")" && pwd)` a followed cd's operand
+// holds, which moves only the subshell printing the folder.
 type directoryMoves struct {
 	followed map[*syntax.CallExpr]bool
 	lost     map[*syntax.Stmt]bool
+	inert    map[*syntax.CallExpr]bool
 }
 
 // followedMoves finds the cds a walk follows, each one whatever runs after
@@ -119,7 +131,9 @@ type directoryMoves struct {
 // subshell, a pipeline, a function, a branch or before `||` anything else is
 // none: on failure what follows runs where the shell was.
 func followedMoves(node syntax.Node) directoryMoves {
-	moves := directoryMoves{followed: map[*syntax.CallExpr]bool{}, lost: map[*syntax.Stmt]bool{}}
+	moves := directoryMoves{
+		followed: map[*syntax.CallExpr]bool{}, lost: map[*syntax.Stmt]bool{}, inert: map[*syntax.CallExpr]bool{},
+	}
 
 	file, isFile := node.(*syntax.File)
 	if !isFile {
@@ -152,7 +166,48 @@ func followedMoves(node syntax.Node) directoryMoves {
 		}
 	}
 
+	for call := range moves.followed {
+		for _, arg := range call.Args[1:] {
+			inertMoves(arg, moves.inert)
+		}
+	}
+
 	return moves
+}
+
+// inertMoves notes the cd of each `$(cd "$(dirname ...)" && pwd)` a word
+// holds.
+func inertMoves(word *syntax.Word, inert map[*syntax.CallExpr]bool) {
+	for _, part := range word.Parts {
+		parts := []syntax.WordPart{part}
+
+		quoted, isQuoted := part.(*syntax.DblQuoted)
+		if isQuoted {
+			parts = quoted.Parts
+		}
+
+		for _, inner := range parts {
+			substitution, isSubstitution := inner.(*syntax.CmdSubst)
+			if !isSubstitution {
+				continue
+			}
+
+			statement := onlyStatement(substitution)
+			if statement == nil {
+				continue
+			}
+
+			binary, isBinary := statement.Cmd.(*syntax.BinaryCmd)
+			if !isBinary || binary.Op != syntax.AndStmt {
+				continue
+			}
+
+			enter := plainCall(binary.X)
+			if enter != nil && CommandName(enter.Args[0]) == "cd" && len(enter.Args) == 2 && innerSubstitution(enter.Args[1]) != nil {
+				inert[enter] = true
+			}
+		}
+	}
 }
 
 func directoryMove(statement *syntax.Stmt) *syntax.CallExpr {
@@ -227,13 +282,15 @@ func plainCall(statement *syntax.Stmt) *syntax.CallExpr {
 // its place, and a launcher's chdir option loses only the place of what it
 // runs.
 func (walked *walker) call(expr *syntax.CallExpr) {
-	args := expr.Args
+	args := walked.values.words(expr.Args)
 	dir := walked.dir
 	launchedDir := dir
 
-	if walked.moves.followed[expr] {
-		walked.dir = walked.changeDirectory(args[1:])
-	} else {
+	switch {
+	case walked.moves.followed[expr]:
+		walked.dir = walked.changeDirectory(walked.folderOperands(args[1:], dir))
+	case walked.moves.inert[expr]:
+	default:
 		for _, start := range Certain(args) {
 			if !MovesDirectory(spelledWords(args[start:])) {
 				continue
@@ -570,14 +627,14 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 			return -1
 		}
 
-		walked.script(args[1+at], dir, false, name == fishShell)
+		walked.script(args[1+at], dir, false, name == fishShell, name)
 
 		return 1 + at
 	case name == "source" || name == ".":
 		at := -1
 
 		if len(args) > 1 {
-			walked.script(args[1], dir, false, false)
+			walked.script(args[1], dir, false, false, "")
 
 			at = 1
 		}
@@ -591,7 +648,7 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 			return -1
 		}
 
-		walked.script(args[0], dir, true, false)
+		walked.script(args[0], dir, true, false, "")
 
 		return 0
 	}
@@ -637,8 +694,10 @@ func (walked *walker) afterSource(args []*syntax.Word) {
 // run by its path, whose first line picks what reads it; fish is what fish
 // itself reads, whatever its first line says. A fish script goes out as
 // another interpreter's: the parser reads no fish. A file that is no text is
-// no script.
-func (walked *walker) script(word *syntax.Word, dir string, executed bool, fish bool) {
+// no script. shell is the shell a call hands the script to by name, "" where
+// it is sourced or executed; a sourced script keeps its caller's `$0`, so it
+// runs as no script of its own.
+func (walked *walker) script(word *syntax.Word, dir string, executed bool, fish bool, shell string) {
 	name := Spelled(word)
 
 	text, why := walked.textOf(word, dir)
@@ -657,6 +716,11 @@ func (walked *walker) script(word *syntax.Word, dir string, executed bool, fish 
 
 	interpreter, hasShebang := shebang(text)
 
+	if executed || shell != "" {
+		inner.Program = program(word)
+		inner.Bash = shell == "bash" || executed && interpreter == "bash"
+	}
+
 	switch {
 	case fish || executed && interpreter == fishShell:
 		walked.visitor.Script(name, fishShell, text, inner)
@@ -665,6 +729,15 @@ func (walked *walker) script(word *syntax.Word, dir string, executed bool, fish 
 	case IsInterpreter(interpreter):
 		walked.visitor.Script(name, interpreter, text, inner)
 	}
+}
+
+// program is the `$0` a script named by word runs with: the path as the call
+// spells it. A leading `~` stays: every path built from it is resolved as the
+// shell expands it.
+func program(word *syntax.Word) string {
+	value, _ := Literal(word)
+
+	return value
 }
 
 // textOf is the text of the script word names, or why it cannot be read.

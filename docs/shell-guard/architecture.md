@@ -254,6 +254,41 @@ carries one to its `Code` event: the call's for `eval`, a shell's `-c`, `npx -c`
 a here-document fed to a shell; none for `trap`, `sched`, tmux, zsh's code arrays and arithmetic,
 which run elsewhere or later.
 
+### Fixed values
+
+Before a call is offered, `walker.call` writes out every variable the walked text fixes
+(`fixedValues`, built once per walk by `fixedValuesOf`), so every visitor, shell-guard and the
+grounding gate alike, and the walk's own `cd`, script and write tracking see the call as if its
+author had typed the value. A plain `$X` or `${X}` resolves at a use only where every `Assign` to
+`X` anywhere in the text is one `topLevelAssignments` accepts (an assignment-only statement of the
+file's own, or `export` or `readonly` given no option, alone or the leading statement of an `&&` or
+`||` chain, no redirection, no `+=`, index or array), the use lies in no `FuncDecl` body, and the
+last such assignment before the use, by offset, holds fixed text or fixed text joined with
+variables resolving at its own offset. Reading the whole text rather than only what precedes the
+use is deliberate: a loop body runs again after a later assignment in it, and a function body runs
+where it is called, so a text-order rule would read a value the shell no longer holds. A value
+holding `~` or a backslash is left unresolved rather than imitating tilde expansion and quote
+removal. `fixedValues.opaque` leaves every variable unresolved where the text may set one the
+parse does not see: `valueSetters` (`eval`, `source`, `trap`, `read`, `unset`, `declare` and the
+rest), `printf -v` and `print -v`, any `DeclClause` but plain `export` or `readonly`, arithmetic in
+any form, a subscript or slice other than a plain index, `{name}>` redirections, `coproc`, and a
+command name that is not fixed text. `shellManaged` names the variables the shell changes itself.
+Written out unquoted, a value must match `unquotedSafe` and the text may assign `IFS` nowhere
+(`splitChanged`); inside double quotes it goes in as plain text, which `Literal` reads back
+unchanged since no resolved value holds a backslash. A word
+holding anything else stays as written, so shell-guard judges it as today.
+
+The script's own folder is written out only in a followed `cd`'s operands (`folderOperands`).
+`Scripts.Program` carries the script's `$0`, its path as the call spelled it, set by
+`walker.script` for a script a shell runs by name or one run by its path, and `Scripts.Bash`
+whether bash runs it (the shell's name, or the `#!` line). A sourced script, a command line and
+code handed to a shell (`Scripts.At` clears both) have none. `folderWord` reads `$(dirname "$0")`,
+`$(dirname "${BASH_SOURCE[0]}")` (bash only, and only where nothing may assign `BASH_SOURCE`),
+`${0%/*}` and `$(cd "$(dirname "$0")" && pwd)`, then fixed text, and requires the folder to be a
+directory, since `cd x.sh/..` fails and leaves the shell where it was. The `cd` inside the last
+form moves only its subshell, so `followedMoves` marks it `directoryMoves.inert`, and the walk keeps
+its place past it.
+
 Each statement's writes are noted before its call is offered (`walker.records`): a redirection
 writing a file, and `tee`'s operands. `cat` with no operand, or `tee`, fed a here-document or
 here-string writes its text, read as bash does: verbatim under a quoted delimiter, with `\\`, `\$`,
