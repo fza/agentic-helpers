@@ -18,6 +18,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
@@ -338,7 +339,7 @@ func (mem *memory) housekeep(ctx context.Context) {
 	_ = promptvector.Adopt(ctx, promptvector.Dir(mem.env.Roots.Cache))
 
 	if !mem.outsideGit && mem.storeExists() && mem.unreadable == "" {
-		version, err := readFormat(mem.store())
+		version, err := formatsteps.Read(mem.store())
 		if err == nil && version == storeFormat {
 			mem.removeLegacyCache()
 			mem.expireBackups(ctx)

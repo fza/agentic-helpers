@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
@@ -279,8 +280,8 @@ func (mem *memory) purgeEverywhere(ctx context.Context) {
 	for _, id := range mem.storeIDs() {
 		other := mem.sibling(id)
 
-		version, err := readFormat(other.store())
-		_, statErr := os.Stat(filepath.Join(other.store(), formatName))
+		version, err := formatsteps.Read(other.store())
+		_, statErr := os.Stat(filepath.Join(other.store(), formatsteps.FileName))
 
 		if statErr != nil || err != nil || version != storeFormat {
 			continue

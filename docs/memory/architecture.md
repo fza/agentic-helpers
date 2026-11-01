@@ -146,24 +146,31 @@ into place, and a seat and a shelf minted together are minted under one hold of 
 
 `format.json` holds the store's format, `{"format": 8}`; a store without one is format 1, where
 events and seat files name the seat, format 2 keeps seats by id without shelves, format 3 files
-entries with a retention level and no kind, format 4 holds no `item` rows, format 6 holds no
-`due` rows, and format 7 holds no state ledger. The first call
-that meets an older store migrates it a step at a time, holding the store lock from the first step
-to the last, so another call waits and then reads the migrated store. From format 1:
+entries with a retention level and no kind, format 4 holds no `item` rows, format 5 keeps its tail as
+`tail.jsonl` and a JSON file per session in the cache, format 6 holds no `due` rows, and format 7
+holds no state ledger. The first call that meets an older store moves it through the store's step
+table (`formatSteps` in `internal/memory/migrate.go`), run by the shared runner
+([format steps](../plugin/architecture.md#format-steps)): one step per format, each doing one job
+as an ordered list of operations, the store lock held from the first step to the last, so another
+call waits and then reads the migrated store, and `format.json` written after each step.
+
+From format 1, seats by id:
 
 1. copy `log/` and `seats/` to `backup/format-1-<UTC stamp>/`;
-2. mint an id for every seat name an event or a seat file mentions;
-3. write a new log beside the old one, every event's seat replaced by its id;
-4. rename every seat file to its id, swap the new log in, write `seats.json`;
-5. write `format.json` last: its presence marks the migration done.
+2. mint an id for every seat name an event or a seat file mentions and write `seats.json`; a name the
+   registry already holds keeps its id, so a run carrying the step on mints none twice;
+3. rename every seat file to its id;
+4. build a new log as `log.migrating`, every event's seat replaced by its id, set the old one aside as
+   `log.format-1`, put the new one in place, and remove `log.format-1`.
 
-From format 2, the log untouched:
+From format 2, shelves, the log untouched:
 
 1. copy `seats.json` to `backup/format-2-<UTC stamp>/`;
-2. give every seat a shelf of its own under its name, its follows moved there;
-3. write `shelves.json`, then `seats.json`, then `format.json`.
+2. give every seat a shelf of its own under its name, its follows moved there, and write
+   `shelves.json`; a shelf already under the seat's name is the one a cut run minted, and is kept;
+3. write `seats.json`, every seat naming its shelf.
 
-From format 3:
+From format 3, entry kinds:
 
 1. copy `log/` to `backup/format-3-<UTC stamp>/`;
 2. run every migration pass over the log's events: the kind pass makes every entry whose decay in
@@ -172,40 +179,50 @@ From format 3:
    moves in any brief; the credential pass scans every entry still holding its body and keeps what
    it finds, by filing seat, in `credentials-found.json` in the store, which each seat's next brief
    reads and empties of its own;
-3. build the migrated log as `log.migrating`, set the old one aside as `log.format-3`, swap the new one
-   in, write `format.json`, and remove `log.format-3`. A log no pass changed stays as it is, and only
-   `format.json` is written.
+3. build the migrated log as `log.migrating`, set the old one aside as `log.format-3`, put the new
+   one in place and remove `log.format-3`. A log no pass changed stays as it is: only a set-aside
+   log a cut run left is removed.
 
-From format 4, the log untouched: copy `log/` to `backup/format-4-<UTC stamp>/`, then write
-`format.json`. Format 5 adds the `item` event kind a todolist is kept in, which a format-4 binary
-cannot decode, so the format keeps such a binary off the store.
+From format 4, from 6 and from 7 the step writes `format.json` and nothing else: each new format
+lets the log hold rows a binary of the format before would misread, so the format keeps such a
+binary off the store. Format 5 adds the `item` event kind a todolist is kept in, which a format-4
+binary cannot decode. Format 7 adds the `due` event kind moving or clearing an entry's due time,
+which a format-6 binary cannot decode: once one session runs a format-7 release, every session on an
+earlier one refuses memory calls as on a newer store until its plugin reloads, as each format step
+before cost. A due time set at filing rides in the `new` row's payload; a merge folds an entry's `due`
+rows past the horizon into that payload, the last one standing. Rejected: a due time at filing only,
+which an older binary would ignore with no format step, but which could never move or clear; riding
+an existing event kind, each of which changes state in an older binary (`retain` resets the decay,
+`confirm` re-anchors, `settle` feeds the do-now items). Format 8 keeps each seat's state ledger as
+`item` rows of the reserved entry `state`, which a format-7 binary would fold as items of an entry it
+does not hold and drop unread. A seat's `state` rows stay as they are: the newest one the agent wrote
+reads as the ledger's `state#old` until the agent ticks or removes it, and a hook's draft is never read
+again. Rejected: folding the old body into a line at migration, which the agent would never split;
+starting every ledger empty, which loses where every live seat's work stands mid-task; copying the
+log to a backup in a step that changes nothing but the format.
 
-From format 6, the log untouched: copy `log/` to `backup/format-6-<UTC stamp>/`, refresh the size
-ledger so it counts the copy, then write `format.json`. Format 7 adds the `due` event kind moving or
-clearing an entry's due time, which a format-6 binary cannot decode: once one session runs a format-7
-release, every session on an earlier one refuses memory calls as on a newer store until its plugin
-reloads, as each format step before cost. A due time set at filing rides in the `new` row's payload;
-a merge folds an entry's `due` rows past the horizon into that payload, the last one standing.
-Rejected: a due time at filing only, which an older binary would ignore with no format step, but
-which could never move or clear; riding an existing event kind, each of which changes state in an
-older binary (`retain` resets the decay, `confirm` re-anchors, `settle` feeds the do-now items).
+From format 5, the binary formats, the log's rows untouched:
 
-From format 7, the log untouched (`migrateFormat7`): copy `log/` to `backup/format-7-<UTC stamp>/`,
-refresh the size ledger so it counts the copy, then write `format.json`. Format 8 keeps each seat's
-state ledger as `item` rows of the reserved entry `state`, which a format-7 binary would fold as
-items of an entry it does not hold and drop unread, so the format keeps such a binary off the store.
-A seat's `state` rows stay as they are: the newest one the agent wrote reads as the ledger's
-`state#old` until the agent ticks or removes it, and a hook's draft is never read again. Rejected:
-folding the old body into a line at migration, which the agent would never split; starting every
-ledger empty, which loses where every live seat's work stands mid-task.
+1. seal the log's `tail.jsonl` into a segment through the log's own crash-safe steps;
+2. put every per-session and per-seat JSON file of the cache into the slot file, each at its
+   modification time; a file the slot file already holds under its key, value and time is not
+   written again;
+3. remove the folders of those files (`legacyCacheDirs`), which every SessionStart pass also does.
 
-A failure before `format.json` undoes every step, says
-`agentic-memory: migrating the store failed: <cause>; the store is unchanged and the next call tries again`
-once per session, and the call runs on the store at the format it had. A store of a newer format than
-the release knows is refused: `agentic-memory: this store has format <n>; this release reads up to
-<m>`, with hooks silent and nothing written; a binary of an earlier release refuses a newer store
-that way. A store created by this release starts at the current format. The log's manifest no longer
-carries a format number; one that does still reads.
+Once the last step ran, the size ledger is rebuilt. A run stopped anywhere, by a failure or a kill,
+leaves the store at the format of the step it stopped in, and the next call runs that step again
+from its first operation: every operation is safe to repeat from wherever it stopped, a backup a cut
+run made is kept and no second one written, and a set-aside log left by a cut run, `log.format-1` or
+`log.format-3`, is read where `log/` is missing and cleared before the live log takes its name. A
+failure says
+`agentic-memory: migrating the store failed: moving this store from format <n> to <n+1>: <operation>: <cause>; the next call carries it on`
+once per session, and the call runs on the store at the format it reached. A store of a newer format
+than the release knows is refused, also when a newer release moved it while the call waited for the
+store lock: `agentic-memory: this store has format <n>; this release reads up to <m>`, with hooks
+silent and nothing written; a binary of an earlier release refuses a newer store that way. A store
+created by this release starts at the current format. The log's manifest no longer carries a format
+number; one that does still reads.
+
 
 ### The scratch path pass
 

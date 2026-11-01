@@ -2,11 +2,11 @@ package memory
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 )
 
@@ -14,40 +14,36 @@ import (
 // a JSON file per session and purpose, or per seat.
 var legacyCacheDirs = []string{"shown", "ladder", "graph-seen", "forks", "waiters", "migration-failed", "traps", "briefs"}
 
-// migrateFormat5 moves a format-5 store to format 6: the log's `tail.jsonl`
-// is sealed into a segment through the log's own crash-safe steps, every
-// per-session file of the cache goes into the slot file, and the store gets
-// its size ledger. format.json is written after all of it; only then do the
-// per-session files go, so a run failing before leaves them in place.
-func (mem *memory) migrateFormat5(ctx context.Context) error {
-	_, err := os.Stat(filepath.Join(mem.logDir(), "tail.jsonl"))
-	if err == nil {
-		log, err := mem.openLog()
-		if err != nil {
-			return err
-		}
+// slotSteps move a format-5 store to format 6: the log's `tail.jsonl` is
+// sealed into a segment through the log's own crash-safe steps, every
+// per-session file of the cache goes into the slot file, and only then do the
+// per-session files go. A run carrying the step on finds a sealed tail and
+// takes in the files still there, each under its own key; the size ledger is
+// rebuilt once the run ends.
+func (mem *memory) slotSteps(context.Context) ([]formatsteps.Operation, error) {
+	return []formatsteps.Operation{
+		{Name: "sealing the store's tail", Apply: func(ctx context.Context) error {
+			_, err := os.Stat(filepath.Join(mem.logDir(), "tail.jsonl"))
+			if err != nil {
+				return nil
+			}
 
-		err = log.Repair(ctx)
-		if err != nil {
-			return fmt.Errorf("sealing the store's tail: %w", err)
-		}
-	}
+			log, err := mem.openLog()
+			if err != nil {
+				return err
+			}
 
-	err = mem.slotFile().Import(ctx, mem.legacySessionFiles())
-	if err != nil {
-		return fmt.Errorf("taking in the per-session files: %w", err)
-	}
+			return log.Repair(ctx)
+		}},
+		{Name: "taking in the per-session files", Apply: func(ctx context.Context) error {
+			return mem.slotFile().Import(ctx, mem.legacySessionFiles())
+		}},
+		{Name: "removing the per-session files", Apply: func(context.Context) error {
+			mem.removeLegacyCache()
 
-	err = writeFormat(mem.env.Roots.Data, mem.store(), slotsFormat)
-	if err != nil {
-		return err
-	}
-
-	mem.recordStore(ctx)
-
-	mem.removeLegacyCache()
-
-	return nil
+			return nil
+		}},
+	}, nil
 }
 
 // legacySessionFiles is every per-session or per-seat file of the cache an

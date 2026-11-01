@@ -16,40 +16,10 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-// format1Store lays a store of the earlier format into the harness: a segment
-// and a tail naming seats, the tail times in Unix nanoseconds, a manifest at
-// format 1, and claim, last-claim and slice files named for their seats.
 func format1Store(t *testing.T, h *harness) {
 	t.Helper()
 
-	sealed := []memorylog.Event{{
-		Kind: memorylog.KindNew, Entry: "m-cccccc", Time: time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC), Seat: "drive",
-		Payload: []byte(`{"title":"An older drive finding sealed","body":"sealed in a segment","topics":["release"],"retention":"normal","from":"agent"}`),
-	}}
-
-	err := memorylog.Build(context.Background(), h.store(), filepath.Join(h.store(), "log"), sealed)
-	if err != nil {
-		t.Fatalf("building the segment: %v", err)
-	}
-
-	manifestPath := filepath.Join(h.store(), "log", "manifest.json")
-
-	var held map[string]any
-
-	raw, err := os.ReadFile(manifestPath)
-	if err == nil {
-		err = json.Unmarshal(raw, &held)
-	}
-
-	if err != nil {
-		t.Fatalf("reading the built manifest: %v", err)
-	}
-
-	held["format"] = 1
-	raw, _ = json.Marshal(held)
-	test.WriteFile(t, manifestPath, string(raw))
-
-	test.FixtureTree(t, "memory/format-1", h.store())
+	test.Format1Store(t, h.store())
 }
 
 func storeEvents(t *testing.T, h *harness) []memorylog.Row {
@@ -215,6 +185,8 @@ func TestAFormat1StoreMigrates(t *testing.T) {
 	}
 }
 
+// A failure in a step's first operation, its backup, leaves the store as it
+// was.
 func TestAFailedMigrationLeavesTheStoreAsItWas(t *testing.T) {
 	h := newHarness(t)
 	format1Store(t, h)
@@ -224,13 +196,14 @@ func TestAFailedMigrationLeavesTheStoreAsItWas(t *testing.T) {
 		before[part] = test.Tree(t, filepath.Join(h.store(), part))
 	}
 
-	blocker := filepath.Join(h.store(), "log.format-1")
-	test.WriteFile(t, filepath.Join(blocker, "keeps the old log from being set aside"), "")
+	blocker := filepath.Join(h.store(), "backup")
+	test.WriteFile(t, blocker, "keeps the backup from being written")
 
 	first := h.run("", "topics")
 	second := h.run("", "topics")
 
-	if !strings.Contains(first.err, "migrating the store failed:") || !strings.Contains(first.err, "the store is unchanged and the next call tries again") {
+	if !strings.Contains(first.err, "migrating the store failed: moving this store from format 1 to 2: backing up the store: ") ||
+		!strings.Contains(first.err, "; the next call carries it on") {
 		t.Errorf("a failed migration should say so, got %q", first.err)
 	}
 
@@ -262,6 +235,46 @@ func TestAFailedMigrationLeavesTheStoreAsItWas(t *testing.T) {
 
 	if !test.Exists(t, filepath.Join(h.store(), "format.json")) {
 		t.Error("the next call after the fault clears should migrate")
+	}
+}
+
+// A run killed between setting the old log aside and writing format.json
+// leaves `log.format-<n>` behind; the next run carries the step on.
+func TestASetAsideLogNeverBlocksTheNextRun(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		setAside string
+		store    func(t *testing.T, h *harness)
+	}{
+		{name: "format 1", setAside: "log.format-1", store: format1Store},
+		{name: "format 3", setAside: "log.format-3", store: func(t *testing.T, h *harness) { format3Store(t, h) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			tc.store(t, h)
+
+			err := os.CopyFS(filepath.Join(h.store(), tc.setAside), os.DirFS(filepath.Join(h.store(), "log")))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got := h.run("", "topics")
+			if got.code != 0 || strings.Contains(got.err, "migrating the store failed") {
+				t.Errorf("a set-aside log left by a killed run should not block the next one, got %d %q", got.code, got.err)
+			}
+
+			if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":8`) {
+				t.Errorf("the next run should bring the store to the current format, got %s", format)
+			}
+
+			if test.Exists(t, filepath.Join(h.store(), tc.setAside)) {
+				t.Error("the set-aside log should be gone once the step is done")
+			}
+
+			if out := h.must("", "search", "--all-seats", "--term", "finding"); !strings.Contains(out, "m-") {
+				t.Errorf("the store should keep its entries, got:\n%s", out)
+			}
+		})
 	}
 }
 
@@ -442,27 +455,50 @@ func TestTwoCallsMigrateAFormat3StoreOnce(t *testing.T) {
 	}
 }
 
-func TestAFailedKindMigrationLeavesTheLogAsItWas(t *testing.T) {
+// A failure after a step changed the store leaves it at the step's format,
+// working, and the next call carries the step on from its first operation.
+func TestAFailedKindMigrationIsCarriedOnByTheNextCall(t *testing.T) {
 	h := newHarness(t)
 	format3Store(t, h)
 	before := test.Tree(t, filepath.Join(h.store(), "log"))
 
-	blocker := filepath.Join(h.store(), "log.format-3")
-	test.WriteFile(t, filepath.Join(blocker, "keeps the old log from being set aside"), "")
+	locked := filepath.Join(h.store(), "log.migrating", "locked")
+	test.WriteFile(t, filepath.Join(locked, "keeps the half-built log from being cleared"), "")
 
-	if got := h.run("", "topics"); !strings.Contains(got.err, "migrating the store failed:") {
-		t.Errorf("a failed migration should say so, got %q", got.err)
+	err := os.Chmod(locked, 0o500)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+
+	got := h.run("", "topics")
+	if !strings.Contains(got.err, "migrating the store failed: moving this store from format 3 to 4: writing the migrated log: ") {
+		t.Errorf("a failed migration should name the step and the operation, got %q", got.err)
 	}
 
 	if after := test.Tree(t, filepath.Join(h.store(), "log")); after != before {
-		t.Errorf("a failed migration should leave the log byte-identical, got:\n%s\nbefore:\n%s", after, before)
-	}
-
-	if test.Exists(t, filepath.Join(h.store(), "log.migrating")) {
-		t.Error("a failed migration should leave no half-built log")
+		t.Errorf("a failed migration should leave the live log byte-identical, got:\n%s\nbefore:\n%s", after, before)
 	}
 
 	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":3`) {
 		t.Errorf("a failed migration should leave the store at its format, got %s", format)
+	}
+
+	err = os.Chmod(locked, 0o700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out := h.must("", "search", "--term", "Gate finding"); strings.Count(out, "[main, note, ") != 2 {
+		t.Errorf("the next call should carry the step on and give every entry its kind:\n%s", out)
+	}
+
+	if backups, _ := filepath.Glob(filepath.Join(h.store(), "backup", "format-3-*")); len(backups) != 1 {
+		t.Errorf("the step carried on should keep the backup the failed run made and make no second one, got %v", backups)
+	}
+
+	if test.Exists(t, filepath.Join(h.store(), "log.migrating")) || test.Exists(t, filepath.Join(h.store(), "log.format-3")) {
+		t.Error("the finished step should leave no half-built or set-aside log")
 	}
 }

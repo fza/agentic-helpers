@@ -23,6 +23,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
@@ -675,7 +676,7 @@ func (mem *memory) sweepAttachments(ctx context.Context) {
 	for _, id := range mem.storeIDs() {
 		other := mem.sibling(id)
 
-		version, err := readFormat(other.store())
+		version, err := formatsteps.Read(other.store())
 		if err == nil && version == storeFormat {
 			folded, err := other.load(ctx)
 			if err != nil {

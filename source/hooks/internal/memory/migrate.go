@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
@@ -20,6 +22,30 @@ import (
 // first, so `main.last.json` reads as `main`, not `main.last`.
 var seatFileSuffixes = []string{".last.json", ".json", ".slice"}
 
+// formatSteps is the store's step table (internal/formatsteps), one step per
+// format, each doing one job. The steps to formats 5, 7 and 8 change nothing
+// but the format: each fences off the binaries of the format before, which
+// would misread the rows it lets the log hold.
+func (mem *memory) formatSteps() []formatsteps.Step {
+	return []formatsteps.Step{
+		{From: 1, To: 2, Ops: mem.seatIDSteps},
+		{From: 2, To: 3, Ops: mem.shelfSteps},
+		{From: 3, To: 4, Ops: mem.kindSteps},
+		{From: 4, To: itemsFormat, Ops: fenceOnly},
+		{From: itemsFormat, To: slotsFormat, Ops: mem.slotSteps},
+		{From: slotsFormat, To: dueFormat, Ops: fenceOnly},
+		{From: dueFormat, To: storeFormat, Ops: fenceOnly},
+	}
+}
+
+func fenceOnly(context.Context) ([]formatsteps.Operation, error) { return nil, nil }
+
+func (mem *memory) storeComponent() formatsteps.Component {
+	return formatsteps.Component{
+		Name: "this store", Dir: mem.store(), Root: mem.env.Roots.Data, Lock: mem.lockStore, Steps: mem.formatSteps(),
+	}
+}
+
 // prepare brings the store to the current format, its scratch paths
 // rewritten, before anything reads it. A store already there costs two
 // stats; a store of a newer format is refused.
@@ -28,100 +54,36 @@ func (mem *memory) prepare(ctx context.Context) error {
 		return nil
 	}
 
-	version, err := readFormat(mem.store())
+	err := mem.migrate(ctx)
 	if err != nil {
 		return err
-	}
-
-	switch {
-	case version > storeFormat:
-		return fmt.Errorf("%w: this store has format %d; this release reads up to %d", ErrNewerStore, version, storeFormat)
-	case version < storeFormat:
-		err = mem.migrate(ctx)
-		if err != nil {
-			return err
-		}
 	}
 
 	return mem.rewriteScratchPaths(ctx)
 }
 
-// migrate brings an older store to the current format one step at a time,
-// holding the store lock throughout so no other call reads a half-migrated
-// store.
+// migrate runs the store's step table under the store lock, so no other call
+// reads a half-migrated store. A run stopped anywhere, by a failure or a kill,
+// leaves the store at the format of the step it stopped in, and the next call
+// carries that step on.
 func (mem *memory) migrate(ctx context.Context) error {
-	unlock, err := mem.lockStore(ctx)
-	if err != nil {
-		return err
-	}
-	defer unlock()
+	component := mem.storeComponent()
 
-	version, err := readFormat(mem.store())
+	version, err := component.Check()
 	if err != nil || version == storeFormat {
 		return err
 	}
 
-	if version == 1 {
-		err = mem.migrateFormat1(ctx)
-		if err != nil {
-			return err
-		}
-	}
-
-	if version <= 2 {
-		err = mem.migrateFormat2()
-		if err != nil {
-			return err
-		}
-	}
-
-	switch {
-	case version <= 3:
-		err = mem.migrateFormat3(ctx)
-	case version == 4:
-		err = mem.migrateFormat4()
-	}
-
-	if err != nil {
+	err = formatsteps.Run(ctx, component)
+	if errors.Is(err, formatsteps.ErrNewer) {
 		return err
 	}
 
-	if version <= 5 {
-		err = mem.migrateFormat5(ctx)
-		if err != nil {
-			return err
-		}
-	}
+	mem.forgetRegistry()
+	mem.forgetShelves()
 
-	if version <= 6 {
-		err = mem.migrateFormat6(ctx)
-		if err != nil {
-			return err
-		}
-	}
-
-	return mem.migrateFormat7(ctx)
-}
-
-// migrateFormat7 moves a format-7 store to format 8, whose log may hold a
-// seat's state ledger as `item` rows of the entry `state`: nothing in the log
-// changes, so the log is copied to backup/format-7-<UTC stamp>/ and
-// format.json is written, which keeps a format-7 binary from reading a store
-// whose ledger it would drop unread. A seat's free-text slot stays in the log,
-// read as the ledger's state#old until the agent splits it; a hook's draft is
-// left unread. The size ledger is rebuilt after the copy, so it counts the
-// backup's files too.
-func (mem *memory) migrateFormat7(ctx context.Context) error {
-	backup := filepath.Join(mem.store(), "backup", "format-7-"+mem.now().UTC().Format("20060102T150405.000000000Z"))
-
-	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
 	if err != nil {
-		return fmt.Errorf("backing up the store's log: %w", err)
-	}
-
-	err = writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
-	if err != nil {
-		return err
+		return fmt.Errorf("migrating the store failed: %w; the next call carries it on", err)
 	}
 
 	mem.recordStore(ctx)
@@ -129,61 +91,114 @@ func (mem *memory) migrateFormat7(ctx context.Context) error {
 	return nil
 }
 
-// migrateFormat6 moves a format-6 store to format 7, whose log may hold `due`
-// rows: nothing in the log changes, so the log is copied to
-// backup/format-6-<UTC stamp>/ and format.json is written, which keeps a
-// format-6 binary from reading a store it would misread. The size ledger is
-// rebuilt after the copy, so it counts the backup's files too.
-func (mem *memory) migrateFormat6(ctx context.Context) error {
-	backup := filepath.Join(mem.store(), "backup", "format-6-"+mem.now().UTC().Format("20060102T150405.000000000Z"))
+// backupStep copies each part of the store, a folder or a file, to
+// backup/format-<from>-<UTC stamp>/ before the step from that format changes
+// anything. The copy is built under a dotted name and renamed into place, so
+// a stamped folder is a whole copy; a run carrying a killed step on finds it
+// and copies nothing, since the store no longer holds what the step found.
+func (mem *memory) backupStep(from int, parts ...string) formatsteps.Operation {
+	return formatsteps.Operation{Name: "backing up the store", Apply: func(context.Context) error {
+		backups := filepath.Join(mem.store(), "backup")
+		prefix := fmt.Sprintf("format-%d-", from)
 
-	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
-	if err != nil {
-		return fmt.Errorf("backing up the store's log: %w", err)
-	}
+		made, err := filepath.Glob(filepath.Join(backups, prefix+"*"))
+		if err != nil || len(made) > 0 {
+			return err
+		}
 
-	err = writeFormat(mem.env.Roots.Data, mem.store(), dueFormat)
-	if err != nil {
-		return err
-	}
+		building := filepath.Join(backups, "."+prefix+"copying")
 
-	mem.recordStore(ctx)
+		err = os.RemoveAll(building)
+		if err != nil {
+			return err
+		}
 
-	return nil
+		err = safefs.MkdirAll(mem.env.Roots.Data, building, 0o700)
+		if err != nil {
+			return err
+		}
+
+		for _, part := range parts {
+			err = copyTree(mem.env.Roots.Data, filepath.Join(mem.store(), part), filepath.Join(building, part))
+			if err != nil {
+				return fmt.Errorf("copying %s: %w", part, err)
+			}
+		}
+
+		return safefs.Rename(mem.env.Roots.Data, building, filepath.Join(backups, prefix+mem.now().UTC().Format(home.BackupStamp)))
+	}}
 }
 
-// migrateFormat4 moves a format-4 store to format 5, whose log may hold
-// `item` rows: nothing in the log changes, so the log is copied to
-// backup/format-4-<UTC stamp>/ and format.json is written, which keeps a
-// format-4 binary from reading a store it would misread.
-func (mem *memory) migrateFormat4() error {
-	backup := filepath.Join(mem.store(), "backup", "format-4-"+mem.now().Format("20060102T150405.000000000Z"))
-
-	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
-	if err != nil {
-		return fmt.Errorf("backing up the store's log: %w", err)
+// liveLog is the log a step reads: `log/`, or, where a run was killed between
+// setting it aside and putting the migrated log in place, the set-aside one;
+// empty where the store holds neither.
+func (mem *memory) liveLog(setAside string) string {
+	for _, dir := range []string{mem.logDir(), filepath.Join(mem.store(), setAside)} {
+		_, err := os.Stat(dir)
+		if err == nil {
+			return dir
+		}
 	}
 
-	return writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
+	return ""
 }
 
-// migrateFormat1 turns a format-1 store, keyed by seat name, into format 2,
-// keyed by seat id. format.json is written last: until it exists, the store
-// reads as format 1, and every step before it is undone on failure.
-func (mem *memory) migrateFormat1(ctx context.Context) error {
-	err := mem.backUpFormat1()
-	if err != nil {
-		return err
-	}
+// rebuildSteps swap a log built from events in for the store's own. A stale
+// set-aside log, left by a run killed before it was removed, is cleared before
+// the live log takes its name: the step's backup holds the log it found.
+func (mem *memory) rebuildSteps(events []memorylog.Event, setAside string) []formatsteps.Operation {
+	building := filepath.Join(mem.store(), "log.migrating")
+	retired := filepath.Join(mem.store(), setAside)
 
-	events, err := mem.allEvents(ctx)
+	return []formatsteps.Operation{
+		{Name: "writing the migrated log", Apply: func(ctx context.Context) error {
+			err := os.RemoveAll(building)
+			if err != nil {
+				return err
+			}
+
+			return memorylog.Build(ctx, mem.env.Roots.Data, building, events)
+		}},
+		{Name: "setting the old log aside", Apply: func(context.Context) error {
+			_, err := os.Stat(mem.logDir())
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
+
+			err = os.RemoveAll(retired)
+			if err != nil {
+				return err
+			}
+
+			return safefs.Rename(mem.env.Roots.Data, mem.logDir(), retired)
+		}},
+		{Name: "putting the migrated log in place", Apply: func(context.Context) error {
+			return safefs.Rename(mem.env.Roots.Data, building, mem.logDir())
+		}},
+		mem.removeSetAside(setAside),
+	}
+}
+
+func (mem *memory) removeSetAside(setAside string) formatsteps.Operation {
+	return formatsteps.Operation{Name: "removing the old log", Apply: func(context.Context) error {
+		return os.RemoveAll(filepath.Join(mem.store(), setAside))
+	}}
+}
+
+// seatIDSteps move a format-1 store, keyed by seat name, to format 2, keyed
+// by seat id: every seat name an event or a seat file mentions gets an id,
+// recorded in seats.json before anything names it, so a run carrying the step
+// on finds the same ids; then the log is rebuilt with every event's seat
+// replaced by its id, and every seat file renamed to its id.
+func (mem *memory) seatIDSteps(ctx context.Context) ([]formatsteps.Operation, error) {
+	events, err := mem.eventsIn(ctx, mem.liveLog("log.format-1"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	registry, _, err := seat.LoadRegistry(mem.store())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ids := map[string]string{}
@@ -194,9 +209,12 @@ func (mem *memory) migrateFormat1(ctx context.Context) error {
 			continue
 		}
 
-		id, err := registry.Mint(name, mem.env.Random)
-		if err != nil {
-			return fmt.Errorf("minting an id for the seat %s: %w", name, err)
+		id, known := registry.IDOf(name)
+		if !known {
+			id, err = registry.Mint(name, mem.env.Random)
+			if err != nil {
+				return nil, fmt.Errorf("minting an id for the seat %s: %w", name, err)
+			}
 		}
 
 		ids[name] = id
@@ -208,77 +226,30 @@ func (mem *memory) migrateFormat1(ctx context.Context) error {
 		}
 	}
 
-	undo := &rollback{}
+	operations := []formatsteps.Operation{
+		mem.backupStep(1, "log", "seats"),
+		{Name: "recording the seat ids", Apply: func(context.Context) error {
+			mem.forgetRegistry()
 
-	err = mem.rewrite(ctx, events, registry, ids, undo)
-	if err != nil {
-		undo.run()
-
-		return fmt.Errorf("migrating the store failed: %w; the store is unchanged and the next call tries again", err)
+			return registry.Save(mem.env.Roots.Data)
+		}},
+		{Name: "renaming the seat files", Apply: func(context.Context) error { return mem.renameSeatFiles(ids) }},
 	}
 
-	mem.forgetRegistry()
-
-	return nil
+	return append(operations, mem.rebuildSteps(events, "log.format-1")...), nil
 }
 
-func (mem *memory) rewrite(ctx context.Context, events []memorylog.Event, registry seat.Registry, ids map[string]string,
-	undo *rollback,
-) error {
-	building := filepath.Join(mem.store(), "log.migrating")
+func (mem *memory) eventsIn(ctx context.Context, dir string) ([]memorylog.Event, error) {
+	if dir == "" {
+		return nil, nil
+	}
 
-	err := os.RemoveAll(building)
+	log, err := memorylog.Open(mem.env.Roots.Data, dir)
 	if err != nil {
-		return fmt.Errorf("clearing an earlier migration's log: %w", err)
+		return nil, fmt.Errorf("opening the log: %w", err)
 	}
 
-	undo.add(func() { _ = os.RemoveAll(building) })
-
-	err = memorylog.Build(ctx, mem.env.Roots.Data, building, events)
-	if err != nil {
-		return fmt.Errorf("writing the migrated log: %w", err)
-	}
-
-	err = mem.renameSeatFiles(ids, undo)
-	if err != nil {
-		return err
-	}
-
-	err = mem.swapLog(building, "log.format-1", undo)
-	if err != nil {
-		return err
-	}
-
-	err = registry.Save(mem.env.Roots.Data)
-	if err != nil {
-		return err
-	}
-
-	undo.add(func() { _ = os.Remove(seat.RegistryPath(mem.store())) })
-
-	err = writeFormat(mem.env.Roots.Data, mem.store(), 2)
-	if err != nil {
-		return err
-	}
-
-	_ = os.RemoveAll(filepath.Join(mem.store(), "log.format-1"))
-
-	return nil
-}
-
-// backUpFormat1 copies the log and the seat files, byte for byte, to
-// backup/format-1-<UTC stamp>/ before anything changes.
-func (mem *memory) backUpFormat1() error {
-	backup := filepath.Join(mem.store(), "backup", "format-1-"+mem.now().Format("20060102T150405.000000000Z"))
-
-	for _, part := range []string{"log", "seats"} {
-		err := copyTree(mem.env.Roots.Data, filepath.Join(mem.store(), part), filepath.Join(backup, part))
-		if err != nil {
-			return fmt.Errorf("backing up the store's %s: %w", part, err)
-		}
-	}
-
-	return nil
+	return eventsOf(ctx, log)
 }
 
 func (mem *memory) allEvents(ctx context.Context) ([]memorylog.Event, error) {
@@ -292,6 +263,10 @@ func (mem *memory) allEvents(ctx context.Context) ([]memorylog.Event, error) {
 		return nil, err
 	}
 
+	return eventsOf(ctx, log)
+}
+
+func eventsOf(ctx context.Context, log *memorylog.Log) ([]memorylog.Event, error) {
 	snapshot, err := log.Snapshot(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("reading the log to migrate: %w", err)
@@ -356,7 +331,9 @@ func seatFileName(file string) (string, bool) {
 	return "", false
 }
 
-func (mem *memory) renameSeatFiles(ids map[string]string, undo *rollback) error {
+// renameSeatFiles renames every seat file named for a seat to its id; a file
+// already renamed no longer carries the name.
+func (mem *memory) renameSeatFiles(ids map[string]string) error {
 	files, err := os.ReadDir(mem.seatsDir())
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
@@ -373,15 +350,11 @@ func (mem *memory) renameSeatFiles(ids map[string]string, undo *rollback) error 
 				continue
 			}
 
-			from := filepath.Join(mem.seatsDir(), file.Name())
-			to := filepath.Join(mem.seatsDir(), ids[name]+suffix)
-
-			err = safefs.Rename(mem.env.Roots.Data, from, to)
+			err = safefs.Rename(mem.env.Roots.Data, filepath.Join(mem.seatsDir(), file.Name()),
+				filepath.Join(mem.seatsDir(), ids[name]+suffix))
 			if err != nil {
 				return fmt.Errorf("renaming the seat file %s: %w", file.Name(), err)
 			}
-
-			undo.add(func() { _ = safefs.Rename(mem.env.Roots.Data, to, from) })
 
 			break
 		}
@@ -390,46 +363,8 @@ func (mem *memory) renameSeatFiles(ids map[string]string, undo *rollback) error 
 	return nil
 }
 
-func (mem *memory) swapLog(building string, setAside string, undo *rollback) error {
-	retired := filepath.Join(mem.store(), setAside)
-
-	_, err := os.Stat(mem.logDir())
-	hadLog := err == nil
-
-	if hadLog {
-		err = safefs.Rename(mem.env.Roots.Data, mem.logDir(), retired)
-		if err != nil {
-			return fmt.Errorf("setting the old log aside: %w", err)
-		}
-
-		undo.add(func() { _ = safefs.Rename(mem.env.Roots.Data, retired, mem.logDir()) })
-	}
-
-	err = safefs.Rename(mem.env.Roots.Data, building, mem.logDir())
-	if err != nil {
-		return fmt.Errorf("putting the migrated log in place: %w", err)
-	}
-
-	undo.add(func() { _ = safefs.Rename(mem.env.Roots.Data, mem.logDir(), building) })
-
-	return nil
-}
-
-// rollback undoes a migration's steps, the last first.
-type rollback struct {
-	steps []func()
-}
-
-func (undo *rollback) add(step func()) {
-	undo.steps = append(undo.steps, step)
-}
-
-func (undo *rollback) run() {
-	for _, step := range slices.Backward(undo.steps) {
-		step()
-	}
-}
-
+// copyTree copies the folder or file from to to; a missing one copies
+// nothing.
 func copyTree(root string, from string, to string) error {
 	return filepath.WalkDir(from, func(path string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && path == from {
@@ -457,6 +392,11 @@ func copyTree(root string, from string, to string) error {
 		}
 		defer source.Close()
 
+		err = safefs.MkdirAll(root, filepath.Dir(target), 0o700)
+		if err != nil {
+			return err
+		}
+
 		copied, err := safefs.CreateFile(root, target, 0o600)
 		if err != nil {
 			return err
@@ -473,38 +413,21 @@ func copyTree(root string, from string, to string) error {
 	})
 }
 
-// migrateFormat2 gives every seat of a format-2 store a shelf of its own under
-// its name and moves the topics it follows there. The log is untouched: an
-// entry's shelf is its filing seat's. seats.json is backed up first, and
-// format.json written last, every step before it undone on failure.
-func (mem *memory) migrateFormat2() error {
-	registryPath := seat.RegistryPath(mem.store())
-
-	backup := filepath.Join(mem.store(), "backup", "format-2-"+mem.now().Format("20060102T150405.000000000Z"))
-
-	err := safefs.MkdirAll(mem.env.Roots.Data, backup, 0o700)
-	if err != nil {
-		return fmt.Errorf("backing up the seat registry: %w", err)
-	}
-
-	original, err := os.ReadFile(registryPath)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("backing up the seat registry: %w", err)
-	}
-
-	err = safefs.WriteFile(mem.env.Roots.Data, filepath.Join(backup, "seats.json"), original, 0o600)
-	if err != nil {
-		return fmt.Errorf("backing up the seat registry: %w", err)
-	}
-
+// shelfSteps move a format-2 store to format 3: every seat gets a shelf of
+// its own under its name, the topics it follows moved there. The log is
+// untouched: an entry's shelf is its filing seat's. shelves.json is written
+// before seats.json names a shelf, and a shelf already minted under the seat's
+// name is the one a killed run made, so a run carrying the step on mints none
+// twice.
+func (mem *memory) shelfSteps(context.Context) ([]formatsteps.Operation, error) {
 	registry, _, err := seat.LoadRegistry(mem.store())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	shelves, _, err := seat.LoadShelves(mem.store())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, id := range registry.IDs() {
@@ -513,9 +436,12 @@ func (mem *memory) migrateFormat2() error {
 			continue
 		}
 
-		shelf, err := shelves.Mint(held.Name, mem.env.Random)
-		if err != nil {
-			return fmt.Errorf("making the shelf of %s: %w", held.Name, err)
+		shelf, minted := shelves.IDOf(held.Name)
+		if !minted {
+			shelf, err = shelves.Mint(held.Name, mem.env.Random)
+			if err != nil {
+				return nil, fmt.Errorf("making the shelf of %s: %w", held.Name, err)
+			}
 		}
 
 		onShelf := shelves.Shelves[shelf]
@@ -526,35 +452,17 @@ func (mem *memory) migrateFormat2() error {
 		registry.Seats[id] = held
 	}
 
-	undo := &rollback{}
+	return []formatsteps.Operation{
+		mem.backupStep(2, "seats.json"),
+		{Name: "writing the shelves", Apply: func(context.Context) error {
+			mem.forgetShelves()
 
-	err = mem.placeShelves(registry, shelves, original, undo)
-	if err != nil {
-		undo.run()
+			return shelves.Save(mem.env.Roots.Data)
+		}},
+		{Name: "moving every seat onto its shelf", Apply: func(context.Context) error {
+			mem.forgetRegistry()
 
-		return fmt.Errorf("migrating the store failed: %w; the store is unchanged and the next call tries again", err)
-	}
-
-	mem.forgetRegistry()
-	mem.forgetShelves()
-
-	return nil
-}
-
-func (mem *memory) placeShelves(registry seat.Registry, shelves seat.Shelves, original []byte, undo *rollback) error {
-	err := shelves.Save(mem.env.Roots.Data)
-	if err != nil {
-		return err
-	}
-
-	undo.add(func() { _ = os.Remove(seat.ShelvesPath(mem.store())) })
-
-	err = registry.Save(mem.env.Roots.Data)
-	if err != nil {
-		return err
-	}
-
-	undo.add(func() { _ = safefs.WriteFile(mem.env.Roots.Data, seat.RegistryPath(mem.store()), original, 0o600) })
-
-	return writeFormat(mem.env.Roots.Data, mem.store(), 3)
+			return registry.Save(mem.env.Roots.Data)
+		}},
+	}, nil
 }

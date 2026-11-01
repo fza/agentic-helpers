@@ -822,8 +822,8 @@ func TestAFormatSevenStoreMovesToEightWithItsSlotAsStateOld(t *testing.T) {
 		t.Errorf("a format-7 store should move to format 8: %s", written)
 	}
 
-	if backups, _ := filepath.Glob(filepath.Join(h.store(), "backup", "format-7-*", "log", "tail.jnl")); len(backups) != 1 {
-		t.Errorf("the move should back the log up once, got %v", backups)
+	if test.Exists(t, filepath.Join(h.store(), "backup")) {
+		t.Error("a step fencing older binaries off should change nothing but the format")
 	}
 
 	if mismatches := test.LedgerMismatches(t, h.store()); len(mismatches) > 0 {

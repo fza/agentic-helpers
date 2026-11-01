@@ -368,7 +368,7 @@ func TestATodoBodyWithListLinesNamesItem(t *testing.T) {
 	}
 }
 
-func TestAFormatFourStoreMovesUpWithABackup(t *testing.T) {
+func TestAFormatFourStoreMovesUpChangingOnlyTheFormat(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.file("Gate reads Bash only", "finding")
@@ -383,9 +383,8 @@ func TestAFormatFourStoreMovesUpWithABackup(t *testing.T) {
 		t.Errorf("a format-4 store should move through format 5 to the current one: %s", written)
 	}
 
-	backups, _ := filepath.Glob(filepath.Join(h.store(), "backup", "format-4-*", "log"))
-	if len(backups) != 1 {
-		t.Errorf("the move should back the log up first, got %v", backups)
+	if test.Exists(t, filepath.Join(h.store(), "backup")) {
+		t.Error("a step fencing older binaries off should change nothing but the format")
 	}
 
 	test.WriteFile(t, formatPath, `{"format":9}`+"\n")

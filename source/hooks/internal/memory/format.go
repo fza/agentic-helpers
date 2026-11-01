@@ -1,14 +1,9 @@
 package memory
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
@@ -29,48 +24,9 @@ const (
 	dueFormat   = 7
 	slotsFormat = 6
 	itemsFormat = 5
-	formatName  = "format.json"
 )
 
-var ErrNewerStore = errors.New("a newer store")
-
-type formatFile struct {
-	Format int `json:"format"`
-}
-
-func readFormat(store string) (int, error) {
-	raw, err := os.ReadFile(filepath.Join(store, formatName))
-	if errors.Is(err, fs.ErrNotExist) {
-		return 1, nil
-	}
-
-	if err != nil {
-		return 0, fmt.Errorf("reading the store's format: %w", err)
-	}
-
-	var held formatFile
-
-	err = json.Unmarshal(raw, &held)
-	if err != nil || held.Format < 1 {
-		return 0, fmt.Errorf("parsing the store's format: %s", raw)
-	}
-
-	return held.Format, nil
-}
-
-func writeFormat(root string, store string, version int) error {
-	data, err := json.Marshal(formatFile{Format: version})
-	if err != nil {
-		return fmt.Errorf("encoding the store's format: %w", err)
-	}
-
-	err = atomicfile.Write(root, filepath.Join(store, formatName), append(data, '\n'), 0o600)
-	if err != nil {
-		return fmt.Errorf("placing the store's format: %w", err)
-	}
-
-	return nil
-}
+var ErrNewerStore = formatsteps.ErrNewer
 
 // initStore creates a fresh store at the current format, its scratch paths
 // marked rewritten, so it never needs migrating.
@@ -112,5 +68,5 @@ func (mem *memory) initStore() error {
 		return err
 	}
 
-	return writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
+	return formatsteps.Write(mem.env.Roots.Data, mem.store(), storeFormat)
 }

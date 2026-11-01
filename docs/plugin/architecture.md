@@ -169,6 +169,43 @@ component would refuse until someone ran it); a full copy as backup (it doubles 
 for a failure the renames already undo); fencing the caches (an older session's shell-guard would
 lose its countdown state for nothing).
 
+## Format steps
+
+A persisted component records its format in its folder's `format.json`, absent read as format 1,
+and moves to the format a release writes through `internal/formatsteps`: the component declares a
+step table, `[]formatsteps.Step{{From: 7, To: 8, Ops: ...}}`, exactly one step per format, each
+moving one format on through an ordered list of operations (copy, rename, write a file, rebuild the
+log, remove), and `formatsteps.Run` applies it:
+
+1. read `format.json`; at the newest format the table reaches it returns, taking no lock;
+2. refuse a format newer than the table reaches, `<component> has format <n>; this release reads up
+   to <m>`, writing nothing;
+3. take the component's lock and read the format again, refusing a newer one again, since a newer
+   release may have moved the component while the call waited;
+4. run each step from the format found: list its operations from what the folder holds now, apply
+   them in order, and write `format.json` with the step's `To`.
+
+A run stopped anywhere, by a failure or a kill, leaves the component at the format of the step it
+stopped in; the next run lists that step's operations again from what the folder holds then and
+applies them from the first. Every operation is therefore safe to run again from any point a kill
+can stop it at, and one too large to split, a log rebuild, carries its own crash safety. A step
+whose new format only keeps older binaries off rows they would misread has no operations: the
+format is all it writes. The memory store's table lives in `internal/memory/migrate.go`
+([memory architecture](../memory/architecture.md#the-format-and-its-migration)).
+
+The cut test (`TestEveryStepCarriesOnFromAnyOperation`) proves it per step: for every step and every
+k, it lays a fresh copy of a store of the step's starting format, applies the step's first k
+operations as a run killed there would have, runs the table again in a new process and compares the
+result with an uninterrupted run, the minted seat and shelf ids named by what they stand for. A new
+step is covered by declaring its operations; no production code exists for the test, and no
+operation carries a hook to stop at.
+
+Rejected: rebuilding every derived file from the log, since the seat registry and the shelves hold
+ids minted outside the log, and the log itself still needs steps; copying a component forward into a
+folder per format, which older binaries keep writing, losing their writes, while the disk holds both;
+reusing `internal/migration`'s write-ahead journal, an undo for every change, a journal format to keep
+stable, and a hook to halt at that only tests use.
+
 ## Where the binaries come from
 
 The plugin holds no binaries. Every hook runs through `plugin/hooks/run`, which runs the binary of

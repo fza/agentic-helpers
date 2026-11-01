@@ -4,17 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
 
 // migrationPass reads or rewrites every event of a store being migrated, before
-// the migrated log is built. A pass failing undoes the migration.
+// the migrated log is built.
 type migrationPass func(events []memorylog.Event) error
 
 // kindPasses are the passes the move to entry kinds runs over the whole log,
@@ -24,26 +21,21 @@ func (mem *memory) kindPasses(scan *credentialScan) []migrationPass {
 	return []migrationPass{assignKinds, scan.pass}
 }
 
-// migrateFormat3 gives every entry of a format-3 store a kind. The log is
-// copied to backup/format-3-<UTC stamp>/, rebuilt beside the old one through
-// kindPasses and swapped in; format.json is written last, and every step
-// before it is undone on failure.
-func (mem *memory) migrateFormat3(ctx context.Context) error {
-	backup := filepath.Join(mem.store(), "backup", "format-3-"+mem.now().Format("20060102T150405.000000000Z"))
-
-	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
-	if err != nil {
-		return fmt.Errorf("backing up the store's log: %w", err)
+// kindSteps move a format-3 store to format 4, every entry filed with a kind:
+// the log is copied to backup/format-3-<UTC stamp>/, what the credential pass
+// found is kept, and a log the passes changed is rebuilt beside the old one
+// and swapped in. A log no pass changed stays as it is, byte for byte, and is
+// never set aside. Both passes give the same answer on a log they already ran
+// over, so a run carrying the step on reads whichever log the store holds.
+func (mem *memory) kindSteps(ctx context.Context) ([]formatsteps.Operation, error) {
+	source := mem.liveLog("log.format-3")
+	if source == "" {
+		return nil, nil
 	}
 
-	_, err = os.Stat(mem.logDir())
-	if errors.Is(err, fs.ErrNotExist) {
-		return writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
-	}
-
-	events, err := mem.allEvents(ctx)
+	events, err := mem.eventsIn(ctx, source)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	original := make([][]byte, len(events))
@@ -56,7 +48,7 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 	for _, pass := range mem.kindPasses(scan) {
 		err = pass(events)
 		if err != nil {
-			return fmt.Errorf("migrating the store failed: %w; the store is unchanged and the next call tries again", err)
+			return nil, err
 		}
 	}
 
@@ -65,64 +57,20 @@ func (mem *memory) migrateFormat3(ctx context.Context) error {
 		changed = changed || !bytes.Equal(event.Payload, original[index])
 	}
 
-	undo := &rollback{}
-
-	err = scan.save(mem.env.Roots.Data, mem.store())
-	if err != nil {
-		return fmt.Errorf("migrating the store failed: keeping what the credential scan found: %w; "+
-			"the store is unchanged and the next call tries again", err)
+	operations := []formatsteps.Operation{
+		mem.backupStep(3, "log"),
+		{Name: "keeping what the credential scan found", Apply: func(context.Context) error {
+			return scan.save(mem.env.Roots.Data, mem.store())
+		}},
 	}
 
-	undo.add(func() { removeIfThere(mem.credentialsPath()) })
-
-	// A log no pass changed stays as it is, byte for byte.
+	// A run killed after the migrated log took its place finds nothing left to
+	// change, and only the set-aside log to remove.
 	if !changed {
-		err = writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
-		if err != nil {
-			undo.run()
-		}
-
-		return err
+		return append(operations, mem.removeSetAside("log.format-3")), nil
 	}
 
-	err = mem.rebuildLog(ctx, events, undo)
-	if err != nil {
-		undo.run()
-
-		return fmt.Errorf("migrating the store failed: %w; the store is unchanged and the next call tries again", err)
-	}
-
-	return nil
-}
-
-func (mem *memory) rebuildLog(ctx context.Context, events []memorylog.Event, undo *rollback) error {
-	building := filepath.Join(mem.store(), "log.migrating")
-
-	err := os.RemoveAll(building)
-	if err != nil {
-		return fmt.Errorf("clearing an earlier migration's log: %w", err)
-	}
-
-	undo.add(func() { _ = os.RemoveAll(building) })
-
-	err = memorylog.Build(ctx, mem.env.Roots.Data, building, events)
-	if err != nil {
-		return fmt.Errorf("writing the migrated log: %w", err)
-	}
-
-	err = mem.swapLog(building, "log.format-3", undo)
-	if err != nil {
-		return err
-	}
-
-	err = writeFormat(mem.env.Roots.Data, mem.store(), itemsFormat)
-	if err != nil {
-		return err
-	}
-
-	_ = os.RemoveAll(filepath.Join(mem.store(), "log.format-3"))
-
-	return nil
+	return append(operations, mem.rebuildSteps(events, "log.format-3")...), nil
 }
 
 // assignKinds turns every entry whose decay in force is `standing` into a
