@@ -73,6 +73,7 @@ var hookEvents = map[string]hookEvent{
 	"instructions":  (*memory).instructions,
 	preToolHook:     (*memory).preToolEvent,
 	"subagent-stop": (*memory).subagentStop,
+	roundEvent:      (*memory).landedRound,
 }
 
 // payload is the hook's payload, read from stdin on first use: Main reads
@@ -638,6 +639,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 
 	payload := mem.payload()
 	adopted := mem.adopt(ctx, payload)
+	mem.startLandedRound(ctx, false)
 
 	reread := mem.instructionsChanged(ctx, payload)
 
@@ -718,6 +720,11 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		}
 	}
 
+	landed := mem.landedNotice(ctx, name)
+	if landed != "" {
+		out = append(out, landed)
+	}
+
 	mem.say(strings.Join(out, "\n"))
 
 	return 0
@@ -734,6 +741,7 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	payload := mem.payload()
 	mem.learnBackground(ctx, payload)
 	adopted := mem.adopt(ctx, payload)
+	mem.startLandedRound(ctx, payload.ToolName == "Bash" && landingCall.MatchString(payload.ToolInput.Command))
 
 	reread := mem.instructionsChanged(ctx, payload)
 
@@ -790,6 +798,12 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		holdsTraps = mark.Traps > 0
 	} else {
 		arrived, holdsTraps = mem.arrivalsAtTool(ctx, name)
+
+		// Landed work is the seat's to settle, so its main thread hears it.
+		landed := mem.landedNotice(ctx, name)
+		if landed != "" {
+			arrived = append(arrived, landed)
+		}
 	}
 
 	notes = append(notes, arrived...)

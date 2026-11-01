@@ -61,6 +61,11 @@ func main() {
 		window = 0
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		executable = ""
+	}
+
 	machine := migration.Machine(userHome, os.Getenv)
 	migration.Prepare(ctx, machine, os.Stderr)
 
@@ -83,12 +88,14 @@ func main() {
 		Embedders: func(config embed.Config) (embed.Embedder, error) {
 			return embed.New(config, &http.Client{Timeout: config.Timeout})
 		},
-		SddConfig: process.SddConfig{},
-		Version:   version,
-		Terminal:  hookio.Terminal{File: os.Stdin},
-		Tmp:       "/tmp",
-		Idle:      migration.Idle(machine),
-		Releases:  &http.Client{Timeout: updates.RequestTimeout},
+		SddConfig:  process.SddConfig{},
+		Version:    version,
+		Terminal:   hookio.Terminal{File: os.Stdin},
+		Tmp:        "/tmp",
+		Idle:       migration.Idle(machine),
+		Releases:   &http.Client{Timeout: updates.RequestTimeout},
+		Starter:    process.Detached{},
+		Executable: executable,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

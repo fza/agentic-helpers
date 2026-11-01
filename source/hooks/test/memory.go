@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -55,9 +56,33 @@ type Git struct {
 	// Remotes answers `config --get-regexp ^remote\..*\.url$`, a line per
 	// remote as git prints it; empty answers as git does with no remote.
 	Remotes string
+	// Commits is HEAD's history, newest first, which `log` reads; Tips
+	// answers `rev-parse --verify` for a branch by its tip, and Ancestors
+	// answers `merge-base --is-ancestor <commit> <target>` for a commit no
+	// branch names, HEAD's history counting as HEAD's ancestors.
+	Commits   []Commit
+	Tips      map[string]string
+	Ancestors map[string][]string
 
 	mutex sync.Mutex
 	calls [][]string
+}
+
+// Commit is one commit as `git log` prints it.
+type Commit struct {
+	SHA     string
+	Parents []string
+	At      time.Time
+	Message string
+	Paths   []string
+}
+
+// SetCommits replaces HEAD's history while a call may be running.
+func (fake *Git) SetCommits(commits []Commit) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	fake.Commits = commits
 }
 
 // SwitchBranch checks out another branch while a call may be running.
@@ -150,6 +175,11 @@ func (fake *Git) Output(_ context.Context, dir string, args ...string) (string, 
 		return answer, err
 	}
 
+	answer, answered, err = fake.history(args)
+	if answered {
+		return answer, err
+	}
+
 	if len(args) == 5 && args[0] == "log" && args[1] == "--oneline" && args[2] == "-n" {
 		answer, found := fake.Log[args[4]]
 		if !found {
@@ -222,14 +252,16 @@ func (fake *Git) branches(args []string) (string, bool, error) {
 
 		return fake.OriginHead + "\n", true, nil
 	case len(args) == 4 && args[0] == "rev-parse" && args[1] == "--verify" && args[2] == "--quiet":
-		_, exists := fake.Branches[strings.TrimPrefix(args[3], "refs/heads/")]
+		branch := strings.TrimPrefix(args[3], "refs/heads/")
+
+		_, exists := fake.Branches[branch]
 		if !exists {
 			return "", true, errors.New("exit status 1")
 		}
 
-		return "0123456789abcdef\n", true, nil
+		return cmp.Or(fake.Tips[branch], "0123456789abcdef") + "\n", true, nil
 	case len(args) == 4 && args[0] == "merge-base" && args[1] == "--is-ancestor":
-		if !slices.Contains(fake.Branches[strings.TrimPrefix(args[2], "refs/heads/")], args[3]) {
+		if !fake.isAncestor(args[2], args[3]) {
 			return "", true, errors.New("exit status 1")
 		}
 
@@ -237,6 +269,174 @@ func (fake *Git) branches(args []string) (string, bool, error) {
 	}
 
 	return "", false, nil
+}
+
+func (fake *Git) isAncestor(revision string, target string) bool {
+	if strings.HasPrefix(revision, "refs/heads/") {
+		return slices.Contains(fake.Branches[strings.TrimPrefix(revision, "refs/heads/")], target)
+	}
+
+	if target == "HEAD" {
+		fake.mutex.Lock()
+		defer fake.mutex.Unlock()
+
+		return slices.ContainsFunc(fake.Commits, func(commit Commit) bool { return commit.SHA == revision })
+	}
+
+	return slices.Contains(fake.Ancestors[revision], target)
+}
+
+// history answers the calls the landed-commit scan makes: HEAD's sha and
+// date, and the commits of a range, `<mark>..HEAD`, `<from>..<to>` or
+// `--since=<time> HEAD`, oldest first.
+func (fake *Git) history(args []string) (string, bool, error) {
+	if len(args) == 0 || args[0] != "log" {
+		return "", false, nil
+	}
+
+	fake.mutex.Lock()
+	commits := slices.Clone(fake.Commits)
+	fake.mutex.Unlock()
+
+	if slices.Equal(args, []string{"log", "-1", "--format=%H%x1f%cI", "HEAD"}) {
+		if len(commits) == 0 {
+			return "", true, errors.New("fatal: your current branch does not have any commits yet")
+		}
+
+		return commits[0].SHA + "\x1f" + commits[0].At.UTC().Format(time.RFC3339) + "\n", true, nil
+	}
+
+	if !slices.Contains(args, "--reverse") {
+		return "", false, nil
+	}
+
+	last := args[len(args)-1]
+
+	var picked []Commit
+
+	switch from, to, ranged := strings.Cut(last, ".."); {
+	case ranged:
+		excluded := fake.reachable(commits, from)
+		if excluded == nil {
+			return "", true, errors.New("fatal: bad revision")
+		}
+
+		for _, commit := range fake.reachableFrom(commits, cmp.Or(strings.TrimSuffix(to, "HEAD"), headOf(commits))) {
+			if !excluded[commit.SHA] {
+				picked = append(picked, commit)
+			}
+		}
+	default:
+		since := time.Time{}
+
+		for _, arg := range args {
+			text, found := strings.CutPrefix(arg, "--since=")
+			if found {
+				since, _ = time.Parse(time.RFC3339, text)
+			}
+		}
+
+		for _, commit := range commits {
+			if !commit.At.Before(since) {
+				picked = append(picked, commit)
+			}
+		}
+	}
+
+	var out strings.Builder
+
+	for _, commit := range slices.Backward(picked) {
+		fmt.Fprintf(&out, "\x1e%s\x1f%s\x1f%s\x1f%s\n\x1f\n\n%s\n", commit.SHA, strings.Join(commit.Parents, " "),
+			commit.At.UTC().Format(time.RFC3339), commit.Message, strings.Join(commit.Paths, "\n"))
+	}
+
+	return out.String(), true, nil
+}
+
+func headOf(commits []Commit) string {
+	if len(commits) == 0 {
+		return ""
+	}
+
+	return commits[0].SHA
+}
+
+// reachable is every commit of the history reachable from sha, nil where the
+// history holds no such commit.
+func (fake *Git) reachable(commits []Commit, sha string) map[string]bool {
+	found := fake.reachableFrom(commits, sha)
+	if len(found) == 0 {
+		return nil
+	}
+
+	held := map[string]bool{}
+	for _, commit := range found {
+		held[commit.SHA] = true
+	}
+
+	return held
+}
+
+// reachableFrom is the commits of the history reachable from sha through
+// parent links, in the history's order.
+func (fake *Git) reachableFrom(commits []Commit, sha string) []Commit {
+	bySHA := map[string]Commit{}
+	for _, commit := range commits {
+		bySHA[commit.SHA] = commit
+	}
+
+	seen := map[string]bool{}
+	queue := []string{sha}
+
+	for len(queue) > 0 {
+		next := queue[0]
+		queue = queue[1:]
+
+		commit, known := bySHA[next]
+		if seen[next] || !known {
+			continue
+		}
+
+		seen[next] = true
+		queue = append(queue, commit.Parents...)
+	}
+
+	return slices.DeleteFunc(slices.Clone(commits), func(commit Commit) bool { return !seen[commit.SHA] })
+}
+
+// Starter stands for the detached start of a background process: it records
+// each start, and runs it at once through Run where set, as the process
+// would run on its own.
+type Starter struct {
+	Run   func(args []string)
+	Fails error
+
+	mutex  sync.Mutex
+	starts [][]string
+}
+
+func (fake *Starter) Start(_ context.Context, _ string, args ...string) error {
+	fake.mutex.Lock()
+	fake.starts = append(fake.starts, slices.Clone(args))
+	fake.mutex.Unlock()
+
+	if fake.Fails != nil {
+		return fake.Fails
+	}
+
+	if fake.Run != nil {
+		fake.Run(args)
+	}
+
+	return nil
+}
+
+// Starts is every start asked for, its arguments each.
+func (fake *Starter) Starts() [][]string {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	return slices.Clone(fake.starts)
 }
 
 // Embedder maps a text to a bag of its words hashed into a small vector, so

@@ -39,6 +39,14 @@ const (
 
 const DefaultStateStaleAfterWrites = 5
 
+// DefaultLandedScanInterval / MinLandedScanInterval pace the scan of a
+// checkout's history for commits that may settle a live todo or trap; a git
+// call that lands commits scans at once whatever the interval.
+const (
+	DefaultLandedScanInterval = 10 * time.Minute
+	MinLandedScanInterval     = time.Minute
+)
+
 // The verdicts shell-guard's outside-project and find -delete guards take.
 const (
 	ShellGuardAsk  = "ask"
@@ -179,16 +187,19 @@ type Options struct {
 	// StateStaleAfterWrites is how many file writes since a seat's last state
 	// write hold the session's Stop for a new one.
 	StateStaleAfterWrites int
-	RetiredBodyLifetime   time.Duration
-	ToolsVersionLifetime  time.Duration
-	EntryIDLength         int
-	BriefNoteLimit        int
-	AttachmentMaxMB       int
-	AttachmentsTotalMB    int
-	ToolsTotalMB          int
-	MemoryLanguage        string
-	WritingStyle          string
-	MemoryRequireGit      bool
+	// LandedScanInterval is how often the memory hooks scan the checkout's
+	// history for commits that may settle a live todo or trap.
+	LandedScanInterval   time.Duration
+	RetiredBodyLifetime  time.Duration
+	ToolsVersionLifetime time.Duration
+	EntryIDLength        int
+	BriefNoteLimit       int
+	AttachmentMaxMB      int
+	AttachmentsTotalMB   int
+	ToolsTotalMB         int
+	MemoryLanguage       string
+	WritingStyle         string
+	MemoryRequireGit     bool
 	// MemoryTurnsOffAuto has a seat claim turn Claude Code's own auto memory
 	// off for the project through its `.claude/settings.local.json`.
 	MemoryTurnsOffAuto bool
@@ -247,7 +258,7 @@ type Options struct {
 var Keys = []string{
 	"embedding_source", "embedding_provider", "embedding_model", "embedding_endpoint", "embedding_path",
 	"embedding_dimensions", "embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
-	"entry_max_words", "state_stale_after_writes", "retired_body_lifetime", "tools_version_lifetime", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
+	"entry_max_words", "state_stale_after_writes", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -619,6 +630,7 @@ func (options *Options) clamp() {
 	options.EntryMaxWords = max(options.EntryMaxWords, 1)
 	options.EmbeddingDimensions = max(options.EmbeddingDimensions, 0)
 	options.StateStaleAfterWrites = max(options.StateStaleAfterWrites, 1)
+	options.LandedScanInterval = max(options.LandedScanInterval, MinLandedScanInterval)
 	options.AttachmentMaxMB = max(options.AttachmentMaxMB, 1)
 	// An overall limit below its per-item limit is raised to it: one item
 	// must always fit.
@@ -629,7 +641,7 @@ func (options *Options) clamp() {
 
 func Defaults() Options {
 	return Options{
-		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime,
+		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, LandedScanInterval: DefaultLandedScanInterval, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime,
 		EmbeddingSource: EmbeddingSourceAuto, EmbeddingProvider: EmbeddingProviderAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
@@ -682,6 +694,7 @@ func (options *Options) fields() fields {
 		},
 		spans: map[string]*time.Duration{
 			"retired_body_lifetime":   &options.RetiredBodyLifetime,
+			"landed_scan_interval":    &options.LandedScanInterval,
 			"tools_version_lifetime":  &options.ToolsVersionLifetime,
 			"embedding_timeout":       &options.EmbeddingTimeout,
 			"shell_guard_ask_timeout": &options.ShellGuardAskTimeout,
