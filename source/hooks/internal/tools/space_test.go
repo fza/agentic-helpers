@@ -521,3 +521,43 @@ func TestAVersionWithNoReadableReplacementKeepsItsPlace(t *testing.T) {
 		t.Error("a version whose replacement time cannot be read should stay")
 	}
 }
+
+func TestThePassPausesAfterEachLockSession(t *testing.T) {
+	h := newHarness(t)
+	h.must("add", "word-count", "--from", h.sized("words-1", 20), "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file")
+
+	for _, name := range []string{"words-2", "words-3", "words-4", "words-5"} {
+		h.must("update", "word-count", "--from", h.sized(name, 20), "--why", "faster")
+	}
+
+	started := time.Now()
+
+	tools.Prune(context.Background(), h.roots(), 500, 90*24*time.Hour, h.clock.Now().Add(365*24*time.Hour))
+
+	// Four versions pruned, one lock session each, each followed by a pause
+	// a writer polling for the lock gets in during.
+	if h.stored("word-count/v4") || time.Since(started) < 4*40*time.Millisecond {
+		t.Error("the pass should prune each version in a lock session of its own and pause after it")
+	}
+}
+
+func TestThePassPausesAfterEachSizeSession(t *testing.T) {
+	h := newHarness(t)
+	h.must("add", "word-count", "--from", h.sized("words-1", 300), "--summary", "Count the words of standard input",
+		"--usage", "python3 the script < file")
+
+	for _, name := range []string{"words-2", "words-3", "words-4", "words-5"} {
+		h.must("update", "word-count", "--from", h.sized(name, 300), "--why", "faster")
+	}
+
+	started := time.Now()
+
+	// 1.5 MB stored against a 1 MB limit: the three oldest versions go by
+	// size, none by age.
+	tools.Prune(context.Background(), h.roots(), 1, 90*24*time.Hour, h.clock.Now())
+
+	if h.stored("word-count/v1") || time.Since(started) < 2*40*time.Millisecond {
+		t.Error("the size pass should prune each version in a lock session of its own and pause after it")
+	}
+}

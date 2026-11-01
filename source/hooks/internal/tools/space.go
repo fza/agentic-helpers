@@ -524,6 +524,7 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Dur
 
 	for _, version := range aged(stores, named, now.Add(-lifetime)) {
 		_ = pruneLocked(ctx, version, named, pruneLockWait)
+		pauseBetweenSessions(ctx)
 	}
 
 	limit := int64(limitMB) << 20
@@ -540,6 +541,8 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Dur
 			if pruneLocked(ctx, version, named, pruneLockWait) == nil {
 				over -= version.bytes
 			}
+
+			pauseBetweenSessions(ctx)
 		}
 	}
 
@@ -550,6 +553,22 @@ func Prune(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Dur
 		if ledgerMissing(held.path) {
 			ledgerLocked(ctx, roots, held, named, roots.StoreCache(held.key, home.Tools))
 		}
+	}
+}
+
+// sessionPause follows every lock session of the pass. A store's lock is
+// polled every 25 ms by a writer waiting for it, and flock gives a waiter no
+// precedence, so a pass retaking the lock at once would starve that writer
+// for as long as the pass runs; sdd measured a 461 ms wait for that.
+const sessionPause = 50 * time.Millisecond
+
+func pauseBetweenSessions(ctx context.Context) {
+	timer := time.NewTimer(sessionPause)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+	case <-timer.C:
 	}
 }
 

@@ -431,13 +431,15 @@ func TestARunDeniedTheCacheIsSkippedAndRetried(t *testing.T) {
 		t.Fatalf("claiming the run: %v", err)
 	}
 
-	// A sandbox denies the cache: the store's folder takes no lock file.
-	err = os.Chmod(store.Dir(), 0o500)
+	// A sandbox denies the cache: no store below it can be moved or removed.
+	parent := filepath.Dir(store.Dir())
+
+	err = os.Chmod(parent, 0o500)
 	if err != nil {
-		t.Fatalf("denying the store: %v", err)
+		t.Fatalf("denying the stores: %v", err)
 	}
 
-	t.Cleanup(func() { _ = os.Chmod(store.Dir(), 0o700) })
+	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
 
 	result := cacheprune.Run(context.Background(), roots, retention, now)
 	if result.Error != "" || result.Denied != 1 || !exists(store.Dir()) {
@@ -456,5 +458,28 @@ func TestARunDeniedTheCacheIsSkippedAndRetried(t *testing.T) {
 	later, err := cacheprune.Claim(roots, now.Add(2*time.Hour))
 	if err != nil || !later {
 		t.Error("a denied run should leave the day's run to a later session")
+	}
+}
+
+func TestARunRemovesAStoreMovedAsideAndOneACrashLeft(t *testing.T) {
+	roots := newRoots(t)
+	stale := now.Add(-retention - 24*time.Hour)
+	placeStore(t, roots, toolStore(roots, "aaa"), stale, map[string]time.Time{vectorseg.Format: stale})
+
+	left := filepath.Join(filepath.Dir(toolStore(roots, "aaa")), ".pruned-bbb")
+	test.WriteFile(t, filepath.Join(left, "seg.seg"), "x")
+
+	result := cacheprune.Run(context.Background(), roots, retention, now)
+	if result.Error != "" {
+		t.Fatalf("the run should succeed: %s", result.Error)
+	}
+
+	listed, err := os.ReadDir(filepath.Dir(toolStore(roots, "aaa")))
+	if err != nil {
+		t.Fatalf("listing the stores: %v", err)
+	}
+
+	if len(listed) != 0 || slices.Contains(result.Deleted, left) {
+		t.Error("a run should leave no store it moved aside, remove one a crash left, and never count it as a store")
 	}
 }

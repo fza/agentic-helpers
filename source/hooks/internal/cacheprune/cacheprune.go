@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
@@ -226,6 +227,7 @@ func Idle(base mcpserver.Idle, roots home.Roots, starter Starter, executable str
 // held is one vector store on the machine and the folder its removal takes.
 type held struct {
 	store  *vectorseg.Store
+	root   string
 	parent string
 	name   string
 }
@@ -238,7 +240,8 @@ func stores(roots home.Roots) []held {
 
 	tools := filepath.Join(roots.SharedCache(home.Tools), "vectors")
 	for _, name := range folders(tools) {
-		found = append(found, held{store: vectorseg.Open(roots.Cache, filepath.Join(tools, name)), parent: tools, name: name})
+		found = append(found, held{store: vectorseg.Open(roots.Cache, filepath.Join(tools, name)), root: roots.Cache,
+			parent: tools, name: name})
 	}
 
 	storesRoot := filepath.Join(roots.Cache, "stores")
@@ -253,7 +256,8 @@ func stores(roots home.Roots) []held {
 				continue
 			}
 
-			found = append(found, held{store: vectorseg.Open(roots.Cache, segments), parent: memory, name: name})
+			found = append(found, held{store: vectorseg.Open(roots.Cache, segments), root: roots.Cache, parent: memory,
+				name: name})
 		}
 	}
 
@@ -308,6 +312,15 @@ func Run(ctx context.Context, roots home.Roots, retention time.Duration, now tim
 	defer release()
 
 	var errs []error
+
+	err = tombs(roots)
+
+	switch {
+	case errors.Is(err, fs.ErrPermission):
+		result.Denied++
+	case err != nil:
+		errs = append(errs, err)
+	}
 
 	for _, candidate := range stores(roots) {
 		if ctx.Err() != nil {
@@ -366,9 +379,15 @@ func cmpOr(first string, second string) string {
 	return second
 }
 
+// tombPrefix names a store moved aside for removal; a run removes every
+// folder carrying it, so one a crash left goes with the next run.
+const tombPrefix = ".pruned-"
+
 // prune judges the store's last use under its hold only, so a write that
 // stamped it before the hold keeps it; a look outside the hold as well would
-// only hide this one from every test.
+// only hide this one from every test. Under the hold the store is only moved
+// aside, and it is removed once the hold is released, so the lock is held
+// for one rename however large the store, as sdd does.
 func prune(candidate held, cutoff time.Time) (bool, error) {
 	release, err := candidate.store.TryHold()
 	if errors.Is(err, vectorseg.ErrHeld) {
@@ -379,26 +398,62 @@ func prune(candidate held, cutoff time.Time) (bool, error) {
 		return false, err
 	}
 
-	defer release()
-
 	last, known := candidate.store.LastUse()
 	if !known || !last.Before(cutoff) {
+		release()
+
 		return false, nil
 	}
 
-	parent, err := safefs.OpenDir(candidate.parent)
+	tomb := tombPrefix + candidate.name
+
+	err = safefs.Rename(candidate.root, filepath.Join(candidate.parent, candidate.name), filepath.Join(candidate.parent, tomb))
+
+	release()
+
 	if err != nil {
-		return false, fmt.Errorf("opening %s: %w", candidate.parent, err)
+		return false, fmt.Errorf("moving the vector store aside: %w", err)
+	}
+
+	return true, removeTomb(candidate.parent, tomb)
+}
+
+func removeTomb(parentPath string, tomb string) error {
+	parent, err := safefs.OpenDir(parentPath)
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", parentPath, err)
 	}
 
 	defer parent.Close()
 
-	err = parent.RemoveAll(candidate.name)
+	err = parent.RemoveAll(tomb)
 	if err != nil {
-		return false, fmt.Errorf("deleting the vector store: %w", err)
+		return fmt.Errorf("deleting the vector store: %w", err)
 	}
 
-	return true, nil
+	return nil
+}
+
+// tombs removes every store a run moved aside and did not remove.
+func tombs(roots home.Roots) error {
+	parents := []string{filepath.Join(roots.SharedCache(home.Tools), "vectors")}
+	for _, id := range folders(filepath.Join(roots.Cache, "stores")) {
+		parents = append(parents, roots.StoreCache(id, home.Memory))
+	}
+
+	var errs []error
+
+	for _, parent := range parents {
+		listed, _ := os.ReadDir(parent)
+
+		for _, entry := range listed {
+			if entry.IsDir() && strings.HasPrefix(entry.Name(), tombPrefix) {
+				errs = append(errs, removeTomb(parent, entry.Name()))
+			}
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // Warning is the line a failed run owes, once: empty where the last run
