@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,7 +33,13 @@ const StatusName = "cache-prune.json"
 const (
 	lockName    = "cache-prune.lock"
 	runLockName = "cache-prune.run.lock"
-	runEvery    = 24 * time.Hour
+	// retryDenied is how soon a run some store was denied to is claimed
+	// again, so a sandboxed session's claim never uses up the day.
+	retryDenied = time.Hour
+	// RunLimit bounds a whole run, so a detached run never outlives a
+	// stalled filesystem.
+	RunLimit = 5 * time.Minute
+	runEvery = 24 * time.Hour
 	// Command is the `agentic-helpers` subcommand a detached run executes.
 	Command = "prune"
 	helpers = "agentic-helpers"
@@ -49,6 +56,9 @@ type Status struct {
 	Deleted  []string `json:"deleted,omitempty"`
 	Error    string   `json:"error,omitempty"`
 	Warned   bool     `json:"warned,omitempty"`
+	// Denied counts the stores the run was not allowed to touch; a run with
+	// any is claimed again an hour later.
+	Denied int `json:"denied,omitempty"`
 }
 
 // Starter starts a process that outlives its caller.
@@ -283,6 +293,12 @@ func Run(ctx context.Context, roots home.Roots, retention time.Duration, now tim
 		return result
 	}
 
+	if errors.Is(err, fs.ErrPermission) {
+		result.Denied++
+
+		return result
+	}
+
 	if err != nil {
 		result.Error = err.Error()
 
@@ -301,7 +317,14 @@ func Run(ctx context.Context, roots home.Roots, retention time.Duration, now tim
 		}
 
 		deleted, err := prune(candidate, now.Add(-retention))
-		if err != nil {
+
+		switch {
+		// A run inside a sandbox, such as a board job's, may not touch the
+		// cache: that store is skipped, not failed, and the day's run is
+		// retried from a session that may.
+		case errors.Is(err, fs.ErrPermission):
+			result.Denied++
+		case err != nil:
 			errs = append(errs, err)
 		}
 
@@ -322,6 +345,10 @@ func Run(ctx context.Context, roots home.Roots, retention time.Duration, now tim
 		*stored = result
 		stored.Started = cmpOr(started, result.Started)
 
+		if result.Denied > 0 {
+			stored.Started = now.Add(retryDenied - runEvery).UTC().Format(time.RFC3339)
+		}
+
 		return true
 	})
 	if err != nil && result.Error == "" {
@@ -339,12 +366,10 @@ func cmpOr(first string, second string) string {
 	return second
 }
 
+// prune judges the store's last use under its hold only, so a write that
+// stamped it before the hold keeps it; a look outside the hold as well would
+// only hide this one from every test.
 func prune(candidate held, cutoff time.Time) (bool, error) {
-	last, known := candidate.store.LastUse()
-	if !known || !last.Before(cutoff) {
-		return false, nil
-	}
-
 	release, err := candidate.store.TryHold()
 	if errors.Is(err, vectorseg.ErrHeld) {
 		return false, nil
@@ -356,8 +381,7 @@ func prune(candidate held, cutoff time.Time) (bool, error) {
 
 	defer release()
 
-	// A use between the first look and the lock refreshed the stamp.
-	last, known = candidate.store.LastUse()
+	last, known := candidate.store.LastUse()
 	if !known || !last.Before(cutoff) {
 		return false, nil
 	}

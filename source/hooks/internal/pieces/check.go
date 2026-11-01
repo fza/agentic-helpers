@@ -166,6 +166,9 @@ func prune(ctx context.Context, env Env, streams hookio.Streams) int {
 		now = env.Migration.Now
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, cacheprune.RunLimit)
+	defer cancel()
+
 	result := cacheprune.Run(ctx, env.Migration.Roots, options.CacheRetention, now())
 
 	if env.ToolPrune != nil && Tools.On(options) {
