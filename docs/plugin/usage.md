@@ -367,7 +367,11 @@ A change to a binary then reaches the hooks on the next event after
 `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...` from the checkout root. Never
 install into `~/go/bin` or another directory on the PATH: every project's Bash calls would find the
 build there ahead of the plugin, and an unreleased build can migrate another project's memory store
-to a format no release reads. Where the variable is set, no release is fetched or run.
+to a format no release reads. A build with no release version therefore migrates or creates a
+memory store only where `AGENTIC_HELPERS_BIN_DIR` is set; elsewhere every call answers
+`this build writes store format <n>, which a release may not read; it writes it only where
+AGENTIC_HELPERS_BIN_DIR is set` and its hooks stay silent. Where the variable is set, no release is
+fetched or run.
 Set in the user settings instead, it would hold every project on the machine to the last
 `go install` build: a release would reach no session until installed, and an install from a tree
 holding unfinished work would run it everywhere.

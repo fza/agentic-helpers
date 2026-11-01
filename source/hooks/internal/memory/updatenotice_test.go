@@ -141,6 +141,7 @@ func TestAClaimTellsOfNoReleaseClaudeCodeInstallsItselfOrTheUserSilenced(t *test
 
 			if tc.version != "" {
 				h.version = tc.version
+				h.variables = map[string]string{"AGENTIC_HELPERS_BIN_DIR": "/checkout/.claude/bin"}
 			}
 
 			if tc.place != nil {

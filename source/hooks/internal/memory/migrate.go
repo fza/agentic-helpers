@@ -74,6 +74,11 @@ func (mem *memory) migrate(ctx context.Context) error {
 		return err
 	}
 
+	err = mem.developmentHold()
+	if err != nil {
+		return err
+	}
+
 	err = formatsteps.Run(ctx, component)
 	if errors.Is(err, formatsteps.ErrNewer) {
 		return err

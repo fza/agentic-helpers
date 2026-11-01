@@ -301,6 +301,28 @@ func TestTwoCallsMigrateOnce(t *testing.T) {
 	}
 }
 
+func TestADevelopmentBuildFromAnotherProjectsPathIsRefusedAnOlderStore(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format": 7}`)
+
+	before := test.Tree(t, h.store())
+	h.version = "dev"
+
+	got := h.run("", "search", "--term", "Gate")
+	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this build writes store format 8, which a release may not read") {
+		t.Errorf("the build should be refused saying what it would write, got %d %q", got.code, got.err)
+	}
+
+	if hook := h.run(hookPayload("startup", "", ""), "session-start"); hook.code != 0 || hook.out != "" {
+		t.Errorf("a hook of a held build should stay silent, got %+v", hook)
+	}
+
+	if after := test.Tree(t, h.store()); after != before {
+		t.Error("the store should stay as it is")
+	}
+}
+
 func TestANewerStoreIsRefused(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")

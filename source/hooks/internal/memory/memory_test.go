@@ -68,6 +68,8 @@ type harness struct {
 	// build; nil asks nothing, and an empty version is no release.
 	releases *test.Releases
 	version  string
+	// variables answers Getenv; nil holds none.
+	variables map[string]string
 	// embedders, where set, makes the embedder in place of the fake bag of
 	// words, as one behind a fake HTTP endpoint.
 	embedders func(embed.Config) (embed.Embedder, error)
@@ -164,7 +166,7 @@ func (h *harness) cacheDir() string {
 func (h *harness) env() memory.Env {
 	env := memory.Env{
 		Base: cmp.Or(h.base, h.repo), Home: h.home, Roots: h.roots(), CacheRoot: h.cache, OwnerName: "claude", SessionID: h.session,
-		Settings: []string{h.config, h.settings}, Getenv: func(string) string { return "" }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
+		Settings: []string{h.config, h.settings}, Getenv: func(key string) string { return h.variables[key] }, Now: h.clock.Now, Tmp: filepath.Join(h.home, "tmp"),
 		Random: cmp.Or[io.Reader](h.draws, test.Random()), Processes: h.processes, Checkout: h.lookup(),
 		Git: h.git, Embedders: h.embedder.Factory(h.embedding), Version: cmp.Or(h.version, "test"),
 		WaitPoll: h.waitPoll, WaitDeadline: h.waitDeadline, Graph: h.graph, Sdd: h.sdd,

@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
@@ -26,12 +27,39 @@ const (
 	itemsFormat = 5
 )
 
-var ErrNewerStore = formatsteps.ErrNewer
+var (
+	ErrNewerStore       = formatsteps.ErrNewer
+	ErrDevelopmentBuild = errors.New("a development build")
+)
+
+// developmentBuild is the version of a binary no release stamped, and
+// binDirVariable the setting a checkout working on these binaries opts in
+// through. A development build writes a format no release may read yet, so it
+// writes one only there: reached from another project's PATH, it would leave
+// that project's store unreadable to the release its sessions run.
+const (
+	developmentBuild = "dev"
+	binDirVariable   = "AGENTIC_HELPERS_BIN_DIR"
+)
+
+func (mem *memory) developmentHold() error {
+	if mem.env.Version != developmentBuild || mem.getenv(binDirVariable) != "" {
+		return nil
+	}
+
+	return fmt.Errorf("%w: this build writes store format %d, which a release may not read; it writes it only where %s is set",
+		ErrDevelopmentBuild, storeFormat, binDirVariable)
+}
 
 // initStore creates a fresh store at the current format, its scratch paths
 // marked rewritten, so it never needs migrating.
 func (mem *memory) initStore() error {
-	err := safefs.MkdirAll(mem.env.Roots.Data, mem.store(), 0o700)
+	err := mem.developmentHold()
+	if err != nil {
+		return err
+	}
+
+	err = safefs.MkdirAll(mem.env.Roots.Data, mem.store(), 0o700)
 	if err != nil {
 		return fmt.Errorf("creating the store: %w", err)
 	}

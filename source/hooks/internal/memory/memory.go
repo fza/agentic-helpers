@@ -537,9 +537,12 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	err = mem.prepare(ctx)
-	if errors.Is(err, ErrNewerStore) {
+	switch {
+	case errors.Is(err, ErrNewerStore):
 		mem.unreadable = strings.TrimPrefix(err.Error(), ErrNewerStore.Error()+": ")
-	} else if err != nil {
+	case errors.Is(err, ErrDevelopmentBuild):
+		mem.unreadable = strings.TrimPrefix(err.Error(), ErrDevelopmentBuild.Error()+": ")
+	case err != nil:
 		mem.reportFailedMigration(err)
 	}
 
