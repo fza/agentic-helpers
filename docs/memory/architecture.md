@@ -958,8 +958,8 @@ session's (the slot `shown/<session>`, `traps` and `notes`) for the main thread,
 for a subagent, at every level, a fork's first taking over its spawn slot. A compaction, `/clear` and
 a resume empty the session's. The same slot holds what reads printed: `ids`, each entry
 whose line a brief, recall or read printed, and `bodies`, each whose body `show` or a view printed,
-both as `<id>@<digest>`, the digest over the entry's full line and its event count, so an entry that
-changed since never matches. A read opens the set once for the seated session it runs in and writes
+both as `<id>@<digest>`, the digest over the entry's full line in UTC and its event count, so an
+entry that changed since never matches and a zone change matches every one still. A read opens the set once for the seated session it runs in and writes
 it back only where it marked something; a read inside another (the brief a claim prints) shares the
 outer one's. A read naming a subagent (`--agent`, or the MCP key `agent`) opens that subagent's own
 set instead, the slot `shown/<session>/agent/<agent-id>`: empty for a fresh subagent, a copy of its
