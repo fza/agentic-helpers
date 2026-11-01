@@ -267,6 +267,11 @@ func MigrateAgentAnswers(paths []string) ([]string, error) {
 		return nil, fmt.Errorf("reading %s: %w", config, err)
 	}
 
+	// A missing file, and one YAML reads as no document, name no key.
+	if present == nil {
+		present = map[string]any{}
+	}
+
 	var copied []string
 
 	keys := slices.Clone(ConfigOnly)

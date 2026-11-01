@@ -442,6 +442,41 @@ func TestMigrationCopiesConfigOnlyAnswersAndTouchesNoSettings(t *testing.T) {
 	}
 }
 
+func TestMigrationWritesAConfigFileThatNamesNoKey(t *testing.T) {
+	cases := []struct {
+		name    string
+		config  *string
+		written string
+	}{
+		{name: "no config.yaml", written: "retired_body_lifetime: \"120d\"\n"},
+		{name: "an empty config.yaml", config: new(""), written: "retired_body_lifetime: \"120d\"\n"},
+		{name: "a config.yaml of comments", config: new("# machine options\n"), written: "# machine options\nretired_body_lifetime: \"120d\"\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			config := filepath.Join(dir, "config.yaml")
+			user := filepath.Join(dir, "settings.json")
+			test.WriteFile(t, user, own("retired_body_days", "120"))
+
+			if tc.config != nil {
+				test.WriteFile(t, config, *tc.config)
+			}
+
+			copied, err := pluginconfig.MigrateAgentAnswers([]string{config, user})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			written, _ := os.ReadFile(config)
+			if !slices.Equal(copied, []string{"retired_body_lifetime"}) || string(written) != tc.written {
+				t.Errorf("the answer should land in a config.yaml naming no key, got %v:\n%s", copied, written)
+			}
+		})
+	}
+}
+
 func TestTheConfigFileSitsUnderTheXDGConfigRoot(t *testing.T) {
 	cases := []struct {
 		name string
