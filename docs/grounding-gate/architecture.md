@@ -24,7 +24,9 @@ through `project_dir` instead. A `project_dir` naming no `.sdd/` keeps the code 
 | PostToolUse on `mcp__sdd__stage_attachment` | `record` | where `.sdd/grounding.yaml` sets `draft_lint`: keeps the text the staging left under the handle sdd answered with (`recordStaged`) |
 | PostToolUse on `Write`, `Edit` | `record` | grounds a draft saved under a `drafts/` (or `draft/`) directory while every read stands, hashing the file as saved |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `Monitor` (its command read as a Bash command), `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `gate` | for `AskUserQuestion`, `Write`, `Edit` and `NotebookEdit` (by `file_path` or `notebook_path` under `drafts/`), exits 0 with the refusal's text as `hookSpecificOutput.additionalContext`, its first line saying the call went ahead and, for reads owed, that they are owed before the next question or draft (`letThrough`); for every other call, refuses with exit 2 and the refusal on stderr; or passes with exit 0 and nothing |
-| SessionEnd | `end` | removes the session's ledger |
+| PostToolUse on `mcp__sdd__.*` | `collapse` | replaces an answer carrying sdd's structured fields with its collapsed form through `hookSpecificOutput.updatedMCPToolOutput` (`internal/collapse`), and marks what it printed in full in the calling agent's set |
+| PreToolUse on `Agent`, `Task` | `spawn` | for `subagent_type: fork`, keeps the spawner's set under the call's `tool_use_id` |
+| SessionEnd | `end` | removes the session's ledger and its shown sets |
 
 ## The ledger
 
@@ -141,6 +143,30 @@ sends output to `/dev/null`.
 A command that does not parse is read from its text: wherever `sdd` or `agentic-capture` stands in
 it as a word, it counts as a plain `sdd new`, so its reads stay owed even with shell-guard switched
 off, and a discarded stream or a short show in its text is refused. It credits nothing.
+
+## Collapsing
+
+`internal/collapse` reads only the fields sdd answers under `sessions.token_saving: off`: `items`
+(show: entries, each with `upstream` and `downstream` as preorder lists carrying `depth`), `hits`
+(search), and `lanes` and `framing_blocks` beside `report_schema` (every serve, the ones under
+`open_instances` and `base_junction` too). An answer without any of them is never rewritten, so no
+text layout is parsed and an older sdd's answers pass whole. The answer is accepted as an object,
+the object encoded as a string, `structuredContent`, or the text of a content block, as Claude Code
+hands MCP answers on.
+
+A set, `.sdd/tmp/grounding-gate/<session>.shown.json` (`<session>.<agent>.shown.json` for a
+subagent), holds per entry id a digest of its title, kind, status and summary, and per served piece
+(`lane:<name>`, `framing:<name>`, `schema:<digest>`) a digest of its bytes. A walk marks what an
+answer prints in full only once the whole answer is read, so nothing collapses against the answer
+printing it; an item sdd marks `seen_in_response` is left as sdd gave it. One lock file,
+`collapse.lock`, serialises every read and write of the folder's sets, so parallel tool calls
+neither lose a mark nor read a half-written set.
+
+A fork's set starts from what `spawn` kept under `<session>.spawn-<tool_use_id>.shown.json`, found
+through the `toolUseId` Claude Code writes into the fork's `agent-<id>.meta.json`, and the kept copy
+is removed then. Keeping it at the spawn, not at the fork's first answer, matters: the spawner's later
+reads are not in the fork's context. Any failure (an unreadable set, a lock refused, an answer that
+does not decode) leaves the answer as sdd gave it.
 
 ## Seats
 

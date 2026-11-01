@@ -191,21 +191,8 @@ func (mem *memory) changeSubagent(ctx context.Context, session string, agentID s
 	})
 }
 
-// subagentTranscript is the subagent's own transcript: the path a
-// SubagentStop names, else the one beside its session's transcript where
-// Claude Code writes it.
 func subagentTranscript(payload hookio.Payload) string {
-	if payload.AgentTranscriptPath != "" {
-		return payload.AgentTranscriptPath
-	}
-
-	if payload.TranscriptPath == "" || !agentIDShape.MatchString(payload.AgentID) {
-		return ""
-	}
-
-	session := strings.TrimSuffix(payload.TranscriptPath, filepath.Ext(payload.TranscriptPath))
-
-	return filepath.Join(session, "subagents", "agent-"+payload.AgentID+".jsonl")
+	return transcript.OfSubagent(payload.TranscriptPath, payload.AgentTranscriptPath, payload.AgentID)
 }
 
 // subagent is the calling subagent's record: as the session keeps it, else
@@ -261,29 +248,8 @@ type forkSpawn struct {
 
 func (spawned *forkSpawn) trim() bool { return spawned.Shown.trim() }
 
-// spawnCall is the id of the Agent call that spawned the subagent, which
-// Claude Code writes into the `agent-<id>.meta.json` beside its transcript.
 func spawnCall(payload hookio.Payload) string {
-	path := subagentTranscript(payload)
-	if path == "" {
-		return ""
-	}
-
-	data, err := os.ReadFile(strings.TrimSuffix(path, filepath.Ext(path)) + ".meta.json")
-	if err != nil {
-		return ""
-	}
-
-	var meta struct {
-		ToolUseID string `json:"toolUseId"`
-	}
-
-	err = json.Unmarshal(data, &meta)
-	if err != nil {
-		return ""
-	}
-
-	return meta.ToolUseID
+	return transcript.SpawnCall(subagentTranscript(payload))
 }
 
 // spawnOf is what the subagent's spawn kept for it, where it is a fork.

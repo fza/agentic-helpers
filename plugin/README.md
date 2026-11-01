@@ -88,7 +88,10 @@ Nothing leaves the machine unless one of these applies:
   holds a credential, or uses a command missing on the machine. In auto mode an ask nobody answers
   is refused after a countdown. It never approves a call. After every tool call it replaces output
   lines from outside the project that look like a credential.
-- **The grounding gate** refuses graph calls and captures until the agent has read the graph.
+- **The grounding gate** refuses graph calls and captures until the agent has read the graph. It
+  shortens an sdd MCP answer to what the calling agent was not shown already, where sdd answers
+  with `sessions.token_saving` off, keeping each agent's record of what it was shown under the
+  project's `.sdd/tmp/`.
 - **agentic-memory** can hold the end of a turn once, asking the agent to write where its work
   stands. It rewrites an Agent call's prompt, swapping the `agentic-helpers: <level>` line for that
   level's notes, without answering its permission prompt. It refuses a subagent's memory call its

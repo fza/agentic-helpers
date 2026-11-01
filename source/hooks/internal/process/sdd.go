@@ -44,9 +44,19 @@ const sddConfigLimit = 5 * time.Second
 // SddConfig reads sdd's configuration as sdd layers it for a directory.
 type SddConfig struct{}
 
+// SddValue is what `sdd config get <key>` prints in dir, trimmed, or nothing
+// where sdd is missing, fails or knows no such key.
+func (config SddConfig) SddValue(ctx context.Context, dir string, key string) string {
+	return strings.TrimSpace(config.get(ctx, dir, key))
+}
+
 // EmbeddingConfig is what `sdd config get embedding` prints in dir, or nothing
 // where sdd is missing or fails.
-func (SddConfig) EmbeddingConfig(ctx context.Context, dir string) string {
+func (config SddConfig) EmbeddingConfig(ctx context.Context, dir string) string {
+	return config.get(ctx, dir, "embedding")
+}
+
+func (SddConfig) get(ctx context.Context, dir string, key string) string {
 	_, err := exec.LookPath("sdd")
 	if err != nil {
 		return ""
@@ -55,7 +65,7 @@ func (SddConfig) EmbeddingConfig(ctx context.Context, dir string) string {
 	bounded, cancel := context.WithTimeout(ctx, sddConfigLimit)
 	defer cancel()
 
-	command := exec.CommandContext(bounded, "sdd", "config", "get", "embedding")
+	command := exec.CommandContext(bounded, "sdd", "config", "get", key)
 	command.Dir = dir
 
 	output, err := command.Output()

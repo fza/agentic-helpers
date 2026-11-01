@@ -51,6 +51,7 @@ func main() {
 		Migration: machine,
 		CacheRoot: cacheRoot,
 		SddConfig: process.SddConfig{},
+		SddValues: process.SddConfig{},
 		Dir:       cmp.Or(os.Getenv("CLAUDE_PROJECT_DIR"), workingDir()),
 		ToolPrune: tools.Prune,
 	}

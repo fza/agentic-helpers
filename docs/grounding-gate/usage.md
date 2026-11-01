@@ -138,6 +138,35 @@ counting as the server's default (1 and 2), and `mcp__sdd__start_procedure` star
 the reads `agentic-capture` owes. Every other MCP tool passes, apart from the project's own rules
 below.
 
+## Repeated sdd output collapses
+
+Each sdd MCP answer reaches the agent shortened to what that agent's context does not already hold.
+A chain entry or search hit whose title, kind, status and summary the agent was shown unchanged
+keeps only its edge, id, title and depth; an instruction lane, framing block or report schema it
+was served byte for byte keeps only its name. Each such piece carries `"shown_earlier": true`, and
+the answer gains a `shown_earlier_note` saying how the text comes back:
+
+- **An entry a `show` names in `ids` always prints in full**, so showing a collapsed id by itself
+  brings its text back. `resume_session` prints everything in full.
+- **Each agent keeps its own record**: the main thread one per session, a subagent its own, a fork
+  starting from what its spawner held when the `Agent` call ran. A subagent's reads never collapse
+  anything for its parent.
+- **The record empties where the context does**: at a compaction, `/clear` and resume.
+- **A changed piece prints in full**: a new status, summary or text is a new piece.
+
+It needs sdd's structured answers, which sdd (the fza fork) gives with
+`sessions.token_saving` off, set once per machine:
+
+```bash
+sdd config set sessions.token_saving off
+```
+
+With the key on, sdd keeps its own repeat filter, answers in text, and every answer passes through
+untouched; an sdd too old to know the key does the same. While the gate is on, the key is on and the
+project carries a graph, each session start prints one line naming that command. Collapsing follows
+the machine switch `grounding_gate_enabled`; `enabled: false` in `.sdd/grounding.yaml` lifts the gate
+but keeps collapsing. A Bash `sdd show` is never changed.
+
 ## A capture through sdd's engine
 
 A capture through sdd's engine never passes through `agentic-capture`, so the gate holds it to the

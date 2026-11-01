@@ -1,0 +1,72 @@
+{
+  "entries": "",
+  "items": [
+    {
+      "id": "20261101-151135-d-tac-uom",
+      "title": "`sdd` output collapse via `PostToolUse` hook",
+      "kind": "directive",
+      "layer": "tactical",
+      "status": "active",
+      "summary": "agentic-helpers will collapse repeated sdd output.",
+      "body": "agentic-helpers will collapse sdd output an agent's context already holds.",
+      "upstream": [
+        {
+          "relation": "refs",
+          "ref": "grounded-in",
+          "id": "20261029-021515-d-tac-00q",
+          "title": "Token-cost criteria for agentic-helpers surfaces",
+          "kind": "directive",
+          "status": "active",
+          "summary": "Token-cost choices are made by least risk first, then fewest tokens.",
+          "desc": "the token-cost criteria ranking this saving",
+          "depth": 1,
+          "seen_in_response": false,
+          "truncated": []
+        },
+        {
+          "relation": "refs",
+          "ref": "related",
+          "id": "20261027-222117-d-tac-yjy",
+          "title": "Hidden hook message scarcity",
+          "kind": "directive",
+          "status": "active",
+          "summary": "Hidden hook messages fire only when they change what the agent does.",
+          "desc": "sibling standing rule",
+          "depth": 2,
+          "seen_in_response": false,
+          "truncated": []
+        }
+      ],
+      "upstream_truncated": [],
+      "downstream": [
+        {
+          "relation": "refd-by",
+          "ref": "builds-on",
+          "id": "20261031-235540-d-tac-wxh",
+          "title": "Per-subagent shown entry sets",
+          "kind": "directive",
+          "status": "closed-by 20261101-010124-s-tac-ng6",
+          "summary": "Each subagent gets its own set of shown entries.",
+          "desc": "the per-agent shown sets",
+          "depth": 1,
+          "seen_in_response": false,
+          "truncated": ["20261101-010124-s-tac-ng6"]
+        },
+        {
+          "relation": "refd-by",
+          "ref": "related",
+          "id": "20261027-222117-d-tac-yjy",
+          "title": "Hidden hook message scarcity",
+          "kind": "directive",
+          "status": "active",
+          "summary": "Hidden hook messages fire only when they change what the agent does.",
+          "desc": "the check line",
+          "depth": 1,
+          "seen_in_response": true,
+          "truncated": []
+        }
+      ],
+      "downstream_truncated": ["20261101-140138-s-tac-757"]
+    }
+  ]
+}

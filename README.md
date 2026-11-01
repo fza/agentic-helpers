@@ -14,7 +14,7 @@ to the agent. Memory and the tool library are also available as MCP servers, `me
 | memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session |
 | tool library | `agentic-tools` | Shares helper scripts between agents, so none is written twice |
 | scratch sweep | `agentic-scratch` | Gives each seat or session one place for throwaway files, and empties it when the work ends |
-| grounding gate | `agentic-grounding-gate` | Makes the agent read the decision graph before it asks, drafts or captures |
+| grounding gate | `agentic-grounding-gate` | Makes the agent read the decision graph before it asks, drafts or captures, and collapses sdd output the agent was already shown |
 | capture | `agentic-capture` | Writes new graph entries through one checked path, free of credentials |
 | shell-guard | `agentic-shell-guard` | Keeps deletions inside the project, and credentials out of commands and output |
 
@@ -58,7 +58,9 @@ project's decision graph under `.sdd/`.
 - macOS or Linux, on amd64 or arm64.
 - Claude Code. The one-step `/plugin install` with `--marketplace` needs 2.1.275 or later.
 - git. Memory works only inside a git work tree, unless `memory_require_git` is off.
-- [sdd](https://github.com/networkteam/sdd), only for projects with a graph under `.sdd/`.
+- [sdd](https://github.com/networkteam/sdd), only for projects with a graph under `.sdd/`. Collapsing
+  repeated sdd output needs the fza fork with `sessions.token_saving` and its structured answers;
+  with any other sdd, answers pass through as sdd gives them.
 
 ## Installing
 

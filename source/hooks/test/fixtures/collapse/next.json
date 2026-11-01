@@ -1,0 +1,22 @@
+{
+  "session": "s_1",
+  "instance": "i_7",
+  "procedure": "capture",
+  "step": "assemble",
+  "instructions": "",
+  "framing": "",
+  "lanes": [
+    {"name": "intro", "text": "Draft one entry, one idea, dialogue first."},
+    {"name": "refs", "text": "Each ref names why the pointer exists."}
+  ],
+  "framing_blocks": [
+    {"name": "info", "text": "Local participant: Felix"},
+    {"name": "health", "text": "Graph healthy."}
+  ],
+  "report_schema": {"type": "object", "properties": {"body": {"type": "string"}}},
+  "base_junction": {
+    "instance": "i_1",
+    "step": "junction",
+    "lanes": [{"name": "orientation", "text": "You are an SDD partner."}]
+  }
+}

@@ -37,9 +37,13 @@
 //	gate    PreToolUse: refuses a bad read; lets AskUserQuestion and a draft
 //	        edit through with a note until every read stands, and refuses a
 //	        capture until every read stands or its draft is grounded
-//	start   SessionStart: removes ledgers of sessions gone a week, and after a
-//	        compaction forgets this session's reads
-//	end     SessionEnd: removes this session's ledgers
+//	start   SessionStart: removes ledgers of sessions gone a week, after a
+//	        compaction forgets the reads, and after a compaction, `/clear`
+//	        or resume empties the main thread's shown set
+//	end     SessionEnd: removes the ending session's ledgers and shown sets
+//	collapse PostToolUse on sdd's MCP tools: shortens the answer to what the
+//	        calling agent was not shown already (internal/collapse)
+//	spawn   PreToolUse on Agent: keeps a fork its spawner's shown set
 package grounding
 
 import (
@@ -58,6 +62,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/collapse"
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
@@ -72,7 +77,7 @@ import (
 //go:embed refusals
 var refusals embed.FS
 
-var ErrUsage = errors.New("usage: agentic-grounding-gate record|gate|start|end")
+var ErrUsage = errors.New("usage: agentic-grounding-gate record|gate|start|end|collapse|spawn")
 
 const (
 	graphDirName = ".sdd"
@@ -210,7 +215,7 @@ func (env Env) graphProject() graphconfig.Project {
 // that does not parse keeps the gate on, since whether the project switched it
 // off is part of what the file says.
 func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) int {
-	if len(args) != 1 || !slices.Contains([]string{"record", "gate", "start", "end"}, args[0]) {
+	if len(args) != 1 || !slices.Contains([]string{"record", "gate", "start", "end", "collapse", "spawn"}, args[0]) {
 		_, _ = fmt.Fprintln(streams.Err, ErrUsage)
 
 		return 1
@@ -218,6 +223,11 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 	if !pieces.GroundingGate.On(env.options()) || env.graphDir() == "" {
 		return 0
+	}
+
+	// Collapsing gates nothing, so a project lifting the gate keeps it.
+	if args[0] == "collapse" || args[0] == "spawn" {
+		return shorten(ctx, args[0], env, streams)
 	}
 
 	config, err := env.config()
@@ -242,6 +252,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		if payload.Source == "compact" {
 			forgetReads(ctx, env, payload)
+		}
+
+		if slices.Contains([]string{"compact", "clear", "resume"}, payload.Source) {
+			env.collapseStore().Forget(ctx, payload.SessionID)
 		}
 
 		return 0
@@ -269,6 +283,32 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		return refused
 	}
+}
+
+func (env Env) collapseStore() collapse.Store {
+	return collapse.Store{Root: env.graphRoot(), Dir: env.ledgerDir()}
+}
+
+// shorten runs collapse on an sdd tool's answer, and spawn on an Agent call
+// spawning a fork. Neither ever refuses: a failure leaves the answer whole.
+func shorten(ctx context.Context, mode string, env Env, streams hookio.Streams) int {
+	payload, err := hookio.ReadPayload(streams.In)
+	if err != nil {
+		return 0
+	}
+
+	if mode == "spawn" {
+		env.collapseStore().Keep(ctx, payload)
+
+		return 0
+	}
+
+	output, collapsed := env.collapseStore().Collapse(ctx, payload)
+	if collapsed {
+		_, _ = streams.Out.Write(output)
+	}
+
+	return 0
 }
 
 // record credits the reads a command performed: only calls the shell itself

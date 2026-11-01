@@ -1,5 +1,5 @@
 {
-  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-shell-guard, on Bash and Monitor, holds removals to the project, bans mktemp and refuses commands missing here or misread by their BSD flavour, and as agentic-shell-guard permission ends its asks with a countdown in auto and bypassPermissions mode, and as agentic-shell-guard output, after every tool, withholds each output line from outside the project that looks like a credential; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; agentic-memory instructions, on InstructionsLoaded, records each instruction file a session loads, so a later prompt or tool call tells the session to re-read one that changed; agentic-memory pre-tool, on the Agent tool, swaps the prompt's `agentic-helpers: <level>` line for the subagent's block of that level, capped at its spawner's, and on Bash and the memory tools refuses a subagent's memory call its level does not allow and names a reading one in each memory call, so it reads with its own shown set and a full one works on its own seat, which agentic-memory subagent-stop, on SubagentStop, releases; agentic-tools offers tools near a prompt and notes newer versions and unregistered scripts; agentic-helpers check names features off because a piece they rest on is off, and the command substitutions the machine needs, and agentic-helpers end, at session end, starts the sweep of the layout earlier releases left; register.ts writes agentic-memory's context reading",
+  "description": "Each hook runs its agentic-helpers binary through hooks/run, which fetches the release this plugin names at SessionStart; agentic-shell-guard, on Bash and Monitor, holds removals to the project, bans mktemp and refuses commands missing here or misread by their BSD flavour, and as agentic-shell-guard permission ends its asks with a countdown in auto and bypassPermissions mode, and as agentic-shell-guard output, after every tool, withholds each output line from outside the project that looks like a credential; agentic-memory wait, on Stop, wakes an idle seated session when an entry arrives for it; agentic-memory instructions, on InstructionsLoaded, records each instruction file a session loads, so a later prompt or tool call tells the session to re-read one that changed; agentic-memory pre-tool, on the Agent tool, swaps the prompt's `agentic-helpers: <level>` line for the subagent's block of that level, capped at its spawner's, and on Bash and the memory tools refuses a subagent's memory call its level does not allow and names a reading one in each memory call, so it reads with its own shown set and a full one works on its own seat, which agentic-memory subagent-stop, on SubagentStop, releases; agentic-grounding-gate collapse, after every sdd MCP tool, shortens an answer carrying sdd's structured fields to what the calling agent was not shown already, and agentic-grounding-gate spawn, on the Agent tool, keeps a fork its spawner's shown set; agentic-tools offers tools near a prompt and notes newer versions and unregistered scripts; agentic-helpers check names features off because a piece they rest on is off, and the command substitutions the machine needs, and agentic-helpers end, at session end, starts the sweep of the layout earlier releases left; register.ts writes agentic-memory's context reading",
   "modules": ["./register.ts"],
   "hooks": {
     "SessionStart": [
@@ -56,6 +56,12 @@
         ]
       },
       {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate spawn", "timeout": 15 }
+        ]
+      },
+      {
         "matcher": "Agent|Task|Bash|mcp__plugin_agentic-helpers_memory__.*",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-memory pre-tool", "timeout": 15 }
@@ -101,6 +107,12 @@
         "matcher": "mcp__sdd__stage_attachment",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate record", "timeout": 15 }
+        ]
+      },
+      {
+        "matcher": "mcp__sdd__.*",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run\" agentic-grounding-gate collapse", "timeout": 15 }
         ]
       }
     ],

@@ -53,6 +53,11 @@ sdd view --layout "topic(<prefix><name>):as-list"      # one topic, prefix set
 - **sdd's MCP tools count the same.** `mcp__sdd__search` `query` = semantic, `terms` = literal;
   `mcp__sdd__view` `layout` = the listing, same prefix rule. Only a call that succeeded counts.
   `mcp__sdd__start_procedure` with `canonical: capture` → the three reads, like `agentic-capture`.
+- **`"shown_earlier": true` → text your context already holds, unchanged.** Read it where it
+  printed earlier. A compaction, `/clear` or resume empties the record, so text lost there prints
+  in full again. Need it again →
+  `mcp__sdd__show` that id alone (asked ids always print in full); a lane or schema →
+  `mcp__sdd__resume_session`.
 
 - **Both modes. Always.** Semantic matches phrasing → misses other wording. Literal matches the
   token → misses everything phrased differently. Live decision already owning your subject → exactly
