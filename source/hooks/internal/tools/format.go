@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
@@ -23,55 +24,73 @@ import (
 // under `sessions/`.
 const libraryFormat = 2
 
-// prepareStore brings the store at at to libraryFormat; the caller holds its
-// lock. Every journal is written beside its legacy file first, the sessions
-// go into the slot file, format.json is written, and only then do the legacy
-// files go, so a run failing before format.json leaves the store as it was.
+// prepareStore brings the store at at to libraryFormat through its step
+// table (internal/formatsteps); every caller holds the store's lock already.
 func prepareStore(ctx context.Context, store *safefs.Dir, roots home.Roots, at string, cache string) error {
-	version, err := home.CheckComponent(at, libraryFormat)
-	if err != nil || version == libraryFormat {
-		return err
-	}
+	return formatsteps.Run(ctx, libraryComponent(store, roots, at, cache))
+}
 
+func libraryComponent(store *safefs.Dir, roots home.Roots, at string, cache string) formatsteps.Component {
+	return formatsteps.Component{
+		Name: at, Dir: at, Root: roots.Data,
+		Lock: func(context.Context) (func(), error) { return func() {}, nil },
+		Steps: []formatsteps.Step{{From: 1, To: libraryFormat, Ops: func(context.Context) ([]formatsteps.Operation, error) {
+			return journalSteps(store, roots, at, cache), nil
+		}}},
+	}
+}
+
+// journalSteps move a format-1 store to format 2: every journal is written
+// beside its legacy file, a journal already there kept, the sessions go into
+// the slot file, a session the slot file already holds not written again, and
+// only then do the legacy files go.
+func journalSteps(store *safefs.Dir, roots home.Roots, at string, cache string) []formatsteps.Operation {
+	return []formatsteps.Operation{
+		{Name: "converting the journals", Apply: func(context.Context) error {
+			return eachFolder(store, func(folder *safefs.Dir) error {
+				err := convertJournals(folder)
+				if err != nil {
+					return fmt.Errorf("converting %s: %w", folder.Path(), err)
+				}
+
+				return nil
+			})
+		}},
+		{Name: "taking in the session files", Apply: func(ctx context.Context) error {
+			return slots.Open(roots.Cache, filepath.Join(cache, "sessions.slots"), sessionSlotWidth).Import(ctx, legacySessions(at))
+		}},
+		{Name: "removing the legacy files", Apply: func(context.Context) error {
+			return eachFolder(store, func(folder *safefs.Dir) error {
+				for _, held := range journals {
+					err := removeLegacy(folder, held)
+					if err != nil {
+						return err
+					}
+				}
+
+				return nil
+			})
+		}},
+		{Name: "removing the session files", Apply: func(context.Context) error {
+			return store.RemoveAll("sessions")
+		}},
+	}
+}
+
+func eachFolder(store *safefs.Dir, change func(folder *safefs.Dir) error) error {
 	folders, err := toolFolders(store)
 	if err != nil {
 		return err
 	}
 
+	defer closeAll(folders)
+
 	for _, folder := range folders {
-		err = convertJournals(folder)
+		err = change(folder)
 		if err != nil {
-			closeAll(folders)
-
-			return fmt.Errorf("converting %s: %w", folder.Path(), err)
+			return err
 		}
 	}
-
-	legacy := legacySessions(at)
-
-	err = slots.Open(roots.Cache, filepath.Join(cache, "sessions.slots"), sessionSlotWidth).Import(ctx, legacy)
-	if err != nil {
-		closeAll(folders)
-
-		return fmt.Errorf("taking in the session files of %s: %w", at, err)
-	}
-
-	err = home.WriteComponentFormat(roots.Data, at, libraryFormat)
-	if err != nil {
-		closeAll(folders)
-
-		return err
-	}
-
-	for _, folder := range folders {
-		for _, held := range journals {
-			_ = removeLegacy(folder, held)
-		}
-	}
-
-	closeAll(folders)
-
-	_ = store.RemoveAll("sessions")
 
 	return nil
 }

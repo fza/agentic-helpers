@@ -121,25 +121,25 @@ func Newest(steps []Step) int {
 	return steps[len(steps)-1].To
 }
 
-// Newer refuses a format newer than the table knows, naming both.
-func (component Component) Newer(version int) error {
-	newest := Newest(component.Steps)
-	if version <= newest {
-		return nil
+// Check is the format the folder dir records, refusing one newer than
+// newest, the folder named by name.
+func Check(name string, dir string, newest int) (int, error) {
+	version, err := Read(dir)
+	if err != nil {
+		return 0, err
 	}
 
-	return fmt.Errorf("%w: %s has format %d; this release reads up to %d", ErrNewer, component.Name, version, newest)
+	if version > newest {
+		return version, fmt.Errorf("%w: %s has format %d; this release reads up to %d", ErrNewer, name, version, newest)
+	}
+
+	return version, nil
 }
 
 // Check is the format the component records, refusing one newer than its
 // table knows.
 func (component Component) Check() (int, error) {
-	version, err := Read(component.Dir)
-	if err != nil {
-		return 0, err
-	}
-
-	return version, component.Newer(version)
+	return Check(component.Name, component.Dir, Newest(component.Steps))
 }
 
 // Run brings the component to the newest format its table knows. A component

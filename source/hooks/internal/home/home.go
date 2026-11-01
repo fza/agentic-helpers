@@ -19,11 +19,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/atomicfile"
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 )
 
 // Format is the layout of the home this release reads and writes.
@@ -139,28 +140,21 @@ type formatFile struct {
 // CheckFormat refuses a home of a newer format than this release reads. A
 // home without `format.json` has never been written by any release.
 func (roots Roots) CheckFormat() error {
-	data, err := os.ReadFile(filepath.Join(roots.Data, formatName))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+	_, err := roots.Layout().Check()
+	if errors.Is(err, formatsteps.ErrNewer) {
+		return fmt.Errorf("%w: %s", ErrNewerHome, strings.TrimPrefix(err.Error(), formatsteps.ErrNewer.Error()+": "))
 	}
 
-	if err != nil {
-		return fmt.Errorf("reading the home's format: %w", err)
-	}
+	return err
+}
 
-	var held formatFile
-
-	err = json.Unmarshal(data, &held)
-	if err != nil {
-		return fmt.Errorf("reading the home's format: %w", err)
-	}
-
-	if held.Format > Format {
-		return fmt.Errorf("%w: %s has format %d; this release reads up to %d", ErrNewerHome, roots.Data, held.Format,
-			Format)
-	}
-
-	return nil
+// Layout is the home as a component of format steps (internal/formatsteps).
+// Format is the first and only format the home has held, so its table is
+// empty: a release changing the layout adds its step here. Moving the layout
+// of the releases before the home into it is no step between formats of one
+// folder; internal/migration does that.
+func (roots Roots) Layout() formatsteps.Component {
+	return formatsteps.Component{Name: roots.Data, Dir: roots.Data, Root: roots.Data, Steps: nil}
 }
 
 // FormatFile is the home's `format.json`, whose presence marks a home every

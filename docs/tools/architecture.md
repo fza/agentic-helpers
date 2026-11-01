@@ -33,10 +33,12 @@ created holding every line of the JSON-lines file an earlier release kept under 
 which then goes; a reader finding no journal reads that file. A journal cut short reads up to its
 last whole record, and the next append rewrites it whole.
 
-Library format 2 is moved to under the store's lock, by the first call of a release reading it:
-every tool folder's `.jsonl` files become journals, the session files of `sessions/` move into the
-slot file, `format.json` is written, then `sessions/` goes. A store of a format past 2 is skipped by
-every read, and refused by a write.
+Library format 2 is moved to under the store's lock, by the first call of a release reading it,
+through the library's step table ([format steps](../plugin/architecture.md#format-steps)): every
+tool folder's `.jsonl` files become journals, a journal already there kept, the session files of
+`sessions/` move into the slot file, the `.jsonl` files and `sessions/` go, and `format.json` is
+written. A run stopped anywhere runs the step again from its first operation. A store of a format
+past 2 is skipped by every read, and refused by a write.
 
 Every read (find, list, take, the duplicate checks, the offer, the notices) uses `index.json` and
 never lists tool folders; a term search reads the current version's files by the names the index

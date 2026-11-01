@@ -48,7 +48,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
-	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/formatsteps"
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 )
 
@@ -671,50 +671,71 @@ func writeTwin(file *os.File, header Header, pair int, twins [2]twin, key string
 // locked runs write on the file holding the writers' lock, creating the file
 // where it does not exist.
 func (f *File) locked(ctx context.Context, write func(file *os.File, header Header) error) error {
+	file, header, unlock, err := f.lock(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer unlock()
+
+	return write(file, header)
+}
+
+// lock takes the writers' lock and opens the file, created where it is
+// missing, until the returned function runs.
+func (f *File) lock(ctx context.Context) (*os.File, Header, func(), error) {
 	err := safefs.MkdirAll(f.Root, filepath.Dir(f.Path), 0o700)
 	if err != nil {
-		return fmt.Errorf("creating %s: %w", filepath.Dir(f.Path), err)
+		return nil, Header{}, nil, fmt.Errorf("creating %s: %w", filepath.Dir(f.Path), err)
 	}
 
 	lock, err := safefs.Lock(f.Root, f.Path+".lock", 0o600)
 	if err != nil {
-		return fmt.Errorf("opening the lock of %s: %w", f.Path, err)
+		return nil, Header{}, nil, fmt.Errorf("opening the lock of %s: %w", f.Path, err)
 	}
 
-	defer func() { _ = lock.Close() }()
+	release := func() {
+		_ = filelock.Unlock(lock)
+		_ = lock.Close()
+	}
 
 	err = filelock.Exclusive(lock)
 	if err != nil {
-		return fmt.Errorf("locking %s: %w", f.Path, err)
-	}
+		_ = lock.Close()
 
-	defer func() { _ = filelock.Unlock(lock) }()
+		return nil, Header{}, nil, fmt.Errorf("locking %s: %w", f.Path, err)
+	}
 
 	err = ctx.Err()
-	if err != nil {
-		return fmt.Errorf("holding the lock of %s: %w", f.Path, err)
+	if err == nil && !exists(f.Path) {
+		err = replace(f.Root, f.Path, Header{Width: f.Width, Count: 1 + 2*initialPairs}, nil)
 	}
 
-	if !exists(f.Path) {
-		err = replace(f.Root, f.Path, Header{Width: f.Width, Count: 1 + 2*initialPairs}, nil)
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		release()
+
+		return nil, Header{}, nil, fmt.Errorf("holding the lock of %s: %w", f.Path, err)
 	}
 
 	file, err := safefs.OpenChecked(f.Root, f.Path, os.O_RDWR, 0o600)
 	if err != nil {
-		return fmt.Errorf("opening %s: %w", f.Path, err)
-	}
+		release()
 
-	defer func() { _ = file.Close() }()
+		return nil, Header{}, nil, fmt.Errorf("opening %s: %w", f.Path, err)
+	}
 
 	header, err := readHeader(file)
 	if err != nil {
-		return fmt.Errorf("%s: %w", f.Path, err)
+		_ = file.Close()
+		release()
+
+		return nil, Header{}, nil, fmt.Errorf("%s: %w", f.Path, err)
 	}
 
-	return write(file, header)
+	return file, header, func() {
+		_ = file.Close()
+		release()
+	}, nil
 }
 
 // Legacy is a file an earlier release kept for one session, and the key its
@@ -738,41 +759,47 @@ func (f *File) Import(ctx context.Context, legacy []Legacy) error {
 	})
 }
 
-// Adopt takes in, once, the per-session files an earlier release left: where
-// the component's format.json in dir records a format below version, it
-// imports every file legacy lists, writes format.json, and only then removes
-// the files, all holding the writers' lock, so a failed run leaves the old
-// files in place and no write lands in between. A newer format is refused.
+// Adopt takes in, once, the per-session files an earlier release left: the
+// component in dir holds one step (internal/formatsteps), to version from the
+// format before it, run under the writers' lock so no write lands in between.
+// The step imports every file legacy lists, a file already held not written
+// again, and removes them; a run stopped between the two imports what is left
+// on the next call. A newer format is refused.
 func (f *File) Adopt(ctx context.Context, dir string, version int, legacy func() []Legacy) error {
-	current, err := home.CheckComponent(dir, version)
-	if err != nil || current == version {
-		return err
+	return formatsteps.Run(ctx, f.adoption(dir, version, legacy))
+}
+
+func (f *File) adoption(dir string, version int, legacy func() []Legacy) formatsteps.Component {
+	var (
+		opened *os.File
+		header Header
+	)
+
+	return formatsteps.Component{
+		Name: dir, Dir: dir, Root: f.Root,
+		Lock: func(ctx context.Context) (func(), error) {
+			file, read, unlock, err := f.lock(ctx)
+			opened, header = file, read
+
+			return unlock, err
+		},
+		Steps: []formatsteps.Step{{From: version - 1, To: version, Ops: func(context.Context) ([]formatsteps.Operation, error) {
+			found := legacy()
+
+			return []formatsteps.Operation{
+				{Name: "taking in the session files", Apply: func(context.Context) error {
+					return f.importLocked(opened, header, found)
+				}},
+				{Name: "removing the session files", Apply: func(context.Context) error {
+					for _, held := range found {
+						_ = os.Remove(held.Path)
+					}
+
+					return nil
+				}},
+			}, nil
+		}}},
 	}
-
-	return f.locked(ctx, func(opened *os.File, header Header) error {
-		current, err := home.CheckComponent(dir, version)
-		if err != nil || current == version {
-			return err
-		}
-
-		found := legacy()
-
-		err = f.importLocked(opened, header, found)
-		if err != nil {
-			return err
-		}
-
-		err = home.WriteComponentFormat(f.Root, dir, version)
-		if err != nil {
-			return err
-		}
-
-		for _, held := range found {
-			_ = os.Remove(held.Path)
-		}
-
-		return nil
-	})
 }
 
 // holds says the pair's newest twin already keeps value under key, written
