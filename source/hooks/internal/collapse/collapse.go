@@ -163,10 +163,29 @@ func structured(raw json.RawMessage) (object, bool) {
 	return nil, false
 }
 
+// carries is whether the answer holds a structured field, at its top or in a
+// serve it carries: `abandon`, and a `next` ending a move, answer the
+// session's junction under `base_junction` alone.
 func carries(answer object) bool {
 	for _, key := range []string{itemsKey, hitsKey, lanesKey, blocksKey} {
 		_, found := answer[key]
 		if found {
+			return true
+		}
+	}
+
+	var junction object
+
+	if json.Unmarshal(answer["base_junction"], &junction) == nil && carries(junction) {
+		return true
+	}
+
+	var instances []object
+
+	_ = json.Unmarshal(answer["open_instances"], &instances)
+
+	for _, instance := range instances {
+		if carries(instance) {
 			return true
 		}
 	}

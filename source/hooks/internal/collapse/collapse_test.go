@@ -237,6 +237,35 @@ func TestServesCollapsePiecesServedByteForByte(t *testing.T) {
 	}
 }
 
+func TestAServeCarriedAloneCollapses(t *testing.T) {
+	var held collapse.Set
+
+	collapse.Answer("abandon", fixture(t, "abandon.json"), &held)
+
+	raw, collapsed := collapse.Answer("abandon", fixture(t, "abandon.json"), &held)
+	if !collapsed {
+		t.Fatal("an answer carrying only the junction's serve should collapse it too")
+	}
+
+	got := decode(t, raw)
+	if !got.Junction.Lanes[0].ShownEarlier {
+		t.Errorf("the junction's lane served unchanged should collapse, got %+v", got.Junction.Lanes)
+	}
+}
+
+func TestServesListedAsOpenInstancesCollapse(t *testing.T) {
+	var held collapse.Set
+
+	listed := json.RawMessage(`{"session":"s_1","open_instances":[` + string(fixture(t, "abandon.json")) + `]}`)
+
+	collapse.Answer("start_session", listed, &held)
+
+	_, collapsed := collapse.Answer("start_session", listed, &held)
+	if !collapsed {
+		t.Error("serves an answer lists under open_instances should collapse too")
+	}
+}
+
 func TestAResumePrintsEverything(t *testing.T) {
 	var held collapse.Set
 
