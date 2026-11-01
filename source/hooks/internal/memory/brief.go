@@ -336,20 +336,29 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		flaggedOrder = append(flaggedOrder, candidate.held.id)
 	}
 
-	// A landed commit's mapping rides the line of the entry it may settle, and
-	// is delivered once that line printed.
+	// A landed commit's mapping rides the line of the entry it may settle in
+	// every brief until the entry or item ends or the agent dismisses it. A
+	// mapping the context does not hold yet prints the entry's line whole; one
+	// it holds rides the entry's pointer.
 	landed := mem.landedFor(folded, seatName)
 	landedOn := map[string]bool{}
+	landedNews := map[string]bool{}
+	landedFlags := map[string][]string{}
 
 	for _, mapping := range landed {
 		id, _, _ := strings.Cut(mapping.Target, "#")
 		landedOn[id] = true
+
+		if !mem.seen.hasLanded(mapping) {
+			landedNews[id] = true
+		}
 
 		if _, known := flagged[id]; !known {
 			flaggedOrder = append(flaggedOrder, id)
 		}
 
 		flagged[id] = append(flagged[id], landedFlag(mapping))
+		landedFlags[id] = append(landedFlags[id], landedFlag(mapping))
 	}
 
 	printed := map[string]bool{}
@@ -429,6 +438,16 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 			closeRun()
 
+			if landedOn[one.id] && !landedNews[one.id] && mem.seen.hasLine(one) && len(cited) == 0 {
+				if out.add("  " + withFlags(pointer(one), landedFlags[one.id])) {
+					printed[one.id] = true
+				} else {
+					missing++
+				}
+
+				continue
+			}
+
 			extra := flagged[one.id]
 
 			count, items := folded.briefItems(one, "    ")
@@ -445,6 +464,9 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 			if landedOn[one.id] {
 				printedLine = out.add("  " + line)
+				if printedLine {
+					mem.seen.markLine(one)
+				}
 			} else {
 				printedLine = mem.addLine(out, "  ", one, line)
 			}
@@ -495,18 +517,16 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 	}
 
-	var delivered []landedMapping
-
 	for _, mapping := range landed {
 		id, _, _ := strings.Cut(mapping.Target, "#")
 		if printed[id] || unprintedIDs[id] {
-			delivered = append(delivered, mapping)
+			mem.seen.markLanded(mapping)
 		}
 	}
 
-	// The store keeps pending mappings alone: those this brief delivered go,
-	// and with them every one whose entry or item ended.
-	mem.dropLanded(folded, delivered)
+	// The store keeps pending mappings alone: every one whose entry or item
+	// ended goes; a delivered one stays.
+	mem.dropLanded(folded, nil)
 
 	var news []*entry
 

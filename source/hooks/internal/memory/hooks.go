@@ -720,7 +720,7 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		}
 	}
 
-	landed := mem.landedNotice(ctx, name)
+	landed := mem.landedNotice(ctx, name, session)
 	if landed != "" {
 		out = append(out, landed)
 	}
@@ -800,7 +800,7 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		arrived, holdsTraps = mem.arrivalsAtTool(ctx, name)
 
 		// Landed work is the seat's to settle, so its main thread hears it.
-		landed := mem.landedNotice(ctx, name)
+		landed := mem.landedNotice(ctx, name, session)
 		if landed != "" {
 			arrived = append(arrived, landed)
 		}
@@ -1056,14 +1056,16 @@ func (mem *memory) closeAtEnd(ctx context.Context, seatName string, payload hook
 
 // shownSet is what a session was shown since its last compaction, `/clear` or
 // resume: the entries whose line a read or recall printed (IDs), those whose
-// body a read printed (Bodies), each as presentedKey names it, and the traps
-// a tool call told it of.
+// body a read printed (Bodies), each as presentedKey names it, the traps a
+// tool call told it of, and the landed-commit matches a brief or a hook line
+// named (Landed), each as landedSeenKey names it.
 type shownSet struct {
 	IDs      []string `json:"ids"`
 	Bodies   []string `json:"bodies,omitempty"`
 	Notified bool     `json:"notified"`
 	Traps    []string `json:"traps,omitempty"`
 	Notes    []string `json:"notes,omitempty"`
+	Landed   []string `json:"landed,omitempty"`
 }
 
 // recall is up to three entries the prompt touches that stand out from the

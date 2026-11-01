@@ -137,7 +137,7 @@ func (mem *memory) reclaimSessions(ctx context.Context, stale func(slots.Slot) b
 // trim drops the older half of each mark list, answering whether anything
 // was left to drop.
 func (shown *shownSet) trim() bool {
-	if len(shown.IDs)+len(shown.Bodies)+len(shown.Traps)+len(shown.Notes) == 0 {
+	if len(shown.IDs)+len(shown.Bodies)+len(shown.Traps)+len(shown.Notes)+len(shown.Landed) == 0 {
 		return false
 	}
 
@@ -145,6 +145,7 @@ func (shown *shownSet) trim() bool {
 	shown.Bodies = shown.Bodies[len(shown.Bodies)/2+len(shown.Bodies)%2:]
 	shown.Traps = shown.Traps[len(shown.Traps)/2+len(shown.Traps)%2:]
 	shown.Notes = shown.Notes[len(shown.Notes)/2+len(shown.Notes)%2:]
+	shown.Landed = shown.Landed[len(shown.Landed)/2+len(shown.Landed)%2:]
 
 	return true
 }

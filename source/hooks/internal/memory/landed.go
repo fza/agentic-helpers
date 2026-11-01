@@ -20,7 +20,8 @@ import (
 
 // The landed-commit scan reads the checkout's history for commits that may
 // settle a live todo, todo item or trap, and keeps each match in the store's
-// slot file until the seat holding the entry was told of it. Nothing is
+// slot file until the entry or item ends or the agent dismisses the match:
+// a hint delivered just before a compaction is as much owed after it. Nothing is
 // retired by a match: a similar subject is evidence, not proof. A round runs
 // in a process of its own, `agentic-memory landed-round`, so no hook waits on
 // git: a hook only starts a due round and reads what earlier rounds stored.
@@ -339,7 +340,7 @@ func (mem *memory) storeMappings(folded *state, found []landedMapping) {
 	mem.readSlot(landedKey, &held)
 
 	// One mapping stands per entry or item: a later round's commit replaces
-	// an undelivered one only by scoring higher.
+	// a stored one only by scoring higher.
 	for _, mapping := range found {
 		index := slices.IndexFunc(held.Mappings, func(kept landedMapping) bool { return kept.Target == mapping.Target })
 
@@ -912,16 +913,17 @@ func (mem *memory) landedFor(folded *state, seatName string) []landedMapping {
 	return own
 }
 
-// dropLanded removes the delivered mappings, and every one no longer pending,
-// from the store.
-func (mem *memory) dropLanded(folded *state, delivered []landedMapping) {
+// dropLanded removes the dismissed mappings, and every one no longer pending,
+// from the store. A delivered mapping stays: only its entry or item ending,
+// or a dismiss, settles it.
+func (mem *memory) dropLanded(folded *state, dismissed []landedMapping) {
 	var held landedSet
 	if !mem.readSlot(landedKey, &held) {
 		return
 	}
 
 	kept := slices.DeleteFunc(pendingMappings(folded, held.Mappings), func(mapping landedMapping) bool {
-		return slices.Contains(delivered, mapping)
+		return slices.Contains(dismissed, mapping)
 	})
 
 	if len(kept) == 0 {
@@ -931,6 +933,65 @@ func (mem *memory) dropLanded(folded *state, delivered []landedMapping) {
 	}
 
 	_ = mem.writeSlot(landedKey, landedSet{Mappings: kept})
+}
+
+// landedSeenKey names a mapping in a context's shown set by its target and
+// commit, so a later commit matching the same entry is news again.
+func landedSeenKey(mapping landedMapping) string {
+	return mapping.Target + "@" + shortCommit(mapping.Commit)
+}
+
+// dismissLanded forgets the stored matches of the entries and items named,
+// each checked and found not to settle the work, without ending any: all or
+// none, and an id holding no match of the seat's refuses the call.
+func (mem *memory) dismissLanded(ctx context.Context, req request) result {
+	name, isSeated := mem.seated(ctx)
+	if !isSeated {
+		return refused("%s", ErrNoSeat)
+	}
+
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	pending := mem.landedFor(folded, name)
+
+	var (
+		dismissed []landedMapping
+		failures  []string
+	)
+
+	for _, id := range req.IDs {
+		index := slices.IndexFunc(pending, func(mapping landedMapping) bool { return mapping.Target == id })
+		if index < 0 {
+			failures = append(failures, fmt.Sprintf("%s: %s", id, ErrNoLanded))
+
+			continue
+		}
+
+		if !slices.Contains(dismissed, pending[index]) {
+			dismissed = append(dismissed, pending[index])
+		}
+	}
+
+	if len(failures) > 0 {
+		return refused("nothing dismissed:\n  %s", strings.Join(failures, "\n  "))
+	}
+
+	mem.dropLanded(folded, dismissed)
+
+	return done("dismissed")
+}
+
+func landedDismissPositional(req *request) error {
+	if len(req.Positional) < 2 || req.Positional[0] != "dismiss" {
+		return errors.New("usage: " + self + " landed dismiss <id>...")
+	}
+
+	req.IDs = req.Positional[1:]
+
+	return nil
 }
 
 func shortCommit(sha string) string {
@@ -959,8 +1020,9 @@ func landedAnswer(mapping landedMapping) string {
 }
 
 // landedNotice is the one line a running session gets for its seat's pending
-// mappings, which it delivers and drops; empty where none is pending.
-func (mem *memory) landedNotice(ctx context.Context, seatName string) string {
+// mappings its context does not hold yet, each then marked in the shown set
+// of that context; empty where none is news. The mappings stay stored.
+func (mem *memory) landedNotice(ctx context.Context, seatName string, session string) string {
 	if !mem.hasSlot(landedKey) {
 		return ""
 	}
@@ -975,14 +1037,27 @@ func (mem *memory) landedNotice(ctx context.Context, seatName string) string {
 		return ""
 	}
 
+	var shown shownSet
+	mem.readSlot(mem.shownKey(session), &shown)
+
 	parts := make([]string, 0, len(pending))
 
 	for _, mapping := range pending {
+		key := landedSeenKey(mapping)
+		if slices.Contains(shown.Landed, key) {
+			continue
+		}
+
+		shown.Landed = append(shown.Landed, key)
 		parts = append(parts, fmt.Sprintf("%s by %s %q (%s): %s", mapping.Target, shortCommit(mapping.Commit),
 			mapping.Subject, mapping.Test, landedAnswer(mapping)))
 	}
 
-	mem.dropLanded(folded, pending)
+	if len(parts) == 0 {
+		return ""
+	}
+
+	_ = mem.writeSlot(mem.shownKey(session), &shown)
 
 	return fmt.Sprintf("%s: landed commits may settle live work; check each against the repository, then: %s",
 		self, strings.Join(parts, "; "))

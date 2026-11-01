@@ -66,13 +66,17 @@ agentic-memory holder --session <id> --json
 
 The hooks scan git for commits that may settle a live todo, item or trap (by a linked graph id in
 the message, a branch, a changed anchored or `--about` path, or a similar subject) and keep each
-match until told once. Never retired by the tool: a match is evidence.
+match until the entry or item ends or the match is dismissed. Never retired by the tool: a match
+is evidence.
 
-- Brief: `retire? landed: <sha> <subject>` ending an entry's line, `ack #<item>? landed: ...` an
-  item's. Prompt or tool call: `agentic-memory: landed commits may settle live work; check each
-  against the repository, then: <id> by <sha> "<subject>" (<test>): <command>; ...`.
+- Brief: `retire? landed: <sha> <subject>` ending an entry's line (its `(seen)` pointer's too),
+  `ack #<item>? landed: ...` an item's, in every brief. Prompt or tool call, once per context:
+  `agentic-memory: landed commits may settle live work; check each against the repository, then:
+  <id> by <sha> "<subject>" (<test>): <command>; ...`.
 - Check the commit (`git show <sha>`): the work done → run the named `retire` or `ack ... --done`;
-  part done → tick the items it covers; not this work → nothing, the line does not return.
+  part done → tick the items it covers; not this work → `agentic-memory landed dismiss <id>...`
+  (MCP `landed`; `<todo>#<item>` for an item; all or none). Left alone, it returns after every
+  compaction. A later commit may match a dismissed entry again.
 - A `merged:` end survives the branch's deletion: its recorded tip, or the second parent of a
   `Merge branch '<branch>'` merge, reaching the target ends it.
 

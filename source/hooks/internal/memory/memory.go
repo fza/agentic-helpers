@@ -41,9 +41,10 @@ import (
 const self = "agentic-memory"
 
 var (
-	ErrUsage   = errors.New("usage: " + self + " <subcommand>; " + self + " help lists them")
-	ErrNoSeat  = errors.New("claim a seat first: " + self + " claim <seat>")
-	ErrNoEntry = errors.New("no such entry")
+	ErrUsage    = errors.New("usage: " + self + " <subcommand>; " + self + " help lists them")
+	ErrNoSeat   = errors.New("claim a seat first: " + self + " claim <seat>")
+	ErrNoEntry  = errors.New("no such entry")
+	ErrNoLanded = errors.New("no landed match stored for this seat")
 )
 
 type Git interface {

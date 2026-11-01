@@ -249,7 +249,8 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 - **Every prompt → up to three related entries.**
 - **A todo or trap is a lead, not a fact.** Before presenting open work to the user, check it
   against the repository; tick or retire a todo in the turn its work lands. `landed commits may
-  settle live work` or `retire? landed: <sha>` → check each, then its command.
+  settle live work` or `retire? landed: <sha>` → check each, then its command; not this work →
+  `agentic-memory landed dismiss <id>...`, or it returns each context.
 - **`Context near compaction. Write where work stands first: ...`** → write the state, file what
   outlives the moment. Measured against Claude Code's compaction window. Fires at most twice until
   answered; ignored twice → `Stop` holds with `Memory overdue, two nudges unanswered: write where work stands with
