@@ -320,13 +320,14 @@ code. They apply to people and agents alike. In short:
   characters and nothing after it.
 
 ```bash
-go install -C source/hooks ./cmd/...                       # build every binary
-cd source/hooks && go vet ./... && go test -race ./...     # run every Go test
-claude plugin validate .                                   # check the plugin and marketplace manifests
+GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...   # build every binary
+cd source/hooks && go vet ./... && go test -race ./...           # run every Go test
+claude plugin validate .                                         # check the plugin and marketplace manifests
 ```
 
-To run your checkout's binaries in your own sessions, point `AGENTIC_HELPERS_BIN_DIR` at the
-`go install` directory; [`docs/plugin/usage.md`](docs/plugin/usage.md) explains how. Only the
+Never install the binaries into `~/go/bin` or another directory on your PATH: every project's
+shell would run them ahead of the plugin. To run your checkout's binaries in your own sessions,
+point `AGENTIC_HELPERS_BIN_DIR` at the checkout's `.claude/bin`; [`docs/plugin/usage.md`](docs/plugin/usage.md) explains how. Only the
 `release` workflow cuts releases.
 
 ## Documentation

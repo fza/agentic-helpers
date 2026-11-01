@@ -14,8 +14,9 @@ The plugin's hooks run in every session on the machine, so the session editing t
 them.
 
 - **A hook change reaches this session through `AGENTIC_HELPERS_BIN_DIR`.** With it pointing at the
-  `go install` directory, the next hook event runs what `go install -C source/hooks ./cmd/...` just
-  built; without it, the session runs the release the plugin names.
+  checkout's `.claude/bin`, the next hook event runs what
+  `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...` just built, and no `agentic-*`
+  binary ever goes into `~/go/bin`; without it, the session runs the release the plugin names.
 - **Never delete a binary a hook still runs.** A missing one leaves its hook doing nothing, and the
   grounding gate refusing every call it guards.
 - **`AGENTIC_HELPERS_BIN_DIR` lives in this checkout's gitignored `.claude/settings.local.json`,

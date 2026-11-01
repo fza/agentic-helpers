@@ -5,7 +5,8 @@ Go rules, loaded when a session touches code under `source/`.
 ## Layout
 
 - **One module, `source/hooks`.** Every hook is a binary under `cmd/agentic-<hook>/`, published by
-  each release and built for development with `go install -C source/hooks ./cmd/...`. The `agentic-`
+  each release and built for development with `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...`
+  from the checkout root, never into `~/go/bin`. The `agentic-`
   prefix is not optional: a bare name on a PATH can shadow a system tool.
 - **`.goreleaser.yaml` lists every binary the release builds.** A new `cmd/` directory is added
   there, or the plugin's launcher finds no binary for it.

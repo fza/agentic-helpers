@@ -29,18 +29,23 @@ how to install it; [`docs/`](docs/index.md) says how each piece is used and how 
 Go 1.27 or newer.
 
 ```bash
-go install -C source/hooks ./cmd/...   # build every binary into ~/go/bin (or GOBIN)
-cd source/hooks && go vet ./... && go test -race ./...   # every Go suite
-claude plugin validate .               # the plugin and marketplace manifests
-claude plugin test plugin              # the plugin's hooks module, register.ts
+GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...   # build every binary into .claude/bin
+cd source/hooks && go vet ./... && go test -race ./...           # every Go suite
+claude plugin validate .                                         # the plugin and marketplace manifests
+claude plugin test plugin                                        # the plugin's hooks module, register.ts
 ```
+
+**No `agentic-*` binary ever goes into `~/go/bin`**, or any directory on the PATH. Every project's
+Bash calls find it there ahead of the plugin, so an unreleased build runs machine-wide and can
+migrate another project's memory store to a format no release reads. `go install` always runs with
+`GOBIN` set to the checkout's gitignored `.claude/bin`.
 
 **The hooks ship as a Claude Code plugin** from `plugin/`, and `plugin/hooks/run` runs the binaries
 of the release named in `plugin/.claude-plugin/plugin.json`. Claude Code loads every component it
 finds at a plugin's root, so nothing but the plugin's own files goes into `plugin/`; the repository's
 `.mcp.json` and instruction files stay at the root. A machine
-working on them sets `AGENTIC_HELPERS_BIN_DIR` to the `go install` directory, so a change reaches a
-session on the next hook event after `go install` runs again. A release is cut only by the
+working on them sets `AGENTIC_HELPERS_BIN_DIR` to that `.claude/bin`, so a change reaches a session on
+the next hook event after `go install` runs again. A release is cut only by the
 `release` workflow; `docs/plugin/` describes both.
 
 ## Working agreements

@@ -186,7 +186,8 @@ Claude Code's Bash tool finds `agentic-capture`, `agentic-helpers`, `agentic-mem
 which hands each call to the launcher, so `agentic-capture --help` is answered by the real binary.
 With no binary installed and none fetchable, a command from `bin/` or the MCP server exits 1 and
 says why on stderr, where a hook stays silent. A script outside Claude Code has no plugin on its
-PATH and builds the binaries itself: `go install -C source/hooks ./cmd/...` from a checkout.
+PATH and calls a binary by its full path: a release's, or one a checkout built into its own
+`.claude/bin` with `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...`.
 
 `agentic-helpers bound <duration> <command> [argument...]` runs a command for at most a duration,
 standing in for `timeout` where the machine has none, as shell-guard's rewrite of a missing
@@ -353,15 +354,18 @@ claude plugin install agentic-helpers@agentic-helpers
 ```
 
 The binaries the checkout builds reach the hooks through `AGENTIC_HELPERS_BIN_DIR`, set to the
-directory `go install` writes to in the `env` block of the checkout's own
+checkout's gitignored `.claude/bin` in the `env` block of the checkout's own
 `.claude/settings.local.json`:
 
 ```json
-{ "env": { "AGENTIC_HELPERS_BIN_DIR": "/Users/you/go/bin" } }
+{ "env": { "AGENTIC_HELPERS_BIN_DIR": "/path/to/agentic-helpers/.claude/bin" } }
 ```
 
 A change to a binary then reaches the hooks on the next event after
-`go install -C source/hooks ./cmd/...`. Where the variable is set, no release is fetched or run.
+`GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...` from the checkout root. Never
+install into `~/go/bin` or another directory on the PATH: every project's Bash calls would find the
+build there ahead of the plugin, and an unreleased build can migrate another project's memory store
+to a format no release reads. Where the variable is set, no release is fetched or run.
 Set in the user settings instead, it would hold every project on the machine to the last
 `go install` build: a release would reach no session until installed, and an install from a tree
 holding unfinished work would run it everywhere.
