@@ -422,6 +422,9 @@ missing one reads as `default`.
   the person.
 - `dontAsk`: the `PreToolUse` hook answers `deny` with the ask's reason. Claude Code would turn the
   prompt into a deny the agent cannot act on.
+- Any mode, with `AGENTIC_HELPERS_UNATTENDED=1` in the hook's environment (`UnattendedVar`,
+  inherited from the session's process): as `dontAsk`. The `PermissionRequest` hook never runs then,
+  since no prompt is put.
 - `auto`, `bypassPermissions`: the `PreToolUse` hook answers `ask`. When the prompt is about to
   show, Claude Code runs the `PermissionRequest` hook, `agentic-shell-guard permission`. It judges
   the call again with the same options; for a call shell-guard asks about, it waits

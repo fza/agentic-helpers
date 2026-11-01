@@ -220,7 +220,7 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 
 	reply.HookSpecificOutput.HookEventName = "PreToolUse"
 	reply.HookSpecificOutput.PermissionDecision = "ask"
-	if verdict.Decision == Deny || call.PermissionMode == modeDontAsk {
+	if verdict.Decision == Deny || call.PermissionMode == modeDontAsk || unattended(env) {
 		reply.HookSpecificOutput.PermissionDecision = "deny"
 	}
 	reply.HookSpecificOutput.PermissionDecisionReason = self + ": " + verdict.Reason
@@ -233,6 +233,16 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 	}
 
 	return 0
+}
+
+// UnattendedVar marks a session nobody watches, set by whatever starts it: an
+// ask there would wait out its countdown with nobody at the window, so it is
+// put as dontAsk puts it, a deny with the guard's reason, whatever the
+// session's permission mode.
+const UnattendedVar = "AGENTIC_HELPERS_UNATTENDED"
+
+func unattended(env Env) bool {
+	return env.Getenv != nil && env.Getenv(UnattendedVar) == "1"
 }
 
 func judgeCall(ctx context.Context, env Env, read pluginconfig.Options, call payload) Verdict {

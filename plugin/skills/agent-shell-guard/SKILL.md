@@ -93,7 +93,7 @@ decides how:
 |---|---|
 | `default`, `acceptEdits`, `plan` | a prompt with no time limit |
 | `auto`, `bypassPermissions` | a prompt with a countdown (`shell_guard_ask_timeout`, 2m unless set); nobody answering → denied |
-| `dontAsk` | denied at once, with the reason below |
+| `dontAsk`, or any mode with `AGENTIC_HELPERS_UNATTENDED=1` set | denied at once, with the reason below |
 
 Questions it asks:
 

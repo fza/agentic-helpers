@@ -112,6 +112,11 @@ options say**: the guard cannot judge it.
   until the next prompt: nobody is watching. With `shell_guard_ask_timeout` at `0` the prompt waits
   as in `default` mode. An unattended session in `default`, `acceptEdits` or `plan` mode still
   stalls on an ask.
+- **A session started with `AGENTIC_HELPERS_UNATTENDED=1` in its environment is denied every ask
+  at once**, with the guard's reason, as in `dontAsk` mode, whatever its permission mode. Whatever
+  starts sessions nobody watches (a job board, a scheduler) sets it, so an agent rewrites the call
+  at once instead of waiting out a countdown. Any other value, or none, leaves the mode deciding.
+  A session a person works in never carries it: every ask there becomes a deny.
 - **An ask a rewrite fixes refuses twice first.** For a command name that is not fixed text (a
   launcher's option value that may split among them) and a command holding what looks like a
   credential, the first and second ask in a session for that reason come back as a deny,
@@ -373,7 +378,8 @@ Every reason starts `agentic-shell-guard: `:
 | `nobody answered within <span>; <reason>` | an ask in `auto` or `bypassPermissions` mode whose countdown ran out |
 | `3 countdowns ran out unanswered since the last prompt; <reason>` | an ask in `auto` or `bypassPermissions` mode after three countdowns ran out |
 
-In `dontAsk` mode an ask comes back as a deny carrying the ask's own reason.
+In `dontAsk` mode, and in a session carrying `AGENTIC_HELPERS_UNATTENDED=1`, an ask comes back as a
+deny carrying the ask's own reason.
 
 A call the hook cannot read is blocked, exit 2, with `agentic-shell-guard: could not read the
 command; refusing` on stderr. With no `agentic-shell-guard` binary installed, the plugin's launcher

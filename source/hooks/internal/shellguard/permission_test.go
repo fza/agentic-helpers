@@ -75,6 +75,42 @@ func TestAnAskFollowsThePermissionMode(t *testing.T) {
 	})
 }
 
+func TestAnUnattendedSessionIsDeniedEveryAsk(t *testing.T) {
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "marked", value: "1", want: "deny"},
+		{name: "unmarked", value: "", want: "ask"},
+		{name: "marked with another value", value: "yes", want: "ask"},
+	}
+
+	for _, tc := range cases {
+		for _, mode := range []string{"auto", "default", "bypassPermissions"} {
+			t.Run(tc.name+" in "+mode, func(t *testing.T) {
+				g := newGuard(t, false, "").inSession(test.Session)
+				g.env.Getenv = func(key string) string {
+					if key == shellguard.UnattendedVar {
+						return tc.value
+					}
+
+					return ""
+				}
+
+				decision, reason := g.judgeIn(askedRemoval, mode)
+				if decision != tc.want {
+					t.Errorf("an ask in a session marked unattended should be denied at once, got %s: %s", decision, reason)
+				}
+
+				if !strings.Contains(reason, "outside project") {
+					t.Errorf("the deny should carry the guard's own reason, got %q", reason)
+				}
+			})
+		}
+	}
+}
+
 // countdown is one PermissionRequest hook run.
 type countdown struct {
 	guard      guard
