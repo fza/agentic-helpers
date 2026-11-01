@@ -656,6 +656,18 @@ command line. Those are the commands an agent seldom runs, each costing every se
 the listing. Dropping the name outright was rejected: the server would answer an unknown tool with
 a bare protocol error, where the refusal says where the command went.
 
+Every description the listing carries has a budget in characters, recorded with its reason in
+`source/hooks/internal/memory/descriptionbudget_test.go`: `toolBudgets` for each tool's
+description, `keyBudget` for every key description, and `keyBudgets` for a key by its bare name on
+every tool, `agent` among them, whose growth is paid once per tool listed.
+`TestEveryDescriptionFitsItsBudget` reads the server's `tools/list` and fails where a description
+exceeds its budget, where a tool has none, and where a budget names no tool. Each figure sat about a
+tenth above the description's size when it was set; raising one is a change of its own. No
+description was shortened to fit: a caller without the skill forms its call from the listing, and
+key descriptions keep naming the values and shapes they take, since values are taken exactly.
+Rejected: trimming the largest descriptions, a small saving for less guidance on the tools carrying
+the most rules.
+
 ## Links
 
 A `new` row carries the ids its text named that resolved when it was filed (`text_links`) and the

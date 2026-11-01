@@ -208,6 +208,14 @@ carry every value its text prints, every other verb `message` beside a fields st
 While its client sends nothing for two minutes, the server sweeps what the migration left for older
 releases (`mcpserver.ServeIdle` with `migration.Idle`), silently; `memory` does the same.
 
+Every description the listing carries has a budget in characters, recorded with its reason in
+`source/hooks/internal/tools/descriptionbudget_test.go`: `toolBudgets` for each tool's description
+and `keyBudget` for every key description. `TestEveryDescriptionFitsItsBudget` reads the server's
+`tools/list` and fails where a description exceeds its budget, where a tool has none, and where a
+budget names no tool. Each figure sat about a tenth above the description's size when it was set;
+raising one is a change of its own. No description was shortened to fit, since a caller without the
+skill forms its call from the listing.
+
 ## Tests
 
 `internal/tools` drives `tools.Main` against stores under `t.TempDir()` with a fake embedder: every
