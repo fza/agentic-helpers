@@ -58,6 +58,7 @@ func main() {
 		SddCache:   sddcaps.CacheDir(cacheRoot),
 		LookPath:   exec.LookPath,
 		Files:      shellwalk.OSFiles{},
+		SddValues:  process.SddConfig{},
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

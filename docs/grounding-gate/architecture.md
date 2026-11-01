@@ -146,6 +146,13 @@ off, and a discarded stream or a short show in its text is refused. It credits n
 
 ## Collapsing
 
+The `start` mode asks `sdd config get sessions.token_saving` in the graph's repository and writes
+`.sdd/tmp/grounding-gate/<session>.collapse-on.json` where it prints exactly `off`, removing it
+otherwise; `collapse` and `spawn` do nothing for a session without it, since each runs on every sdd
+call and starts no process of its own. Under `on`, sdd stubs repeats itself, and the two would
+rewrite one answer twice. The marker, and emptying the set at a compaction, `/clear` and resume, run
+before the `.sdd/grounding.yaml` check, so a project lifting the gate keeps both.
+
 `internal/collapse` reads only the fields sdd answers under `sessions.token_saving: off`: `items`
 (show: entries, each with `upstream` and `downstream` as preorder lists carrying `depth`), `hits`
 (search), and `lanes` and `framing_blocks` beside `report_schema` (every serve, the ones under

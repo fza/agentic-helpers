@@ -166,6 +166,15 @@ type Env struct {
 	// Files reads the shell scripts a command runs, so a call inside one counts
 	// as the command's own; left nil, no script is read.
 	Files shellwalk.Files
+	// SddValues reads sdd's `sessions.token_saving` at a session's start;
+	// left nil, collapsing never runs.
+	SddValues SddValues
+}
+
+// SddValues answers what `sdd config get <key>` prints in dir, trimmed, or
+// nothing where sdd is missing, fails or knows no such key.
+type SddValues interface {
+	SddValue(ctx context.Context, dir string, key string) string
 }
 
 func (env Env) scripts() shellwalk.Scripts {
@@ -230,16 +239,24 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return shorten(ctx, args[0], env, streams)
 	}
 
-	config, err := env.config()
-	if err == nil && config.Disabled {
-		return 0
-	}
-
 	// A payload that is no object carries nothing to read, and a non-zero exit
 	// on a prompt blocks the prompt itself.
 	payload, err := hookio.ReadPayload(streams.In)
 	if err != nil {
 		payload = hookio.Payload{}
+	}
+
+	if args[0] == "start" {
+		if slices.Contains([]string{"compact", "clear", "resume"}, payload.Source) {
+			env.collapseStore().Forget(ctx, payload.SessionID)
+		}
+
+		env.collapseStore().Switch(payload.SessionID, env.tokenSavingOff(ctx))
+	}
+
+	config, err := env.config()
+	if err == nil && config.Disabled {
+		return 0
 	}
 
 	switch args[0] {
@@ -252,10 +269,6 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		if payload.Source == "compact" {
 			forgetReads(ctx, env, payload)
-		}
-
-		if slices.Contains([]string{"compact", "clear", "resume"}, payload.Source) {
-			env.collapseStore().Forget(ctx, payload.SessionID)
 		}
 
 		return 0
@@ -283,6 +296,16 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 
 		return refused
 	}
+}
+
+// tokenSavingOff is whether sdd's `sessions.token_saving` reads exactly
+// `off` in the project; an sdd without the key, or none at all, reads as on.
+func (env Env) tokenSavingOff(ctx context.Context) bool {
+	if env.SddValues == nil {
+		return false
+	}
+
+	return env.SddValues.SddValue(ctx, env.graphRoot(), "sessions.token_saving") == "off"
 }
 
 func (env Env) collapseStore() collapse.Store {

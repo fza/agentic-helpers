@@ -82,14 +82,14 @@ func printsWhole(t *testing.T, got result) {
 }
 
 func TestARepeatedShowCollapsesForTheSameAgent(t *testing.T) {
-	env, transcripts := bare(t), t.TempDir()
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 
 	printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
 	collapses(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
 }
 
 func TestAFreshSubagentKeepsASetOfItsOwn(t *testing.T) {
-	env, transcripts := bare(t), t.TempDir()
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 
 	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
 	printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "a1")))
@@ -103,7 +103,7 @@ func TestAFreshSubagentKeepsASetOfItsOwn(t *testing.T) {
 }
 
 func TestAForkStartsFromItsSpawnersSet(t *testing.T) {
-	env, transcripts := bare(t), t.TempDir()
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 	test.WriteFile(t, filepath.Join(transcripts, session, "subagents", "agent-a2.meta.json"), `{"toolUseId":"toolu_01"}`)
 
 	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
@@ -127,7 +127,7 @@ func TestAForkStartsFromItsSpawnersSet(t *testing.T) {
 }
 
 func TestOnlyAFreshSpawnSkipsTheSpawnersSet(t *testing.T) {
-	env, transcripts := bare(t), t.TempDir()
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 	test.WriteFile(t, filepath.Join(transcripts, session, "subagents", "agent-a3.meta.json"), `{"toolUseId":"toolu_02"}`)
 
 	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
@@ -142,7 +142,7 @@ func TestOnlyAFreshSpawnSkipsTheSpawnersSet(t *testing.T) {
 func TestTheSetEmptiesWhereTheContextDoes(t *testing.T) {
 	for source, empties := range map[string]bool{"compact": true, "clear": true, "resume": true, "startup": false} {
 		t.Run(source, func(t *testing.T) {
-			env, transcripts := bare(t), t.TempDir()
+			env, transcripts := savingOff(t, bare(t)), t.TempDir()
 
 			run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
 			run(t, env, "start", map[string]any{"session_id": session, "source": source})
@@ -158,7 +158,7 @@ func TestTheSetEmptiesWhereTheContextDoes(t *testing.T) {
 }
 
 func TestTheSessionEndRemovesItsSets(t *testing.T) {
-	env, transcripts := bare(t), t.TempDir()
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 
 	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
 	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "a1"))
@@ -171,7 +171,7 @@ func TestTheSessionEndRemovesItsSets(t *testing.T) {
 }
 
 func TestAFailedCallIsLeftAlone(t *testing.T) {
-	env, transcripts := bare(t), t.TempDir()
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 
 	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
 
@@ -195,7 +195,7 @@ func TestOnlySddsToolsAndKnownSessionsCollapse(t *testing.T) {
 		"no session":            func(payload map[string]any) { payload["session_id"] = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
-			env, transcripts := bare(t), t.TempDir()
+			env, transcripts := savingOff(t, bare(t)), t.TempDir()
 
 			first, second := sddCall(t, transcripts, "next", "next.json", ""), sddCall(t, transcripts, "next", "next.json", "")
 			change(first)
@@ -209,14 +209,14 @@ func TestOnlySddsToolsAndKnownSessionsCollapse(t *testing.T) {
 
 func TestCollapsingFollowsTheGatesMachineSwitchOnly(t *testing.T) {
 	t.Run("gate off on the machine", func(t *testing.T) {
-		env, transcripts := withOptions(t, bare(t), `"grounding_gate_enabled":false`), t.TempDir()
+		env, transcripts := savingOff(t, withOptions(t, bare(t), `"grounding_gate_enabled":false`)), t.TempDir()
 
 		run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
 		printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
 	})
 
 	t.Run("gate lifted for the project", func(t *testing.T) {
-		env, transcripts := configured(t, "disabled.yaml"), t.TempDir()
+		env, transcripts := savingOff(t, configured(t, "disabled.yaml")), t.TempDir()
 
 		run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
 		collapses(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
@@ -235,4 +235,79 @@ func TestAProjectWithoutAGraphGetsNothing(t *testing.T) {
 	if err == nil {
 		t.Error("collapsing should create nothing in a project without a graph")
 	}
+}
+
+// savingOff is env after the session's start, where sdd's
+// `sessions.token_saving` reads off.
+func savingOff(t *testing.T, env grounding.Env) grounding.Env {
+	t.Helper()
+
+	return startedWith(t, env, "off", "startup")
+}
+
+func startedWith(t *testing.T, env grounding.Env, saving string, source string) grounding.Env {
+	t.Helper()
+
+	env.SddValues = &test.SddValues{Values: map[string]string{"sessions.token_saving": saving}}
+	run(t, env, "start", map[string]any{"session_id": session, "source": source})
+
+	return env
+}
+
+func TestCollapsingRunsOnlyWhereSddsTokenSavingIsOff(t *testing.T) {
+	for saving, runs := range map[string]bool{"off": true, "on": false, "": false, "Off": false} {
+		t.Run("token_saving "+saving, func(t *testing.T) {
+			env, transcripts := startedWith(t, bare(t), saving, "startup"), t.TempDir()
+
+			run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
+
+			got := run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
+			if runs {
+				collapses(t, got)
+			} else {
+				printsWhole(t, got)
+			}
+		})
+	}
+
+	t.Run("no sdd to ask", func(t *testing.T) {
+		env, transcripts := bare(t), t.TempDir()
+		run(t, env, "start", map[string]any{"session_id": session, "source": "startup"})
+
+		run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
+		printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
+	})
+}
+
+func TestASpawnKeepsNothingWhereTokenSavingIsOn(t *testing.T) {
+	env := startedWith(t, bare(t), "on", "startup")
+
+	run(t, env, "spawn", map[string]any{
+		"session_id": session, "tool_name": "Agent", "tool_use_id": "toolu_03",
+		"tool_input": map[string]any{"subagent_type": "fork", "prompt": "go"},
+	})
+
+	kept, _ := filepath.Glob(filepath.Join(env.ProjectDir, ".sdd", "tmp", "grounding-gate", "*spawn-*"))
+	if len(kept) != 0 {
+		t.Errorf("a spawn should keep no set for a session sdd stubs itself, kept %v", kept)
+	}
+}
+
+func TestTokenSavingTurnedOnStopsCollapsingAtTheNextStart(t *testing.T) {
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
+
+	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
+	env = startedWith(t, env, "on", "resume")
+
+	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
+	printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
+}
+
+func TestAProjectLiftingTheGateStillEmptiesTheSetAtCompaction(t *testing.T) {
+	env, transcripts := savingOff(t, configured(t, "disabled.yaml")), t.TempDir()
+
+	run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", ""))
+	run(t, env, "start", map[string]any{"session_id": session, "source": "compact"})
+
+	printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
 }

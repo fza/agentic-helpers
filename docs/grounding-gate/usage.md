@@ -161,8 +161,11 @@ It needs sdd's structured answers, which sdd (the fza fork, `v0.18.0-alpha.2.fza
 sdd config set sessions.token_saving off
 ```
 
-With the key on, sdd keeps its own repeat filter, answers in text, and every answer passes through
-untouched; an sdd too old to know the key does the same. While the gate is on, the key is on and the
+Each session start reads the key with `sdd config get sessions.token_saving`, and collapsing runs
+for that session only where it prints exactly `off`; a key changed mid-session takes effect at the
+next start, compaction, `/clear` or resume. With the key on, sdd keeps its own repeat filter and
+every answer passes through untouched; an sdd too old to know the key, or none on the `PATH`, does
+the same. While the gate is on, the key is on and the
 project carries a graph, each session start prints one line naming that command. Collapsing follows
 the machine switch `grounding_gate_enabled`; `enabled: false` in `.sdd/grounding.yaml` lifts the gate
 but keeps collapsing. A Bash `sdd show` is never changed.

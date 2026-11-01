@@ -22,6 +22,7 @@ const Tool = "mcp__sdd__"
 
 const (
 	setSuffix = ".shown.json"
+	onSuffix  = ".collapse-on.json"
 	lockName  = "collapse.lock"
 )
 
@@ -39,7 +40,7 @@ type Store struct {
 // fails, which leaves the answer as sdd gave it.
 func (store Store) Collapse(ctx context.Context, payload hookio.Payload) ([]byte, bool) {
 	tool, found := strings.CutPrefix(payload.ToolName, Tool)
-	if !found || payload.SessionID == "" || len(payload.ToolResponse) == 0 || payload.Failed() {
+	if !found || payload.SessionID == "" || len(payload.ToolResponse) == 0 || payload.Failed() || !store.on(payload.SessionID) {
 		return nil, false
 	}
 
@@ -81,7 +82,7 @@ func (store Store) Collapse(ctx context.Context, payload hookio.Payload) ([]byte
 // Keep saves, for a fork an Agent call spawns, its spawner's set as it
 // stands, since the fork's context starts as a copy of the spawner's.
 func (store Store) Keep(ctx context.Context, payload hookio.Payload) {
-	if payload.ToolInput.SubagentType != "fork" || payload.SessionID == "" || !shaped(payload.ToolUseID) {
+	if payload.ToolInput.SubagentType != "fork" || payload.SessionID == "" || !shaped(payload.ToolUseID) || !store.on(payload.SessionID) {
 		return
 	}
 
@@ -96,6 +97,13 @@ func (store Store) Keep(ctx context.Context, payload hookio.Payload) {
 // compaction, `/clear` and resume.
 func (store Store) Forget(ctx context.Context, session string) {
 	if session == "" {
+		return
+	}
+
+	// Taking the lock makes the folder, which a project lifting the gate
+	// never holds otherwise.
+	_, err := os.Stat(store.setPath(session, ""))
+	if err != nil {
 		return
 	}
 
@@ -194,6 +202,35 @@ func (store Store) setPath(session string, agent string) string {
 	}
 
 	return filepath.Join(store.Dir, name+setSuffix)
+}
+
+// Switch records at a session's start whether collapsing runs for it: only
+// where sdd's `sessions.token_saving` reads `off`, since under `on` sdd
+// stubs repeats itself and the two would fight over one answer. The marker
+// `<session>.collapse-on.json` holds the answer for the session's calls,
+// which start no process of their own to ask.
+func (store Store) Switch(session string, on bool) {
+	if session == "" {
+		return
+	}
+
+	path := filepath.Join(store.Dir, fileSafe(session)+onSuffix)
+	if !on {
+		_ = os.Remove(path)
+
+		return
+	}
+
+	err := safefs.MkdirAll(store.Root, store.Dir, 0o755)
+	if err == nil {
+		_ = atomicfile.Write(store.Root, path, []byte("{}\n"), 0o644)
+	}
+}
+
+func (store Store) on(session string) bool {
+	_, err := os.Stat(filepath.Join(store.Dir, fileSafe(session)+onSuffix))
+
+	return err == nil
 }
 
 func (store Store) spawnPath(session string, call string) string {
