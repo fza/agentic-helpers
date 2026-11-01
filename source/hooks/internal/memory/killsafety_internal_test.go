@@ -51,6 +51,40 @@ var killStarts = []killStart{{
 
 var cutTime = time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
 
+// releaseStarts is every committed release's memory store and its cache.
+func releaseStarts(t *testing.T) []killStart {
+	t.Helper()
+
+	var starts []killStart
+
+	for _, version := range test.ReleaseVersions(t) {
+		starts = append(starts, killStart{name: version, lay: func(t *testing.T, mem *memory) {
+			t.Helper()
+
+			laid := t.TempDir()
+			test.ReleaseTree(t, version, laid)
+
+			roots := home.Locate(filepath.Join(laid, "home"), func(string) string { return "" })
+
+			stores, err := filepath.Glob(filepath.Join(roots.Stores(), "*"))
+			if err != nil || len(stores) != 1 {
+				t.Fatalf("the fixture should hold one store, got %v %v", stores, err)
+			}
+
+			id := filepath.Base(stores[0])
+
+			for from, to := range map[string]string{roots.Store(id, home.Memory): mem.store(), roots.StoreCache(id, home.Memory): mem.cacheDir()} {
+				err = os.CopyFS(to, os.DirFS(from))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+		}})
+	}
+
+	return starts
+}
+
 // cutMemory is a process's memory of the store in root: each run its own,
 // as each process draws its ids afresh.
 func cutMemory(root string) *memory {
@@ -70,11 +104,16 @@ func cutMemory(root string) *memory {
 func TestEveryStepCarriesOnFromAnyOperation(t *testing.T) {
 	ctx := context.Background()
 
-	for _, start := range killStarts {
+	for _, start := range append(killStarts, releaseStarts(t)...) {
 		reference := t.TempDir()
 		start.lay(t, cutMemory(reference))
 
-		err := cutMemory(reference).migrate(ctx)
+		first, err := formatsteps.Read(cutMemory(reference).store())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = cutMemory(reference).migrate(ctx)
 		if err != nil {
 			t.Fatalf("%s: the uninterrupted run should succeed: %v", start.name, err)
 		}
@@ -89,6 +128,10 @@ func TestEveryStepCarriesOnFromAnyOperation(t *testing.T) {
 		steps := cutMemory(reference).formatSteps()
 
 		for index, step := range steps {
+			if step.From < first {
+				continue
+			}
+
 			for cut := 0; ; cut++ {
 				root := t.TempDir()
 				start.lay(t, cutMemory(root))

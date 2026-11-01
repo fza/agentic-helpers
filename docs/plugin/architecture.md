@@ -190,15 +190,52 @@ stopped in; the next run lists that step's operations again from what the folder
 applies them from the first. Every operation is therefore safe to run again from any point a kill
 can stop it at, and one too large to split, a log rebuild, carries its own crash safety. A step
 whose new format only keeps older binaries off rows they would misread has no operations: the
-format is all it writes. The memory store's table lives in `internal/memory/migrate.go`
-([memory architecture](../memory/architecture.md#the-format-and-its-migration)).
+format is all it writes.
 
-The cut test (`TestEveryStepCarriesOnFromAnyOperation`) proves it per step: for every step and every
-k, it lays a fresh copy of a store of the step's starting format, applies the step's first k
-operations as a run killed there would have, runs the table again in a new process and compares the
-result with an uninterrupted run, the minted seat and shelf ids named by what they stand for. A new
-step is covered by declaring its operations; no production code exists for the test, and no
-operation carries a hook to stop at.
+| Component | Table | Lock |
+|---|---|---|
+| memory store | `formatSteps`, `internal/memory/migrate.go` ([memory architecture](../memory/architecture.md#the-format-and-its-migration)) | the store lock |
+| tool library | `libraryComponent`, `internal/tools/format.go` ([tools architecture](../tools/architecture.md)) | the library's lock, which every caller already holds |
+| slot-file adoption | `File.Adopt`, `internal/slots/slots.go`, one step for shell-guard's state, the prompt vectors and the tools' seen list | the slot file's writers' lock |
+| home | `Roots.Layout`, `internal/home/home.go`, an empty table: format 1 is the only one the home has held | none taken while the table is empty |
+
+The move from the layout before the home (above) is no step of that last table: it moves trees
+between two roots rather than one folder between formats, and stays on its journal.
+
+The cut test proves a table per step: for every step and every k, it lays a fresh copy of a store of
+the step's starting format, applies the step's first k operations as a run killed there would have,
+runs the table again in a new process and compares the result with an uninterrupted run, the minted
+seat and shelf ids named by what they stand for. `TestEveryStepCarriesOnFromAnyOperation` covers the
+memory store, on the oldest hand-laid store and on every committed release;
+`TestEveryLibraryOperationCarriesOn` and `TestAdoptionCarriesOnFromAnyOperation` the tool library and
+adoption. A new step is covered by declaring its operations; no production code exists for the test,
+and no operation carries a hook to stop at.
+
+### Release fixtures
+
+Every release proves it migrates what earlier releases wrote, on real data. `scripts/release-fixture
+<version>` downloads the release's binaries for the machine from GitHub, checks them against the
+release's `checksums.txt`, drives them through a scripted session in a temporary home and checkout
+(two seats, an entry of every kind, a todo's items and due time, each seat's state, an attachment,
+links, a retire and a supersede, the session hooks, tools added and taken, a shell-guard ask), and
+writes what they left under `source/hooks/test/fixtures/releases/<version>/`: `data/` and `cache/`,
+`checkout/`, and `dump.json`, the reads (`brief --json`, `show --json` of every entry, the tools
+list) with what the release answered. The checkout's `.git` stays out, since a repository cannot
+hold one; `@WORK@` stands for the folder the release ran in; a file past 64 KiB, a slot file, is
+gzipped as `<name>.fixture-gz`. The network is reached in the script and never in a test.
+
+`TestEveryCommittedReleaseMigratesToWhatItHeld` (`internal/formatsteps/releases_test.go`) copies
+every committed release into a temporary folder, lets each component's runner move it, replays the
+reads through the current `Main`s and compares them with `dump.json`, or with its successor where a
+format changed an answer: `successors` holds one function per such format, format 8 turning a
+seat's state slot into the ledger's `state#old`. `TestTheNamedReleaseHasAFixture` fails while no
+fixture exists for the release `plugin/.claude-plugin/plugin.json` names.
+
+Rejected: hand-built fixtures per format, which show what format N was thought to be, not what a
+release wrote; a CI job running the old release, which breaks the no-network rule for tests, proves
+nothing locally and covers nothing the committed fixture does not. The stores below format 7 stay
+hand-laid until fixtures of those releases exist. Accepted costs: the script, a fixture of a few
+hundred KB per release, and its step in the release.
 
 Rejected: rebuilding every derived file from the log, since the seat registry and the shelves hold
 ids minted outside the log, and the log itself still needs steps; copying a component forward into a
@@ -253,6 +290,11 @@ rest wait for it, up to 100 seconds.
   symlink names its own pid, and removes the stray link otherwise.
 
 ## The release
+
+Before each release, the fixture of the release before it is committed: `scripts/release-fixture
+v<version>` for the version `plugin/.claude-plugin/plugin.json` names, then `go test -race ./...`
+in `source/hooks` and a `test:` commit ([release fixtures](#release-fixtures)). The `release` workflow
+runs the tests first, so a release cannot be cut until that fixture stands.
 
 A release is cut by starting the `release` workflow by hand (`gh workflow run release.yml`, or the
 Actions tab). It runs the tests, then semantic-release reads the commits since the last tag: `fix:`

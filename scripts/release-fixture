@@ -1,0 +1,4 @@
+#!/bin/sh
+# Writes the fixture of a release: scripts/release-fixture v2.24.0, from the
+# repository root. release-fixture.go says what it does.
+exec go run scripts/release-fixture.go "$@"

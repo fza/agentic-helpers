@@ -22,6 +22,7 @@ how to install it; [`docs/`](docs/index.md) says how each piece is used and how 
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
 | `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` and `tools` MCP servers), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds), `skills/`, one per hook, shipped as `agentic-helpers:<skill>`, and `README.md`, saying what the plugin runs, sends, writes and decides |
 | `docs/` | one folder per piece, each with `usage.md` and `architecture.md` |
+| `scripts/` | `release-fixture`, writing a release's fixture before the next release |
 | `.sdd/` | the decision graph: why the hooks are the way they are |
 
 ## Setup and commands
