@@ -60,7 +60,8 @@ project's decision graph under `.sdd/`.
 - git. Memory works only inside a git work tree, unless `memory_require_git` is off.
 - [sdd](https://github.com/networkteam/sdd), only for projects with a graph under `.sdd/`. Collapsing
   repeated sdd output needs the fza fork, `v0.18.0-alpha.2.fza.41` or later (`sessions.token_saving`);
-  with any other sdd, answers pass through as sdd gives them.
+  with any other sdd, answers pass through as sdd gives them. Collapsing a `view` answer needs
+  `v0.18.0-alpha.2.fza.42` or later (`view_sections`).
 
 ## Installing
 

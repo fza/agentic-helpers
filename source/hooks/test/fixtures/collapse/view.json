@@ -1,0 +1,231 @@
+{
+  "sections": "",
+  "notices": [],
+  "view_sections": [
+    {
+      "render": "list",
+      "name": "recent",
+      "brief": "the newest active entries",
+      "matched": 2,
+      "list": {
+        "items": [
+          {
+            "entry": {
+              "id": "20261029-021515-d-tac-00q",
+              "title": "Token-cost criteria for agentic-helpers surfaces",
+              "type": "decision",
+              "kind": "directive",
+              "layer": "tactical",
+              "status": "active",
+              "summary": "Token-cost choices are made by least risk first, then fewest tokens.",
+              "confidence": "high",
+              "topics": ["token-cost"]
+            },
+            "score": 0.88,
+            "refs": [
+              {
+                "ref": "grounded-in",
+                "id": "20261027-222117-d-tac-yjy",
+                "status": "active",
+                "desc": "sibling standing rule"
+              },
+              {
+                "ref": "related",
+                "id": "20261020-101010-d-tac-dep",
+                "unresolved_repo": "github.com/networkteam/sdd"
+              }
+            ],
+            "refs_dropped": 1
+          },
+          {
+            "entry": {
+              "id": "20261101-175343-s-tac-n4e",
+              "title": "Collapse of repeated sdd output built",
+              "type": "signal",
+              "kind": "done",
+              "layer": "tactical",
+              "status": "open",
+              "summary": "The grounding gate collapses repeated show, search and serve output.",
+              "participants": ["felix"],
+              "topics": ["collapse"]
+            },
+            "score": 0.71
+          }
+        ],
+        "ranked": true,
+        "refs_expanded": true
+      }
+    },
+    {
+      "render": "grouped",
+      "name": "by kind",
+      "matched": 3,
+      "grouped": {
+        "field": "kind",
+        "groups": [
+          {
+            "key": "directive",
+            "entries": [
+              {
+                "id": "20261027-222117-d-tac-yjy",
+                "title": "Hidden hook message scarcity",
+                "type": "decision",
+                "kind": "directive",
+                "layer": "tactical",
+                "status": "active",
+                "summary": "Hidden hook messages fire only when they change what the agent does."
+              },
+              {
+                "id": "20261031-235540-d-tac-wxh",
+                "title": "Per-subagent shown entry sets",
+                "type": "decision",
+                "kind": "directive",
+                "layer": "tactical",
+                "status": "closed-by 20261101-010124-s-tac-ng6",
+                "summary": "Each subagent gets its own set of shown entries."
+              }
+            ]
+          },
+          {
+            "key": "gap",
+            "entries": [
+              {
+                "id": "20261101-201929-s-tac-wl4",
+                "title": "Collapse fights sdd's own repeat filter",
+                "type": "signal",
+                "kind": "gap",
+                "layer": "tactical",
+                "status": "open",
+                "summary": "Collapsing under token_saving on rewrites an answer sdd already stubbed."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "render": "counts",
+      "name": "by layer",
+      "matched": 14,
+      "counts": {
+        "rows": [
+          {"label": "tactical", "count": 12, "heat": 0.86},
+          {"label": "strategic", "count": 2, "heat": 0.14}
+        ]
+      }
+    },
+    {
+      "render": "focus",
+      "name": "in focus",
+      "matched": 1,
+      "focus": {
+        "focuses": [
+          {
+            "focus": {
+              "id": "20261101-151135-d-tac-uom",
+              "title": "`sdd` output collapse via `PostToolUse` hook",
+              "type": "decision",
+              "kind": "directive",
+              "layer": "tactical",
+              "status": "active",
+              "summary": "agentic-helpers will collapse repeated sdd output."
+            },
+            "actors": ["felix"],
+            "when": {"from": "2026-11-01T15:11:35Z", "to": "2026-11-01T20:19:29Z"},
+            "targets": [
+              {
+                "target": {
+                  "id": "20261029-021515-d-tac-00q",
+                  "title": "Token-cost criteria for agentic-helpers surfaces",
+                  "type": "decision",
+                  "kind": "directive",
+                  "layer": "tactical",
+                  "status": "active",
+                  "summary": "Token-cost choices are made by least risk first, then fewest tokens."
+                },
+                "actors": ["felix"],
+                "actors_explicit": true,
+                "when": {"from": "2026-10-29T02:15:15Z"},
+                "score": 0.93,
+                "state": "open"
+              }
+            ]
+          }
+        ],
+        "dropped": 2,
+        "pull": "view focus(5)"
+      }
+    },
+    {
+      "render": "participants",
+      "name": "who",
+      "matched": 1,
+      "participants": {
+        "groups": [
+          {
+            "actor": {
+              "id": "20261001-090000-s-stg-fza",
+              "title": "Felix Zandanel",
+              "type": "signal",
+              "kind": "actor",
+              "layer": "strategic",
+              "status": "open",
+              "summary": "Felix Zandanel builds and owns agentic-helpers.",
+              "canonical": "felix"
+            },
+            "roles": ["builder", "owner"]
+          }
+        ]
+      }
+    },
+    {
+      "render": "wip",
+      "name": "in progress",
+      "matched": 1,
+      "wip": {
+        "markers": [
+          {
+            "id": "20261101-180000-s-ops-wpm",
+            "entry": {
+              "id": "20261031-235540-d-tac-wxh",
+              "title": "Per-subagent shown entry sets",
+              "type": "decision",
+              "kind": "directive",
+              "layer": "tactical",
+              "status": "closed-by 20261101-010124-s-tac-ng6",
+              "summary": "Each subagent gets its own set of shown entries."
+            },
+            "participant": "felix",
+            "exclusive": true,
+            "branch": "main",
+            "content": "wiring the subagent sets into the fork spawn",
+            "time": "2026-11-01T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "render": "bodies",
+      "name": "bodies",
+      "repo": "github.com/fza/agentic-helpers",
+      "matched": 1,
+      "bodies": {
+        "entries": [
+          {
+            "id": "20261031-122251-s-tac-jgs",
+            "title": "Token savings from repetition removal and runnable pointers",
+            "type": "signal",
+            "kind": "insight",
+            "layer": "tactical",
+            "status": "open",
+            "summary": "Savings came from removing repetition, never from shortening what an agent acts on.",
+            "intent": "measure",
+            "body": "Savings came from removing repetition and from pointers an agent can run."
+          }
+        ],
+        "dropped": 3,
+        "pull": "view bodies(10)"
+      }
+    }
+  ]
+}

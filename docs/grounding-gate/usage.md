@@ -146,8 +146,16 @@ keeps only its edge, id, title and depth; an instruction lane, framing block or 
 was served byte for byte keeps only its name. Each such piece carries `"shown_earlier": true`, and
 the answer gains a `shown_earlier_note` saying how the text comes back:
 
+- **A `view` collapses the entries its sections list**: an entry the agent was shown unchanged, in
+  a `list`, `grouped`, `focus`, `participants` or `wip` section, keeps only its id and title, and
+  everything beside it (a score, refs, a target's state, a participant's roles, a marker's content)
+  stays. A `counts` section never changes.
 - **An entry a `show` names in `ids` always prints in full**, so showing a collapsed id by itself
-  brings its text back. `resume_session` prints everything in full.
+  brings its text back. A `bodies` view's entries print in full too, since the view asks for
+  exactly their bodies. `resume_session` prints everything in full.
+- **Every entry printed in full counts as shown**, whichever tool printed it: a view's entries
+  collapse in a later `show` or `search`, and an entry a `show` or `search` printed collapses in a
+  later `view`.
 - **Each agent keeps its own record**: the main thread one per session, a subagent its own, a fork
   starting from what its spawner held when the `Agent` call ran. A subagent's reads never collapse
   anything for its parent.
@@ -155,7 +163,9 @@ the answer gains a `shown_earlier_note` saying how the text comes back:
 - **A changed piece prints in full**: a new status, summary or text is a new piece.
 
 It needs sdd's structured answers, which sdd (the fza fork, `v0.18.0-alpha.2.fza.41` or later) gives with
-`sessions.token_saving` off, set once per machine:
+`sessions.token_saving` off, set once per machine. A `view` answer collapses from
+`v0.18.0-alpha.2.fza.42` on, which answers it as `view_sections`; a `view` answer without that field
+is text and passes whole. The key is set with:
 
 ```bash
 sdd config set sessions.token_saving off

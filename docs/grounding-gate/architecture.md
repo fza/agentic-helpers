@@ -155,9 +155,20 @@ before the `.sdd/grounding.yaml` check, so a project lifting the gate keeps both
 
 `internal/collapse` reads only the fields sdd answers under `sessions.token_saving: off`: `items`
 (show: entries, each with `upstream` and `downstream` as preorder lists carrying `depth`), `hits`
-(search), and `lanes` and `framing_blocks` beside `report_schema` (every serve, the ones under
-`open_instances` and `base_junction` too). An answer without any of them is never rewritten, so no
-text layout is parsed and an older sdd's answers pass whole. The answer is accepted as an object,
+(search), `view_sections` (view), and `lanes` and `framing_blocks` beside `report_schema` (every
+serve, the ones under `open_instances` and `base_junction` too). An answer without any of them is
+never rewritten, so no text layout is parsed and an older sdd's answers pass whole. Which of them
+is read follows the tool, never a version: a `view` answer is read only through `view_sections`,
+so a section's `list.items` is never taken for a show's `items`.
+
+Each view section sets exactly one shape object, and the walk visits the entry objects at fixed
+paths below it: `list.items[].entry`, `grouped.groups[].entries[]`, `focus.focuses[].focus`,
+`focus.focuses[].targets[].target`, `participants.groups[].actor` and `wip.markers[].entry`. An
+entry whose line the agent holds becomes `{id, title, shown_earlier: true}` in place, so every
+field beside it (`score`, `refs`, `actors`, `when`, `state`, `roles`, a marker's own `id` and
+`content`) stays. `bodies.entries[]` only mark their lines, and `counts.rows` hold no entry.
+Visiting fixed paths rather than every object holding an `id` matters: a ref and a wip marker
+carry ids that name no line the view printed. The answer is accepted as an object,
 the object encoded as a string, `structuredContent`, or the text of a content block, as Claude Code
 hands MCP answers on.
 

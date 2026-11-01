@@ -1,12 +1,14 @@
 // Package collapse shortens what sdd's MCP server answers an agent to what
-// that agent's context does not already hold: a chain entry or search hit
-// whose line it was shown unchanged, and an instruction lane, framing block or
-// report schema it was served byte for byte, become a pointer marked
-// `shown_earlier`. An entry a `show` names in its ids, and every piece of a
-// `resume_session`, print in full, since the call asks for exactly that text.
+// that agent's context does not already hold: a chain entry, search hit or
+// view entry whose line it was shown unchanged, and an instruction lane,
+// framing block or report schema it was served byte for byte, become a pointer
+// marked `shown_earlier`. An entry a `show` names in its ids, a bodies view's
+// entries, and every piece of a `resume_session`, print in full, since the
+// call asks for exactly that text.
 //
 // It reads only the structured fields sdd answers under
-// `sessions.token_saving: off` (`items`, `hits`, `lanes`, `framing_blocks`);
+// `sessions.token_saving: off` (`items`, `hits`, `view_sections`, `lanes`,
+// `framing_blocks`);
 // an answer without them, from an older sdd or with the key on, passes
 // through untouched, so no text layout is ever parsed.
 package collapse
@@ -28,6 +30,7 @@ const (
 	markKey   = "shown_earlier"
 	itemsKey  = "items"
 	hitsKey   = "hits"
+	viewKey   = "view_sections"
 	lanesKey  = "lanes"
 	blocksKey = "framing_blocks"
 	schemaKey = "report_schema"
@@ -74,6 +77,8 @@ func Answer(tool string, response json.RawMessage, held *Set) (json.RawMessage, 
 		walk.items(answer)
 	case "search":
 		walk.hits(answer)
+	case "view":
+		walk.view(answer)
 	case "resume_session":
 		walk.serve(answer, false)
 	default:
@@ -167,7 +172,7 @@ func structured(raw json.RawMessage) (object, bool) {
 // serve it carries: `abandon`, and a `next` ending a move, answer the
 // session's junction under `base_junction` alone.
 func carries(answer object) bool {
-	for _, key := range []string{itemsKey, hitsKey, lanesKey, blocksKey} {
+	for _, key := range []string{itemsKey, hitsKey, viewKey, lanesKey, blocksKey} {
 		_, found := answer[key]
 		if found {
 			return true
@@ -278,6 +283,126 @@ func (walk *pass) hits(answer object) {
 	}
 
 	walk.store(answer, hitsKey, hits)
+}
+
+// viewEntries names where a view section's entry objects sit, by its shape
+// object first: a step names an object's field, `[]` every element of an
+// array. A `counts` section holds no entry, so it never changes.
+var viewEntries = [][]string{
+	{"list", "items", "[]", "entry"},
+	{"grouped", "groups", "[]", "entries", "[]"},
+	{"focus", "focuses", "[]", "focus"},
+	{"focus", "focuses", "[]", "targets", "[]", "target"},
+	{"participants", "groups", "[]", "actor"},
+	{"wip", "markers", "[]", "entry"},
+}
+
+// viewBodies is where a bodies view's entries sit: they print in full, as
+// an asked id does, since the view asks for exactly their bodies.
+var viewBodies = []string{"bodies", "entries", "[]"}
+
+// view collapses each entry a view section holds whose line the agent holds
+// unchanged to its id and title, keeping every field beside the entry, and
+// marks each entry it prints in full. Only `view_sections` is read: a
+// section's `list.items` is never a show's `items`.
+func (walk *pass) view(answer object) {
+	var sections []json.RawMessage
+
+	_ = json.Unmarshal(answer[viewKey], &sections)
+
+	for index := range sections {
+		for _, path := range viewEntries {
+			sections[index], _ = reach(sections[index], path, walk.viewEntry)
+		}
+
+		reach(sections[index], viewBodies, walk.bodiesEntry)
+	}
+
+	walk.store(answer, viewKey, sections)
+}
+
+func (walk *pass) viewEntry(raw json.RawMessage) (json.RawMessage, bool) {
+	var entry object
+
+	_ = json.Unmarshal(raw, &entry)
+
+	if !walk.holdsLine(entry) {
+		walk.markLine(entry)
+
+		return raw, false
+	}
+
+	pointer := keep(entry, "id", "title")
+	pointer[markKey] = json.RawMessage("true")
+
+	encoded, err := json.Marshal(pointer)
+	if err != nil {
+		return raw, false
+	}
+
+	walk.collapsed = true
+
+	return encoded, true
+}
+
+func (walk *pass) bodiesEntry(raw json.RawMessage) (json.RawMessage, bool) {
+	var entry object
+
+	_ = json.Unmarshal(raw, &entry)
+	walk.markLine(entry)
+
+	return raw, false
+}
+
+// reach runs visit on every value path leads to below raw, and answers raw
+// re-encoded where a visit changed anything. A value that does not decode,
+// or a field a section lacks, decodes to nothing and so holds nothing to
+// visit: no entry without an id is ever marked or collapsed.
+func reach(raw json.RawMessage, path []string, visit func(json.RawMessage) (json.RawMessage, bool)) (json.RawMessage, bool) {
+	if len(path) == 0 {
+		return visit(raw)
+	}
+
+	if path[0] == "[]" {
+		var elements []json.RawMessage
+
+		_ = json.Unmarshal(raw, &elements)
+
+		changed := false
+
+		for index, element := range elements {
+			updated, elementChanged := reach(element, path[1:], visit)
+			if elementChanged {
+				elements[index], changed = updated, true
+			}
+		}
+
+		return reencoded(raw, elements, changed)
+	}
+
+	var parent object
+
+	_ = json.Unmarshal(raw, &parent)
+
+	updated, changed := reach(parent[path[0]], path[1:], visit)
+	if changed {
+		parent[path[0]] = updated
+	}
+
+	return reencoded(raw, parent, changed)
+}
+
+func reencoded(raw json.RawMessage, value any, changed bool) (json.RawMessage, bool) {
+	if !changed {
+		return raw, false
+	}
+
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return raw, false
+	}
+
+	return encoded, true
 }
 
 // serve collapses, where collapsing, the lanes, framing blocks and report

@@ -88,6 +88,15 @@ func TestARepeatedShowCollapsesForTheSameAgent(t *testing.T) {
 	collapses(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
 }
 
+func TestAViewCollapsesWhatAShowPrinted(t *testing.T) {
+	env, transcripts := savingOff(t, bare(t)), t.TempDir()
+
+	printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "view", "view-text.json", "")))
+	printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, "view", "view.json", "")))
+	collapses(t, run(t, env, "collapse", sddCall(t, transcripts, "show", "show.json", "")))
+	collapses(t, run(t, env, "collapse", sddCall(t, transcripts, "view", "view.json", "")))
+}
+
 func TestAFreshSubagentKeepsASetOfItsOwn(t *testing.T) {
 	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 
