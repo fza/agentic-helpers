@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +55,7 @@ func (store Store) Collapse(ctx context.Context, payload hookio.Payload) ([]byte
 			held = store.adopt(payload)
 		}
 
-		before := held
+		before := Set{Lines: maps.Clone(held.Lines), Pieces: maps.Clone(held.Pieces)}
 		shortened, collapsed := Answer(tool, payload.ToolResponse, &held)
 
 		if collapsed {

@@ -1,0 +1,15 @@
+{
+  "coverage": [{"project": "github.com/fza/agentic-helpers", "complete": true}],
+  "results": "",
+  "hits": [
+    {
+      "id": "20261101-230347-s-tac-fzn",
+      "title": "`mcp__sdd__view` answers collapse live",
+      "kind": "done",
+      "layer": "tactical",
+      "status": "open",
+      "summary": "Repeated view answers collapse in a live session.",
+      "score": 0.88
+    }
+  ]
+}

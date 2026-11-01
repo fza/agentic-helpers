@@ -97,6 +97,29 @@ func TestAViewCollapsesWhatAShowPrinted(t *testing.T) {
 	collapses(t, run(t, env, "collapse", sddCall(t, transcripts, "view", "view.json", "")))
 }
 
+func TestAnAnswerCollapsingNothingStillGrowsTheSet(t *testing.T) {
+	cases := []struct {
+		name  string
+		tool  string
+		first string
+		next  string
+	}{
+		{name: "a new line", tool: "search", first: "search.json", next: "search-more.json"},
+		{name: "a changed line", tool: "search", first: "search.json", next: "search-changed.json"},
+		{name: "a new piece", tool: "next", first: "next.json", next: "next-more.json"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			env, transcripts := savingOff(t, bare(t)), t.TempDir()
+
+			printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, testCase.tool, testCase.first, "")))
+			printsWhole(t, run(t, env, "collapse", sddCall(t, transcripts, testCase.tool, testCase.next, "")))
+			collapses(t, run(t, env, "collapse", sddCall(t, transcripts, testCase.tool, testCase.next, "")))
+		})
+	}
+}
+
 func TestAFreshSubagentKeepsASetOfItsOwn(t *testing.T) {
 	env, transcripts := savingOff(t, bare(t)), t.TempDir()
 

@@ -1,0 +1,11 @@
+{
+  "session": "s_1",
+  "instance": "i_7",
+  "procedure": "capture",
+  "step": "verify",
+  "instructions": "",
+  "framing": "",
+  "lanes": [
+    {"name": "verify", "text": "Read the generated summary against the body."}
+  ]
+}
