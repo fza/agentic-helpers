@@ -120,6 +120,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 			_, _ = fmt.Fprintln(streams.Out, self+": "+TokenSavingLine)
 		}
 
+		for _, line := range pathBinaryLines(env.Getenv) {
+			_, _ = fmt.Fprintln(streams.Out, self+": "+line)
+		}
+
 		return 0
 	}
 

@@ -185,7 +185,9 @@ its version, and kept in `<cache>/sdd-caps.json` per binary path, modification t
 Claude Code's Bash tool finds `agentic-capture`, `agentic-helpers`, `agentic-memory` and `agentic-tools` through the plugin's `bin/`,
 which hands each call to the launcher, so `agentic-capture --help` is answered by the real binary.
 With no binary installed and none fetchable, a command from `bin/` or the MCP server exits 1 and
-says why on stderr, where a hook stays silent. A script outside Claude Code has no plugin on its
+says why on stderr, where a hook stays silent. An `agentic-*` binary on the PATH outside a plugin's
+`bin/` gets one SessionStart line naming its directory, since every project's Bash would run it ahead
+of the plugin. A script outside Claude Code has no plugin on its
 PATH and calls a binary by its full path: a release's, or one a checkout built into its own
 `.claude/bin` with `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...`.
 
