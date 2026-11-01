@@ -80,9 +80,6 @@ func (mem *memory) migrate(ctx context.Context) error {
 	}
 
 	err = formatsteps.Run(ctx, component)
-	if errors.Is(err, formatsteps.ErrNewer) {
-		return err
-	}
 
 	mem.forgetRegistry()
 	mem.forgetShelves()
