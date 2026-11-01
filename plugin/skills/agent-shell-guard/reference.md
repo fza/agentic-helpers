@@ -11,6 +11,17 @@ tightens a guard: a looser value there is ignored
 (`refused: config.yaml may only tighten <key>; loosen it in Claude Code's settings`). Never route
 around that; ask the user.
 
+## Extra roots
+
+`shell_guard_extra_roots` (`<project>=<root>[;<root>]`, comma-separated, paths absolute or under
+`~`) lets the user open directories outside one project to its sessions: a removal or move source
+there, or the root itself, passes as inside the project; every other project still gets
+`outside project`. A link out of a root leads outside it. Only the user sets it, in Claude Code's
+settings: `config.yaml` never does (`agentic-helpers: config.yaml never sets shell_guard_extra_roots; <value> ignored`),
+nor a `CLAUDE_PLUGIN_OPTION_SHELL_GUARD_EXTRA_ROOTS` prefix. A malformed entry is ignored and named
+at session start: `agentic-helpers: shell_guard_extra_roots: <entry> ignored; <why>`. Cleaning up in
+another project often, with an ask each time: tell the user the option exists; never set it.
+
 ## Literal targets
 
 Literal = plain text, quotes around plain text, or `$'...'` with no escape but `\n` `\t` `\r` `\\`

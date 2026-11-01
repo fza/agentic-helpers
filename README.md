@@ -158,9 +158,10 @@ only stricter, `off` < `ask` < `deny`; `shell_guard_secret_output` only stricter
 `12h`, `90d`, `2w`), a Go duration as sdd prints one (`1m0s`), or `0`. `retired_body_days`, a number
 of days, is still read as `retired_body_lifetime` for one release, and `agentic-helpers check` names it. A looser value there is ignored, and
 `agentic-helpers config set` refuses it. `embedding_endpoint`, `embedding_path`,
-`embedding_api_key_env` and `shell_guard_secret_output_skip` are never read from `config.yaml`: the
-endpoint and key variable together could send any environment variable to a server the writer
-picks, and the path to a route there the writer picks. Loosen a guard or point the embedder elsewhere
+`embedding_api_key_env`, `shell_guard_secret_output_skip` and `shell_guard_extra_roots` are never
+read from `config.yaml`: the endpoint and key variable together could send any environment variable
+to a server the writer picks, the path to a route there the writer picks, and the last two only
+loosen shell-guard. Loosen a guard or point the embedder elsewhere
 in Claude Code's settings, behind its permission prompts.
 
 ### Turning pieces off
@@ -280,6 +281,7 @@ than its default.
 | `shell_guard_alternatives` | `true` | Refuses a command missing here (`timeout`) or a usage BSD `sed` or `date` gets wrong, naming the command that works, and names at session start what the machine needs |
 | `shell_guard_secret_output` | `all` | Hides output lines from outside the project that look like credentials. `files` checks only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; `off` checks nothing |
 | `shell_guard_secret_output_skip` | none | Claude Code's settings only. Tools whose output is never hidden, comma-separated. Patterns such as `mcp__sdd__*` work |
+| `shell_guard_extra_roots` | none | Claude Code's settings only. Directories outside a project its sessions may delete in and move from, as comma-separated `<project>=<root>[;<root>]` entries (`~/code/app=~/code/lib/.tmp`) |
 | `shell_guard_ask_timeout` | `2m` | How long an ask waits in `auto` and `bypassPermissions` mode before it denies (at most `1h`; `0` waits forever; a bare number counts seconds) |
 
 ## Dependencies

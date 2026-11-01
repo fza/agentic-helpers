@@ -302,6 +302,12 @@
       "description": "Comma-separated tool names or patterns, e.g. WebFetch, mcp__sdd__*; default none",
       "required": false
     },
+    "shell_guard_extra_roots": {
+      "type": "string",
+      "title": "Shell-guard: directories counted as a project's",
+      "description": "Comma-separated <project>=<root>[;<root>] entries, absolute or starting with ~, e.g. ~/code/app=~/code/lib/.tmp: removals and move sources under a root pass from that project's sessions alone; default none",
+      "required": false
+    },
     "shell_guard_ask_timeout": {
       "type": "string",
       "title": "Shell-guard: ask countdown",

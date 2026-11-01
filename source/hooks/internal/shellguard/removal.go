@@ -9,11 +9,13 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
 // judgeRemoval judges a removal that is the whole command: its targets must be
-// literal and lie strictly inside the project or /tmp.
+// literal and lie strictly inside the project or /tmp, or under an extra root
+// the project opens.
 func judgeRemoval(_ context.Context, args []*syntax.Word, workingDir string, env Env, options Options) Verdict {
 	values := make([]string, 0, len(args))
 	for _, arg := range args {
@@ -38,6 +40,7 @@ func judgeRemoval(_ context.Context, args []*syntax.Word, workingDir string, env
 
 	tmp := physical(env.Tmp)
 	base := physical(workingDir)
+	extra := extraRoots(options.ExtraRoots, root, env.Home)
 
 	var outside, unresolved []string
 
@@ -60,7 +63,7 @@ func judgeRemoval(_ context.Context, args []*syntax.Word, workingDir string, env
 		switch {
 		case resolved == "":
 			unresolved = append(unresolved, value)
-		case !within(resolved, root) && !within(resolved, tmp):
+		case !within(resolved, root) && !within(resolved, tmp) && !underAny(resolved, extra):
 			outside = append(outside, value)
 		}
 	}
@@ -202,6 +205,51 @@ func moveSources(args []*syntax.Word, targetOption bool) []*syntax.Word {
 	}
 
 	return operands[:len(operands)-1]
+}
+
+// extraRoots is every root an entry for the project opens, resolved as the
+// project is: `~` expanded, links followed, so a target reached through a
+// link out of a root lies outside it. A root resolving to the filesystem root
+// or the home directory opens nothing, as such a project is none.
+func extraRoots(entries []pluginconfig.ExtraRoot, project string, home string) []string {
+	resolvedHome := physical(home)
+
+	var roots []string
+
+	for _, entry := range entries {
+		if physical(expandHome(entry.Project, home)) != project {
+			continue
+		}
+
+		for _, root := range entry.Roots {
+			resolved := physical(expandHome(root, home))
+			if resolved != "/" && resolved != resolvedHome {
+				roots = append(roots, resolved)
+			}
+		}
+	}
+
+	return roots
+}
+
+func expandHome(written string, home string) string {
+	if strings.HasPrefix(written, "~/") {
+		return filepath.Join(home, written[1:])
+	}
+
+	return written
+}
+
+// underAny holds for a target that is one of the roots or lies below one: an
+// extra root, unlike the project, may itself be removed.
+func underAny(target string, roots []string) bool {
+	for _, root := range roots {
+		if target == root || within(target, root) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // within holds only strictly below the directory: the directory itself is

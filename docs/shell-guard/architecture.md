@@ -44,7 +44,11 @@ symlinks. A component starting with a dot and holding a glob character (`*?[`) l
 unresolvable, as bash without `globskipdots` matches `..` with `.*`; so does a `..` component, which
 the kernel takes after any symlink before it, where a lexical clean would not. A target passes when it lies strictly below the project or `/tmp`: the directory itself is
 never a target. The project is `$CLAUDE_PROJECT_DIR`, and none where it is unset, `/` or the home
-directory. Any target that fails, or no target, takes `shell_guard_outside_project`'s verdict
+directory. A target also passes when it is, or lies below, an extra root
+(`shell_guard_extra_roots`, read by `pluginconfig.ExtraRoots`) of an entry whose project resolves
+to the same physical path as the project; each root has `~` expanded and resolves through
+`physical` as the project does, so a link out of it leads outside, and one resolving to `/` or the
+home directory is dropped. Any target that fails, or no target, takes `shell_guard_outside_project`'s verdict
 naming each kind; a non-literal target denies under `shell_guard_expansion`, else takes that verdict
 as `cannot place`.
 
@@ -364,8 +368,9 @@ shows the user, and the output passes as returned. The launcher, finding no bina
 
 `internal/pluginconfig` reads every `shell_guard_*` option in the layers every other piece's
 options take, with `config.yaml` held to `TightenOnly`: a value there looser than the layer below
-is dropped and named, and `shell_guard_secret_output_skip`, in `NeverConfig`, is never read from
-it. `shell_guard_ask_timeout` is a span read by `internal/span`, a bare number counting seconds; above `1h` it reads as `1h`, under the hook's own
+is dropped and named, and `shell_guard_secret_output_skip` and `shell_guard_extra_roots`, in
+`NeverConfig`, are never read from it or the environment. `Resolve` adds each extra-roots entry
+`ExtraRoots` ignores to its problems, which `agentic-helpers check` prints. `shell_guard_ask_timeout` is a span read by `internal/span`, a bare number counting seconds; above `1h` it reads as `1h`, under the hook's own
 `timeout` in `hooks.json` (3660 seconds), past which Claude Code would stop the hook before it
 denies. `shell_guard_secret_output` takes `all`, `files` or `off`, empty
 reading as `all`; `shell_guard_secret_output_skip` is kept as written and split on commas by the

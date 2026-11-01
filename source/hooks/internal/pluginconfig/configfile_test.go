@@ -246,6 +246,7 @@ func TestConfigYAMLNeverSetsTheEmbedderOrTheSkipList(t *testing.T) {
 		{key: "embedding_path", value: "/collect"},
 		{key: "embedding_api_key_env", value: "GITHUB_TOKEN"},
 		{key: "shell_guard_secret_output_skip", value: "Bash"},
+		{key: "shell_guard_extra_roots", value: "~/a=~/b/.tmp"},
 	}
 
 	if len(cases) != len(pluginconfig.NeverConfig) {
@@ -305,6 +306,7 @@ func TestSetRefusesALooserGuardAndEveryKeyConfigNeverSets(t *testing.T) {
 		{key: "embedding_api_key_env", value: "GITHUB_TOKEN", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets embedding_api_key_env; set it in Claude Code's settings"},
 		{key: "embedding_api_key_env", value: "", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets embedding_api_key_env; set it in Claude Code's settings"},
 		{key: "shell_guard_secret_output_skip", value: "Bash", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets shell_guard_secret_output_skip; set it in Claude Code's settings"},
+		{key: "shell_guard_extra_roots", value: "~/a=~/b/.tmp", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets shell_guard_extra_roots; set it in Claude Code's settings"},
 		{key: "shell_guard_secrets", value: "deny"},
 		{key: "shell_guard_ask_timeout", value: "30"},
 		{key: "shell_guard_enabled", value: "true"},
