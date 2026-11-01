@@ -477,16 +477,11 @@ func TestAFullSubagentFilesOnItsOwnSeatThroughMCP(t *testing.T) {
 		t.Errorf("an MCP write by a full subagent should land on its own seat, got:\n%s", shown)
 	}
 
-	out = h.mcp(`{"name":"new","arguments":{"title":"Subagent finding by its call id","topic":["gate"],"body":"seen"},` +
+	out = h.mcp(`{"name":"new","arguments":{"title":"Finding without an agent key","topic":["gate"],"body":"seen"},` +
 		`"_meta":{"claudecode/toolUseId":"toolu_01NewFromSubagent"}}`)
-	if shown := h.must("", "show", idPattern.FindString(out)); !strings.Contains(shown, "main-2") {
-		t.Errorf("an MCP write by a full subagent without its agent key should be found by its call id, got:\n%s", shown)
-	}
-
-	out = h.mcp(`{"name":"new","arguments":{"title":"Main thread finding over MCP","topic":["gate"],"body":"seen"},` +
-		`"_meta":{"claudecode/toolUseId":"toolu_01FromMain"}}`)
 	if shown := h.must("", "show", idPattern.FindString(out)); strings.Contains(shown, "main-2") {
-		t.Errorf("an MCP call no subagent made should stay on the session's seat, got:\n%s", shown)
+		t.Errorf("an MCP call carrying no agent key should stay on the session's seat, whatever its call id, got:\n%s",
+			shown)
 	}
 }
 
@@ -666,35 +661,13 @@ func TestTheRulesAPromptGainsStayWithinAThirdOfTheBrief(t *testing.T) {
 	}
 }
 
-func TestAFullSubagentKeepsItsRecentCallsAlone(t *testing.T) {
-	h := newHarness(t)
-	h.must("", "claim", "main")
-	h.spawned("afull000000000006", "agentic-helpers: full")
-
-	for index := range 17 {
-		h.preTool("afull000000000006", "mcp__plugin_agentic-helpers_memory__new", map[string]any{},
-			fmt.Sprintf("toolu_%02d", index))
-	}
-
-	for _, each := range []struct {
-		id   string
-		ours bool
-	}{{"toolu_00", false}, {"toolu_16", true}} {
-		out := h.mcp(`{"name":"new","arguments":{"title":"Finding of call ` + each.id + `","topic":["gate"],"body":"b"},` +
-			`"_meta":{"claudecode/toolUseId":"` + each.id + `"}}`)
-		if shown := h.must("", "show", idPattern.FindString(out)); strings.Contains(shown, "main-2") != each.ours {
-			t.Errorf("only the subagent's recent calls should reach its seat, %s got:\n%s", each.id, shown)
-		}
-	}
-}
-
 func TestTheServerRefusesAFullSubagentsSeatCall(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.spawned("afull000000000007", "agentic-helpers: full")
 	h.preTool("afull000000000007", "mcp__plugin_agentic-helpers_memory__new", map[string]any{}, "toolu_01Claim")
 
-	out := h.mcp(`{"name":"release","arguments":{},"_meta":{"claudecode/toolUseId":"toolu_01Claim"}}`)
+	out := h.mcp(`{"name":"release","arguments":{"agent":"afull000000000007"}}`)
 	if !strings.Contains(out, "stays with the session that spawned the subagent") {
 		t.Errorf("the server should refuse a seat call a full subagent made, got:\n%s", out)
 	}

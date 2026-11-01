@@ -267,17 +267,26 @@ func (mem *memory) indexTraps(folded *state, seatName string) int {
 	return len(index.Traps) + len(index.Notes)
 }
 
-// trapNotices tells the session, once per trap until its next compaction,
-// about every trap the call touches: a file it anchors to, or a trigger its
-// `--when` names.
-func (mem *memory) trapNotices(ctx context.Context, seatName string, session string, call toolCall) []string {
+// trapNotices tells the calling agent, once per trap until its context
+// empties, about every trap the call touches: a file it anchors to, or a
+// trigger its `--when` names. The main thread's notices mark the session's
+// shown set, a subagent's its own, a fork's starting from its spawner's.
+func (mem *memory) trapNotices(ctx context.Context, seatName string, session string, payload hookio.Payload,
+	call toolCall,
+) []string {
 	var index trapIndex
 	if !mem.readSlot(mem.trapIndexKey(seatName), &index) {
 		return nil
 	}
 
+	key := mem.shownKey(session)
+	if payload.AgentID != "" {
+		mem.adoptSpawn(payload)
+		key = mem.agentShownKey(session, payload.AgentID)
+	}
+
 	var shown shownSet
-	mem.readSlot(mem.shownKey(session), &shown)
+	mem.readSlot(key, &shown)
 
 	matched := map[string]string{}
 
@@ -344,7 +353,7 @@ func (mem *memory) trapNotices(ctx context.Context, seatName string, session str
 		shown.Notes = append(shown.Notes, told.id)
 	}
 
-	_ = mem.writeSlot(mem.shownKey(session), &shown)
+	_ = mem.writeSlot(key, &shown)
 
 	return lines
 }

@@ -117,22 +117,12 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 		return mcpserver.Refusal(fmt.Sprintf("%s: the arguments do not fit %s: %v", self, held.name, err))
 	}
 
-	// The PreToolUse hook names the calling subagent in `agent`; a full
-	// subagent's call reaching the server without it is still known by the
-	// call id the hook kept, and works on that subagent's seat.
-	switch record, bySubagent := mem.subagentOfCall(ctx, mcpserver.CallID(ctx)); {
-	case agentID != "":
+	// The PreToolUse hook names the calling subagent in `agent`.
+	if agentID != "" {
 		why := mem.actAs(mem.callerSession(ctx), agentID, held.name, agentKey)
 		if why != "" {
 			return mcpserver.Refusal(self + ": " + why)
 		}
-	case bySubagent:
-		why := subagentRefusal(held.name, record.level())
-		if why != "" {
-			return mcpserver.Refusal(why)
-		}
-
-		mem.acting = record.Seat
 	}
 
 	err = exactKeys(held, arguments)

@@ -474,13 +474,14 @@ A seat held for a `full` subagent carries `agent`: `pending` from the spawn unti
 first hook names it, then its agent id. Its claim names the session and its `claude` process, as
 the session's own does, so every lookup by process (`seat.Of`) or by session (`seat.OfSession`), and
 the inheritance of a resumed or forked session, passes it over: a subagent's call shares its
-spawner's process and session id, and only `--agent <agent-id>` on the command line, the key `agent`
-of an MCP call, or an MCP call whose `tool_use_id` the subagent's record keeps
-(`mcpserver.CallID`, read from the call's `_meta` `claudecode/toolUseId`), reaches it. The record
-is the session's `agents/<session>` slot: each subagent's level, its seat's key at `full`, and its
-latest MCP call ids, at most 16. The command line looks the agent up under
-`CLAUDE_CODE_SESSION_ID`; the server under the session its caller's seat claim names, else the one
-it started in, since a `/clear` leaves the server's environment behind.
+spawner's process and session id, and only `--agent <agent-id>` on the command line or the key
+`agent` of an MCP call reaches it. Claude Code hands an MCP tool the input a PreToolUse hook's
+`updatedInput` rewrote, so the `agent` the hook sets reaches the server; a join on the call's
+`_meta` `claudecode/toolUseId` is rejected: a second path to the same subagent, with records to
+keep. The record is the session's `agents/<session>` slot: each subagent's level and its seat's key
+at `full`. The command line looks the agent up under `CLAUDE_CODE_SESSION_ID`; the server under the
+session its caller's seat claim names, else the one it started in, since a `/clear` leaves the
+server's environment behind.
 
 A subagent's level is read back from the level line its own transcript opens with, or from the
 PostToolUse of a background Agent call. A fork's transcript opens with a `fork-context-ref` record
@@ -488,7 +489,9 @@ instead, so the PreToolUse hook on an Agent call whose `subagent_type` is `fork`
 granted, a `full` one's seat, and the spawner's shown set as it stands (the session's, or the
 spawning subagent's own) in the slot `spawn/<session>/<tool_use_id>`. The fork's first hook finds
 the call's id in `agent-<agent-id>.meta.json` (`toolUseId`) beside its transcript, learns its level
-from that slot, and its first memory call copies the set into its own and removes the slot.
+from that slot, and its first memory call or trap check copies the set into its own and removes the
+slot. The slot is kept for a fork at every level, since trap and note notices reach one below
+`silent` too.
 
 `fork_uuid` is the uuid a fork of the holder's session would start its transcript with. A fork
 names no parent and runs under a session id of its own, but copies the parent's records with their
@@ -852,8 +855,10 @@ each trap's id, anchored paths and triggers, and each note or todo declaring `--
 (`notes`, the paths as `new` stored them in the event's `about`), rebuilt whenever the hook finds the
 log changed, and removed where the seat holds neither. The seat's seen mark records how many it held
 then (`traps`), so a seat holding none reads nothing more on a tool call than it did before. A trap or
-note told is added to the session's shown set (the slot `shown/<session>`, `traps` and `notes`), which a
-compaction, `/clear` and a resume empty. The same slot holds what reads printed: `ids`, each entry
+note told is added to the calling agent's shown set, picked by the payload's `agent_id`: the
+session's (the slot `shown/<session>`, `traps` and `notes`) for the main thread, the subagent's own
+for a subagent, at every level, a fork's first taking over its spawn slot. A compaction, `/clear` and
+a resume empty the session's. The same slot holds what reads printed: `ids`, each entry
 whose line a brief, recall or read printed, and `bodies`, each whose body `show` or a view printed,
 both as `<id>@<digest>`, the digest over the entry's full line and its event count, so an entry that
 changed since never matches. A read opens the set once for the seated session it runs in and writes

@@ -336,8 +336,8 @@ The levels form a ladder, each holding everything of the one below:
 - **`full` files on its own seat.** The seat is held at the spawn, waits for the subagent's first
   hook to name its agent id, and closes when SubagentStop fires for it, or when the session ends.
   Its entries name it, its state slot is its own, and notices run both ways through the shelf. The
-  `--agent` or `agent` of its calls points them at that seat. Over MCP a call carrying no `agent`
-  is still found by its call id (`_meta` `claudecode/toolUseId`), which the PreToolUse hook kept.
+  `--agent` or `agent` of its calls points them at that seat; a memory MCP call carrying no `agent`
+  works on the session's seat.
 - **Each subagent has its own shown set** ([Each entry once per context](#each-entry-once-per-context)).
   A fresh subagent's starts empty, so its first read of an entry prints it in full; a fork's starts
   as a copy of its spawner's set at the spawn, since a fork inherits its spawner's context. The hook
@@ -347,15 +347,21 @@ The levels form a ladder, each holding everything of the one below:
   reads never touch its spawner's set. SubagentStop and the session's end remove the subagent's set.
 - **Notices are the subagent's own.** A `shared` subagent's notices run against a mark of its own,
   so the seat is still told of what its subagent was told; a `full` one's are its seat's.
+- **Trap and note notices mark the calling agent's own shown set**, at every level: the PostToolUse
+  hook picks the set by the payload's `agent_id`, the session's for the main thread, the subagent's
+  own (`shown/<session>/agent/<agent-id>`) for a subagent, a fork's starting from its spawner's copy
+  at the spawn. A subagent touching a trapped file is told, and its spawner touching it afterwards
+  is told too; a fresh subagent is told of a trap its spawner already heard, a fork spawned after
+  that is not. A trap can so be told several times in a session, once to each agent touching it.
 
 **Accepted costs.** A spawner that forgets the line leaves its subagent at `none`. A prompt
 carrying two marker lines meant for the same child shows it the second as text. A level fixed at
 the spawn does not change while the subagent runs. An `agentic-memory` call a script file makes is
-out of the hook's reach: it works on the session's own seat and marks the session's shown set. The
-MCP join on the call id and the spawn's id in the subagent's `.meta.json` are observed in Claude
-Code, not documented. One more key, `agent`, in every memory MCP tool's schema, which every agent
-loading a memory tool sees. A subagent continued after its SubagentStop prints in full again what
-it read before.
+out of the hook's reach: it works on the session's own seat and marks the session's shown set. That
+Claude Code hands a memory MCP tool the `agent` the PreToolUse hook's `updatedInput` sets, and the
+spawn's id in the subagent's `.meta.json`, are observed in Claude Code, not documented. One more
+key, `agent`, in every memory MCP tool's schema, which every agent loading a memory tool sees. A
+subagent continued after its SubagentStop prints in full again what it read before.
 
 ## Shelves
 
@@ -706,7 +712,8 @@ path tokens, found as anchors are found. `<what matched>` is the path, the match
 command, or the tool name. The match runs after the call, so a Bash edit or a Write of a new file is
 told only once it ran; Claude Code's Edit refuses a file not read in the session, so for Edit the
 notice lands on the Read before it. A trap told in a session is told again after a compaction or in
-the next session. A trap received through `--for` or a followed topic triggers as the seat's own.
+the next session. Each agent hears it once: a subagent's notice marks its own shown set, never its
+spawner's ([Subagents](#subagents)). A trap received through `--for` or a followed topic triggers as the seat's own.
 `--when` on any kind but `trap` is refused, `--when is for a trap: a tool call touching what the trap
 is about`, as is a malformed trigger or an invalid pattern: `--when: a trigger takes path:<glob>,
 command:<regex> or tool:<name>, not "<trigger>"`. A line names the triggers as `when: <trigger>, ...`.

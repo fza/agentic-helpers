@@ -808,7 +808,7 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	}
 
 	if holdsTraps {
-		notes = append(notes, mem.trapNotices(ctx, name, session, callNow())...)
+		notes = append(notes, mem.trapNotices(ctx, name, session, payload, callNow())...)
 	}
 
 	mem.proveDoNow(ctx, name, session, callNow)

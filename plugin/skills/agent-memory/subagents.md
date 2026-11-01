@@ -81,5 +81,9 @@ read of an entry prints it in full, its next one `<id> <title> (seen)`, so no `-
 starts with what its spawner was shown before the spawn, which its inherited context holds. What a
 subagent reads never turns into a pointer for its spawner.
 
+Trap and note notices (`agentic-memory: trap for <what matched>:`, `agentic-memory: about <path>:`)
+reach a subagent at every level and go by the same record: a fresh subagent is told of a trap its
+spawner already heard, a fork is not, and a notice a subagent got is still told to its spawner.
+
 An `agentic-memory` call a script file makes is out of the hook's reach: it works on the session's
 own seat and counts as the session's read.

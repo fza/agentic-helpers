@@ -54,10 +54,6 @@ func levelNamed(name string) (level, bool) {
 // until the subagent's first hook says its id.
 const agentPending = "pending"
 
-// subagentCalls bounds the MCP call ids a subagent's record keeps: the server
-// reads a call's id while that call runs, long before the next few start.
-const subagentCalls = 16
-
 // rulesChars bounds the rules a subagent's prompt gains, a third of the brief,
 // as the brief bounds its own rules section.
 const rulesChars = briefBudget / 3
@@ -131,11 +127,10 @@ func rewritePrompt(prompt string, block []string) string {
 }
 
 // subagentRecord is what a session keeps of one of its subagents: its level
-// and, at full, the key of the seat it holds and the MCP calls it made there.
+// and, at full, the key of the seat it holds.
 type subagentRecord struct {
-	Level string   `json:"level"`
-	Seat  string   `json:"seat,omitempty"`
-	Calls []string `json:"calls,omitempty"`
+	Level string `json:"level"`
+	Seat  string `json:"seat,omitempty"`
 }
 
 func (record subagentRecord) level() level {
@@ -307,10 +302,11 @@ func (mem *memory) spawnOf(payload hookio.Payload) (forkSpawn, bool) {
 
 // keepForFork keeps what a fork the Agent call spawns takes over at its
 // first hook: the spawner's shown set as it stands, the main thread's or the
-// spawning subagent's own.
+// spawning subagent's own. A fork at every level takes it, since trap and
+// note notices reach a fork below silent too.
 func (mem *memory) keepForFork(payload hookio.Payload, granted level, seatName string) {
-	if payload.ToolInput.SubagentType != "fork" || payload.ToolUseID == "" || granted < levelSilent ||
-		!mem.recordable() || payload.SessionID == "" {
+	if payload.ToolInput.SubagentType != "fork" || payload.ToolUseID == "" || !mem.recordable() ||
+		payload.SessionID == "" {
 		return
 	}
 
@@ -678,8 +674,7 @@ const agentKey = "agent"
 // guardTool answers the PreToolUse hook on a memory MCP tool: an `agent` the
 // main thread sends is refused; a subagent's call its level does not allow is
 // refused, and every other call of one gains `agent` naming it, any it
-// carried replaced. A full one's call id is kept too, for the server to find
-// a call reaching it without the key.
+// carried replaced.
 func (mem *memory) guardTool(ctx context.Context, payload hookio.Payload) int {
 	if payload.AgentID == "" {
 		var sent map[string]json.RawMessage
@@ -702,13 +697,6 @@ func (mem *memory) guardTool(ctx context.Context, payload hookio.Payload) int {
 		return 0
 	}
 
-	if record.level() == levelFull && payload.ToolUseID != "" {
-		mem.changeSubagent(ctx, payload.SessionID, payload.AgentID, func(held *subagentRecord) {
-			held.Calls = append(held.Calls, payload.ToolUseID)
-			held.Calls = held.Calls[max(0, len(held.Calls)-subagentCalls):]
-		})
-	}
-
 	mem.adoptSpawn(payload)
 
 	updated, err := payload.ToolInput.WithField(agentKey, payload.AgentID)
@@ -719,40 +707,6 @@ func (mem *memory) guardTool(ctx context.Context, payload hookio.Payload) int {
 	_ = hookio.Rewrite(mem.streams.Out, updated)
 
 	return 0
-}
-
-// subagentOfCall is the record of the full subagent that made the MCP call
-// with the id, found among every session's subagents.
-func (mem *memory) subagentOfCall(ctx context.Context, callID string) (subagentRecord, bool) {
-	if callID == "" || !mem.recordable() {
-		return subagentRecord{}, false
-	}
-
-	held, err := mem.slotFile().All(ctx)
-	if err != nil {
-		return subagentRecord{}, false
-	}
-
-	for _, slot := range held {
-		if !strings.HasPrefix(slot.Key, "agents/") {
-			continue
-		}
-
-		var table subagentTable
-
-		err = json.Unmarshal(slot.Value, &table)
-		if err != nil {
-			continue
-		}
-
-		for _, record := range table.Agents {
-			if slices.Contains(record.Calls, callID) {
-				return record, true
-			}
-		}
-	}
-
-	return subagentRecord{}, false
 }
 
 // actAs points the run at the session's subagent agentID, which the PreToolUse
@@ -822,7 +776,7 @@ func (mem *memory) subagentStop(ctx context.Context, _ []string) int {
 
 	mem.releaseSubagentSeat(ctx, record.Seat)
 	mem.changeSubagent(ctx, payload.SessionID, payload.AgentID, func(held *subagentRecord) {
-		held.Seat, held.Calls = "", nil
+		held.Seat = ""
 	})
 
 	return 0
