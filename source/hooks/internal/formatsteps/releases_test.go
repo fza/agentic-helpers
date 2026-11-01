@@ -17,6 +17,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
+	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
@@ -155,6 +156,13 @@ func (run releaseRun) liveClaim() {
 		claim["pid"], claim["started"] = claimOwnerPID, test.OwnerStart.UTC().Format(time.RFC3339)
 		raw, _ = json.Marshal(claim)
 		test.WriteFile(run.t, path, string(raw))
+	}
+
+	// The rewrite is the test's, not the release's: a fixture from a release
+	// keeping a ledger lists the bytes it wrote, and a read refreshes nothing.
+	err = space.Refresh(context.Background(), run.roots().Data, run.storeOf(home.Memory), nil)
+	if err != nil {
+		run.t.Fatal(err)
 	}
 }
 
