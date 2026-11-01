@@ -307,10 +307,11 @@ func (mem *memory) spawnOf(payload hookio.Payload) (forkSpawn, bool) {
 
 // keepForFork keeps what a fork the Agent call spawns takes over at its
 // first hook: the spawner's shown set as it stands, the main thread's or the
-// spawning subagent's own.
+// spawning subagent's own. A fork at every level takes it, since trap and
+// note notices reach a fork below silent too.
 func (mem *memory) keepForFork(payload hookio.Payload, granted level, seatName string) {
-	if payload.ToolInput.SubagentType != "fork" || payload.ToolUseID == "" || granted < levelSilent ||
-		!mem.recordable() || payload.SessionID == "" {
+	if payload.ToolInput.SubagentType != "fork" || payload.ToolUseID == "" || !mem.recordable() ||
+		payload.SessionID == "" {
 		return
 	}
 
