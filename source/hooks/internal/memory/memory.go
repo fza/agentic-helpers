@@ -97,6 +97,16 @@ type Env struct {
 	// Releases asks GitHub for the latest release on a claim; nil asks
 	// nothing and shows no update notice.
 	Releases updates.Client
+	// Starter starts Executable, this agentic-memory binary, in a process
+	// that outlives the hook starting it: a landed-commit round. Nil starts
+	// none, and no round runs.
+	Starter    Starter
+	Executable string
+}
+
+// Starter starts a process that outlives its caller.
+type Starter interface {
+	Start(ctx context.Context, path string, args ...string) error
 }
 
 // agent names the agent whose sessions memory reads, under

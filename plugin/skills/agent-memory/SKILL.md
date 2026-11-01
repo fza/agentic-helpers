@@ -247,6 +247,9 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   since the seat's newest write; its fold lines ([reference.md](reference.md)) obey the fold rule.
   Before relying on old entries → `agentic-memory view --layout 'active:mine:returns:as-list'` ([view.md](view.md)).
 - **Every prompt → up to three related entries.**
+- **A todo or trap is a lead, not a fact.** Before presenting open work to the user, check it
+  against the repository; tick or retire a todo in the turn its work lands. `landed commits may
+  settle live work` or `retire? landed: <sha>` → check each, then its command.
 - **`Context near compaction. Write where work stands first: ...`** → write the state, file what
   outlives the moment. Measured against Claude Code's compaction window. Fires at most twice until
   answered; ignored twice → `Stop` holds with `Memory overdue, two nudges unanswered: write where work stands with
@@ -275,6 +278,6 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 | a file bigger than a body, `attached file`, `attachment` | [attachments.md](attachments.md) |
 | a question no flag answers, `returns`, `layout:` refusals | [view.md](view.md) |
 | `no store is bound to the checkout`, `keep their memory in two stores`, `from the store`, `is not offered for this checkout`, `is this checkout's own store`, `migrating to`, `writers.json cannot be read` | [store.md](store.md) |
-| `due (`, `due later`, `due for`, `--due`, `due <id>`, `retire? due`, `still holds; file it again`, `from other seats:`, `more notes:`, `holds a todolist`, `list lines in the text`, `settled (`, `→ tool`, `release <new> is out`, `seat moved from` | [reference.md](reference.md) |
+| `due (`, `due later`, `due for`, `--due`, `due <id>`, `retire? due`, `still holds; file it again`, `from other seats:`, `more notes:`, `holds a todolist`, `list lines in the text`, `no end declared`, `landed:`, `settled (`, `→ tool`, `release <new> is out`, `seat moved from` | [reference.md](reference.md) |
 | `retain`, cross-repo links, `--json`, MCP key or value refusals, `.memory/carryforward`, `off on this machine`, launcher claims (`--session`), `holder` | [reference.md](reference.md) |
 | `agentic-helpers level:`, `the subagent runs at agentic-helpers level`, `stays with the session that spawned the subagent`, `--agent`; spawning a subagent | [subagents.md](subagents.md) |

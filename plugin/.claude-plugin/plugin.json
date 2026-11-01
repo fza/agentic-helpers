@@ -84,6 +84,12 @@
       "min": 1,
       "required": false
     },
+    "landed_scan_interval": {
+      "type": "string",
+      "title": "Landed-commit scan interval",
+      "description": "How often the memory hooks scan the checkout's history for commits that may settle a live todo or trap, a span such as 10m or 1h, at least 1m; a git merge, commit, pull, rebase or cherry-pick scans at once; default 10m",
+      "required": false
+    },
     "entry_id_length": {
       "type": "number",
       "title": "Entry id length",

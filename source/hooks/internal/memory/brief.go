@@ -329,8 +329,27 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 	candidates := mem.retireCandidates(ctx, folded, seatName)
 	flagged := map[string][]string{}
 
+	var flaggedOrder []string
+
 	for _, candidate := range candidates {
 		flagged[candidate.held.id] = []string{candidate.flag()}
+		flaggedOrder = append(flaggedOrder, candidate.held.id)
+	}
+
+	// A landed commit's mapping rides the line of the entry it may settle, and
+	// is delivered once that line printed.
+	landed := mem.landedFor(folded, seatName)
+	landedOn := map[string]bool{}
+
+	for _, mapping := range landed {
+		id, _, _ := strings.Cut(mapping.Target, "#")
+		landedOn[id] = true
+
+		if _, known := flagged[id]; !known {
+			flaggedOrder = append(flaggedOrder, id)
+		}
+
+		flagged[id] = append(flagged[id], landedFlag(mapping))
 	}
 
 	printed := map[string]bool{}
@@ -402,7 +421,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 			// before; a run of them folds into one line, unless a citer
 			// follows one.
 			cited := citingLines(one, listed, seatName, "    ")
-			if mem.seen.hasLine(one) && len(cited) == 0 {
+			if mem.seen.hasLine(one) && len(cited) == 0 && !landedOn[one.id] {
 				run = append(run, one)
 
 				continue
@@ -419,7 +438,18 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 			fresh := !mem.seen.hasLine(one)
 
-			if !mem.addLine(out, "  ", one, shortLine(here, one, seatName, now, extra...)) {
+			// A landed flag is news the line seen before lacked, so the line
+			// prints whole.
+			line := shortLine(here, one, seatName, now, extra...)
+			var printedLine bool
+
+			if landedOn[one.id] {
+				printedLine = out.add("  " + line)
+			} else {
+				printedLine = mem.addLine(out, "  ", one, line)
+			}
+
+			if !printedLine {
 				missing++
 
 				continue
@@ -447,19 +477,36 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 	var unprinted []string
 
-	for _, candidate := range candidates {
-		if !printed[candidate.held.id] {
-			unprinted = append(unprinted, fmt.Sprintf("  %s %s  %s", candidate.held.id, candidate.held.title, candidate.flag()))
+	unprintedIDs := map[string]bool{}
+
+	for _, id := range flaggedOrder {
+		if !printed[id] {
+			unprinted = append(unprinted, id)
 		}
 	}
 
 	if len(unprinted) > 0 {
 		out.add("retire?")
 
-		for _, text := range unprinted {
-			out.add(text)
+		for _, id := range unprinted {
+			if out.add(fmt.Sprintf("  %s %s  %s", id, folded.entries[id].title, strings.Join(flagged[id], "; "))) {
+				unprintedIDs[id] = true
+			}
 		}
 	}
+
+	var delivered []landedMapping
+
+	for _, mapping := range landed {
+		id, _, _ := strings.Cut(mapping.Target, "#")
+		if printed[id] || unprintedIDs[id] {
+			delivered = append(delivered, mapping)
+		}
+	}
+
+	// The store keeps pending mappings alone: those this brief delivered go,
+	// and with them every one whose entry or item ended.
+	mem.dropLanded(folded, delivered)
 
 	var news []*entry
 

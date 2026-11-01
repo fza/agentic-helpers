@@ -292,6 +292,11 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		lines = append(lines, fmt.Sprintf("%d list lines in the text; steps go into --item", counted))
 	}
 
+	// A todo with no end tied to its work stays live after the work lands.
+	if kind == kindTodo && len(req.Until) == 0 && listedItems == 0 {
+		lines = append(lines, todoEndHint)
+	}
+
 	lines = append(lines, mem.filingNotes(ctx, folded, held, existing, req.Absorbs)...)
 	lines = append(lines, mem.forbidden(folded, held, name)...)
 

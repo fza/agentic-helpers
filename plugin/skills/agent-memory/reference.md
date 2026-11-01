@@ -58,6 +58,23 @@ agentic-memory holder --session <id> --json
   without → `<id> holds a todolist; pass --items carry or --items leave`.
 - `<n> list lines in the text; steps go into --item` after filing → those lines were steps: file a
   todo with `--item`, supersede the one just filed.
+- `no end declared: --until merged:<branch> ...` after filing a todo → nothing ties it to its work
+  landing: supersede it with `--until merged:<branch>` where the branch is known, or with items
+  splitting the work (`--item build --item capture`), so the landed part ends without the rest.
+
+## Landed work
+
+The hooks scan git for commits that may settle a live todo, item or trap (by a linked graph id in
+the message, a branch, a changed anchored or `--about` path, or a similar subject) and keep each
+match until told once. Never retired by the tool: a match is evidence.
+
+- Brief: `retire? landed: <sha> <subject>` ending an entry's line, `ack #<item>? landed: ...` an
+  item's. Prompt or tool call: `agentic-memory: landed commits may settle live work; check each
+  against the repository, then: <id> by <sha> "<subject>" (<test>): <command>; ...`.
+- Check the commit (`git show <sha>`): the work done → run the named `retire` or `ack ... --done`;
+  part done → tick the items it covers; not this work → nothing, the line does not return.
+- A `merged:` end survives the branch's deletion: its recorded tip, or the second parent of a
+  `Merge branch '<branch>'` merge, reaching the target ends it.
 
 ## Tool links
 

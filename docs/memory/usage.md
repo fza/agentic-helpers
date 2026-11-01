@@ -988,7 +988,7 @@ on one is refused.
 | Condition | Reached when |
 |---|---|
 | `closed:<graph id>` | the graph entry is closed or superseded, as the cached `sdd export` says; a connected repo's entry is named `<repo_id>:<id>`, or bare where exactly one connected repo holds it, and kept qualified as a link is |
-| `merged:<branch>` | the branch's tip is an ancestor of the default branch: the target of `refs/remotes/origin/HEAD`, else `main` |
+| `merged:<branch>` | the branch's tip is an ancestor of the default branch: the target of `refs/remotes/origin/HEAD`, else `main`; a deleted branch counts by its recorded tip (below) |
 | `merged:<branch>@<into>` | the branch's tip is an ancestor of `<into>` |
 | `changed:<path>` | the path's content hash differs from its hash at filing |
 | `gone:<path>` | the path no longer exists |
@@ -996,6 +996,13 @@ on one is refused.
 | `session` | the filing seat's claim at filing ends: closed by `release` or the session's end, or freed and replaced by another claim; a `/clear` or `/resume` keeps the claim and ends nothing |
 | `at:<time>` | the time has come: RFC 3339, or a date meaning its start in local time |
 | `captured` | the entry links a graph entry filed after it |
+
+A merged branch is routinely deleted, so `merged:` outlives the branch. Every probe of the end
+records the branch's tip while the branch exists; a [landed-commit round](#landed-work) also takes
+it from a merge git subjected by default, `Merge branch '<branch>'` (optionally ` into <x>`), whose
+second parent is the branch's tip, so a branch created, merged and deleted between two probes is
+known too. Once the branch is gone, the end is reached when the recorded tip is an ancestor of the
+target. A branch never seen and never merged under that subject keeps the end armed.
 
 A path is relative to the work tree's root. A malformed condition is refused naming the forms:
 `--until takes closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim,
@@ -1048,6 +1055,59 @@ reason for it. A todo's links to memory entries never infer its end, only its gr
 ends by its own work, not by the request or finding it links back to. A trap or a note still infers
 from memory links, so a trap linked to its fix todo is flagged once that todo ends. `returns`
 infers `until end inferred: every link ended` the same way.
+
+### Landed work
+
+A todo or trap whose work landed in git would otherwise stay live until someone remembers it. The
+memory hooks look for commits that may settle a live todo, open todo item or trap of the store, and
+tell the seat holding it. Nothing is retired: a match is evidence, and the agent checks it against
+the repository, then answers it.
+
+A todo filed with neither `--until` nor `--item` gets one reply line, since nothing ties it to the
+work landing:
+
+    no end declared: --until merged:<branch> ends it at its merge; or split the work into items, such as --item build --item capture
+
+**When a round runs.** At `UserPromptSubmit` and `PostToolUse`, once `landed_scan_interval` (10
+minutes unless set) passed since the checkout's last round, and at the `PostToolUse` of a Bash call
+running `git merge`, `commit`, `pull`, `rebase` or `cherry-pick` whatever the interval. The hook only
+starts the round, `agentic-memory landed-round`, in a process of its own and returns at once; what a
+round finds reaches the seat at a later hook. One round runs per checkout at a time.
+
+**What a round reads.** Each checkout keeps a scan mark: the last commit a finished round examined.
+A round reads the commits reachable from `HEAD` and not from the mark (`<mark>..HEAD`), oldest
+first, in one `git log` stream, at most 200 of them; the rest wait for the next round, the mark
+moving to the last one processed. A mark `HEAD` no longer descends from (a rebase, a reset, a branch
+switch) gives way to the commits dated after it. A checkout's first round starts at the oldest
+filing time among the live todos, items and traps; with none, it only sets the mark. A todo or trap
+matches only commits dated at or after its filing, an item only those at or after it was added.
+
+**The tests.** A commit matches when any one holds:
+
+| Test | Holds where | Strength |
+|---|---|---|
+| `id` | its full message names a graph entry the todo, item or trap links to: the full id, `<repo-id>:<id>`, or the short id (`d-tac-pu1`) where exactly one linked entry carries it | 1.0 |
+| `branch` | its subject or a merge's branch names the branch of a `merged:` end, or a merge's branch is one the entry's text names (never `main`, `master`, `trunk` or `develop`) | 1.0 |
+| `path` | it changes a path the entry is anchored to or names with `--about` | 0.5 |
+| `subject` | the store's embedder places its subject close to the entry's or item's text; an embedder outage or none skips this test alone | the cosine stretched to 0..1 above the threshold |
+
+A merge is judged with every commit it brings in, the commits reachable from its later parents and
+not its first: a test any of them passes maps the entry to the merge, naming the commit that
+matched, and none of them is judged again on its own. Where several commits match one entry or
+item, the one scoring highest is reported, `0.8 × strength`, plus `0.2` for a merge, the newer
+winning a tie: a direct commit beats a merge only by more than 0.25 of strength. One mapping stands
+per entry or item; a later round replaces an undelivered one only with a higher score.
+
+**Delivery.** A mapping is kept in the store, across sessions and claims, until the seat holding the
+entry is told, then dropped; one whose entry is retired or superseded, or whose item is ticked,
+goes unannounced. The claim brief and the post-compaction brief end the entry's line with
+`retire? landed: <sha> <subject>`, an item's mapping with `ack #<item>? landed: <sha> <subject>`. A
+running session gets one line at its next prompt or tool call (the main thread's, never a
+subagent's), hidden from the user:
+
+    agentic-memory: landed commits may settle live work; check each against the repository, then: <id> by <sha> "<subject>" (<test>): agentic-memory retire <id> --because 'landed in <sha>'; <todo>#<item> by ...: agentic-memory ack <todo>#<item> --done
+
+No Stop hook carries it: Stop feedback always shows in the user's terminal.
 
 ## Search
 
@@ -1559,6 +1619,7 @@ to a route there the writer picks.
 | `embedding_source` | no longer in the plugin's dialog, still read where a layer sets it, and named at session start: `sdd` always takes sdd's embedder, `own` never runs sdd, `auto` changes nothing; an `off` provider wins over it |
 | `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
+| `landed_scan_interval` | how often the prompt and tool hooks scan the checkout's history for commits that may settle a live todo or trap ([Landed work](#landed-work)), a span; `10m` unless set, never under `1m`. A Bash call running `git merge`, `commit`, `pull`, `rebase` or `cherry-pick` scans at its PostToolUse whatever the interval |
 | `retired_body_lifetime` | `config.yaml` only: how long a retired entry keeps its body, a span (`90d`, `6w`); `90d` unless set, never under `14d`. The older `retired_body_days` (a number of days) is still read for one release, and `agentic-helpers check` names it |
 | `entry_id_length` | the characters after `m-` in a new entry id |
 | `brief_note_limit` | the notes the brief prints, hottest first, 10 unless set; past it `+<n> more notes: agentic-memory brief --kind note  (run before concluding no note applies)` |

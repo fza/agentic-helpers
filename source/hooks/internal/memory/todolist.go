@@ -71,6 +71,9 @@ type itemPayload struct {
 type todoItem struct {
 	ID, Text, Link, State, Reason, From string
 	Set                                 bool
+	// added is when the item joined this todo, the floor below which no
+	// landed commit settles it.
+	added time.Time
 }
 
 func (held *entry) item(id string) *todoItem {

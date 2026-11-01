@@ -155,6 +155,10 @@ type endProbe struct {
 	statuses map[string]graphState
 	asked    bool
 	branches map[string]branchState
+	// present is each branch a probe found, recorded the tip a probe or a
+	// merge's parents last gave each watched branch.
+	present  map[string]bool
+	recorded map[string]string
 }
 
 type branchState struct {
@@ -163,7 +167,7 @@ type branchState struct {
 }
 
 func (mem *memory) probe(ctx context.Context) *endProbe {
-	return &endProbe{mem: mem, here: mem.checkout(ctx), branches: map[string]branchState{}}
+	return &endProbe{mem: mem, here: mem.checkout(ctx), branches: map[string]branchState{}, present: map[string]bool{}}
 }
 
 // met is whether held reached the end the condition declares.
@@ -179,9 +183,7 @@ func (probe *endProbe) met(ctx context.Context, held *entry, end condition) bool
 
 		return status == "closed-by" || status == "superseded-by"
 	case "merged":
-		state := probe.branch(ctx, end.value)
-
-		return state.exists && state.merged
+		return probe.branch(ctx, end.value).merged
 	case "changed":
 		hash, _ := probe.here.fileHash(filepath.Join(probe.here.root, filepath.FromSlash(end.value)))
 
@@ -206,7 +208,10 @@ func (probe *endProbe) met(ctx context.Context, held *entry, end condition) bool
 }
 
 // branch is whether a `merged:` branch exists and has its tip on its target:
-// the default branch, the target of refs/remotes/origin/HEAD, else main.
+// the default branch, the target of refs/remotes/origin/HEAD, else main. A
+// branch that exists has its tip recorded; one that is gone counts as merged
+// where its recorded tip is on the target, since a merged branch is routinely
+// deleted. A branch never seen stays unmerged.
 func (probe *endProbe) branch(ctx context.Context, value string) branchState {
 	known, asked := probe.branches[value]
 	if asked {
@@ -221,10 +226,15 @@ func (probe *endProbe) branch(ctx context.Context, value string) branchState {
 	git := probe.mem.env.Git
 	state := branchState{}
 
-	_, err := git.Output(ctx, probe.here.root, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch)
+	tip, err := git.Output(ctx, probe.here.root, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch)
 	if err == nil {
 		state.exists = true
+		probe.present[branch] = true
+		probe.recordTip(branch, strings.TrimSpace(tip))
 		_, err = git.Output(ctx, probe.here.root, "merge-base", "--is-ancestor", "refs/heads/"+branch, into)
+		state.merged = err == nil
+	} else if recorded := probe.tips()[branch]; recorded != "" {
+		_, err = git.Output(ctx, probe.here.root, "merge-base", "--is-ancestor", recorded, into)
 		state.merged = err == nil
 	}
 
@@ -465,7 +475,12 @@ func (probe *endProbe) inferredEnd(ctx context.Context, held *entry) string {
 	}
 
 	for _, end := range conditionsOf(held) {
-		if end.form == "merged" && !probe.branch(ctx, end.value).exists {
+		if end.form != "merged" {
+			continue
+		}
+
+		state := probe.branch(ctx, end.value)
+		if !state.exists && !state.merged {
 			return "branch " + strings.Split(end.value, "@")[0] + " is gone"
 		}
 	}

@@ -236,6 +236,7 @@ measurement, after an upgrade or a change of endpoint, embeds each index again o
 |---|---|---|
 | `entry_max_words` | `500` | Suggested word limit for an entry's body |
 | `state_stale_after_writes` | `5` | File writes after which the agent is asked once, at the end of a turn, to record where work stands |
+| `landed_scan_interval` | `10m` | How often memory scans the checkout's history for commits that may settle a live todo or trap (at least `1m`); a git merge, commit, pull, rebase or cherry-pick scans at once |
 | `retired_body_lifetime` | `90d` | `config.yaml` only. How long a retired entry keeps its body (at least `14d`) |
 | `entry_id_length` | `6` | Characters after `m-` in a new entry's id (6 to 16) |
 | `brief_note_limit` | `10` | Notes the brief shows, most used first. `agentic-memory brief --kind note` lists them all |

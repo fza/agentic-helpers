@@ -576,6 +576,11 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 		if described != "" {
 			note(described)
 		}
+
+		added := held.item(changed.ID)
+		if changed.Op == itemAdd && added != nil && added.added.IsZero() {
+			added.added = row.Time
+		}
 	case memorylog.KindSettle:
 		var settled settlePayload
 

@@ -747,6 +747,33 @@ graph resolver), that directory's modification time and size, and the entry file
 bitset in the slot `graph-seen/<session>` ([File formats](#file-formats)). A call `stat`s the directory; only a changed stamp lists
 it, and an entry file not listed before is a gain. A session's first look records and says nothing.
 
+A probe that finds a `merged:` branch records its tip in the slot file under `branch-tips`; once
+the branch is gone, the end asks `merge-base --is-ancestor <recorded tip> <into>`. A landed-commit
+round records the second parent of the newest merge subjected `Merge branch '<branch>'` for every
+watched branch that is gone, and drops the tips of branches no live end names.
+
+## Landed commits
+
+`landed.go`. The prompt and tool hooks read the checkout's scan mark, `landed-scan/<hash of the
+session's directory>` in the slot file (`head`, its committer `date`, and `at`, when the last round
+finished), and start a round where `landed_scan_interval` passed or a Bash call matched
+`git … merge|commit|pull|rebase|cherry-pick`. Starting takes `landed-scan-<hash>.lock` in the
+store's cache with `O_EXCL`, writing a fresh token, then starts `agentic-memory landed-round
+<token>` detached (`Setsid`); a lock older than ten minutes was left by a round that died and is
+taken over. The round runs only while the lock holds its token, and removes it when done.
+
+A round asks `git log -1 --format=%H%x1f%cI HEAD`; a mark equal to it reads nothing more. Otherwise
+it reads one stream, `git log --topo-order --reverse --format=%x1e%H%x1f%P%x1f%cI%x1f%B%x1f
+--name-only --diff-merges=first-parent` over `<mark>..HEAD` where `merge-base --is-ancestor <mark>
+HEAD` holds, else `--since=<mark date> HEAD`, and on a first round `--since=<oldest floor> HEAD`.
+It processes the first 200 commits and moves the mark to the last of them, or to `HEAD` where the
+stream held no more. Merges group the commits of their side by parent links in the stream; a round
+reading by date that finds a side commit outside its stream reads `git log <first parent>..<merge>`
+once. Every landing is judged against every target before anything is stored, the subjects in one
+batched embedder call; the mappings go to the slot `landed` (`target`, `commit`, `subject`, `test`,
+`merge`, `score`), one per target, a higher score replacing a lower. Briefs and hooks read that
+slot and rewrite it without what they delivered and without targets that ended.
+
 ## Todolists
 
 An item is an `item` event on its todo, payload `{op, id, text, link, state, reason, from, order}`,

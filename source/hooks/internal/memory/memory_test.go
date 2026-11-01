@@ -71,6 +71,9 @@ type harness struct {
 	// embedders, where set, makes the embedder in place of the fake bag of
 	// words, as one behind a fake HTTP endpoint.
 	embedders func(embed.Config) (embed.Embedder, error)
+	// starter stands for the detached start of a landed-commit round; nil
+	// starts none.
+	starter *test.Starter
 }
 
 func newHarness(t *testing.T) *harness {
@@ -174,6 +177,10 @@ func (h *harness) env() memory.Env {
 
 	if h.embedders != nil {
 		env.Embedders = h.embedders
+	}
+
+	if h.starter != nil {
+		env.Starter, env.Executable = h.starter, "agentic-memory"
 	}
 
 	return env
