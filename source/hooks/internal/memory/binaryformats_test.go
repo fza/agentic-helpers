@@ -1,6 +1,7 @@
 package memory_test
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -11,7 +12,9 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
+	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
@@ -84,6 +87,9 @@ func TestAnEarlierStoreMovesToTheBinaryFormats(t *testing.T) {
 	seatKey, library := format5Store(t, h)
 
 	h.must(hookPayload("startup", "", ""), "session-start")
+	// The daily agentic-helpers prune, which the session start starts
+	// detached, brings the tool library to the current format.
+	tools.Prune(context.Background(), h.roots(), pluginconfig.DefaultToolsTotalMB, pluginconfig.DefaultToolsVersionLifetime, h.clock.Now())
 	h.must(hookPayload("", "", "what does the gate read"), "prompt")
 
 	format, _ := os.ReadFile(filepath.Join(h.store(), "format.json"))

@@ -13,9 +13,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
-	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
-	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
 
 // reservationKeep is how long a claim made for another session holds its seat
@@ -292,11 +290,9 @@ func (mem *memory) purgeEverywhere(ctx context.Context) {
 
 	mem.sweepAttachments(ctx)
 
-	if pieces.Tools.On(mem.options()) {
-		options := mem.options()
-		tools.Prune(ctx, mem.env.Roots, options.ToolsTotalMB, options.ToolsVersionLifetime, mem.now())
-	}
-
+	// The tool library's version pruning runs in the daily detached
+	// `agentic-helpers prune`, which this pass starts, so no session start
+	// reads every tool store or waits on its lock.
 	grace, _ := home.Grace(mem.options().OrphanStoreGrace)
 	_, _ = mem.resolver().SweepUnclaimed(ctx, grace)
 

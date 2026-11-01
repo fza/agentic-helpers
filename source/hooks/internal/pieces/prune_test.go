@@ -2,8 +2,10 @@ package pieces_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +83,54 @@ func TestPruneDeletesStoresPastTheConfiguredRetention(t *testing.T) {
 
 			if strings.Contains(captured.Out.String(), "deleted "+dir) != tc.deleted {
 				t.Error("prune should name each store it deleted")
+			}
+		})
+	}
+}
+
+func TestPruneRunsTheToolLibrarysVersionPruning(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		runs   bool
+	}{
+		{name: "with the configured limits while agentic-tools is on",
+			config: "tools_total_mb: 300\ntools_version_lifetime: 30d\n", runs: true},
+		{name: "never while agentic-tools is off", config: "tools_enabled: false\n", runs: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+			config := filepath.Join(root, "config.yaml")
+			test.WriteFile(t, config, tc.config)
+
+			var called []string
+
+			env := pieces.Env{
+				Settings:  []string{config, filepath.Join(root, "settings.json")},
+				Getenv:    func(string) string { return "" },
+				Migration: migration.Env{Roots: test.Roots(root), Now: func() time.Time { return now }},
+				ToolPrune: func(_ context.Context, roots home.Roots, limitMB int, lifetime time.Duration, at time.Time) {
+					called = append(called, fmt.Sprintf("%s %d %s %s", roots.Data, limitMB, lifetime, at.Format(time.RFC3339)))
+				},
+			}
+
+			var captured test.Captured
+
+			code := pieces.Main(context.Background(), []string{"prune"}, env, captured.Streams(""))
+			if code != 0 {
+				t.Fatalf("prune should succeed: %s", captured.Err.String())
+			}
+
+			want := []string{fmt.Sprintf("%s 300 720h0m0s 2026-11-01T12:00:00Z", env.Migration.Roots.Data)}
+			if !tc.runs {
+				want = nil
+			}
+
+			if !slices.Equal(called, want) {
+				t.Errorf("prune should run the tool library's pruning once, with the configured limits, while agentic-tools is on")
 			}
 		})
 	}
