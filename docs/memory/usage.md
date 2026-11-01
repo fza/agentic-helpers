@@ -336,8 +336,8 @@ The levels form a ladder, each holding everything of the one below:
 - **`full` files on its own seat.** The seat is held at the spawn, waits for the subagent's first
   hook to name its agent id, and closes when SubagentStop fires for it, or when the session ends.
   Its entries name it, its state slot is its own, and notices run both ways through the shelf. The
-  `--agent` or `agent` of its calls points them at that seat. Over MCP a call carrying no `agent`
-  is still found by its call id (`_meta` `claudecode/toolUseId`), which the PreToolUse hook kept.
+  `--agent` or `agent` of its calls points them at that seat; a memory MCP call carrying no `agent`
+  works on the session's seat.
 - **Each subagent has its own shown set** ([Each entry once per context](#each-entry-once-per-context)).
   A fresh subagent's starts empty, so its first read of an entry prints it in full; a fork's starts
   as a copy of its spawner's set at the spawn, since a fork inherits its spawner's context. The hook
@@ -357,11 +357,11 @@ The levels form a ladder, each holding everything of the one below:
 **Accepted costs.** A spawner that forgets the line leaves its subagent at `none`. A prompt
 carrying two marker lines meant for the same child shows it the second as text. A level fixed at
 the spawn does not change while the subagent runs. An `agentic-memory` call a script file makes is
-out of the hook's reach: it works on the session's own seat and marks the session's shown set. The
-MCP join on the call id and the spawn's id in the subagent's `.meta.json` are observed in Claude
-Code, not documented. One more key, `agent`, in every memory MCP tool's schema, which every agent
-loading a memory tool sees. A subagent continued after its SubagentStop prints in full again what
-it read before.
+out of the hook's reach: it works on the session's own seat and marks the session's shown set. That
+Claude Code hands a memory MCP tool the `agent` the PreToolUse hook's `updatedInput` sets, and the
+spawn's id in the subagent's `.meta.json`, are observed in Claude Code, not documented. One more
+key, `agent`, in every memory MCP tool's schema, which every agent loading a memory tool sees. A
+subagent continued after its SubagentStop prints in full again what it read before.
 
 ## Shelves
 

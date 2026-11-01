@@ -474,13 +474,14 @@ A seat held for a `full` subagent carries `agent`: `pending` from the spawn unti
 first hook names it, then its agent id. Its claim names the session and its `claude` process, as
 the session's own does, so every lookup by process (`seat.Of`) or by session (`seat.OfSession`), and
 the inheritance of a resumed or forked session, passes it over: a subagent's call shares its
-spawner's process and session id, and only `--agent <agent-id>` on the command line, the key `agent`
-of an MCP call, or an MCP call whose `tool_use_id` the subagent's record keeps
-(`mcpserver.CallID`, read from the call's `_meta` `claudecode/toolUseId`), reaches it. The record
-is the session's `agents/<session>` slot: each subagent's level, its seat's key at `full`, and its
-latest MCP call ids, at most 16. The command line looks the agent up under
-`CLAUDE_CODE_SESSION_ID`; the server under the session its caller's seat claim names, else the one
-it started in, since a `/clear` leaves the server's environment behind.
+spawner's process and session id, and only `--agent <agent-id>` on the command line or the key
+`agent` of an MCP call reaches it. Claude Code hands an MCP tool the input a PreToolUse hook's
+`updatedInput` rewrote, so the `agent` the hook sets reaches the server; a join on the call's
+`_meta` `claudecode/toolUseId` is rejected: a second path to the same subagent, with records to
+keep. The record is the session's `agents/<session>` slot: each subagent's level and its seat's key
+at `full`. The command line looks the agent up under `CLAUDE_CODE_SESSION_ID`; the server under the
+session its caller's seat claim names, else the one it started in, since a `/clear` leaves the
+server's environment behind.
 
 A subagent's level is read back from the level line its own transcript opens with, or from the
 PostToolUse of a background Agent call. A fork's transcript opens with a `fork-context-ref` record

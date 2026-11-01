@@ -124,20 +124,6 @@ type toolsListResult struct {
 type callParams struct {
 	Name      string          `json:"name"`
 	Arguments json.RawMessage `json:"arguments"`
-	Meta      struct {
-		ToolUseID string `json:"claudecode/toolUseId"`
-	} `json:"_meta"`
-}
-
-type callIDKey struct{}
-
-// CallID is the id Claude Code gave the tool call a handler answers, as the
-// call's `_meta` carries it under `claudecode/toolUseId`: the same id its
-// PreToolUse hook saw as tool_use_id. Empty where the client sent none.
-func CallID(ctx context.Context) string {
-	id, _ := ctx.Value(callIDKey{}).(string)
-
-	return id
 }
 
 type textContent struct {
@@ -403,7 +389,7 @@ func (served *server) call(ctx context.Context, id json.RawMessage, params json.
 		arguments = json.RawMessage(`{}`)
 	}
 
-	outcome := tool.Handle(context.WithValue(ctx, callIDKey{}, called.Meta.ToolUseID), arguments)
+	outcome := tool.Handle(ctx, arguments)
 	if outcome.Structured == nil {
 		return served.answer(id, callResult{
 			Content: []textContent{{Type: "text", Text: outcome.Text}},
