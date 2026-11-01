@@ -609,6 +609,20 @@ func (mem *memory) show(ctx context.Context, req request) result {
 	retiredBodyLifetime := mem.options().RetiredBodyLifetime
 
 	for _, id := range req.IDs {
+		if id == ledgerID {
+			name, isSeated := mem.seated(ctx)
+			if !isSeated {
+				blocks = append(blocks, "state: "+ErrNoSeat.Error())
+				missing = true
+
+				continue
+			}
+
+			blocks = append(blocks, mem.showState(ctx, folded, name, req.WithRemoved))
+
+			continue
+		}
+
 		held, found := folded.entries[id]
 		if !found {
 			blocks = append(blocks, id+": no such entry")

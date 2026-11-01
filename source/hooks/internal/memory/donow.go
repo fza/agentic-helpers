@@ -216,6 +216,23 @@ func (mem *memory) proveDoNow(ctx context.Context, seatName string, session stri
 }
 
 func (mem *memory) ack(ctx context.Context, req request) result {
+	ledgerIDs := 0
+
+	for _, id := range req.IDs {
+		if id == ledgerID || strings.HasPrefix(id, ledgerID+"#") {
+			ledgerIDs++
+		}
+	}
+
+	switch {
+	case ledgerIDs > 0 && ledgerIDs < len(req.IDs):
+		return refused("%v", ErrStateMixed)
+	case ledgerIDs > 0:
+		return mem.ackState(ctx, req)
+	case len(req.Until) > 0:
+		return refused("%v", ErrUntilAdd)
+	}
+
 	if req.Undo || req.Remove || len(req.Add) > 0 || req.Order != "" ||
 		slices.ContainsFunc(req.IDs, func(id string) bool { return strings.Contains(id, "#") }) {
 		return mem.ackItems(ctx, req)

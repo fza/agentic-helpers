@@ -28,7 +28,7 @@ import (
 
 // foldLayout changes whenever the cached shape does, so a cache of another
 // release's shape is folded again rather than misread.
-const foldLayout = 5
+const foldLayout = 6
 
 type foldKey struct {
 	Layout     int
@@ -45,6 +45,7 @@ type cachedFold struct {
 	Entries []cachedEntry
 	Merges  []cachedMerge
 	States  map[string]cachedSlot
+	Ledgers map[string]*ledger
 }
 
 type cachedChange struct {
@@ -255,6 +256,8 @@ func cacheOf(key foldKey, folded *state) cachedFold {
 		cached.States[name] = cachedSlot{Payload: slot.statePayload, At: slot.at}
 	}
 
+	cached.Ledgers = folded.ledgers
+
 	for _, id := range folded.order {
 		held := folded.entries[id]
 		one := cachedEntry{
@@ -300,6 +303,10 @@ func (cached cachedFold) state() *state {
 
 	for name, slot := range cached.States {
 		folded.states[name] = stateSlot{statePayload: slot.Payload, at: slot.At}
+	}
+
+	for name, held := range cached.Ledgers {
+		folded.ledgers[name] = held
 	}
 
 	for _, one := range cached.Entries {

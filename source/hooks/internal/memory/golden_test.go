@@ -19,6 +19,10 @@ var updateGolden = flag.Bool("update-golden", false, "rewrite the golden reads u
 // holds the placeholder in its place.
 var localStamp = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2} [A-Z0-9+-]+`)
 
+// lineID is a state line's id in the text and in JSON, drawn at random as a todo
+// item's is.
+var lineID = regexp.MustCompile(`(  #|"id":")[a-z0-9]{3}(: ten words|","text":"ten words)`)
+
 // goldenStore files a store touching every section the brief prints and every
 // status a search lists: a rule, a trap whose anchor drifted, a todo with a
 // declared end, more notes than the brief prints, a link to a closed decision,
@@ -74,7 +78,7 @@ func goldenStore(t *testing.T) *harness {
 
 	file(h, "Finding citing a closed decision", "see the decision", "--link", closedDecision)
 	file(h, "Readme names the build steps", "the README.md lists them")
-	run(h, "ten words of where the gate fix stands", "state")
+	run(h, "", "ack", "state", "--add", "ten words of where the gate fix stands")
 
 	h.clock.Advance(time.Hour)
 	file(other, "Review owes the API diff", "a handover", "--for", "main")
@@ -131,6 +135,7 @@ func TestReadsMatchTheirGoldenText(t *testing.T) {
 			// full text again, as the golden text holds it.
 			got := h.must("", append(slices.Clone(tc.args), "--again")...)
 			got = localStamp.ReplaceAllString(got, "<stamp>")
+			got = lineID.ReplaceAllString(got, "${1}<line>${2}")
 			got = strings.ReplaceAll(got, h.repo, "<repo>")
 
 			path := filepath.Join("..", "..", "test", "fixtures", "memory", "golden", tc.name+".txt")

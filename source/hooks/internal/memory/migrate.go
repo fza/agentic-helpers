@@ -93,7 +93,40 @@ func (mem *memory) migrate(ctx context.Context) error {
 		}
 	}
 
-	return mem.migrateFormat6(ctx)
+	if version <= 6 {
+		err = mem.migrateFormat6(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return mem.migrateFormat7(ctx)
+}
+
+// migrateFormat7 moves a format-7 store to format 8, whose log may hold a
+// seat's state ledger as `item` rows of the entry `state`: nothing in the log
+// changes, so the log is copied to backup/format-7-<UTC stamp>/ and
+// format.json is written, which keeps a format-7 binary from reading a store
+// whose ledger it would drop unread. A seat's free-text slot stays in the log,
+// read as the ledger's state#old until the agent splits it; a hook's draft is
+// left unread. The size ledger is rebuilt after the copy, so it counts the
+// backup's files too.
+func (mem *memory) migrateFormat7(ctx context.Context) error {
+	backup := filepath.Join(mem.store(), "backup", "format-7-"+mem.now().UTC().Format("20060102T150405.000000000Z"))
+
+	err := copyTree(mem.env.Roots.Data, mem.logDir(), filepath.Join(backup, "log"))
+	if err != nil {
+		return fmt.Errorf("backing up the store's log: %w", err)
+	}
+
+	err = writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
+	if err != nil {
+		return err
+	}
+
+	mem.recordStore(ctx)
+
+	return nil
 }
 
 // migrateFormat6 moves a format-6 store to format 7, whose log may hold `due`
@@ -109,7 +142,7 @@ func (mem *memory) migrateFormat6(ctx context.Context) error {
 		return fmt.Errorf("backing up the store's log: %w", err)
 	}
 
-	err = writeFormat(mem.env.Roots.Data, mem.store(), storeFormat)
+	err = writeFormat(mem.env.Roots.Data, mem.store(), dueFormat)
 	if err != nil {
 		return err
 	}

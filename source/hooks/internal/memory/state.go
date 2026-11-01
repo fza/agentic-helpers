@@ -246,12 +246,14 @@ type topicMerge struct {
 }
 
 // state is the log folded: every entry with its current status, every topic
-// merge, oldest first, and each seat's state slot by seat name.
+// merge, oldest first, and each seat's state ledger, and the free-text slot
+// a seat wrote before the ledger, by seat name.
 type state struct {
 	entries map[string]*entry
 	order   []string
 	merges  []topicMerge
 	states  map[string]stateSlot
+	ledgers map[string]*ledger
 	// itemLinks is what became of a linked item's target: ended, and its flag;
 	// nil where nothing annotated.
 	itemLinks func(link string) (bool, string)
@@ -270,7 +272,7 @@ func (held *entry) flags() []string {
 }
 
 func newState() *state {
-	return &state{entries: map[string]*entry{}, states: map[string]stateSlot{}}
+	return &state{entries: map[string]*entry{}, states: map[string]stateSlot{}, ledgers: map[string]*ledger{}}
 }
 
 func normalTopic(topic string) string {
@@ -397,6 +399,19 @@ func (folded *state) apply(row memorylog.Row, payload []byte) error {
 		}
 
 		folded.states[row.Seat] = slot
+
+		return nil
+	}
+
+	if row.Kind == memorylog.KindItem && row.Entry == ledgerID {
+		var changed itemPayload
+
+		err := json.Unmarshal(payload, &changed)
+		if err != nil {
+			return err
+		}
+
+		folded.ledgerOf(row.Seat).apply(row.Time, changed)
 
 		return nil
 	}

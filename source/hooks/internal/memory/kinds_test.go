@@ -107,50 +107,46 @@ func TestRekind(t *testing.T) {
 	}
 }
 
-func TestTheStateSlot(t *testing.T) {
+func TestTheStateLedger(t *testing.T) {
 	h := newHarness(t)
 
-	if got := h.run("halfway", "state"); got.code != 1 || !strings.Contains(got.err, "claim a seat first") {
-		t.Errorf("a state write without a seat should be refused, got %d %q", got.code, got.err)
+	if got := h.run("", "ack", "state", "--add", "halfway"); got.code != 1 || !strings.Contains(got.err, "claim a seat first") {
+		t.Errorf("a state line without a seat should be refused, got %d %q", got.code, got.err)
 	}
 
 	h.must("", "claim", "main")
 
-	if got := h.run("  \n", "state"); got.code != 1 || !strings.Contains(got.err, "state needs a body") {
-		t.Errorf("an empty state should be refused, got %d %q", got.code, got.err)
+	if got := h.run("", "ack", "state", "--add", "  "); got.code != 1 || !strings.Contains(got.err, "--add needs a line") {
+		t.Errorf("an empty line should be refused, got %d %q", got.code, got.err)
 	}
 
-	if out := h.must("halfway through the gate fix", "state"); strings.TrimSpace(out) != "state written" {
-		t.Errorf("a state write should say it wrote the slot without echoing the seat, got %q", out)
-	}
+	out := h.must("", "ack", "state", "--add", "halfway through the gate fix")
+	id := lineAddress.FindStringSubmatch(out)
 
-	h.clock.Advance(3 * time.Hour)
+	if id == nil || strings.TrimSpace(out) != "added state#"+id[1] {
+		t.Fatalf("a state line should say what it added without echoing the seat, got %q", out)
+	}
 
 	brief := strings.Split(h.must("", "brief"), "\n")
-	if len(brief) < 2 || !strings.Contains(brief[0], "0 live") ||
-		brief[1] != "state (3h old, branch main): halfway through the gate fix" {
-		t.Errorf("the brief should open with the state and its age, counting no entry:\n%s", strings.Join(brief, "\n"))
+	if len(brief) < 3 || !strings.Contains(brief[0], "0 live") ||
+		brief[1] != "state (ack state#<item> --done | --remove):" || brief[2] != "  #"+id[1]+": halfway through the gate fix" {
+		t.Errorf("the brief should open with the ledger, counting no entry:\n%s", strings.Join(brief, "\n"))
 	}
 
-	h.must("the gate fix is done, tests pass", "state")
+	h.addLine("the gate fix is done, tests pass")
 
-	if out := h.must("", "brief"); strings.Contains(out, "halfway") || !strings.Contains(out, "the gate fix is done") {
-		t.Errorf("a second state write should replace the first:\n%s", out)
+	if out := h.must("", "brief"); !strings.Contains(out, "halfway") || !strings.Contains(out, "the gate fix is done") {
+		t.Errorf("a second line should stand beside the first:\n%s", out)
 	}
 
 	for _, args := range [][]string{{"search", "--term", "gate fix"}, {"search", "--status", "live"}} {
 		if out := h.must("", args...); out != "no entry matches\n" {
-			t.Errorf("the state slot should never be found as an entry by %v, got %q", args, out)
+			t.Errorf("a state line should never be found as an entry by %v, got %q", args, out)
 		}
-	}
-
-	answer := h.mcp(`{"name":"state","arguments":{"body":"written over MCP"}}`)
-	if strings.Contains(answer, `"isError":true`) || !strings.Contains(h.must("", "brief"), "written over MCP") {
-		t.Errorf("the MCP tool state should write the slot: %s", answer)
 	}
 }
 
-func TestAStateWriteMovesTheReplayAnchor(t *testing.T) {
+func TestAStateLineMovesTheReplayAnchorAndAHookLineDoesNot(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.file("Gate reads Bash only today", "finding")
@@ -159,12 +155,17 @@ func TestAStateWriteMovesTheReplayAnchor(t *testing.T) {
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Hour), 10, 100)
 
 	h.clock.Advance(3 * time.Hour)
-	h.must("where the gate work stands", "state")
+	h.addLine("where the gate work stands")
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Minute), 2, 100)
+
+	h.clock.Advance(time.Hour)
+	h.git.Commit = "9c0ffee1"
+	h.git.Log = map[string]string{"15af1a8c..HEAD": "9c0ffee1 fix: the gate reads MCP calls\n"}
+	h.must(h.stop(), "stop")
 
 	out := h.must(hookPayload("compact", path, ""), "session-log", "1")
 	if !strings.Contains(out, "turn 1 ") || strings.Contains(out, "turn 5 ") {
-		t.Errorf("the replay should start at the state write:\n%s", out)
+		t.Errorf("the replay should start at the agent's state line, never at a hook line:\n%s", out)
 	}
 }
 
@@ -176,15 +177,16 @@ func TestAStateWriteAnswersTheCompactionNudge(t *testing.T) {
 	payload := hookPayload("", "", "")
 	h.sensor(70)
 
-	if !strings.Contains(h.must(payload, "prompt"), "Context near compaction. Write where work stands first: "+
-		"agentic-memory state < body. File an entry only for a finding, an open question or a judgment call") {
-		t.Fatal("the nudge should ask for a state write first")
+	if !strings.Contains(h.must(payload, "prompt"), "Context near compaction. Add or tick state lines where work moved: "+
+		"agentic-memory ack state --add '<line>' | ack state#<item> --done. "+
+		"File an entry only for a finding, an open question or a judgment call") {
+		t.Fatal("the nudge should ask for state lines first")
 	}
 
-	h.must("where the gate work stands", "state")
+	h.addLine("where the gate work stands")
 
 	if strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
-		t.Error("a state write after the nudge should answer it")
+		t.Error("a state line after the nudge should answer it")
 	}
 }
 
@@ -209,7 +211,7 @@ func TestAStateWriteRearmsTheReplayNudge(t *testing.T) {
 	}
 
 	h.clock.Advance(4 * time.Hour)
-	h.must("where the gate work stands", "state")
+	h.addLine("where the gate work stands")
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Minute), 60, 1000)
 
 	if !strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
@@ -225,7 +227,7 @@ func TestTheBriefOrdersItsSections(t *testing.T) {
 	h.file("Gate todo of the seat", "todo", "--kind", "todo")
 	h.file("Gate trap of the seat", "trap", "--kind", "trap")
 	h.file("Gate rule of the user", "rule", "--kind", "rule", "--from", "user")
-	h.must("where the gate work stands", "state")
+	h.addLine("where the gate work stands")
 	h.must("", "brief")
 
 	other := newHarnessSharing(h)
@@ -264,7 +266,7 @@ func TestRecallNeverOffersTheStateSlot(t *testing.T) {
 		h.file("Unrelated finding about "+word, word+" "+word+" "+word)
 	}
 
-	h.must("halfway through the tail seal manifest rename", "state")
+	h.addLine("halfway through the tail seal manifest rename")
 	h.clock.Advance(time.Hour)
 
 	out := h.must(prompt, "prompt")

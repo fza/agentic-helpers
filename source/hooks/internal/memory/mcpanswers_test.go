@@ -188,7 +188,7 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 		{"topics", `{}`},
 		{"who", `{}`},
 		{"confirm", `{"ids":["` + first + `"]}`},
-		{"state", `{"body":"where the work stands"}`},
+		{"ack", `{"ids":["state"],"add":["where the work stands"]}`},
 		{"retitle", `{"id":"` + first + `","title":"Gate finding filed renamed"}`},
 		{"due", `{"id":"` + first + `","due":"2026-11-01"}`},
 		{"tag", `{"id":"` + first + `","topic":["hooks"]}`},
@@ -247,8 +247,9 @@ func TestAMessageIsTheCommandLineText(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	printed := strings.TrimSpace(h.must("where the work stands", "state"))
-	answered := decoded(t, mcpText(t, h.mcp(`{"name":"state","arguments":{"body":"where the work stands"}}`)))
+	one, other := h.addLine("where the work stands"), h.addLine("what comes next")
+	printed := strings.TrimSpace(h.must("", "ack", "state#"+one, "--done"))
+	answered := decoded(t, mcpText(t, h.mcp(`{"name":"ack","arguments":{"ids":["state#`+other+`"],"done":true}}`)))
 
 	if answered["message"] != printed {
 		t.Errorf("the MCP message should be what the command prints: %q against %q", answered["message"], printed)

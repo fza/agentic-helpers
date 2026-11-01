@@ -47,23 +47,35 @@ const (
 var (
 	ErrItemKind     = errors.New("--item files a todolist, which only a todo holds")
 	ErrItemsUnnamed = errors.New("holds a todolist; pass --items carry or --items leave")
-	itemAddress     = regexp.MustCompile(`^(m-[a-z0-9]{4,16})#([a-z0-9]+)$`)
-	memoryID        = regexp.MustCompile(`^m-[a-z0-9]{4,16}$`)
+	// itemAddress is a todo item's address; `state#<item>`, a line of the
+	// calling seat's ledger, is stateAddress.
+	itemAddress = regexp.MustCompile(`^(m-[a-z0-9]{4,16})#([a-z0-9]+)$`)
+	memoryID    = regexp.MustCompile(`^m-[a-z0-9]{4,16}$`)
 	// listLine is a body line written as a list item: `- `, `* `, `1. `, `- [ ] `.
 	listLine = regexp.MustCompile(`(?m)^\s*(?:[-*]|\d+[.)])\s+\S`)
 )
 
-// itemPayload is one change to a todolist. A carried item's add brings its
-// state, reason and the address it came from.
+// itemPayload is one change to a todolist or to a seat's state ledger. A
+// carried item's add brings its state, reason and the address it came from.
+// A ledger line's add brings its declared ends and the session that added
+// it; Hook names the hook that made the change, empty where the agent did,
+// and a hook's landed or dirty line brings its commit or its paths.
 type itemPayload struct {
-	Op     string   `json:"op"`
-	ID     string   `json:"id,omitempty"`
-	Text   string   `json:"text,omitempty"`
-	Link   string   `json:"link,omitempty"`
-	State  string   `json:"state,omitempty"`
-	Reason string   `json:"reason,omitempty"`
-	From   string   `json:"from,omitempty"`
-	Order  []string `json:"order,omitempty"`
+	Op          string            `json:"op"`
+	ID          string            `json:"id,omitempty"`
+	Text        string            `json:"text,omitempty"`
+	Link        string            `json:"link,omitempty"`
+	State       string            `json:"state,omitempty"`
+	Reason      string            `json:"reason,omitempty"`
+	From        string            `json:"from,omitempty"`
+	Order       []string          `json:"order,omitempty"`
+	Hook        string            `json:"hook,omitempty"`
+	Commit      string            `json:"commit,omitempty"`
+	Paths       []string          `json:"paths,omitempty"`
+	Session     string            `json:"session,omitempty"`
+	Until       []string          `json:"until,omitempty"`
+	UntilHashes map[string]string `json:"until_hashes,omitempty"`
+	UntilHold   *hold             `json:"until_hold,omitempty"`
 }
 
 // todoItem is one item as the log left it. Set is whether an ack gave it its

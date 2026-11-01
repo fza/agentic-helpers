@@ -188,9 +188,9 @@ func TestBothSeenListsTellTheSameGains(t *testing.T) {
 	_, after := mem.captureNotice(context.Background(), "main", "bits")
 	namesAfter := mem.captureNoticeNames(context.Background(), "names")
 
-	if before != 0 || namesBefore != 0 || after != 1 || namesAfter != after {
+	if len(before) != 0 || namesBefore != 0 || len(after) != 1 || namesAfter != len(after) {
 		t.Errorf("both seen lists should count the one entry added, bitset %d then %d, names %d then %d",
-			before, after, namesBefore, namesAfter)
+			len(before), len(after), namesBefore, namesAfter)
 	}
 }
 
@@ -228,9 +228,9 @@ func TestSessionsSharingTheNameTableEachCountWhatTheyMissed(t *testing.T) {
 	_, earlyAfter := mem.captureNotice(context.Background(), "main", "early")
 	_, lateAfter := mem.captureNotice(context.Background(), "main", "late")
 
-	if early != 0 || late != 0 || earlyAfter != 2 || lateAfter != 1 {
+	if len(early) != 0 || len(late) != 0 || len(earlyAfter) != 2 || len(lateAfter) != 1 {
 		t.Errorf("each session should count the entries added since its own last call, got %d %d %d %d",
-			early, late, earlyAfter, lateAfter)
+			len(early), len(late), len(earlyAfter), len(lateAfter))
 	}
 }
 
@@ -259,8 +259,8 @@ func TestANameTableWithoutRoomLeavesNewEntriesUnnamed(t *testing.T) {
 
 	_, after := mem.captureNotice(context.Background(), "main", test.Session)
 
-	if before != 0 || after != 0 {
-		t.Errorf("an entry the table has no room for should count as nothing gained, got %d", after)
+	if len(before) != 0 || len(after) != 0 {
+		t.Errorf("an entry the table has no room for should count as nothing gained, got %d", len(after))
 	}
 }
 

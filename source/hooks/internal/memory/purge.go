@@ -237,7 +237,8 @@ func (mem *memory) rewriteWithout(ctx context.Context, dropped map[string]bool, 
 			var origin []int
 
 			for index, row := range rows {
-				if row.Kind == memorylog.KindState && slices.Contains(gone, row.Seat) {
+				seatRow := row.Kind == memorylog.KindState || (row.Kind == memorylog.KindItem && row.Entry == ledgerID)
+				if seatRow && slices.Contains(gone, row.Seat) {
 					continue
 				}
 

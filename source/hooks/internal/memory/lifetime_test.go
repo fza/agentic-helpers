@@ -232,7 +232,7 @@ func TestRetentionZeroPurgesAtTheLastClose(t *testing.T) {
 
 	h.must("", "claim", "scratch", "--lifetime", "0")
 	scratch := seatID(t, h.store(), "scratch")
-	h.must("where the scratch work stands", "state")
+	h.addLine("where the scratch work stands")
 	h.must("", "release")
 
 	if _, found := mustShelf(h, "scratch"); found {

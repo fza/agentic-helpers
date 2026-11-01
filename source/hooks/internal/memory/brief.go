@@ -205,7 +205,7 @@ func briefLayout(noteLimit int) string {
 
 // briefParts is what `view --explain brief` says stands around the layout:
 // the parts of the brief that are not lists of entries.
-const briefParts = "brief, fixed: its first line, the state slot, the due section, changed by other seats and " +
+const briefParts = "brief, fixed: its first line, the state ledger, the due section, changed by other seats and " +
 	"ended since last brief; then these sections; then retire?, new from other seats and the topics. Nothing " +
 	"configures it."
 
@@ -221,7 +221,7 @@ func (mem *memory) lowSpace() string {
 	return space.LowLine(figures...)
 }
 
-// brief is what a fresh context gets: the seat's state slot, what other seats
+// brief is what a fresh context gets: the seat's state ledger, what other seats
 // changed since its last brief, its live rules, traps, todos and notes, each by
 // heat, what other seats filed, then the topics. Claim and compaction share it.
 // The rules named in above, the do-now list printed before it, stay out of its
@@ -261,8 +261,8 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add(low)
 	}
 
-	if slot := mem.stateLine(folded, seatName); slot != "" {
-		out.add(slot)
+	for _, text := range mem.stateSection(ctx, folded, seatName) {
+		out.add(text)
 	}
 
 	dueLines, told := mem.dueSection(here, folded, seatName, now)
@@ -304,7 +304,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		}
 	}
 
-	if ended := mem.endedSince(folded, seatName, since); len(ended) > 0 {
+	if ended := append(mem.endedSince(folded, seatName, since), mem.endedLines(ctx, folded, seatName)...); len(ended) > 0 {
 		out.add("ended since last brief (revive to undo):")
 
 		for _, text := range ended {

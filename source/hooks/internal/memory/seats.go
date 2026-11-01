@@ -401,12 +401,14 @@ func (mem *memory) carryForwardHint(ctx context.Context, seatName string) string
 		relative, self)
 }
 
-// newestOwn is when the seat last filed an entry or wrote its state slot: the
-// point its replay, its nudges and its previous session's turns count from. A
-// hook-written draft is no write of the seat's.
+// newestOwn is when the seat last filed an entry or changed its state
+// ledger, or wrote the free-text slot the ledger replaced: the point its
+// replay, its nudges and its previous session's turns count from. A hook
+// line, as a hook-written draft before it, holds no reasoning and moves
+// nothing.
 func (mem *memory) newestOwn(folded *state, seatName string) time.Time {
-	var newest time.Time
-	if slot := folded.states[seatName]; !slot.Draft {
+	newest := folded.ledgerFor(seatName).Changed
+	if slot := folded.states[seatName]; !slot.Draft && slot.at.After(newest) {
 		newest = slot.at
 	}
 

@@ -144,10 +144,10 @@ into place, and a seat and a shelf minted together are minted under one hold of 
 
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 7}`; a store without one is format 1, where
+`format.json` holds the store's format, `{"format": 8}`; a store without one is format 1, where
 events and seat files name the seat, format 2 keeps seats by id without shelves, format 3 files
-entries with a retention level and no kind, format 4 holds no `item` rows, and format 6 holds no
-`due` rows. The first call
+entries with a retention level and no kind, format 4 holds no `item` rows, format 6 holds no
+`due` rows, and format 7 holds no state ledger. The first call
 that meets an older store migrates it a step at a time, holding the store lock from the first step
 to the last, so another call waits and then reads the migrated store. From format 1:
 
@@ -189,6 +189,15 @@ a merge folds an entry's `due` rows past the horizon into that payload, the last
 Rejected: a due time at filing only, which an older binary would ignore with no format step, but
 which could never move or clear; riding an existing event kind, each of which changes state in an
 older binary (`retain` resets the decay, `confirm` re-anchors, `settle` feeds the do-now items).
+
+From format 7, the log untouched (`migrateFormat7`): copy `log/` to `backup/format-7-<UTC stamp>/`,
+refresh the size ledger so it counts the copy, then write `format.json`. Format 8 keeps each seat's
+state ledger as `item` rows of the reserved entry `state`, which a format-7 binary would fold as
+items of an entry it does not hold and drop unread, so the format keeps such a binary off the store.
+A seat's `state` rows stay as they are: the newest one the agent wrote reads as the ledger's
+`state#old` until the agent ticks or removes it, and a hook's draft is never read again. Rejected:
+folding the old body into a line at migration, which the agent would never split; starting every
+ledger empty, which loses where every live seat's work stands mid-task.
 
 A failure before `format.json` undoes every step, says
 `agentic-memory: migrating the store failed: <cause>; the store is unchanged and the next call tries again`
@@ -406,10 +415,10 @@ A system clock set back would make everything stored before look as if it lay in
 store keeps a high-water mark of the newest time it holds, `clock.json` beside the log
 (`{"mark": <time>}`), and memory's time (`now` in `clock.go`) is the system clock, or one nanosecond
 past the mark while the clock trails it. Every place that stamps or compares a time reads it: filing
-and every log row, claims and their closes, reservations, brief and seen marks, nudge ladders and
-the state request, heat, due times, `at:` ends, `who`'s 14-day window, the purge's retention and
+and every log row, claims and their closes, reservations, brief and seen marks, nudge ladders, state
+lines and their ends, heat, due times, `at:` ends, `who`'s 14-day window, the purge's retention and
 `revive`'s window. So an entry filed after a rollback sorts after the earlier ones and arrives as
-new in another seat's brief, no heat is computed from a negative age, and a nudge or state request
+new in another seat's brief, no heat is computed from a negative age, and a nudge
 answered after a rollback does not repeat.
 
 The mark rises with every stored time: a write to the log or a claim (through the size ledger's
@@ -418,7 +427,7 @@ never lower than the mark another process left, and refreshes the store's size l
 without the file starts from the newest stamp in its log. A process reads the mark once, the MCP
 server once per call. It is written only where memory writes the store anyway: never into a store
 that does not exist, one of a newer format, or one outside git where memory keeps to git. The file
-is new beside the log and changes nothing an earlier release reads, so the store format stays 7.
+is new beside the log and changes nothing an earlier release reads, so it took no store format step.
 
 Not covered: while the system clock trails the mark, memory's time stands at the mark, so due times
 and `at:` ends fire late by up to the rollback and decay pauses for that span. Content-hash anchors
@@ -450,9 +459,11 @@ stay as they are. An `untag` row carries every name the entry was filed or tagge
 a removed topic, so folding it needs no topic merge, and past the horizon it folds into the `new`
 row like any other.
 
-A `state` row names a seat and no entry, and carries the seat's state slot: `body`, `session`,
-`branch`, `commit`, its time the row's. The newest `state` row of a seat is its slot. A merge keeps
-only each seat's newest `state` row, and a purge drops the `state` rows of the seats it purges. The
+A `state` row names a seat and no entry, and carries the free-text slot a seat wrote before the
+state ledger: `body`, `session`, `branch`, `commit`, `draft` where a hook wrote it, its time the
+row's. No release writes one now; the newest a seat's agent wrote reads as its ledger's `state#old`
+([State ledger](#state-ledger)). A merge keeps only each seat's newest `state` row, and a purge
+drops the `state` rows and the ledger rows of the seats it purges. The
 `untag`, `state`, `rekind` and `settle` rows are kinds binaries before format 4 do not read; the format bump
 keeps those binaries off the store. The same merge drops the body of an entry
 superseded more than 14 days earlier, or retired more than `retired_body_lifetime` earlier; the entry
@@ -463,8 +474,8 @@ stays in search, flagged, and `revive` refuses it.
 A claim file, under the seat's id, names the holding session, the pid of its `claude` process, that process's start time
 (`started`, RFC 3339 in UTC), when it was claimed, and the session's transcript. A `release` or a
 SessionEnd closing the seat moves the claim to `<id>.last.json` with `closed`, the time it closed.
-A claim records `commit`, HEAD when it was taken, which a hook-written draft of the seat's state
-counts the session's commits from. A claim made with `--session` for a session holding no seat is a reservation: `reserved` holds its
+A claim records `commit`, HEAD when it was taken, which the `landed` lines of the seat's state ledger
+count the session's commits from. A claim made with `--session` for a session holding no seat is a reservation: `reserved` holds its
 time and `pid` is 0; any hook whose payload carries that session id, run by a process holding no
 seat, writes its owning `claude` process, start time and transcript into it, and prints the seat's
 `scratch:` line and brief, except at a resumed session's SessionStart. A handover writes the
@@ -596,16 +607,16 @@ Every hook exits at once in a project without a store.
 
 | Event | What memory does |
 |---|---|
-| SessionStart (`session-start`) | purges every store's due temporary shelves, the stale context readings and the unclaimed stores past their grace; prints the store question where one stands on the checkout; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats; a fork whose transcript is not written yet gets a marker and no notice |
-| SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or state write; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path; a piece opening inside a day repeats that day's `# <date> UTC` header within the 9,000, as `transcript.Tail` does for a claim's slice |
-| UserPromptSubmit (`prompt`) | first, for any session, seat or none, hashes every file its `instructions/<session>` slot records and prints `agentic-memory: <path> changed since loaded; re-read it` for each whose hash moved, recording the new hash; a session with no slot yet seeds it with the fixed set ([usage](usage.md#instruction-files-that-change)) and prints nothing for it; then, for a fork carrying a marker, once its transcript is written, removes the marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction (at most twice per rung, the Stop backstop holding past that), the shipped-work request once work shipped since the seat's last state write (spent without a line where the nudge fires), and the replay nudge once the turns since the seat's newest entry or state write would no longer fit the pieces, once per newest entry or state write; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `<cache>/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once; without an embedder configured (`embed.ErrNotConfigured`), recall prints nothing; a recall the embedder fails prints `agentic-memory: prompt recall failed, retried each prompt: <error>` once per outage, and the next working recall re-arms it |
+| SessionStart (`session-start`) | purges every store's due temporary shelves, the stale context readings and the unclaimed stores past their grace; prints the store question where one stands on the checkout; for a seated session, points the claim at the session and transcript, and after a compaction or `/clear` prints the brief, on resume the `state#old` request where the seat's old slot waits; for a seatless one, frees the seats whose holders are gone, then takes over the seat of the session it resumes or forks, or a new seat on its shelf, else names the project's seats; a fork whose transcript is not written yet gets a marker and no notice |
+| SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or agent change to its state ledger; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path; a piece opening inside a day repeats that day's `# <date> UTC` header within the 9,000, as `transcript.Tail` does for a claim's slice |
+| UserPromptSubmit (`prompt`) | first, for any session, seat or none, hashes every file its `instructions/<session>` slot records and prints `agentic-memory: <path> changed since loaded; re-read it` for each whose hash moved, recording the new hash; a session with no slot yet seeds it with the fixed set ([usage](usage.md#instruction-files-that-change)) and prints nothing for it; then, for a fork carrying a marker, once its transcript is written, removes the marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction (at most twice per rung, the Stop backstop holding past that) and the replay nudge once the turns since the seat's newest entry or agent change to its state ledger would no longer fit the pieces, once per newest entry or ledger change; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `<cache>/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once; without an embedder configured (`embed.ErrNotConfigured`), recall prints nothing; a recall the embedder fails prints `agentic-memory: prompt recall failed, retried each prompt: <error>` once per outage, and the next working recall re-arms it |
 | InstructionsLoaded (`instructions`) | records the file Claude Code reports (`file_path`) with its content hash under the session's `instructions/<session>` slot, through the slot file's `Update`, so files reported at once never lose each other; needs no seat; says nothing |
-| PostToolUse (`tool`) | first the instruction-file check UserPromptSubmit runs, as `additionalContext`, where an `Edit`, `Write` or `NotebookEdit` of a recorded path takes the new hash in silently; then, for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
+| PostToolUse (`tool`) | first the instruction-file check UserPromptSubmit runs, as `additionalContext`, where an `Edit`, `Write` or `NotebookEdit` of a recorded path takes the new hash in silently; then, for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; adds the state ledger's `captured` lines for the graph's gains, and after a Bash `git commit`, `merge` or `cherry-pick` its `landed` lines; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
 | PreToolUse (`pre-tool`) | on a Bash call whose `tool_input.command` does not contain `agentic-memory`, exits 0 writing nothing as soon as the payload is read, before the store and the seat are looked up: every Bash call runs the hook side by side with shell-guard, and the slower of the two sets the delay; on every other Bash call, on the Agent tool and on the memory MCP tools, runs the subagent checks ([usage](usage.md#subagents)): rewrites the Agent prompt and, for a fork, keeps its spawn slot; refuses a subagent's call its level does not allow; sets `--agent` on a reading subagent's every direct `agentic-memory` call and `agent` on its every memory tool call; refuses either from the main thread |
 | SubagentStop (`subagent-stop`) | removes the subagent's shown set and any spawn slot kept for it, and releases a `full` subagent's seat |
-| Stop (`stop`) | writes the seat's state draft where no agent-written state is newer than its claim; holds the turn while do-now items are pending, at most twice per moment; then, near compaction only, holds it once for a state write when work shipped since the seat's last one; then holds it with the backstop once the nudge has gone unanswered twice and the context crossed the line; every hold is Stop `additionalContext` with exit 0, which continues the turn as exit 2 would without the hook error exit 2 shows the user |
+| Stop (`stop`) | adds the state ledger's `landed` lines for commits since the claim and keeps its one `dirty` and one `asked` line current ([State ledger](#state-ledger)); holds the turn while do-now items are pending, at most twice per moment; then holds it with the backstop once the nudge has gone unanswered twice and the context crossed the line; every hold is Stop `additionalContext` with exit 0, which continues the turn as exit 2 would without the hook error exit 2 shows the user |
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
-| SessionEnd (`session-end`) | removes the session's context reading and its `instructions/<session>` slot; closes every seat still held for one of its subagents and forgets its `agents/<session>` record, its subagents' shown sets and its spawn slots; writes the seat's state draft as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
+| SessionEnd (`session-end`) | removes the session's context reading and its `instructions/<session>` slot; closes every seat still held for one of its subagents and forgets its `agents/<session>` record, its subagents' shown sets and its spawn slots; adds the state ledger's hook lines as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
 ## The update check
 
@@ -796,6 +807,43 @@ todo's items like a declared end; a revive after the last item change keeps the 
 fold records when an item last changed and when the entry was last revived. The fold cache carries
 both and the items, its layout moved up with them.
 
+## State ledger
+
+A seat's state ledger is a run of `item` rows whose entry is the reserved id `state`, filed under the
+seat they belong to, so the fold keys a ledger by seat name as it does the slot it replaces
+(`folded.ledgers[seatName]`, `internal/memory/ledger.go`) and no seat reaches another's: `ack
+state` and `show state` resolve the calling seat first. No memory id collides, every one starting
+`m-`. A row's payload is the todo item's, `{op, id, text, link}`, with `until`, `until_hashes` and
+`until_hold` for declared ends, `session`, and for a hook's line `hook` (`landed`, `captured`,
+`dirty`, `asked`), `commit` or `paths`. `op` is add, check, uncheck or remove, and `text` for a hook
+replacing its one dirty or asked line. Ids come from the todo items' draw, `old` reserved. The fold
+keeps each line with its state and whether an ack set it, and `changed`, the time of the seat's
+newest row carrying no `hook`: the point the replay, the nudges and the replay nudge count from
+(`newestOwn`), which a hook line therefore never moves. An `uncheck` sets the state too, so a line
+brought back stays open whatever ended it.
+
+A line's end is worked out at read, never stored: a declared end through the end check's probe, run
+against an entry built from the line (its seat, session, time added, hashes and claim, and for
+`captured` the graph ids of the `captured` lines added after it); a pinned target through the fold's
+`itemLinks`, as a linked todo item; the ids its text cites through the folded log and the graph's
+statuses. The brief names an ended line once: the slot `ledger-ended/<seat id>` keeps the ids of the
+lines it named, and a line that comes back open leaves it. Rejected: storing an end as a row, which
+would need a write at read and could not follow a target that reopens.
+
+Hooks add lines through the same rows: PostToolUse after a Bash `git commit`, `merge` or
+`cherry-pick`, and Stop and SessionEnd, read `git log --oneline -n 20 <claim commit>..HEAD` and add
+a `landed` line for every commit no line records; PostToolUse adds a `captured` line for each graph
+entry the capture notice found added, its title read from the entry's front matter; Stop and
+SessionEnd keep the one `dirty` line on `git status --porcelain -z --untracked-files=all --` over
+the paths the session wrote and the line named, and the one `asked` line on the session's last
+prompt. Each writes only where a line would change. A landed round adds every open agent line of
+every seat to its targets, addressed `state:<seat>#<id>`; such a mapping stands while its line is
+open, rides under it in the brief and `show state`, and stays out of the landed notice and
+`landed dismiss`.
+
+The fold cache carries the ledgers, its layout moved up with them. A merge keeps every ledger row,
+as it keeps every event past the horizon of an entry it does not hold; a purge drops a purged seat's.
+
 ## Views
 
 `internal/layout` parses sdd's view layout grammar and knows no vocabulary: sections, each a run of
@@ -817,7 +865,7 @@ so `n` and `skip` count entries, not blocks.
 
 The brief's rules, traps, todos and notes are the sections of a fixed layout (`briefLayout` in
 `internal/memory/brief.go`), compiled and run like any other with the note limit as `n`; the
-brief keeps around them what is no list of entries (its first line, the state slot, the changes,
+brief keeps around them what is no list of entries (its first line, the state ledger, the changes,
 the ended and inferred ends, the news, the topics), the character budget and the rules' third.
 `brief --kind` and `brief --topic` are `active:mine` narrowed by `kind` or `topic`.
 
@@ -904,24 +952,12 @@ subagent's set. SubagentStop removes the subagent's set, and the session's end e
 subagents' sets and spawn slots. `--again` bypasses the lookup and still marks. The index lists notes hottest first when built, but a `show` warms without a log
 event, so the hook ranks the matching notes by the heat read at the call.
 
-A `state` row the Stop or SessionEnd hook writes carries `draft: true`, the files the session
-wrote (`wrote` on its ladder, each once, the first 20) and its last prompt (`last_prompt`, kept only
-from a prompt holding no credential, and never from a turn Claude Code sends itself through
-UserPromptSubmit: one opening with `<task-notification>`, `<local-command-caveat>`,
-`<local-command-stdout>` or `<bash-stdout>`). The fold never lets a draft replace a non-draft state row of
-the same session, since the hook reads the slot and appends apart and the agent's write can land
-between; a merge keeps the state row the fold reads, not merely the newest. The point a seat's
-replay and nudges count from skips a draft.
-
-The shipped-work hold keeps its measure on the session's ladder: `ship_since`, when the window
-began measuring, set at its first tool call; `ship_base`, HEAD then, replaced by the commit the
-seat's next state write stamps; `state_seen`, that write's time; `writes`, the Edit, Write and
-NotebookEdit calls since; `captured`, the graph entries the capture notice saw added since; and
-`held`, set by whichever hook delivers the request and cleared with the counts by a state write newer
-than `state_seen`. Every Stop and prompt compares the state slot with `state_seen`, delivering or
-not, so counts reset at the first hook after a state write rather than at the next delivery. Each
-reads HEAD with the one `rev-parse` the checkout asks. The ladder goes with the window at a
-compaction or `/clear`, and the measure with it.
+The session's ladder also keeps what the ledger's `dirty` and `asked` lines are made from: the files
+the session's Edit, Write and NotebookEdit calls named (`wrote`, each once, the first 20) and its
+last prompt (`last_prompt`, kept only from a prompt holding no credential, and never from a turn
+Claude Code sends itself through UserPromptSubmit: one opening with `<task-notification>`,
+`<local-command-caveat>`, `<local-command-stdout>` or `<bash-stdout>`). The ladder goes with the
+window at a compaction or `/clear`; the lines it made stay in the ledger.
 
 Do-now items pending for a seat sit beside the nudge ladder, in the slot `do-now/<seat id>`: the
 session they are owed in, each item's rule, moment and proofs, and how often `Stop` held a turn per

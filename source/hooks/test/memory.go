@@ -39,6 +39,9 @@ type Git struct {
 	Unborn bool
 	// Log answers `log --oneline -n <n> <range>` by its range.
 	Log map[string]string
+	// Dirty lists the paths, relative to the top level, that `status
+	// --porcelain -- <path>...` reports changed.
+	Dirty []string
 	// Tracked lists the paths `ls-files -- <path>` names as tracked.
 	// ListOutsideRepository answers `ls-files` as git does outside a
 	// repository, ListFails as git failing any other way.
@@ -210,7 +213,31 @@ func (fake *Git) Output(_ context.Context, dir string, args ...string) (string, 
 		return "", errors.New("exit status 1")
 	}
 
+	if len(args) > 5 && strings.Join(args[:5], " ") == "status --porcelain -z --untracked-files=all --" {
+		fake.mutex.Lock()
+		defer fake.mutex.Unlock()
+
+		var answer strings.Builder
+
+		for _, path := range args[5:] {
+			if slices.Contains(fake.Dirty, path) {
+				answer.WriteString(" M " + path + "\x00")
+			}
+		}
+
+		return answer.String(), nil
+	}
+
 	return "", errors.New("unexpected git call")
+}
+
+// SetDirty replaces the paths `status --porcelain` reports changed while a
+// call may be running.
+func (fake *Git) SetDirty(paths ...string) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	fake.Dirty = paths
 }
 
 // byDirectory answers the calls whose answer depends on the work tree around

@@ -80,6 +80,10 @@ func eventTexts(event memorylog.Event) []eventText {
 			where = "the state"
 		}
 
+		if event.Kind == memorylog.KindItem && event.Entry == ledgerID {
+			where = "a state line"
+		}
+
 		for _, text := range stringsIn(payload[key]) {
 			texts = append(texts, eventText{where: where, text: text})
 		}

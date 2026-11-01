@@ -470,7 +470,9 @@ func allCommands() []command {
 				{"again", flagSwitch},
 			},
 			positional: someIDs, run: (*memory).show,
-			schema: `{"type":"object","properties":{` + idsKey + `,` + noHeat + `,` + againKey + `,` +
+			schema: `{"type":"object","properties":{` +
+				`"ids":{"type":"array","items":{"type":"string","pattern":"^(m-[a-z0-9]{4,16}|state)$"},"description":"entry ids, or state for this seat's ledger; array even for one"},` +
+				noHeat + `,` + againKey + `,` +
 				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"},` +
 				`"with_removed":{"type":"boolean","description":"also a todo's removed items"},` +
 				`"all_items":{"type":"boolean","description":"each of a todo's done and dropped items, not their count"}},"required":["ids"]}`,
@@ -555,19 +557,20 @@ func allCommands() []command {
 				`"to":{"type":"string","description":"a new path to write the attachment's bytes to"}},"required":["id"]}`,
 		},
 		{
-			name: "ack", usage: "ack <id>... --done | --decline '<why>'  |  ack <todo>#<item>... --done | --undo | --decline '<why>' | --remove  |  ack <todo> --add '<text>'... | --order <item>,<item>...",
-			description: "settle pending do-now items, or change a todo's items for good, each id then todo#item; all or none; takes one of done, decline, undo, remove, add or order",
+			name: "ack", usage: "ack <id>... --done | --decline '<why>'  |  ack <todo>#<item>... --done | --undo | --decline '<why>' | --remove  |  ack <todo> --add '<text>'... | --order <item>,<item>...  |  ack state --add '<line>'... [--until <condition>]...  |  ack state#<item>... --done | --undo | --remove",
+			description: "settle pending do-now items, change a todo's items for good, or change this seat's state lines (state, state#item); all or none; takes one of done, decline, undo, remove, add or order",
 			flags: []flagSpec{
 				{"done", flagSwitch}, {"decline", flagText}, {"undo", flagSwitch}, {"remove", flagSwitch},
-				{"add", flagList}, {"order", flagText}, {"no-heat", flagSwitch},
+				{"add", flagList}, {"order", flagText}, {"until", flagList}, {"no-heat", flagSwitch},
 			},
 			positional: someIDs, run: (*memory).ack,
-			schema: `{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string","pattern":"^m-[a-z0-9]{4,16}(#[a-z0-9]+)?$"},` +
-				`"description":"rule ids, or <todo>#<item> addresses, or one todo id for add and order; array even for one"},` +
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string","pattern":"^(m-[a-z0-9]{4,16}|state)(#[a-z0-9]+)?$"},` +
+				`"description":"rule ids, <todo>#<item> or state#<item> addresses, or one todo id or state for add and order; array even for one"},` +
 				`"done":{"type":"boolean","description":"done, or an item ticked"},"decline":{"type":"string","description":"why not done, or why an item is dropped"},` +
 				`"undo":{"type":"boolean","description":"untick items"},"remove":{"type":"boolean","description":"remove items that never belonged"},` +
-				`"add":{"type":"array","items":{"type":"string"},"description":"items to add at the end: text, or a memory or graph id"},` +
+				`"add":{"type":"array","items":{"type":"string"},"description":"items or state lines to add at the end: text, or a memory or graph id"},` +
 				`"order":{"type":"string","description":"item ids, comma-separated, to put first in that order"},` +
+				`"until":{"type":"array","items":{"type":"string"},"description":"for state --add, any one ends a line: ` + untilForms + `"},` +
 				noHeat + `},"required":["ids"]}`,
 		},
 		{
@@ -578,9 +581,8 @@ func allCommands() []command {
 				`,"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"the entry's new kind"}},"required":["id","kind"]}`,
 		},
 		{
-			name: "state", usage: "state", description: "overwrite this seat's state slot, in the style the brief names; the brief opens with it",
-			readsBody: true, run: (*memory).writeState,
-			schema: `{"type":"object","properties":{"body":{"type":"string","description":"where the work stands"}},"required":["body"]}`,
+			name: "state", cliOnly: true, usage: "state", description: "refused: state is a ledger now, changed through ack state",
+			run: (*memory).refuseState, schema: `{"type":"object","properties":{}}`,
 		},
 		{
 			name: "retire", usage: "retire <id>... [--because '<why>']", description: "end entries: flagged in results, out of the brief; all or none",

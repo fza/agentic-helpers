@@ -37,8 +37,6 @@ const (
 	DefaultOrphanStoreGrace      = "30d"
 )
 
-const DefaultStateStaleAfterWrites = 5
-
 // DefaultLandedScanInterval / MinLandedScanInterval pace the scan of a
 // checkout's history for commits that may settle a live todo or trap; a git
 // call that lands commits scans at once whatever the interval.
@@ -192,9 +190,6 @@ type Options struct {
 	EmbeddingQueryTemplate    string
 	EmbeddingDocumentTemplate string
 	EntryMaxWords             int
-	// StateStaleAfterWrites is how many file writes since a seat's last state
-	// write hold the session's Stop for a new one.
-	StateStaleAfterWrites int
 	// LandedScanInterval is how often the memory hooks scan the checkout's
 	// history for commits that may settle a live todo or trap.
 	LandedScanInterval   time.Duration
@@ -269,7 +264,7 @@ type Options struct {
 var Keys = []string{
 	"embedding_source", "embedding_provider", "embedding_model", "embedding_endpoint", "embedding_path",
 	"embedding_dimensions", "embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
-	"entry_max_words", "state_stale_after_writes", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "cache_retention", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
+	"entry_max_words", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "cache_retention", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -641,7 +636,6 @@ func (options *Options) clamp() {
 	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
 	options.EntryMaxWords = max(options.EntryMaxWords, 1)
 	options.EmbeddingDimensions = max(options.EmbeddingDimensions, 0)
-	options.StateStaleAfterWrites = max(options.StateStaleAfterWrites, 1)
 	options.LandedScanInterval = max(options.LandedScanInterval, MinLandedScanInterval)
 	options.AttachmentMaxMB = max(options.AttachmentMaxMB, 1)
 	// An overall limit below its per-item limit is raised to it: one item
@@ -653,7 +647,7 @@ func (options *Options) clamp() {
 
 func Defaults() Options {
 	return Options{
-		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, LandedScanInterval: DefaultLandedScanInterval, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime, CacheRetention: DefaultCacheRetention,
+		EntryMaxWords: DefaultEntryMaxWords, LandedScanInterval: DefaultLandedScanInterval, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime, CacheRetention: DefaultCacheRetention,
 		EmbeddingSource: EmbeddingSourceAuto, EmbeddingProvider: EmbeddingProviderAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
@@ -697,7 +691,6 @@ func (options *Options) fields() fields {
 		numbers: map[string]*int{
 			"embedding_dimensions":     &options.EmbeddingDimensions,
 			"entry_max_words":          &options.EntryMaxWords,
-			"state_stale_after_writes": &options.StateStaleAfterWrites,
 			"entry_id_length":          &options.EntryIDLength,
 			"brief_note_limit":         &options.BriefNoteLimit,
 			"attachment_max_mb":        &options.AttachmentMaxMB,

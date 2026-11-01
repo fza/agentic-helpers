@@ -50,16 +50,17 @@ const (
 	waitDeadline             = 30 * time.Minute
 )
 
-// stateFirst is what both nudges ask for: where work stands goes into the
-// state slot, and an entry is filed only for what outlives the moment.
-const stateFirst = "Write where work stands first: " + self + " state < body. " +
+// stateFirst is what both nudges ask for: where work moved goes into the
+// state ledger a line at a time, and an entry is filed only for what
+// outlives the moment.
+const stateFirst = ledgerAsk + ". " +
 	"File an entry only for a finding, an open question or a judgment call: " +
 	self + " new --kind <kind> --title '<3-10 words>' --topic <name>... < body"
 
 const nudgeText = "Context near compaction. " + stateFirst
 
-const backstopText = "Memory overdue, two nudges unanswered: write where work stands with " + self +
-	" state now, and file findings with " + self + " new, before ending the turn."
+const backstopText = "Memory overdue, two nudges unanswered. " + ledgerAsk + ". File findings with " + self +
+	" new before ending the turn."
 
 type hookEvent func(mem *memory, ctx context.Context, args []string) int
 
@@ -201,6 +202,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 		// not what reads showed it before: its reads start afresh too.
 		if payload.Source == "resume" {
 			mem.clearSlot(mem.shownKey(held.SessionID))
+			mem.say(mem.oldStateNotice(ctx, name))
 		}
 
 		if payload.Source == "compact" || payload.Source == "clear" {
@@ -443,25 +445,33 @@ type ladder struct {
 	// for, and ReplayCheckedSize the transcript's size at its last check.
 	ReplayNudgedFor   time.Time `json:"replay_nudged_for"`
 	ReplayCheckedSize int64     `json:"replay_checked_size"`
-	// ShipSince is when the window began measuring shipped work, ShipBase
-	// HEAD then or the commit the seat's last state write stamps, StateSeen
-	// that write's time, and Writes and Captured the file writes and graph
-	// entries since. Held marks the shipped-work hold as spent until the next
-	// state write.
-	ShipSince time.Time `json:"ship_since"`
-	ShipBase  string    `json:"ship_base,omitempty"`
-	StateSeen time.Time `json:"state_seen"`
-	Writes    int       `json:"writes,omitempty"`
-	Captured  int       `json:"captured,omitempty"`
-	Held      bool      `json:"held,omitempty"`
-	// Wrote is the files those writes named and LastPrompt the session's last
-	// prompt, both for a hook-written draft of the seat's state.
+	// Wrote is the files the session's Edit, Write and NotebookEdit calls
+	// named and LastPrompt its last prompt, for the ledger's dirty and asked
+	// lines.
 	Wrote      []string `json:"wrote,omitempty"`
 	LastPrompt string   `json:"last_prompt,omitempty"`
 }
 
-const replayNudgeText = "Turns since your newest entry or state write no longer fit the post-compaction replay. " +
+const replayNudgeText = "Turns since your newest entry or state line no longer fit the post-compaction replay. " +
 	stateFirst
+
+var fileWriters = []string{"Edit", "Write", "NotebookEdit"}
+
+// recordWrite adds the file a write call named to the session's written
+// files, for the dirty line at Stop.
+func (mem *memory) recordWrite(session string, toolName string, path string) {
+	if !slices.Contains(fileWriters, toolName) || path == "" {
+		return
+	}
+
+	held := mem.loadLadder(session)
+	if slices.Contains(held.Wrote, path) {
+		return
+	}
+
+	held.Wrote = wrotePaths(held.Wrote, path)
+	_ = mem.writeSlot(mem.ladderKey(session), held)
+}
 
 // replayNudge asks the seat to file once its turns since its newest entry
 // would no longer fit the replay a compaction brings back, once per newest
@@ -688,22 +698,13 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		out = append(out, nudgeText)
 	}
 
-	// Stop context always shows in the transcript, prompt context never does,
-	// so the shipped-work request rides here; the nudge asks for the same
-	// state write.
-	if mem.shippedDue(ctx, name, &steps) {
-		steps.Held = true
-		if !nudged {
-			out = append(out, shippedPromptText)
-		}
-	}
-
 	replay := mem.replayNudge(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath), &steps)
 	if replay != "" {
 		out = append(out, replay)
 	}
 
-	// A prompt holding a credential never reaches a draft the log would keep.
+	// A prompt holding a credential never reaches the asked line the log
+	// would keep.
 	withheld := promptvector.Withheld(ctx, payload.Prompt)
 	if withheld != "" {
 		out = append(out, withheld)
@@ -786,7 +787,12 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 		notes = append(notes, captured)
 	}
 
-	mem.countShipped(ctx, session, payload.ToolName, cmp.Or(payload.ToolInput.FilePath, payload.ToolInput.NotebookPath), gained)
+	mem.capturedLines(ctx, name, gained)
+	mem.recordWrite(session, payload.ToolName, cmp.Or(payload.ToolInput.FilePath, payload.ToolInput.NotebookPath))
+
+	if payload.ToolName == "Bash" && landingOnly.MatchString(payload.ToolInput.Command) {
+		mem.hookLines(ctx, name, held.Commit, session, false)
+	}
 
 	// A subagent's call is told what its level gives it, against marks of its
 	// own: the seat's mark moving past an arrival only a subagent saw would
@@ -965,23 +971,15 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 	held = mem.track(ctx, name, held, payload)
 	session := cmp.Or(held.SessionID, payload.SessionID)
 
-	mem.draftState(ctx, name, held, session)
+	mem.hookLines(ctx, name, held.Commit, session, true)
 
 	pending := mem.holdForDoNow(name, session)
 	if pending != "" {
 		return mem.hold(pending)
 	}
 
-	// Only near compaction does the shipped-work request hold the turn: the
-	// next prompt, which carries it otherwise, may come after the compaction.
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
-	shipped := mem.shippedDue(ctx, name, &steps) && mem.crossed(session, payload.TranscriptPath, steps)
-	steps.Held = steps.Held || shipped
 	_ = mem.writeSlot(mem.ladderKey(session), steps)
-
-	if shipped {
-		return mem.hold(shippedText)
-	}
 
 	if steps.Nudges >= nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps) {
 		return mem.hold(backstopText)
@@ -1021,7 +1019,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	}
 
 	held = mem.track(ctx, name, held, payload)
-	mem.draftState(ctx, name, held, cmp.Or(held.SessionID, payload.SessionID))
+	mem.hookLines(ctx, name, held.Commit, cmp.Or(held.SessionID, payload.SessionID), true)
 	mem.clearSlot(mem.shownKey(held.SessionID))
 	promptvector.Remove(ctx, promptvector.Dir(mem.env.Roots.Cache), held.SessionID)
 

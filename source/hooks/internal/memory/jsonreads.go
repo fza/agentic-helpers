@@ -192,7 +192,22 @@ func (mem *memory) showJSON(ctx context.Context, here tree, folded *state, req r
 
 	entries := make([]jsonEntry, 0, len(req.IDs))
 
+	var ledger *jsonLedger
+
 	for _, id := range req.IDs {
+		if id == ledgerID {
+			name, isSeated := mem.seated(ctx)
+			if !isSeated {
+				missing = append(missing, "state: "+ErrNoSeat.Error())
+
+				continue
+			}
+
+			ledger = mem.ledgerJSON(ctx, folded, name)
+
+			continue
+		}
+
 		held, found := folded.entries[id]
 		if !found {
 			missing = append(missing, id+": no such entry")
@@ -234,12 +249,13 @@ func (mem *memory) showJSON(ctx context.Context, here tree, folded *state, req r
 		mem.warm(folded, heatShow, ids...)
 	}
 
-	return jsonAnswer(jsonShow{Notice: filedNotice, Entries: entries})
+	return jsonAnswer(jsonShow{Notice: filedNotice, Entries: entries, State: ledger})
 }
 
 type jsonShow struct {
 	Notice  string      `json:"notice"`
 	Entries []jsonEntry `json:"entries,omitempty"`
+	State   *jsonLedger `json:"state,omitempty"`
 }
 
 type jsonWho struct {
@@ -274,7 +290,6 @@ type jsonState struct {
 	At     time.Time `json:"at"`
 	Branch string    `json:"branch,omitempty"`
 	Commit string    `json:"commit,omitempty"`
-	Draft  bool      `json:"draft,omitempty"`
 }
 
 type jsonChange struct {
@@ -298,7 +313,7 @@ type jsonBrief struct {
 	Language string         `json:"language,omitempty"`
 	Live     int            `json:"live"`
 	Retired  int            `json:"retired"`
-	State    *jsonState     `json:"state,omitempty"`
+	State    *jsonLedger    `json:"state,omitempty"`
 	Changed  []jsonChange   `json:"changed,omitempty"`
 	Rules    []jsonEntry    `json:"rules,omitempty"`
 	Traps    []jsonEntry    `json:"traps,omitempty"`
@@ -324,9 +339,7 @@ func (mem *memory) briefJSON(ctx context.Context, here tree, folded *state, seat
 		Topics: mem.topicCounts(folded),
 	}
 
-	if slot, found := folded.states[seatName]; found {
-		answer.State = &jsonState{Body: slot.Body, At: slot.at.UTC(), Branch: slot.Branch, Commit: slot.Commit, Draft: slot.Draft}
-	}
+	answer.State = mem.ledgerJSON(ctx, folded, seatName)
 
 	for _, held := range folded.entryList() {
 		if !mem.onShelf(held, seatName) {

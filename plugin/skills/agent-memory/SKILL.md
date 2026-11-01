@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: 'agentic-memory: seats, filing entries and their kinds, the state slot, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, when a line says no store is bound to the checkout or that a checkout and its graph repository keep two stores, when a line says an instruction file changed since loaded, when the user gives a standing instruction, before spawning a subagent and when a prompt names an agentic-helpers level, and when deciding what belongs in memory versus the graph versus docs.'
+description: 'agentic-memory: seats, filing entries and their kinds, the state ledger, search, the brief, retire and supersede, what survives a compaction. Use when a session holds no seat and memory exists, when claiming a seat, when the user asks for a seat in any language, before filing a finding, when a nudge says context is near compaction, when a seat still has a .memory/carryforward file, when a line says no store is bound to the checkout or that a checkout and its graph repository keep two stores, when a line says an instruction file changed since loaded, when the user gives a standing instruction, before spawning a subagent and when a prompt names an agentic-helpers level, and when deciding what belongs in memory versus the graph versus docs.'
 ---
 
 # Memory
@@ -26,7 +26,7 @@ Memory works in the background. The user hears of it only when something goes wr
 - **Use what it returns silently**, as any other lead, never citing memory as the source.
 - **Upkeep is yours, unasked, unmentioned.** `retire?`, `returns`, drifted anchor, near topic,
   similar entry, stale state → settle now (`retire`, `supersede`, `confirm`, `rekind`, `tag`,
-  `merge`, `state`). Never ask, offer, list as owed, report done. "Check memory" → answer with what
+  `merge`, `ack state`). Never ask, offer, list as owed, report done. "Check memory" → answer with what
   it holds; upkeep beside it, silently.
 - **Speak up only for**: a refusal or failure (seat held by a live session, no seat, embedder down,
   a store question); a miss the user expected found; an entry contradicting repo or graph where it matters; the user asking what memory holds.
@@ -93,14 +93,20 @@ agentic-memory new --title '<3-10 words>' --topic <name>... \
   [--due <RFC 3339 or date>] <<'EOF'
 body
 EOF
-agentic-memory state <<'EOF'
-where this seat's work stands
-EOF
+agentic-memory ack state --add '<where one piece of work stands>' [--until <end>]...
+agentic-memory ack state#<item>... --done | --remove | --undo
+agentic-memory show state
 ```
 
-- **Where work stands → `state`, never an entry.** One slot, overwritten, first in the brief. Write
-  it when a nudge asks (work shipped, near compaction, replay outgrown), not between: each write
-  rewrites the whole slot. `state (..., hook draft): ...` = none written since the claim; a lead.
+- **Where work stands → state lines, never an entry.** The seat's ledger, first in the brief: add a
+  line where work moved, tick or remove the one it settles, never retype the rest. A line is one
+  fact, plan or reason only you hold. `--add <memory id>|<todo>#<item>|<graph id>`
+  pins the target. A line citing ids ends once every id it cites ended; `--until` takes `new
+  --until`'s forms. `hook:` lines (`landed`, `captured`, `dirty`, `asked`) come free; cite or drop
+  them, never copy them. `ledger holds <n> lines; drop the settled ones` → remove what is settled.
+- **`#old (...)` + `state is a ledger now: split this into lines (...), then agentic-memory ack
+  state#old --done`** → do both steps. A new line alone does not settle it.
+- `agentic-memory state` refuses: `state is a ledger now, changed a line at a time: ...`.
 - **Kind** sets decay and brief section:
 
 | Kind | For | Decays |
@@ -143,7 +149,7 @@ EOF
 - **Outcome, never the prompt.** Body = finding, decision, step owed. No playback of the user's
   prompt or answer, no "owner chose / asked / said": `--from user` already says whose. A rule
   quotes the instruction alone, nothing around it.
-- **Language and style → the brief's** (`entries in de, terse`): titles, bodies, state. Domain
+- **Language and style → the brief's** (`entries in de, terse`): titles, bodies, state lines. Domain
   terms keep the project's spelling. `terse`: no articles, filler or hedging; fragments fine; code,
   paths, ids, quotes, domain terms exact. `plain`: full sentences. Only agents read memory.
 - Title 3-10 words (unspaced scripts: a character a word), at least one topic. Wrong → lands; the
@@ -161,7 +167,7 @@ EOF
 
 | In memory | Elsewhere |
 |---|---|
-| where work stands → `state` | decision, defect, gap, blocker → the graph |
+| where work stands → `ack state --add` | decision, defect, gap, blocker → the graph |
 | judgment call made without confirmation | system shape → `docs/` |
 | open question nobody answered | how work is done → `AGENTS.md` |
 | measured fact nothing else records | code structure, git history → nowhere |
@@ -241,28 +247,24 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 
 ## What comes back
 
-- **Claim and every compaction → brief**: state, due section ([reference.md](reference.md)),
+- **Claim and every compaction → brief**: state lines, due section ([reference.md](reference.md)),
   changes by other seats, `ended since last brief (revive to undo):` (wrong one → `revive`), rules,
   traps, todos, notes by heat (`retire? <why>` ending a line = looks ended, nothing retired: check
   each), `retire?` (candidates printed nowhere above), new from other seats, topics, then the turns
-  since the seat's newest write; its fold lines ([reference.md](reference.md)) obey the fold rule.
+  since the seat's newest entry or state line; its fold lines ([reference.md](reference.md)) obey the fold rule.
   Before relying on old entries → `agentic-memory view --layout 'active:mine:returns:as-list'` ([view.md](view.md)).
 - **Every prompt → up to three related entries.**
 - **A todo or trap is a lead, not a fact.** Before presenting open work to the user, check it
   against the repository; tick or retire a todo in the turn its work lands. `landed commits may
   settle live work` or `retire? landed: <sha>` → check each, then its command; not this work →
   `agentic-memory landed dismiss <id>...`, or it returns each context.
-- **`Context near compaction. Write where work stands first: ...`** → write the state, file what
-  outlives the moment. Measured against Claude Code's compaction window. Fires at most twice until
-  answered; ignored twice → `Stop` holds with `Memory overdue, two nudges unanswered: write where work stands with
-  agentic-memory state now...`.
-- **`Turns since your newest entry or state write no longer fit the post-compaction replay. ...`**
-  → write the state now.
-- **`Work shipped since your last state write. Write where work stands first: agentic-memory state <
-  body.`** at a prompt → write the state, then answer the prompt.
-- **`Work shipped since your last state write. Write where work stands: agentic-memory state < body.
-  Then end the turn without commentary.`** at `Stop`, near compaction only → write the state, end
-  the turn silently.
+- **`Context near compaction. Add or tick state lines where work moved: agentic-memory ack state
+  --add '<line>' | ack state#<item> --done. ...`** → add or tick state lines, file what outlives the
+  moment. Measured against Claude Code's compaction window. Fires at most twice until answered;
+  ignored twice → `Stop` holds with `Memory overdue, two nudges unanswered. Add or tick state lines
+  where work moved: ...`. Only your own ledger change or an entry answers; a hook line does not.
+- **`Turns since your newest entry or state line no longer fit the post-compaction replay. ...`**
+  → add or tick state lines now.
 - Replay cut → its first piece names `<k> older pieces cut, the full transcript at <path>`; read it
   only when needed.
 - **`agentic-memory: <path> changed since loaded; re-read it`** (any session, seat or none) → read

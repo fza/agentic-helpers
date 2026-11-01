@@ -3,7 +3,6 @@ package memory
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -50,8 +49,9 @@ type rekindPayload struct {
 	Kind string `json:"kind"`
 }
 
-// statePayload is a seat's state slot as a `state` row carries it: where the
-// seat's work stands, overwritten by every write.
+// statePayload is the free-text slot a `state` row carried before the ledger:
+// where the seat's work stood, overwritten by every write, read now only as
+// the ledger's state#old.
 type statePayload struct {
 	Body    string `json:"body"`
 	Session string `json:"session,omitempty"`
@@ -97,62 +97,6 @@ func (mem *memory) rekind(ctx context.Context, req request) result {
 	}
 
 	return done(fmt.Sprintf("%s is now a %s", req.ID, req.Kind))
-}
-
-// writeState overwrites the calling seat's state slot. The slot is a log row,
-// never an entry: no id, no heat, no topics, outside search and recall.
-func (mem *memory) writeState(ctx context.Context, req request) result {
-	name, isSeated := mem.seated(ctx)
-	if !isSeated {
-		return refused("%s", ErrNoSeat)
-	}
-
-	body := strings.TrimSpace(req.Body)
-	if body == "" {
-		return refused("state needs a body on stdin: where the seat's work stands")
-	}
-
-	here := mem.checkout(ctx)
-
-	raw, err := json.Marshal(statePayload{Body: body, Session: mem.env.SessionID, Branch: here.branch, Commit: here.commit})
-	if err != nil {
-		return refused("encoding the state: %v", err)
-	}
-
-	err = mem.appendEvents(ctx, memorylog.Event{Kind: memorylog.KindState, Time: mem.now(), Seat: name, Payload: raw})
-	if err != nil {
-		return refused("%v", err)
-	}
-
-	lines := []string{"state written"}
-
-	limit := mem.options().EntryMaxWords
-	if count := words(body); limit > 0 && count > limit {
-		lines = append(lines, fmt.Sprintf("note: the state has %d words, past the %d it should hold (entry_max_words)",
-			count, limit))
-	}
-
-	return done(strings.Join(lines, "\n"))
-}
-
-// stateLine is how the brief opens on the seat's state slot, its age measured
-// now.
-func (mem *memory) stateLine(folded *state, seatName string) string {
-	slot, found := folded.states[seatName]
-	if !found {
-		return ""
-	}
-
-	where := age(mem.now().Sub(slot.at)) + " old"
-	if slot.Branch != "" {
-		where += ", branch " + slot.Branch
-	}
-
-	if slot.Draft {
-		where += ", hook draft"
-	}
-
-	return fmt.Sprintf("state (%s): %s", where, slot.Body)
 }
 
 // age is a span in its largest whole unit: minutes, hours, days or weeks.

@@ -19,7 +19,7 @@ import (
 )
 
 // The landed-commit scan reads the checkout's history for commits that may
-// settle a live todo, todo item or trap, and keeps each match in the store's
+// settle a live todo, todo item, trap or open state line, and keeps each match in the store's
 // slot file until the entry or item ends or the agent dismisses the match:
 // a hint delivered just before a compaction is as much owed after it. Nothing is
 // retired by a match: a similar subject is evidence, not proof. A round runs
@@ -282,7 +282,7 @@ func (mem *memory) runRound(ctx context.Context, key string) {
 
 	probe := mem.probe(ctx)
 	watched := probe.watchBranches(ctx, folded)
-	targets := landedTargets(folded)
+	targets := append(landedTargets(folded), ledgerTargets(folded)...)
 	floor := oldestFloor(folded, targets)
 
 	if mark.Head == headSHA || (mark.Head == "" && floor.IsZero()) {
@@ -874,9 +874,14 @@ func namesToken(text string, word string, class string) bool {
 }
 
 // pendingMappings is the mappings whose entry is still a live todo or trap
-// and whose item, where one is named, still open.
+// and whose item, where one is named, still open, and those whose state
+// line still stands open.
 func pendingMappings(folded *state, mappings []landedMapping) []landedMapping {
 	return slices.DeleteFunc(slices.Clone(mappings), func(mapping landedMapping) bool {
+		if _, _, isLedger := splitLedgerTarget(mapping.Target); isLedger {
+			return !ledgerLineOpen(folded, mapping.Target)
+		}
+
 		id, itemID, isItem := strings.Cut(mapping.Target, "#")
 
 		held, found := folded.entries[id]
@@ -894,7 +899,9 @@ func pendingMappings(folded *state, mappings []landedMapping) []landedMapping {
 	})
 }
 
-// landedFor is the pending mappings of the entries on seatName's shelf.
+// landedFor is the pending mappings of the entries on seatName's shelf. A
+// match to a state line is no question to settle: it stands under the line
+// as evidence, which ledgerLanded reads.
 func (mem *memory) landedFor(folded *state, seatName string) []landedMapping {
 	var held landedSet
 	if !mem.readSlot(landedKey, &held) {
@@ -904,6 +911,10 @@ func (mem *memory) landedFor(folded *state, seatName string) []landedMapping {
 	var own []landedMapping
 
 	for _, mapping := range pendingMappings(folded, held.Mappings) {
+		if _, _, isLedger := splitLedgerTarget(mapping.Target); isLedger {
+			continue
+		}
+
 		id, _, _ := strings.Cut(mapping.Target, "#")
 		if mem.onShelf(folded.entries[id], seatName) {
 			own = append(own, mapping)

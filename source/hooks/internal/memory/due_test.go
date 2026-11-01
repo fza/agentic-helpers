@@ -362,7 +362,7 @@ func TestDueReadsCarryTheTime(t *testing.T) {
 	}
 }
 
-func TestAFormatSixStoreMovesToSevenWithABackup(t *testing.T) {
+func TestAFormatSixStoreMovesThroughSevenWithABackup(t *testing.T) {
 	h := heldHarness(t)
 	h.file("Gate reads Bash only", "finding")
 
@@ -378,8 +378,8 @@ func TestAFormatSixStoreMovesToSevenWithABackup(t *testing.T) {
 
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
-	if written, _ := os.ReadFile(formatPath); !strings.Contains(string(written), `"format":7`) {
-		t.Errorf("a format-6 store should move to format 7: %s", written)
+	if written, _ := os.ReadFile(formatPath); !strings.Contains(string(written), `"format":8`) {
+		t.Errorf("a format-6 store should move through format 7 to the current one: %s", written)
 	}
 
 	if backups, _ := filepath.Glob(filepath.Join(h.store(), "backup", "format-6-*", "log")); len(backups) != 1 {

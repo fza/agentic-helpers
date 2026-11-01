@@ -12,7 +12,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-var credentialRefusal = regexp.MustCompile(`agentic-memory: (the title|the body|the state|the reason|a topic|--forbids|--when|--proof|--until|an anchor) looks like a credential ` +
+var credentialRefusal = regexp.MustCompile(`agentic-memory: (the title|the body|the state|a state line|the reason|a topic|--forbids|--when|--proof|--until|an anchor) looks like a credential ` +
 	`\((?:[a-z0-9-]+, )*github-pat(?:, [a-z0-9-]+)*, line \d+\); memory never holds one`)
 
 func TestWritesRefuseACredential(t *testing.T) {
@@ -35,7 +35,7 @@ func TestWritesRefuseACredential(t *testing.T) {
 	}{
 		{name: "a title", stdin: "clean", args: []string{"new", "--title", "Token " + token + " here", "--topic", "gate"}, where: "the title"},
 		{name: "a body", stdin: credential, args: []string{"new", "--title", "Gate token found today", "--topic", "gate"}, where: "the body"},
-		{name: "a state", stdin: credential, args: []string{"state"}, where: "the state"},
+		{name: "a state line", args: []string{"ack", "state", "--add", "deploy with " + token}, where: "a state line"},
 		{name: "a retitle", args: []string{"retitle", id, "Token " + token}, where: "the title"},
 		{name: "a retire reason", args: []string{"retire", id, "--because", token}, where: "the reason"},
 		{name: "a supersede reason", args: []string{"supersede", id, "--because", token}, where: "the reason"},
@@ -72,7 +72,7 @@ func TestWritesRefuseACredential(t *testing.T) {
 
 	for _, call := range []string{
 		`{"name":"new","arguments":{"title":"Gate token found today","body":"` + token + `"}}`,
-		`{"name":"state","arguments":{"body":"` + token + `"}}`,
+		`{"name":"ack","arguments":{"ids":["state"],"add":["` + token + `"]}}`,
 	} {
 		if answer := h.mcp(call); !strings.Contains(answer, `"isError":true`) || !credentialRefusal.MatchString(answer) {
 			t.Errorf("a credential over MCP should be refused the same way: %s", answer)

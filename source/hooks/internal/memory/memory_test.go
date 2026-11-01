@@ -1356,7 +1356,7 @@ func TestMCPServesEveryCommand(t *testing.T) {
 		answers[answer.ID] = scanner.Text()
 	}
 
-	for _, name := range []string{"new", "search", "show", "brief", "view", "topics", "confirm", "ack", "state",
+	for _, name := range []string{"new", "search", "show", "brief", "view", "topics", "confirm", "ack",
 		"retire", "supersede", "retitle", "tag", "untag", "link", "who", "claim", "release"} {
 		if !strings.Contains(answers[2], `"name":"`+name+`"`) {
 			t.Errorf("the MCP server should offer %s as a tool", name)
@@ -1975,8 +1975,8 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 	test.AppendTurns(t, path, h.clock.Now().Add(2*time.Hour), 40, 1000)
 
 	first := h.must(prompt, "prompt")
-	if !strings.Contains(first, "Turns since your newest entry or state write no longer fit the post-compaction replay. "+
-		"Write where work stands first: agentic-memory state < body. "+
+	if !strings.Contains(first, "Turns since your newest entry or state line no longer fit the post-compaction replay. "+
+		"Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. "+
 		"File an entry only for a finding, an open question or a judgment call: "+
 		"agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body") {
 		t.Errorf("turns outgrowing the replay should nudge the seat to file:\n%s", first)

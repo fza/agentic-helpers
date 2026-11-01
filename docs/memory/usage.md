@@ -121,9 +121,8 @@ agentic-memory claim main
 agentic-memory new --title 'Gate ignores MCP reads' --topic gate --kind trap <<'BODY'
 reads are recorded only for Bash, so a search through MCP never counts
 BODY
-agentic-memory state <<'BODY'
-gate fix half done: the Bash path records reads, the MCP path not yet
-BODY
+agentic-memory ack state --add 'gate fix half done: the Bash path records reads, the MCP path not yet'
+agentic-memory ack state#k3x --done
 agentic-memory search --term mcp --query 'gate blind to tool calls'
 agentic-memory supersede m-7q2k4f --by m-9xq0b1
 ```
@@ -150,7 +149,7 @@ with `who`, maps the words onto the seat meaning the same, and asks when none or
 A session holding no seat hears so at its start, with the seats named and the note that a prompt
 naming one in other words or another language asks to claim it. After a claim the user requests,
 the agent answers with a short overview of where work stands, in
-the user's language and drawn from the brief the claim printed: the state slot, what is due, open
+the user's language and drawn from the brief the claim printed: the state ledger, what is due, open
 todos with their next items, and decisions waiting on the user. It states outcomes and names an
 entry only where it marks work the user has to act on. Memory stays quiet otherwise; a claim at a
 resumed session's start or one a launcher makes is no request and gets no overview.
@@ -335,7 +334,7 @@ The levels form a ladder, each holding everything of the one below:
   flag and is refused.
 - **`full` files on its own seat.** The seat is held at the spawn, waits for the subagent's first
   hook to name its agent id, and closes when SubagentStop fires for it, or when the session ends.
-  Its entries name it, its state slot is its own, and notices run both ways through the shelf. The
+  Its entries name it, its state ledger is its own, and notices run both ways through the shelf. The
   `--agent` or `agent` of its calls points them at that seat; a memory MCP call carrying no `agent`
   works on the session's seat.
 - **Each subagent has its own shown set** ([Each entry once per context](#each-entry-once-per-context)).
@@ -499,66 +498,118 @@ filing time:
   `--kind`: `new takes no --retention: --kind rule|trap|todo|note sets the decay (MCP key kind);
   retain <id>... <level> overrides it`.
 
-### The state slot
+### The state ledger
 
-Where a seat's work stands is not an entry. Each seat holds one state slot, overwritten by
-`agentic-memory state` (MCP `state`, key `body`) with the body on stdin, and answered
-`state written`. The slot keeps its body, time, session, branch and commit, and holds no
-id, no heat and no topics: `search`, recall, `retire` and the live and retired counts never see it.
-The `entry_max_words` limit applies to its body, as to an entry's.
+Where a seat's work stands is not an entry. Each seat holds a ledger of lines, changed one line at a
+time through `ack` and the reserved id `state`, never retyped whole: every rewrite of a whole slot
+restated most of the last one in output tokens, and most were overwritten before anything read
+them. The ledger belongs to the seat, keyed by its name as entries' seats are, so a temporary seat
+on its parent's shelf keeps its own and two live agents never edit one list. It holds no id, no heat
+and no topics: `search`, recall, `retire` and the live and retired counts never see it. A seat's
+first line creates it; a seat with none reads `state: empty` at claim and in the brief.
 
-An agent writes it when a nudge asks: the shipped-work request, the near-compaction nudge and its
-`Stop` backstop, the replay-overflow nudge. Those fire whenever work moves (a commit, a graph entry,
-`state_stale_after_writes` file writes, a filling context), and every write rewrites the whole slot
-in output tokens, so a write between nudges repeats what the next request asks for anyway.
+| Call | Does | Answers |
+|---|---|---|
+| `ack state --add '<line>'...` | adds a line per `--add`, each with a stable three-character id | `added state#k3x, state#p9a` |
+| `ack state --add <memory id>\|<todo>#<item>\|<graph id>` | pins the target: the line shows its title and state | `added state#q1w` |
+| `ack state --add '<line>' --until <condition>...` | adds lines that end once any condition is reached | `added state#r2e` |
+| `ack state#<item>... --done` | ticks lines | `done` |
+| `ack state#<item>... --remove` | removes lines that no longer belong | `removed` |
+| `ack state#<item>... --undo` | brings a ticked, removed or ended line back, open until ticked or removed | `undone` |
+| `show state` | prints the whole ledger | |
 
-The brief opens with it, after its first line, its age measured as the brief is built:
+MCP `ack` takes the same: `{"ids":["state"],"add":["<line>"],"until":["claim"]}` or
+`{"ids":["state#k3x"],"done":true}`. `until` takes every form `new --until` takes
+([Declared ends](#declared-ends)), and is refused anywhere but on `ack state --add`, a todo's items
+and a rule included:
+`--until declares the ends of the lines ack state --add adds; a todo's items and rules take none`.
+State ids take an `ack` call of their own (`state lines take an ack call of their own: give state or
+state#<item> ids only`), and one of `--add`, `--done`, `--undo` or `--remove` (`ack on state lines
+takes exactly one of --add, --done, --undo or --remove`). `state#<item>` addresses a line of the
+calling seat's ledger alone, so no seat reaches another's: an id the seat's ledger lacks is
+`state#<item>: no such line`.
 
-    state (3h old, branch main): gate fix half done: the Bash path records reads, the MCP path not yet
+Nothing refuses a line for its length or the ledger for its count, a refusal costing a rewrite. Past
+12 open agent lines, the reply adds `ledger holds <n> lines; drop the settled ones`.
 
-A state write moves the start of the post-compaction replay forward as filing does, answers the
-compaction nudge and re-arms the replay nudge.
+**A line ends on its own** where it can:
 
-Where no state the agent wrote is newer than the seat's claim, the Stop and SessionEnd hooks write
-a draft themselves, so a seat's state is never empty. It says what changed, mechanically: the
-commits since the claim (`git log --oneline <claim commit>..HEAD`, the newest 20), the files the
-session's Edit, Write and NotebookEdit calls named, and its last prompt, cut to `entry_max_words`.
-The last prompt is the user's: a background task's notification or a local command's output, which
-Claude Code also delivers as a prompt, never takes its place.
-The brief marks it:
+- **A line citing ids** ends once every id its text cites ended: a graph entry closed or superseded,
+  a memory entry retired or superseded, a todo item ticked or dropped. An id the store does not hold
+  never counts. A line citing an id only for context ends with it.
+- **A pinned line** follows a linked todo item's rules ([Todolists](#todolists)): a memory target
+  retired or a graph target closed ends it, a superseded target is followed to its newest entry, and
+  a target that is gone keeps it open, flagged `gone`.
+- **A declared end** (`--until`) ends it once any one is reached. `captured` is reached once a
+  `captured` hook line lands after the line.
+- **A line with neither** lives until the agent ticks or removes it.
 
-    state (12m old, branch main, hook draft): commits since the claim: 9c0ffee1 fix: the gate reads MCP calls
-    files written: internal/gate/gate.go
-    last prompt: fix the gate for MCP reads
+An ended line leaves the state section and shows once under the brief's
+`ended since last brief`, naming why and its undo:
 
-and `brief --json` carries `"draft": true`. Writing a draft prints nothing, and a draft is written
-again only when it would read differently. The agent's next state write replaces it; a draft never
-replaces a state the agent wrote in the same session, not even one written while the hook ran. A
-draft counts as no state write: it answers no compaction nudge, re-arms no replay nudge, and clears
-no hold for shipped work. A prompt that looks like it holds a credential never reaches a draft.
+    ended since last brief (revive to undo):
+      state#k3x settle m-abc123 and m-def456: every id it cites ended (ack state#k3x --undo)
 
-A seated session that shipped work since its seat's last state write is asked for one at its next
-prompt, as `UserPromptSubmit` context:
+`--undo` brings it back, open until the agent ticks or removes it: whatever ended it would end it
+again at the next read.
 
-    Work shipped since your last state write. Write where work stands first: agentic-memory state < body.
+**Hooks add lines**, marked `hook`, at no agent cost, each showing its age:
 
-Where the context is near compaction at the turn's end, the request holds `Stop` instead, since the
-next prompt may arrive after the compaction:
+- `landed <sha> <subject>` for every commit since the seat's claim the ledger lacks
+  (`git log --oneline <claim commit>..HEAD`, the newest 20), at the `PostToolUse` of a Bash
+  `git commit`, `git merge` or `git cherry-pick` and at `Stop` for commits made elsewhere;
+- `captured <graph id> <title>` when the graph gains an entry, at the tool call that finds it;
+- one `dirty <paths>` line at `Stop`: the files the session's Edit, Write and NotebookEdit calls named
+  that `git status` still reports changed, kept current and ticked once every one is committed or
+  reverted;
+- one `asked <last prompt>` line at `Stop`, cut to `entry_max_words`. The last prompt is the user's:
+  a background task's notification or a local command's output, which Claude Code also delivers as a
+  prompt, never takes its place, and a prompt that looks like it holds a credential never reaches it.
 
-    Work shipped since your last state write. Write where work stands: agentic-memory state < body. Then end the turn without commentary.
+A hook writes only where a line would change, and prints nothing. The agent may cite, tick or remove
+a hook line and never has to. Where a [landed round](#landed-work) matches a commit to an open agent
+line, the commit nests under that line as evidence, never a tick, and ends with it.
 
-A `Stop` hold shows in Claude Code's transcript and prompt context does not, which is why the
-request waits for the prompt wherever it can. A prompt that carries the compaction nudge carries no
-request beside it: the nudge asks for the same state write, and spends the request.
+The brief opens with the ledger, after its first line: the slot waiting to be split
+([below](#a-slot-written-before-the-ledger)), every open agent line whole, the `dirty` and `asked`
+lines, then the newest 12 `landed` and `captured` lines, newest first, the rest folded into a count.
+Hook lines from earlier sessions stay until they leave the newest 12:
 
-Shipped work is any of: HEAD moved off the commit the last state write stamps (or off HEAD at the
-session's first tool call, where it wrote none); the graph gained an entry; or the session's Edit,
-Write and NotebookEdit calls reached `state_stale_after_writes`, 5 unless set. The request goes out
-once, by whichever path, then stays spent until the seat's next state write, so an ignored request
-never repeats. A seatless session, one that only reads and talks, and one whose state is newer than
-its work are never asked. At `Stop` it runs after the hold for pending do-now items and before the
-compaction backstop, and leaves the nudge count alone. A compaction starts the measure afresh with
-the window.
+    state (ack state#<item> --done | --remove):
+      #k3x: gate fix half done: the Bash path records reads, the MCP path not yet
+        landed 9c0ffee1 fix: the gate reads MCP calls
+      #p9a: Gate reads Bash only today  → m-abc123
+      #q1w hook: dirty internal/gate/gate.go (12m)
+      #r2e hook: asked fix the gate for MCP reads (12m)
+      #t5y hook: captured 20261101-190255-d-tac-6hl Seat state as a ledger (2h)
+      (3 more: agentic-memory show state)
+
+`show state` prints every line but removed ones (`--with-removed` adds them), each with its state,
+`[ ]` open, `[x]` ticked, `[e]` ended with an `ended:` line naming why, its declared ends and the
+commits nested under it. `brief --json` carries the ledger as `state`: `lines`, each with `id`,
+`text`, `link`, `state` (`open`, `done`, `ended`), `reason`, `hook`, `at` and `until`, and `old`
+while the slot waits.
+
+An agent change to its ledger moves the start of the post-compaction replay forward as filing does,
+answers the compaction nudge and its backstop, and re-arms the replay nudge. A hook line holds no
+reasoning and does none of that.
+
+#### A slot written before the ledger
+
+A seat whose newest state is a free-text slot the agent wrote, from a release before the ledger,
+shows it as `state#old` in its brief at claim, after a compaction and on resume, with what to do:
+
+    state (ack state#<item> --done | --remove):
+      #old (2d old, branch main): gate fix half done; next: the MCP path, then docs
+      state is a ledger now: split this into lines (agentic-memory ack state --add '<line>' ...), then agentic-memory ack state#old --done
+
+`ack state#old --done` or `--remove` settles it; a new line does not, since one line would silently
+drop the rest of the body. Until then each claim, compaction and resume asks again. A slot a hook
+wrote as a draft is dropped unasked. The old `state` rows stay readable in the log.
+
+`agentic-memory state` refuses, naming the ledger form:
+`state is a ledger now, changed a line at a time: agentic-memory ack state --add '<line>' | agentic-memory ack state#<item> --done | --undo | --remove; agentic-memory show state prints it`.
+The MCP `state` tool is gone.
 
 Words are counted for the body against `entry_max_words` and for the title against 3-10, and the
 similar-entry hint compares entries by their words. In scripts written without spaces (Han,
@@ -605,7 +656,7 @@ it wakes nothing on its own.
 - `show` and `search` print it as `due: <time>` on a live entry's line, never on an ended one's, and
   the JSON entry object carries it as `due`. `view`'s filter word `due` selects the entries carrying one.
 
-The brief's due section follows the state slot. It holds the entries already due and those due
+The brief's due section follows the state ledger. It holds the entries already due and those due
 within a day, earliest first, each short line ending `due <age> ago` or `due in <age>`, under
 `due (<shown> of <total>):`, at most five, then `+<n> more due: agentic-memory brief --due  (run
 before choosing what to do next)`. An entry due later stands in one line, `<n> due later (next
@@ -755,7 +806,7 @@ this session refuses the whole call, `agentic-memory: nothing acked:` then
 `show` lists `done by proof <trigger>`, `done by ack` or `declined: <why>`, with the seat.
 `ack --done` warms each rule it settles by 0.5; a decline warms nothing.
 
-Every `Stop` hold (do-now items, shipped work near compaction, the filing backstop) reaches the agent as Stop
+Every `Stop` hold (do-now items, the filing backstop) reaches the agent as Stop
 context, `hookSpecificOutput.additionalContext` with exit 0: the turn goes on as it would after exit 2,
 under the same loop guards, and the user sees no hook error. The text shows only in Claude Code's
 transcript view.
@@ -782,6 +833,10 @@ log, never a line of the body; only a todo holds items, and `--item` on another 
     agentic-memory ack m-1oqsjs#k3x... --done | --undo | --decline '<why>' | --remove
     agentic-memory ack m-1oqsjs --add '<step>'... | --order k3x,p9a
     agentic-memory show m-1oqsjs [--with-removed] [--all-items]
+
+A seat's [state ledger](#the-state-ledger) is kept the same way, its lines addressed
+`state#<id>`; `ack state` adds, ticks, unticks and removes them, and `--until` on a todo's items is
+refused.
 
 Each item gets an id of three lowercase base36 characters (never all digits), unique within its todo
 and never reused; `<todo>#<id>` is the only address of an item, and the filing reply names them,
@@ -1112,6 +1167,11 @@ every read.
 
 No Stop hook carries it: Stop feedback always shows in the user's terminal.
 
+**State lines.** A round also matches every open line the agent added to a seat's
+[state ledger](#the-state-ledger), from the time the line was added, by its text and, for a pinned
+graph entry, its id. Such a match is no question to settle: it nests under the line in the brief and
+`show state` as `landed <sha> <subject>`, carries no notice and no dismiss, and ends with the line.
+
 **Dismiss.** `agentic-memory landed dismiss <id>...` (MCP `landed`, key `ids`) forgets the stored
 match of each entry id or `<todo>#<item>` named, for a match checked and found not to settle the
 work; the entry stays live. All or none: an id holding no match of the seat refuses the call
@@ -1293,11 +1353,11 @@ seated session keeps the set; heat counts as before.
 
 ## What comes back
 
-A brief at every claim and compaction, the turns since the seat's newest entry or state write, and up
+A brief at every claim and compaction, the turns since the seat's newest entry or state line, and up
 to three entries a prompt touches that stand out from the rest. A session's last turns survive its
 end for the next claim. There is no handoff to write.
 
-The brief runs, in order: its first line, the space line where a store runs low, the state slot,
+The brief runs, in order: its first line, the space line where a store runs low, the state ledger,
 the due section ([Due times](#due-times)), `changed by other seats:`,
 `ended since last brief (revive to undo):`, `rules (from the user, verify before relying):`,
 `traps:`, `todos:`, `notes:`, each kind's live entries carrying no due time by heat, `retire?`,
@@ -1369,22 +1429,23 @@ states where the entry's own seat made it: the standing retire or supersede, a l
 an attachment; another seat's change stays, naming the seat. A view's `as-bodies` prints the same
 block.
 
-Near compaction a nudge asks for a state write first:
+Near compaction a nudge asks for state lines first:
 
-    Context near compaction. Write where work stands first: agentic-memory state < body. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
+    Context near compaction. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
-A state write or any entry answers it. It fires on at most two prompts until answered; past that,
-`Stop` holds the turn with the backstop:
-`Memory overdue, two nudges unanswered: write where work stands with agentic-memory state now, and
-file findings with agentic-memory new, before ending the turn.`
+Any change the agent makes to its state ledger, or any entry, answers it; a hook line does not. It
+fires on at most two prompts until answered; past that, `Stop` holds the turn with the backstop:
+`Memory overdue, two nudges unanswered. Add or tick state lines where work moved: agentic-memory ack
+state --add '<line>' | ack state#<item> --done. File findings with agentic-memory new before ending
+the turn.`
 
-The turns since the seat's newest entry or state write come back after a compaction in at most five
-pieces of 9,000 characters, the newest kept. Once they would no longer fit, the next prompt asks
-once per newest entry or state write:
+The turns since the seat's newest entry or change to its state ledger come back after a compaction
+in at most five pieces of 9,000 characters, the newest kept. Once they would no longer fit, the next
+prompt asks once per newest entry or ledger change:
 
-    Turns since your newest entry or state write no longer fit the post-compaction replay. Write where work stands first: agentic-memory state < body. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
+    Turns since your newest entry or state line no longer fit the post-compaction replay. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
-A state write or any entry moves the replay's start forward and re-arms the nudge, which counts
+An agent ledger change or any entry moves the replay's start forward and re-arms the nudge, which counts
 toward neither the compaction nudge's two nor the `Stop` backstop. A replay that still cuts turns
 opens with the count and where the rest is:
 
@@ -1451,7 +1512,7 @@ field added later is scanned too:
 
     agentic-memory: <where> looks like a credential (<rule ids>, line <n>); memory never holds one
 
-`<where>` names the field: `the title`, `the body`, `the state`, `the reason`, `a topic`, `an anchor`,
+`<where>` names the field: `the title`, `the body`, `a state line`, `the state` (a slot an earlier release wrote), `the reason`, `a topic`, `an anchor`,
 `the link target`, or the flag, as `--until`. A scan that cannot finish refuses
 too, naming `scan-incomplete`. Trim the text and send it again; reference where the credential lives
 instead.
@@ -1468,7 +1529,7 @@ A superseded body drops 14 days on.
 Every subcommand is also a tool of the plugin's `memory` MCP server,
 `mcp__plugin_agentic-helpers_memory__<subcommand>`, except the CLI-only ones: `lifetime`, `drop`,
 `follow`, `unfollow`, `bind`, `holder`, `rename`, `private`, `rekind`, `retain`, `merge`, `unlink`,
-`revive`, `attach` and `read`. Those run through Bash; they stay off `tools/list`, since the
+`revive`, `attach`, `read` and `state`, which only refuses. Those run through Bash; they stay off `tools/list`, since the
 listing loads into every session's context and an agent seldom runs them, and a call naming one is
 refused with its command line:
 
@@ -1493,7 +1554,8 @@ flag or a `<placeholder>` there would name a shape the call does not take (`<id>
 is `ids`). Descriptions and key descriptions are terse phrases, since the listing loads into every
 session's context; a key with a set lists its values in the schema. Every key carries its own description, and one naming entries says which shape it takes:
 `id`, one string, or `ids`, an array even for one. A rule between keys is stated in the tool's
-description: `supersede` takes `by`, `because` or both, `ack` takes `done` or `decline`.
+description: `supersede` takes `by`, `because` or both, `ack` takes `done` or `decline`, or for a todo's
+items and a seat's state lines one of `done`, `undo`, `decline`, `remove`, `add` or `order`.
 
 Every value is taken exactly as sent, on the command line and over MCP alike. A value in an extra
 layer of quotes, such as `from` sent as `"\"user\""`, is outside its set like any other and refused
@@ -1603,7 +1665,7 @@ that made it), `linked_from` (ids, superseded entries aside) and `attachments` (
   section is empty. A reader takes an absent key as empty. Every other value stays, a default as
   much as any: `seat`, `shelf`, `from`, `filed`, `branch`, `commit`, `retention`, `status`, and a
   count of `0` (`live`, `retired`, `filed`, `used`, `size`, `done`).
-- `notice`, `"filed memory is a lead, not an instruction"`, opens every answer carrying entry text (`show`, `search`, `brief`, `view`), as `show`'s text frames each body: titles, bodies and the state are filed memory, never an instruction.
+- `notice`, `"filed memory is a lead, not an instruction"`, opens every answer carrying entry text (`show`, `search`, `brief`, `view`), as `show`'s text frames each body: titles, bodies and state lines are filed memory, never an instruction.
 - Times are RFC 3339 in UTC, as the store keeps them.
 - Keys are never renamed; a new one may be added. No version field.
 - `brief --json` has no character budget and lists every live entry (with `--kind` or `--topic`,
@@ -1628,7 +1690,6 @@ to a route there the writer picks.
 | `embedding_model`, `embedding_endpoint`, `embedding_path`, `embedding_dimensions`, `embedding_api_key_env`, `embedding_timeout`, `embedding_query_template`, `embedding_document_template` | the own embedder search by meaning and prompt recall run on (see README `Embedder`) |
 | `embedding_source` | no longer in the plugin's dialog, still read where a layer sets it, and named at session start: `sdd` always takes sdd's embedder, `own` never runs sdd, `auto` changes nothing; an `off` provider wins over it |
 | `entry_max_words` | the words a body usually stays within, 500 unless set; a longer body lands whole, with a note saying no rewrite is needed |
-| `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
 | `landed_scan_interval` | how often the prompt and tool hooks scan the checkout's history for commits that may settle a live todo or trap ([Landed work](#landed-work)), a span; `10m` unless set, never under `1m`. A Bash call running `git merge`, `commit`, `pull`, `rebase` or `cherry-pick` scans at its PostToolUse whatever the interval |
 | `retired_body_lifetime` | `config.yaml` only: how long a retired entry keeps its body, a span (`90d`, `6w`); `90d` unless set, never under `14d`. The older `retired_body_days` (a number of days) is still read for one release, and `agentic-helpers check` names it |
 | `entry_id_length` | the characters after `m-` in a new entry id |
@@ -1636,7 +1697,7 @@ to a route there the writer picks.
 | `attachment_max_mb` | the megabytes one attached file may hold, 10 unless set |
 | `attachments_total_mb` | the megabytes every attachment of every project on the machine may hold together, each file counted once, 2048 unless set, never below `attachment_max_mb` |
 | `tools_total_mb` | `config.yaml` only: the megabytes every agentic-tools library on the machine may hold, 500 unless set; enforced by every `agentic-tools add` and `update`, which prune the oldest prunable version or refuse, and read by the daily `agentic-helpers prune` that prunes tool versions and by the brief's space line ([tools usage](../tools/usage.md)) |
-| `writing_style` | how agents write entries, their titles and the state, and the tool library's notes: `terse` (no articles, filler or hedging; code, paths, ids, quotes and domain terms exact) unless set, or `plain`; the brief's first line names it. Graph entries stay plain prose |
+| `writing_style` | how agents write entries, their titles and state lines, and the tool library's notes: `terse` (no articles, filler or hedging; code, paths, ids, quotes and domain terms exact) unless set, or `plain`; the brief's first line names it. Graph entries stay plain prose |
 | `memory_language` | the locale entries are written in where the project's `.sdd/config.yaml` names none; `en` unless set |
 | `memory_require_git` | `true` unless set: memory works only inside a git work tree; `false` lets a directory outside git keep a store of its own |
 | `memory_turns_off_auto` | `true` unless set: a claim turns Claude Code's own auto memory off for the project through its `.claude/settings.local.json`; `false` leaves the file alone |

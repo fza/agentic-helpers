@@ -43,7 +43,7 @@ Each level holds everything of the one below.
   seat is still told of the same entries.
 - **`full`**: `agentic-helpers level: full, seat <shelf>-<n>`: a seat of its own on the spawner's
   shelf, held from the spawn and released when SubagentStop fires for it (or at session end). It
-  files there, its entries name that seat, its state slot is its own, and notices run both ways
+  files there, its entries name that seat, its state ledger is its own, and notices run both ways
   through the shelf. Its scratch folder stays the spawner's.
 
 The block opens with `agentic-helpers level: <level> (...)` from `rules` up; the subagent's hooks

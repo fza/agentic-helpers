@@ -1,0 +1,1202 @@
+package memory
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+)
+
+// A seat's state is a ledger of lines: the agent adds, ticks and removes one
+// line at a time through `ack state`, never retyping the rest, and hooks add
+// the lines git and the graph already know. Each line is an `item` row of the
+// log whose entry is the reserved id `state`, filed under the seat it belongs
+// to, so the ledger is keyed as the slot it replaces was and no memory id,
+// every one starting `m-`, can collide with it.
+const (
+	ledgerID = "state"
+	// oldLine addresses the free-text slot a seat wrote before the ledger,
+	// shown until the agent splits it into lines and ticks it.
+	oldLine = "old"
+
+	hookLanded   = "landed"
+	hookCaptured = "captured"
+	hookDirty    = "dirty"
+	hookAsked    = "asked"
+
+	// itemRetext replaces a hook line's text: the one dirty and the one
+	// asked line are kept current rather than added again.
+	itemRetext = "text"
+	lineEnded  = "ended"
+
+	briefHookLines = 12
+	crowdedLedger  = 12
+	landedLines    = 20
+	writtenFiles   = 20
+)
+
+const ledgerAsk = "Add or tick state lines where work moved: " + self + " ack state --add '<line>' | ack state#<item> --done"
+
+const oldStateAsk = "state is a ledger now: split this into lines (" + self + " ack state --add '<line>' ...), then " +
+	self + " ack state#old --done"
+
+const stateRefusal = "state is a ledger now, changed a line at a time: " + self + " ack state --add '<line>' | " +
+	self + " ack state#<item> --done | --undo | --remove; " + self + " show state prints it"
+
+var (
+	ErrStateMixed  = errors.New("state lines take an ack call of their own: give state or state#<item> ids only")
+	ErrStateChange = errors.New("ack on state lines takes exactly one of --add, --done, --undo or --remove")
+	ErrUntilAdd    = errors.New("--until declares the ends of the lines ack state --add adds; a todo's items and rules take none")
+	ErrStateAdd    = errors.New("--add takes the one id state, no item address")
+	// stateAddress is a ledger line's address, `state#<item>`.
+	stateAddress = regexp.MustCompile(`^state#([a-z0-9]+)$`)
+	// citedMemory finds a memory id or a todo item's address a line's text
+	// cites.
+	citedMemory = regexp.MustCompile(`\bm-[a-z0-9]{4,16}(?:#[a-z0-9]{3})?\b`)
+	landingOnly = regexp.MustCompile(`\bgit\b[^;&|\n]*?\s(?:merge|commit|cherry-pick)\b`)
+)
+
+// ledger is one seat's state lines in the order added, removed ones
+// included. Changed is the seat's newest change to it, the agent's alone:
+// a hook line holds no reasoning, so it answers no nudge and moves no replay.
+// OldSettled is when the agent ticked or removed state#old.
+type ledger struct {
+	Lines      []ledgerLine
+	Changed    time.Time
+	OldSettled time.Time
+}
+
+// ledgerLine is one line as the log left it. Set is whether an ack gave it
+// its state, which wins over every end the line would reach on its own.
+type ledgerLine struct {
+	ID, Text, Link, State, Hook, Commit, Session string
+	Paths                                        []string
+	Until                                        []string
+	UntilHashes                                  map[string]string
+	UntilHold                                    *hold
+	Set                                          bool
+	Added                                        time.Time
+}
+
+func (held *ledger) line(id string) *ledgerLine {
+	for index := range held.Lines {
+		if held.Lines[index].ID == id {
+			return &held.Lines[index]
+		}
+	}
+
+	return nil
+}
+
+func (folded *state) ledgerOf(seatName string) *ledger {
+	if folded.ledgers == nil {
+		folded.ledgers = map[string]*ledger{}
+	}
+
+	held, found := folded.ledgers[seatName]
+	if !found {
+		held = &ledger{}
+		folded.ledgers[seatName] = held
+	}
+
+	return held
+}
+
+// ledgerFor is the seat's ledger as folded, empty where it has none: a
+// ledger is created by its first line, never by the agent.
+func (folded *state) ledgerFor(seatName string) *ledger {
+	held, found := folded.ledgers[seatName]
+	if !found {
+		return &ledger{}
+	}
+
+	return held
+}
+
+func (held *ledger) apply(at time.Time, change itemPayload) {
+	if change.Hook == "" {
+		held.Changed = at
+	}
+
+	if change.ID == oldLine {
+		switch change.Op {
+		case itemCheck, itemRemove:
+			held.OldSettled = at
+		case itemUncheck:
+			held.OldSettled = time.Time{}
+		}
+
+		return
+	}
+
+	if change.Op == itemAdd {
+		if held.line(change.ID) != nil {
+			return
+		}
+
+		held.Lines = append(held.Lines, ledgerLine{
+			ID: change.ID, Text: change.Text, Link: change.Link, State: itemOpen, Hook: change.Hook, Commit: change.Commit,
+			Session: change.Session, Paths: change.Paths, Until: change.Until, UntilHashes: change.UntilHashes,
+			UntilHold: change.UntilHold, Added: at,
+		})
+
+		return
+	}
+
+	target := held.line(change.ID)
+	if target == nil {
+		return
+	}
+
+	switch change.Op {
+	case itemCheck:
+		target.State, target.Set = itemDone, true
+	case itemUncheck:
+		// A line brought back stays open until the agent ticks or removes it:
+		// whatever ended it would end it again at the next read.
+		target.State, target.Set = itemOpen, true
+	case itemRemove:
+		target.State, target.Set = itemRemoved, true
+	case itemRetext:
+		target.Text, target.Paths = change.Text, change.Paths
+	}
+}
+
+// oldState is the free-text slot the seat wrote itself, while it still waits
+// to be split into lines: a hook's draft is dropped unasked.
+func (folded *state) oldState(seatName string) (stateSlot, bool) {
+	slot, found := folded.states[seatName]
+	if !found || slot.Draft || strings.TrimSpace(slot.Body) == "" {
+		return stateSlot{}, false
+	}
+
+	if folded.ledgerFor(seatName).OldSettled.After(slot.at) {
+		return stateSlot{}, false
+	}
+
+	return slot, true
+}
+
+// lineView is a line as a read shows it: its state worked out, the text it
+// shows, the flag of a pinned line, and why it ended on its own.
+type lineView struct {
+	line   ledgerLine
+	state  string
+	text   string
+	flag   string
+	reason string
+}
+
+func (view lineView) open() bool {
+	return view.state == itemOpen
+}
+
+// ledgerViews is every line of the seat's ledger, removed ones aside, its
+// state worked out now.
+func (mem *memory) ledgerViews(ctx context.Context, folded *state, seatName string) []lineView {
+	held := folded.ledgerFor(seatName)
+	probe := mem.probe(ctx)
+
+	var views []lineView
+
+	for _, line := range held.Lines {
+		if line.State == itemRemoved {
+			continue
+		}
+
+		views = append(views, mem.viewLine(ctx, probe, folded, seatName, held, line))
+	}
+
+	return views
+}
+
+// viewLine works a line's state out: an ack's tick, untick or remove wins;
+// a hook line stays open until its hook ticks it; else the line ends once a
+// declared end is reached, once its pinned target ends as a linked todo
+// item's does, or once every id its text cites ended.
+func (mem *memory) viewLine(ctx context.Context, probe *endProbe, folded *state, seatName string, held *ledger,
+	line ledgerLine,
+) lineView {
+	view := lineView{line: line, state: line.State, text: line.Text}
+
+	if line.Link != "" && line.Hook == "" {
+		view.text, view.flag = folded.pinned(line.Link)
+	}
+
+	if line.Set || line.Hook != "" || line.State != itemOpen {
+		return view
+	}
+
+	for _, end := range lineConditions(line) {
+		if probe.met(ctx, untilHolder(mem.seatKey(seatName), held, line), end) {
+			view.state, view.reason = lineEnded, endReached+end.String()
+
+			return view
+		}
+	}
+
+	if line.Link != "" {
+		ended, flag := folded.linkEnd(line.Link)
+		view.flag = flag
+
+		if ended {
+			view.state, view.reason = lineEnded, strings.TrimPrefix(flag, "→ ")
+		}
+
+		return view
+	}
+
+	cited := folded.cited(line.Text)
+	if len(cited) > 0 && !slices.ContainsFunc(cited, func(id string) bool { return !folded.citedEnded(probe, ctx, id) }) {
+		view.state, view.reason = lineEnded, "every id it cites ended"
+	}
+
+	return view
+}
+
+func lineConditions(line ledgerLine) []condition {
+	return conditionsOf(&entry{until: line.Until})
+}
+
+// untilHolder is the entry a line's ends are checked against, as an entry's
+// are: the line's seat, session, time added, path hashes and claim, and for
+// `captured` every graph entry a hook line recorded since the line was added.
+func untilHolder(seatKey string, held *ledger, line ledgerLine) *entry {
+	holder := &entry{
+		seatKey: seatKey, session: line.Session, filed: line.Added, until: line.Until,
+		untilHashes: line.UntilHashes, untilHold: line.UntilHold,
+	}
+
+	for _, other := range held.Lines {
+		if other.Hook == hookCaptured && other.Added.After(line.Added) && other.Link != "" {
+			holder.textLinks = append(holder.textLinks, other.Link)
+		}
+	}
+
+	return holder
+}
+
+// pinned is how a pinned line shows its target: the title of an entry, the
+// text of an item, the id of a graph entry, and the target's state as a
+// linked item's flag reads it.
+func (folded *state) pinned(link string) (string, string) {
+	_, flag := folded.linkEnd(link)
+
+	todo, itemID, isItem := strings.Cut(link, "#")
+	if isItem {
+		held, found := folded.entries[todo]
+		if found {
+			if one := held.item(itemID); one != nil {
+				return cmp.Or(one.Text, one.Link), flag
+			}
+		}
+
+		return link, flag
+	}
+
+	if held, found := folded.entries[link]; found {
+		return held.title, flag
+	}
+
+	return link, flag
+}
+
+// linkEnd is whether a pinned line's target ended, as a linked todo item's
+// does, and its flag: a todo item ends when ticked or dropped.
+func (folded *state) linkEnd(link string) (bool, string) {
+	todo, itemID, isItem := strings.Cut(link, "#")
+	if !isItem {
+		state, flag := folded.itemState(todoItem{Link: link})
+
+		return state == itemDone, flag
+	}
+
+	held, found := folded.entries[todo]
+	if !found {
+		return false, "→ " + link + " gone"
+	}
+
+	one := held.item(itemID)
+	if one == nil {
+		return false, "→ " + link + " gone"
+	}
+
+	state, _ := folded.itemState(*one)
+
+	return state == itemDone || state == itemDropped, "→ " + link + " " + state
+}
+
+// cited is every id a line's text names that can end: a memory entry or a
+// todo item the store holds, a graph id.
+func (folded *state) cited(text string) []string {
+	var ids []string
+
+	rest := qualifiedIDPattern.ReplaceAllString(text, " ")
+	found := qualifiedIDPattern.FindAllString(text, -1)
+	found = append(found, graphIDPattern.FindAllString(rest, -1)...)
+
+	for _, id := range citedMemory.FindAllString(rest, -1) {
+		todo, _, _ := strings.Cut(id, "#")
+		if _, known := folded.entries[todo]; known {
+			found = append(found, id)
+		}
+	}
+
+	for _, id := range found {
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+
+	return ids
+}
+
+// citedEnded is whether an id a line cites ended: a graph entry closed or
+// superseded, a memory entry retired or superseded, a todo item ticked or
+// dropped.
+func (folded *state) citedEnded(probe *endProbe, ctx context.Context, id string) bool {
+	if strings.HasPrefix(id, "m-") {
+		todo, itemID, isItem := strings.Cut(id, "#")
+
+		held, found := folded.entries[todo]
+		if !found {
+			return false
+		}
+
+		if !isItem {
+			return held.status == statusRetired || held.status == statusSuperseded
+		}
+
+		one := held.item(itemID)
+		if one == nil {
+			return false
+		}
+
+		state, _ := folded.itemState(*one)
+
+		return state == itemDone || state == itemDropped
+	}
+
+	if !probe.asked {
+		probe.statuses, _ = probe.mem.graphStatuses(ctx)
+		probe.asked = true
+	}
+
+	status := probe.statuses[id].Status
+
+	return status == "closed-by" || status == "superseded-by"
+}
+
+// ackState changes the calling seat's ledger: adds lines, or ticks, unticks
+// or removes the lines addressed `state#<item>`. Every address is checked
+// before anything lands. No line is refused for its length, nor the ledger
+// for its count: a refusal costs a rewrite.
+func (mem *memory) ackState(ctx context.Context, req request) result {
+	name, isSeated := mem.seated(ctx)
+	if !isSeated {
+		return refused("%s", ErrNoSeat)
+	}
+
+	changes := 0
+	for _, given := range []bool{req.Done, req.Undo, req.Remove, len(req.Add) > 0} {
+		if given {
+			changes++
+		}
+	}
+
+	if changes != 1 || strings.TrimSpace(req.Decline) != "" || req.Order != "" {
+		return refused("%v", ErrStateChange)
+	}
+
+	if len(req.Until) > 0 && len(req.Add) == 0 {
+		return refused("%v", ErrUntilAdd)
+	}
+
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	held := folded.ledgerFor(name)
+
+	var (
+		events []memorylog.Event
+		reply  string
+	)
+
+	if len(req.Add) > 0 {
+		events, reply, err = mem.addLines(ctx, held, name, req)
+	} else {
+		events, reply, err = mem.changeLines(folded, held, name, req)
+	}
+
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	err = mem.appendEvents(ctx, events...)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	lines := []string{reply}
+
+	after, err := mem.load(ctx)
+	if err == nil {
+		open := 0
+
+		for _, view := range mem.ledgerViews(ctx, after, name) {
+			if view.open() && view.line.Hook == "" {
+				open++
+			}
+		}
+
+		if open > crowdedLedger {
+			lines = append(lines, fmt.Sprintf("ledger holds %d lines; drop the settled ones", open))
+		}
+	}
+
+	return done(strings.Join(lines, "\n"))
+}
+
+func (mem *memory) addLines(ctx context.Context, held *ledger, name string, req request) ([]memorylog.Event, string, error) {
+	if len(req.IDs) != 1 || req.IDs[0] != ledgerID {
+		return nil, "", ErrStateAdd
+	}
+
+	here := mem.checkout(ctx)
+
+	until, hashes, err := mem.untilFor(ctx, here, req.Until)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var untilHold *hold
+
+	if slices.Contains(until, "session") {
+		_, claim := mem.ownSeat(ctx)
+		untilHold = &hold{Seat: mem.seatKey(name), Claimed: claim.Claimed}
+	}
+
+	var (
+		changes []itemPayload
+		ids     []string
+	)
+
+	taken := func(id string) bool {
+		return id == oldLine || held.line(id) != nil || slices.ContainsFunc(changes, func(one itemPayload) bool { return one.ID == id })
+	}
+
+	for _, text := range req.Add {
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+
+		id, err := newItemID(taken)
+		if err != nil {
+			return nil, "", err
+		}
+
+		one := lineOf(text)
+		one.ID, one.Until, one.UntilHashes, one.UntilHold, one.Session = id, until, hashes, untilHold, mem.env.SessionID
+		changes = append(changes, one)
+		ids = append(ids, ledgerID+"#"+id)
+	}
+
+	if len(changes) == 0 {
+		return nil, "", errors.New("--add needs a line: text, or a memory id, <todo>#<item> or graph id to pin")
+	}
+
+	events, err := itemEvents(ledgerID, name, mem.now(), changes)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return events, "added " + strings.Join(ids, ", "), nil
+}
+
+// lineOf is a line as --add gives it: a memory id, a todo item's address or
+// a graph id pins its target, any other text is the line.
+func lineOf(text string) itemPayload {
+	text = strings.TrimSpace(text)
+	if itemAddress.MatchString(text) {
+		return itemPayload{Op: itemAdd, Link: text}
+	}
+
+	return itemOf(text)
+}
+
+func (mem *memory) changeLines(folded *state, held *ledger, name string, req request) ([]memorylog.Event, string, error) {
+	op := itemCheck
+
+	switch {
+	case req.Undo:
+		op = itemUncheck
+	case req.Remove:
+		op = itemRemove
+	}
+
+	var (
+		changes  []itemPayload
+		failures []string
+	)
+
+	for _, address := range slices.Compact(slices.Clone(req.IDs)) {
+		parts := stateAddress.FindStringSubmatch(address)
+
+		switch {
+		case parts == nil:
+			failures = append(failures, address+" is no line address; give state#<item>")
+		case parts[1] == oldLine:
+			_, pending := folded.oldState(name)
+			if pending == req.Undo {
+				failures = append(failures, address+": no such line")
+
+				continue
+			}
+
+			changes = append(changes, itemPayload{Op: op, ID: oldLine})
+		default:
+			line := held.line(parts[1])
+			if line == nil || (line.State == itemRemoved && !req.Undo) {
+				failures = append(failures, address+": no such line")
+
+				continue
+			}
+
+			changes = append(changes, itemPayload{Op: op, ID: parts[1]})
+		}
+	}
+
+	if len(failures) > 0 {
+		return nil, "", fmt.Errorf("nothing acked:\n  %s", strings.Join(failures, "\n  "))
+	}
+
+	events, err := itemEvents(ledgerID, name, mem.now(), changes)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return events, map[string]string{itemCheck: "done", itemUncheck: "undone", itemRemove: "removed"}[op], nil
+}
+
+// lineMark is a line as every read opens it: its id, marked where a hook
+// added it, and its text.
+func lineMark(view lineView) string {
+	if view.line.Hook != "" {
+		return fmt.Sprintf("#%s hook: %s", view.line.ID, view.text)
+	}
+
+	return fmt.Sprintf("#%s: %s", view.line.ID, view.text)
+}
+
+// stateSection is how the brief opens on the seat's ledger: the old slot
+// waiting to be split, every open agent line whole with the commits a landed
+// round matched to it, the one dirty and the one asked line, and the newest
+// landed and captured lines, the rest folded into a count.
+func (mem *memory) stateSection(ctx context.Context, folded *state, seatName string) []string {
+	views := mem.ledgerViews(ctx, folded, seatName)
+	old, pending := folded.oldState(seatName)
+
+	var open []lineView
+
+	for _, view := range views {
+		if view.open() {
+			open = append(open, view)
+		}
+	}
+
+	if len(open) == 0 && !pending {
+		return []string{"state: empty"}
+	}
+
+	lines := []string{"state (ack state#<item> --done | --remove):"}
+
+	if pending {
+		lines = append(lines, mem.oldLines(old)...)
+	}
+
+	nested := mem.ledgerLanded(folded, seatName)
+
+	var commits []string
+	for _, mapping := range nested {
+		commits = append(commits, mapping.Commit)
+	}
+
+	var current, history []lineView
+
+	for _, view := range open {
+		switch {
+		case view.line.Hook == hookLanded || view.line.Hook == hookCaptured:
+			if view.line.Hook == hookLanded && slices.ContainsFunc(commits, func(sha string) bool { return sameCommit(sha, view.line.Commit) }) {
+				continue
+			}
+
+			history = append(history, view)
+		case view.line.Hook != "":
+			current = append(current, view)
+		default:
+			lines = append(lines, "  "+withFlag(lineMark(view), view.flag))
+
+			for _, mapping := range nested {
+				if strings.HasSuffix(mapping.Target, "#"+view.line.ID) {
+					lines = append(lines, fmt.Sprintf("    landed %s %s", shortCommit(mapping.Commit), mapping.Subject))
+				}
+			}
+		}
+	}
+
+	for _, view := range current {
+		lines = append(lines, fmt.Sprintf("  %s (%s)", lineMark(view), age(mem.now().Sub(view.line.Added))))
+	}
+
+	slices.Reverse(history)
+
+	for index, view := range history {
+		if index == briefHookLines {
+			lines = append(lines, fmt.Sprintf("  (%d more: %s show state)", len(history)-briefHookLines, self))
+
+			break
+		}
+
+		lines = append(lines, fmt.Sprintf("  %s (%s)", lineMark(view), age(mem.now().Sub(view.line.Added))))
+	}
+
+	return lines
+}
+
+func withFlag(text string, flag string) string {
+	if flag == "" {
+		return text
+	}
+
+	return text + "  " + flag
+}
+
+func sameCommit(one string, other string) bool {
+	if one == "" || other == "" {
+		return false
+	}
+
+	return strings.HasPrefix(one, other) || strings.HasPrefix(other, one)
+}
+
+// oldLines is the slot the seat wrote before the ledger, as item state#old,
+// with what to do with it.
+func (mem *memory) oldLines(old stateSlot) []string {
+	where := age(mem.now().Sub(old.at)) + " old"
+	if old.Branch != "" {
+		where += ", branch " + old.Branch
+	}
+
+	return []string{fmt.Sprintf("  #old (%s): %s", where, old.Body), "  " + oldStateAsk}
+}
+
+// oldStateNotice is the old slot's request alone, for a resumed session,
+// whose transcript holds its last brief; empty once it was split.
+func (mem *memory) oldStateNotice(ctx context.Context, seatName string) string {
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return ""
+	}
+
+	old, pending := folded.oldState(seatName)
+	if !pending {
+		return ""
+	}
+
+	return strings.Join(append([]string{self + ": state#old waits to be split:"}, mem.oldLines(old)...), "\n")
+}
+
+type ledgerEnds struct {
+	Shown []string `json:"shown"`
+}
+
+func (mem *memory) ledgerEndsKey(seatName string) string {
+	return "ledger-ended/" + mem.seatKey(seatName)
+}
+
+// endedLines is every agent line that ended on its own since the seat's
+// last brief, each named once; a line that comes back open is named again
+// should it end again.
+func (mem *memory) endedLines(ctx context.Context, folded *state, seatName string) []string {
+	var (
+		marked ledgerEnds
+		kept   []string
+		lines  []string
+	)
+
+	mem.readSlot(mem.ledgerEndsKey(seatName), &marked)
+
+	for _, view := range mem.ledgerViews(ctx, folded, seatName) {
+		if view.state != lineEnded {
+			continue
+		}
+
+		kept = append(kept, view.line.ID)
+
+		if !slices.Contains(marked.Shown, view.line.ID) {
+			lines = append(lines, fmt.Sprintf("  state#%s %s: %s (ack state#%s --undo)", view.line.ID, view.text, view.reason, view.line.ID))
+		}
+	}
+
+	if !slices.Equal(kept, marked.Shown) {
+		if len(kept) == 0 {
+			mem.clearSlot(mem.ledgerEndsKey(seatName))
+		} else {
+			_ = mem.writeSlot(mem.ledgerEndsKey(seatName), ledgerEnds{Shown: kept})
+		}
+	}
+
+	return lines
+}
+
+// showState is the whole ledger: every line but removed ones, open and
+// settled, with each hook line's age.
+func (mem *memory) showState(ctx context.Context, folded *state, seatName string, withRemoved bool) string {
+	held := folded.ledgerFor(seatName)
+	probe := mem.probe(ctx)
+
+	var lines []string
+
+	if old, pending := folded.oldState(seatName); pending {
+		lines = append(lines, mem.oldLines(old)...)
+	}
+
+	nested := mem.ledgerLanded(folded, seatName)
+
+	for _, line := range held.Lines {
+		if line.State == itemRemoved && !withRemoved {
+			continue
+		}
+
+		view := mem.viewLine(ctx, probe, folded, seatName, held, line)
+		box := map[string]string{itemOpen: "[ ]", itemDone: "[x]", lineEnded: "[e]", itemRemoved: "[r]"}[view.state]
+
+		text := fmt.Sprintf("  %s %s", box, withFlag(lineMark(view), view.flag))
+		if line.Hook != "" {
+			text += fmt.Sprintf(" (%s)", age(mem.now().Sub(line.Added)))
+		}
+
+		if len(line.Until) > 0 {
+			text += "  until " + strings.Join(line.Until, ", ")
+		}
+
+		lines = append(lines, text)
+
+		if view.reason != "" {
+			lines = append(lines, "    ended: "+view.reason)
+		}
+
+		for _, mapping := range nested {
+			if strings.HasSuffix(mapping.Target, "#"+line.ID) {
+				lines = append(lines, fmt.Sprintf("    landed %s %s", shortCommit(mapping.Commit), mapping.Subject))
+			}
+		}
+	}
+
+	if len(lines) == 0 {
+		return "state: empty"
+	}
+
+	return strings.Join(append([]string{"state of seat " + seatName + ":"}, lines...), "\n")
+}
+
+// ledgerTarget is the address a landed round matches an agent line by.
+func ledgerTarget(seatName string, id string) string {
+	return ledgerID + ":" + seatName + "#" + id
+}
+
+func splitLedgerTarget(target string) (string, string, bool) {
+	rest, isLedger := strings.CutPrefix(target, ledgerID+":")
+	if !isLedger {
+		return "", "", false
+	}
+
+	seatName, id, found := strings.Cut(rest, "#")
+
+	return seatName, id, found
+}
+
+// ledgerLanded is the landed-commit matches standing under the seat's open
+// agent lines: evidence, never a tick, and gone once the line is.
+func (mem *memory) ledgerLanded(folded *state, seatName string) []landedMapping {
+	var held landedSet
+	if !mem.readSlot(landedKey, &held) {
+		return nil
+	}
+
+	var own []landedMapping
+
+	for _, mapping := range pendingMappings(folded, held.Mappings) {
+		owner, _, isLedger := splitLedgerTarget(mapping.Target)
+		if isLedger && owner == seatName {
+			own = append(own, mapping)
+		}
+	}
+
+	return own
+}
+
+// ledgerTargets is every open agent line of every seat, each with what a
+// commit is matched by.
+func ledgerTargets(folded *state) []landedTarget {
+	var targets []landedTarget
+
+	for seatName, held := range folded.ledgers {
+		for _, line := range held.Lines {
+			if line.Hook != "" || line.State != itemOpen {
+				continue
+			}
+
+			target := landedTarget{address: ledgerTarget(seatName, line.ID), floor: line.Added, text: line.Text}
+			if graphLink(line.Link) {
+				target.links = []string{line.Link}
+			}
+
+			targets = append(targets, target)
+		}
+	}
+
+	slices.SortFunc(targets, func(one, other landedTarget) int { return strings.Compare(one.address, other.address) })
+
+	return targets
+}
+
+// ledgerLineOpen is whether a landed match's line still stands open.
+func ledgerLineOpen(folded *state, target string) bool {
+	seatName, id, _ := splitLedgerTarget(target)
+	line := folded.ledgerFor(seatName).line(id)
+
+	return line != nil && line.State == itemOpen && line.Hook == ""
+}
+
+// hookLines adds the lines git and the graph record for the seat: a landed
+// line per commit since the claim the ledger lacks, and at Stop the files
+// the session wrote that no commit holds and its last prompt. It prints
+// nothing.
+func (mem *memory) hookLines(ctx context.Context, seatName string, since string, session string, atStop bool) {
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return
+	}
+
+	held := folded.ledgerFor(seatName)
+	here := mem.checkout(ctx)
+
+	changes := mem.landedChanges(ctx, here, held, since)
+
+	if atStop {
+		steps := mem.loadLadder(session)
+		changes = append(changes, mem.dirtyChange(ctx, here, held, steps.Wrote)...)
+		changes = append(changes, mem.askedChange(held, steps.LastPrompt)...)
+	}
+
+	mem.addHookChanges(ctx, held, seatName, changes)
+}
+
+func (mem *memory) addHookChanges(ctx context.Context, held *ledger, seatName string, changes []itemPayload) {
+	if len(changes) == 0 {
+		return
+	}
+
+	var drawn []string
+
+	for index := range changes {
+		if changes[index].Op != itemAdd {
+			continue
+		}
+
+		id, err := newItemID(func(id string) bool { return id == oldLine || held.line(id) != nil || slices.Contains(drawn, id) })
+		if err != nil {
+			return
+		}
+
+		drawn = append(drawn, id)
+		changes[index].ID = id
+	}
+
+	events, err := itemEvents(ledgerID, seatName, mem.now(), changes)
+	if err != nil {
+		return
+	}
+
+	_ = mem.appendEvents(ctx, events...)
+}
+
+// landedChanges is a landed line for every commit since the claim's that no
+// line of the ledger records, oldest first.
+func (mem *memory) landedChanges(ctx context.Context, here tree, held *ledger, since string) []itemPayload {
+	if since == "" || here.commit == "" || sameCommit(since, here.commit) {
+		return nil
+	}
+
+	out, err := mem.env.Git.Output(ctx, here.root, "log", "--oneline", "-n", fmt.Sprint(landedLines), since+"..HEAD")
+	if err != nil {
+		return nil
+	}
+
+	var changes []itemPayload
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	slices.Reverse(lines)
+
+	for _, line := range lines {
+		sha, subject, _ := strings.Cut(strings.TrimSpace(line), " ")
+		if sha == "" || slices.ContainsFunc(held.Lines, func(kept ledgerLine) bool { return sameCommit(kept.Commit, sha) }) {
+			continue
+		}
+
+		changes = append(changes, itemPayload{
+			Op: itemAdd, Hook: hookLanded, Commit: sha, Text: strings.TrimSpace("landed " + sha + " " + subject),
+		})
+	}
+
+	return changes
+}
+
+// dirtyChange keeps the ledger's one dirty line current: the files the
+// session's writes named, and those the line named before, that git still
+// reports changed; ticked once every one is committed or reverted.
+func (mem *memory) dirtyChange(ctx context.Context, here tree, held *ledger, wrote []string) []itemPayload {
+	current := held.openHook(hookDirty)
+
+	var candidates []string
+
+	if current != nil {
+		candidates = slices.Clone(current.Paths)
+	}
+
+	for _, path := range wrote {
+		relative, err := filepath.Rel(here.root, path)
+		if err != nil || strings.HasPrefix(relative, "..") || filepath.IsAbs(relative) {
+			continue
+		}
+
+		relative = filepath.ToSlash(relative)
+		if !slices.Contains(candidates, relative) {
+			candidates = append(candidates, relative)
+		}
+	}
+
+	if len(candidates) == 0 || here.root == "" {
+		return nil
+	}
+
+	args := append([]string{"status", "--porcelain", "-z", "--untracked-files=all", "--"}, candidates...)
+
+	out, err := mem.env.Git.Output(ctx, here.root, args...)
+	if err != nil {
+		return nil
+	}
+
+	var dirty []string
+
+	for _, record := range strings.Split(out, "\x00") {
+		if len(record) < 4 {
+			continue
+		}
+
+		path := record[3:]
+		if slices.Contains(candidates, path) && !slices.Contains(dirty, path) {
+			dirty = append(dirty, path)
+		}
+	}
+
+	slices.SortStableFunc(dirty, func(one, other string) int {
+		return slices.Index(candidates, one) - slices.Index(candidates, other)
+	})
+
+	switch {
+	case len(dirty) == 0 && current != nil:
+		return []itemPayload{{Op: itemCheck, ID: current.ID, Hook: hookDirty}}
+	case len(dirty) == 0:
+		return nil
+	}
+
+	text := "dirty " + strings.Join(dirty, ", ")
+
+	switch {
+	case current == nil:
+		return []itemPayload{{Op: itemAdd, Hook: hookDirty, Text: text, Paths: dirty}}
+	case current.Text != text:
+		return []itemPayload{{Op: itemRetext, ID: current.ID, Hook: hookDirty, Text: text, Paths: dirty}}
+	}
+
+	return nil
+}
+
+// askedChange keeps the ledger's one asked line on the session's last
+// prompt, which the prompt hook never takes where it holds a credential.
+func (mem *memory) askedChange(held *ledger, prompt string) []itemPayload {
+	prompt = strings.Join(strings.Fields(prompt), " ")
+	if prompt == "" {
+		return nil
+	}
+
+	text := cutWords("asked "+prompt, mem.options().EntryMaxWords)
+	current := held.openHook(hookAsked)
+
+	switch {
+	case current == nil:
+		return []itemPayload{{Op: itemAdd, Hook: hookAsked, Text: text}}
+	case current.Text != text:
+		return []itemPayload{{Op: itemRetext, ID: current.ID, Hook: hookAsked, Text: text}}
+	}
+
+	return nil
+}
+
+// wrotePaths adds path to the files a session wrote, each once, the first
+// writtenFiles of them.
+func wrotePaths(wrote []string, path string) []string {
+	if path == "" || slices.Contains(wrote, path) || len(wrote) >= writtenFiles {
+		return wrote
+	}
+
+	return append(wrote, path)
+}
+
+// cutWords keeps text within limit words, as words counts them, dropping
+// whole words from where it overflows on.
+func cutWords(text string, limit int) string {
+	if limit <= 0 || words(text) <= limit {
+		return text
+	}
+
+	var kept []string
+
+	for _, line := range strings.Split(text, "\n") {
+		if words(strings.Join(append(slices.Clone(kept), line), "\n")) <= limit {
+			kept = append(kept, line)
+
+			continue
+		}
+
+		fields := strings.Fields(line)
+		for len(fields) > 0 && words(strings.Join(append(slices.Clone(kept), strings.Join(fields, " ")), "\n")) > limit {
+			fields = fields[:len(fields)-1]
+		}
+
+		if len(fields) > 0 {
+			kept = append(kept, strings.Join(fields, " "))
+		}
+
+		break
+	}
+
+	return strings.Join(kept, "\n")
+}
+
+func (held *ledger) openHook(hook string) *ledgerLine {
+	for index := range held.Lines {
+		if held.Lines[index].Hook == hook && held.Lines[index].State == itemOpen {
+			return &held.Lines[index]
+		}
+	}
+
+	return nil
+}
+
+// capturedLines adds a captured line for every graph entry gained the
+// ledger lacks, with its title.
+func (mem *memory) capturedLines(ctx context.Context, seatName string, gained []string) {
+	if len(gained) == 0 {
+		return
+	}
+
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return
+	}
+
+	held := folded.ledgerFor(seatName)
+
+	var changes []itemPayload
+
+	for _, id := range gained {
+		text := strings.TrimSpace("captured " + id + " " + graphTitle(mem.graphPath(ctx, id)))
+		changes = append(changes, itemPayload{Op: itemAdd, Hook: hookCaptured, Link: id, Text: text})
+	}
+
+	mem.addHookChanges(ctx, held, seatName, changes)
+}
+
+// graphTitle is the title a graph entry's front matter names, empty where
+// the file holds none.
+func graphTitle(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(raw), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return ""
+	}
+
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) == "---" {
+			break
+		}
+
+		title, found := strings.CutPrefix(line, "title:")
+		if found {
+			return strings.Trim(strings.TrimSpace(title), `"'`)
+		}
+	}
+
+	return ""
+}
+
+// jsonLedger is the ledger as brief --json carries it.
+type jsonLedger struct {
+	Lines []jsonLine `json:"lines"`
+	Old   *jsonState `json:"old,omitempty"`
+}
+
+type jsonLine struct {
+	ID     string    `json:"id"`
+	Text   string    `json:"text"`
+	Link   string    `json:"link,omitempty"`
+	State  string    `json:"state"`
+	Reason string    `json:"reason,omitempty"`
+	Hook   string    `json:"hook,omitempty"`
+	At     time.Time `json:"at"`
+	Until  []string  `json:"until,omitempty"`
+}
+
+func (mem *memory) ledgerJSON(ctx context.Context, folded *state, seatName string) *jsonLedger {
+	answer := &jsonLedger{Lines: []jsonLine{}}
+
+	for _, view := range mem.ledgerViews(ctx, folded, seatName) {
+		answer.Lines = append(answer.Lines, jsonLine{
+			ID: view.line.ID, Text: view.text, Link: view.line.Link, State: view.state, Reason: view.reason,
+			Hook: view.line.Hook, At: view.line.Added.UTC(), Until: view.line.Until,
+		})
+	}
+
+	if old, pending := folded.oldState(seatName); pending {
+		answer.Old = &jsonState{Body: old.Body, At: old.at.UTC(), Branch: old.Branch, Commit: old.Commit}
+	}
+
+	return answer
+}
+
+// refuseState answers the slot's old command: the ledger is changed a line
+// at a time.
+func (mem *memory) refuseState(_ context.Context, _ request) result {
+	return refused("%s", stateRefusal)
+}

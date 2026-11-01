@@ -85,7 +85,7 @@ func jsonReadsHarness(t *testing.T) (*harness, string, string) {
 
 	hub := h.file("Gate hub about internal/gate/gate.go", "hub body", "--link", closedDecision, "--kind", "trap")
 	cite := h.file("Gate finding citing the hub", "cites "+hub, "--kind", "todo", "--until", "claim", "--for", "all")
-	h.must("where the gate work stands", "state")
+	h.addLine("where the gate work stands")
 
 	return h, hub, cite
 }
@@ -207,8 +207,16 @@ func TestBriefAnswersJSON(t *testing.T) {
 			}
 
 			state, _ := answer["state"].(map[string]any)
-			if !slices.Equal(keysOf(state), []string{"at", "body", "branch", "commit"}) || state["body"] != "where the gate work stands" {
-				t.Errorf("the brief should carry the state slot: %v", state)
+			lines, _ := state["lines"].([]any)
+
+			var line map[string]any
+			if len(lines) > 0 {
+				line, _ = lines[0].(map[string]any)
+			}
+
+			if !slices.Equal(keysOf(state), []string{"lines"}) || len(lines) != 1 ||
+				!slices.Equal(keysOf(line), []string{"at", "id", "state", "text"}) || line["text"] != "where the gate work stands" {
+				t.Errorf("the brief should carry the state ledger: %v", state)
 			}
 
 			traps, _ := answer["traps"].([]any)

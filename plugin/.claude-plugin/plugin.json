@@ -77,13 +77,6 @@
       "min": 1,
       "required": false
     },
-    "state_stale_after_writes": {
-      "type": "number",
-      "title": "File writes before a state hold",
-      "description": "File writes since a memory seat's last state write that hold the turn's end once for a new one; default 5",
-      "min": 1,
-      "required": false
-    },
     "landed_scan_interval": {
       "type": "string",
       "title": "Landed-commit scan interval",
@@ -142,7 +135,7 @@
     "writing_style": {
       "type": "string",
       "title": "Writing style",
-      "description": "terse or plain: how agents write memory entries, the state and tool library notes; graph entries stay plain prose; default terse",
+      "description": "terse or plain: how agents write memory entries, state lines and tool library notes; graph entries stay plain prose; default terse",
       "options": [
         "terse",
         "plain"

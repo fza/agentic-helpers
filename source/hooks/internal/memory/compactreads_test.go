@@ -42,7 +42,7 @@ func richStore(t *testing.T) (*harness, string, string) {
 	old := h.file("Gate note replaced later", "an older body")
 	newer := h.file("Gate note replacing the old", "a newer body")
 	h.must("", "supersede", old, "--by", newer)
-	h.must("where the gate work stands", "state")
+	h.addLine("where the gate work stands")
 
 	return h, trap, rule
 }

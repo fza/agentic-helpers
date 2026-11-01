@@ -43,7 +43,7 @@ func unrewrittenStore(t *testing.T, h *harness) scratchEntries {
 	h.must("", "supersede", held.superseded, "--because", "replaced")
 	h.must("", "link", held.live, held.retired)
 	held.todo, _ = h.todo("Port the waiter", "run .tmp/claude/main/check.sh")
-	h.must("next: read .tmp/claude/main/plan.md", "state")
+	h.addLine("next: read .tmp/claude/main/plan.md")
 
 	held.ending, held.trap = "m-ending01", "m-trap0001"
 	hash := sha256.Sum256([]byte("where the nudges stand\n"))
@@ -176,7 +176,7 @@ func TestTheScratchPassRewritesEveryPathTheStoreQuotes(t *testing.T) {
 		t.Errorf("the backup should hold the log byte for byte as it was, got:\n%s\nfrom:\n%s", backed, logBefore)
 	}
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); strings.TrimSpace(string(format)) != `{"format":7}` {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); strings.TrimSpace(string(format)) != `{"format":8}` {
 		t.Errorf("the store should stay at its format, got %s", format)
 	}
 

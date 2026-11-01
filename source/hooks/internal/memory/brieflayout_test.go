@@ -28,7 +28,7 @@ func TestViewExplainsTheBriefsFixedLayout(t *testing.T) {
 				test.WriteFile(t, h.settings, tc.settings)
 			}
 
-			want := "brief, fixed: its first line, the state slot, the due section, changed by other seats and ended " +
+			want := "brief, fixed: its first line, the state ledger, the due section, changed by other seats and ended " +
 				"since last brief; then these sections; then retire?, new from other seats and the topics. Nothing " +
 				"configures it.\n" +
 				`active:mine:kind(rule):not(due):rank(heat):name("rules (from the user, verify before relying)"):brief:as-list,` + "\n" +

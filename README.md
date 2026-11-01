@@ -237,7 +237,6 @@ measurement, after an upgrade or a change of endpoint, embeds each index again o
 | Option | Default | What it controls |
 |---|---|---|
 | `entry_max_words` | `500` | Suggested word limit for an entry's body |
-| `state_stale_after_writes` | `5` | File writes after which the agent is asked once, at the end of a turn, to record where work stands |
 | `landed_scan_interval` | `10m` | How often memory scans the checkout's history for commits that may settle a live todo or trap (at least `1m`); a git merge, commit, pull, rebase or cherry-pick scans at once |
 | `retired_body_lifetime` | `90d` | `config.yaml` only. How long a retired entry keeps its body (at least `14d`) |
 | `entry_id_length` | `6` | Characters after `m-` in a new entry's id (6 to 16) |
@@ -245,7 +244,7 @@ measurement, after an upgrade or a change of endpoint, embeds each index again o
 | `attachment_max_mb` | `10` | Size limit for one attached file, in MB |
 | `attachments_total_mb` | `2048` | Size limit for every attached file on the machine together, across every project, in MB, each file counted once; never below `attachment_max_mb` |
 | `memory_language` | `en` | Language entries are written in, unless `.sdd/config.yaml` names one |
-| `writing_style` | `terse` | How agents write memory entries, the state and tool library notes: `terse` (no articles or filler) or `plain`. Graph entries stay plain prose |
+| `writing_style` | `terse` | How agents write memory entries, state lines and tool library notes: `terse` (no articles or filler) or `plain`. Graph entries stay plain prose |
 | `memory_require_git` | `true` | Memory works only inside a git work tree |
 | `memory_turns_off_auto` | `true` | Claiming a seat turns Claude Code's built-in auto memory off for the project, from the next session, through `.claude/settings.local.json` |
 | `update_notice` | `true` | A seat claim says once a day that a newer release is out while auto-update is off; `false` also stops the daily check with GitHub |

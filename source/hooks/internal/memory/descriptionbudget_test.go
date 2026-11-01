@@ -18,7 +18,7 @@ var toolBudgets = []struct {
 	budget int
 	reason string
 }{
-	{"ack", 170, "155 when set: the one-of rule between done, decline, undo, remove, add and order"},
+	{"ack", 200, "155 when set, 183 when raised: the one-of rule between done, decline, undo, remove, add and order, and the state ids"},
 	{"brief", 230, "206 when set: the fold rule"},
 	{"claim", 110, "92 when set: the rule between name and shelf"},
 	{"confirm", 50, "39 when set"},
@@ -31,7 +31,6 @@ var toolBudgets = []struct {
 	{"retitle", 20, "16 when set"},
 	{"search", 250, "225 when set: the rule between term, query and status, and the fold rule"},
 	{"show", 300, "270 when set, the largest: the fold rule"},
-	{"state", 100, "87 when set"},
 	{"supersede", 130, "112 when set: the rule between by and because"},
 	{"tag", 30, "22 when set"},
 	{"topics", 40, "32 when set"},
