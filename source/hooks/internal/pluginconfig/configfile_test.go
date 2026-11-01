@@ -1,6 +1,7 @@
 package pluginconfig_test
 
 import (
+	"cmp"
 	"errors"
 	"os"
 	"path/filepath"
@@ -63,13 +64,13 @@ func TestEveryLayerResolvesInOrderManagedSettingsLast(t *testing.T) {
 		value  string
 		layer  string
 	}{
-		{name: "nothing set", key: "entry_max_words", value: "500"},
-		{name: "config.yaml", key: "entry_max_words", values: layers{config: "600"}, value: "600", layer: pluginconfig.LayerConfig},
-		{name: "user settings over config.yaml", key: "entry_max_words", values: layers{config: "600", user: "700"}, value: "700", layer: pluginconfig.LayerUser},
-		{name: "the hook environment over user settings", key: "entry_max_words", values: layers{config: "600", user: "700", env: "800"}, value: "800", layer: pluginconfig.LayerAgent},
-		{name: "managed settings over everything", key: "entry_max_words", values: layers{config: "600", user: "700", env: "800", managed: "900"}, value: "900", layer: pluginconfig.LayerManaged},
-		{name: "an empty user answer is unset", key: "entry_max_words", values: layers{config: "600", user: `""`}, value: "600", layer: pluginconfig.LayerConfig},
-		{name: "an empty config.yaml value is unset", key: "entry_max_words", values: layers{config: `""`}, value: "500"},
+		{name: "nothing set", key: "entry_target_words", value: "500"},
+		{name: "config.yaml", key: "entry_target_words", values: layers{config: "600"}, value: "600", layer: pluginconfig.LayerConfig},
+		{name: "user settings over config.yaml", key: "entry_target_words", values: layers{config: "600", user: "700"}, value: "700", layer: pluginconfig.LayerUser},
+		{name: "the hook environment over user settings", key: "entry_target_words", values: layers{config: "600", user: "700", env: "800"}, value: "800", layer: pluginconfig.LayerAgent},
+		{name: "managed settings over everything", key: "entry_target_words", values: layers{config: "600", user: "700", env: "800", managed: "900"}, value: "900", layer: pluginconfig.LayerManaged},
+		{name: "an empty user answer is unset", key: "entry_target_words", values: layers{config: "600", user: `""`}, value: "600", layer: pluginconfig.LayerConfig},
+		{name: "an empty config.yaml value is unset", key: "entry_target_words", values: layers{config: `""`}, value: "500"},
 		{name: "a config-only key from user settings has no effect", key: "retired_body_lifetime", values: layers{user: `"120d"`}, value: "90d"},
 		{name: "a config-only key from the hook environment has no effect", key: "retired_body_lifetime", values: layers{config: "100d", env: "120d"}, value: "100d", layer: pluginconfig.LayerConfig},
 		{name: "a user answer at the built-in value leaves config.yaml deciding", key: "memory_enabled", values: layers{config: "false", user: "true"}, value: "false", layer: pluginconfig.LayerConfig},
@@ -119,14 +120,14 @@ func TestAnInvalidConfigValueFallsBackAndIsNamed(t *testing.T) {
 		value   string
 		problem string
 	}{
-		{name: "a word for a number", config: "entry_max_words: many\nbrief_note_limit: 4\n", value: "500", problem: "entry_max_words: not a number"},
+		{name: "a word for a number", config: "entry_target_words: many\nbrief_note_limit: 4\n", value: "500", problem: "entry_target_words: not a number"},
 		{name: "a floor outside its range", config: "tools_query_floor: 2\n", value: "500", problem: "tools_query_floor: 2 lies outside"},
 		{name: "a writing style of another word", config: "writing_style: florid\n", value: "500", problem: `writing_style: "florid" is none of terse, plain`},
-		{name: "a key that is no option", config: "entry_max_word: 600\n", value: "500", problem: "entry_max_word is no option; the nearest is entry_max_words"},
-		{name: "a file that is no YAML map", config: "- entry_max_words\n", value: "500", problem: "is no YAML map of options"},
-		{name: "a file YAML cannot parse", config: "entry_max_words: [600\n", value: "500", problem: "is no YAML map of options: [1:18]"},
-		{name: "a key given twice", config: "entry_max_words: 600\nentry_max_words: 700\n", value: "500", problem: "is no YAML map of options: [2:1]"},
-		{name: "a file past the size every hook reads", config: "entry_max_words: 600\n#" + strings.Repeat("x", 64<<10), value: "500", problem: "is over 64 KiB"},
+		{name: "a key that is no option", config: "entry_target_word: 600\n", value: "500", problem: "entry_target_word is no option; the nearest is entry_target_words"},
+		{name: "a file that is no YAML map", config: "- entry_target_words\n", value: "500", problem: "is no YAML map of options"},
+		{name: "a file YAML cannot parse", config: "entry_target_words: [600\n", value: "500", problem: "is no YAML map of options: [1:21]"},
+		{name: "a key given twice", config: "entry_target_words: 600\nentry_target_words: 700\n", value: "500", problem: "is no YAML map of options: [2:1]"},
+		{name: "a file past the size every hook reads", config: "entry_target_words: 600\n#" + strings.Repeat("x", 64<<10), value: "500", problem: "is over 64 KiB"},
 	}
 
 	for _, tc := range cases {
@@ -140,7 +141,7 @@ func TestAnInvalidConfigValueFallsBackAndIsNamed(t *testing.T) {
 				t.Fatalf("an invalid config.yaml should never fail the read: %v", err)
 			}
 
-			if got := resolution.Options.Value("entry_max_words"); got != tc.value {
+			if got := resolution.Options.Value("entry_target_words"); got != tc.value {
 				t.Errorf("the layer below an invalid value should apply, got %q", got)
 			}
 
@@ -346,14 +347,14 @@ func TestSetRefusesALooserGuardAndEveryKeyConfigNeverSets(t *testing.T) {
 func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 	config := filepath.Join(t.TempDir(), "agentic-helpers", "config.yaml")
 
-	err := pluginconfig.Set(config, "entry_max_words", "600")
+	err := pluginconfig.Set(config, "entry_target_words", "600")
 	if err != nil {
 		t.Fatalf("setting a key into a missing file should create it: %v", err)
 	}
 
-	test.WriteFile(t, config, "# machine options\nentry_max_words: 600\nmemory_language: \"de\"\n")
+	test.WriteFile(t, config, "# machine options\nentry_target_words: 600\nmemory_language: \"de\"\n")
 
-	for _, set := range [][2]string{{"entry_max_words", "700"}, {"shell_guard_secrets", "deny"}, {"memory_enabled", "false"}, {"tools_query_floor", "0.5"}} {
+	for _, set := range [][2]string{{"entry_target_words", "700"}, {"shell_guard_secrets", "deny"}, {"memory_enabled", "false"}, {"tools_query_floor", "0.5"}} {
 		err = pluginconfig.Set(config, set[0], set[1])
 		if err != nil {
 			t.Fatalf("setting %s should succeed: %v", set[0], err)
@@ -365,7 +366,7 @@ func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "# machine options\nentry_max_words: 700\nmemory_language: \"de\"\nshell_guard_secrets: \"deny\"\nmemory_enabled: false\ntools_query_floor: 0.5\n"
+	want := "# machine options\nentry_target_words: 700\nmemory_language: \"de\"\nshell_guard_secrets: \"deny\"\nmemory_enabled: false\ntools_query_floor: 0.5\n"
 	if string(written) != want {
 		t.Errorf("set should replace the key's line or append one, keeping every other line, got:\n%s", written)
 	}
@@ -376,7 +377,7 @@ func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 	}
 
 	options := resolution.Options
-	if options.EntryMaxWords != 700 || options.ShellGuardSecrets != "deny" || options.MemoryEnabled || options.MemoryLanguage != "de" || options.ToolsQueryFloor != 0.5 {
+	if options.EntryTargetWords != 700 || options.ShellGuardSecrets != "deny" || options.MemoryEnabled || options.MemoryLanguage != "de" || options.ToolsQueryFloor != 0.5 {
 		t.Errorf("the reader should take every value set wrote, got %+v", options)
 	}
 }
@@ -384,8 +385,8 @@ func TestSetWritesOneLineAndKeepsTheRest(t *testing.T) {
 func TestSetRefusesWhatTheReaderWould(t *testing.T) {
 	config := filepath.Join(t.TempDir(), "config.yaml")
 
-	err := pluginconfig.Set(config, "entry_max_word", "600")
-	if !errors.Is(err, pluginconfig.ErrUnknownKey) || !strings.Contains(err.Error(), "entry_max_word is no option; the nearest is entry_max_words") {
+	err := pluginconfig.Set(config, "entry_target_word", "600")
+	if !errors.Is(err, pluginconfig.ErrUnknownKey) || !strings.Contains(err.Error(), "entry_target_word is no option; the nearest is entry_target_words") {
 		t.Errorf("an unknown key should be refused naming the nearest, as `config get` and the reader word it, got %v", err)
 	}
 
@@ -404,7 +405,7 @@ func TestMigrationCopiesConfigOnlyAnswersAndTouchesNoSettings(t *testing.T) {
 	dir := t.TempDir()
 	config := filepath.Join(dir, "config.yaml")
 	user := filepath.Join(dir, "settings.json")
-	answers := `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120,"tools_version_lifetime":"60d","tools_total_mb":"250","temporary_seat_lifetime":"","entry_max_words":700}}},"env":{"X":"y"}}`
+	answers := `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"retired_body_days":120,"tools_version_lifetime":"60d","tools_total_mb":"250","temporary_seat_lifetime":"","entry_target_words":700}}},"env":{"X":"y"}}`
 	test.WriteFile(t, user, answers)
 	test.WriteFile(t, config, "tools_total_mb: 300\n")
 
@@ -552,6 +553,119 @@ func TestMigrationLeavesARenamedAnswerTheFileHoldsUnderItsNewName(t *testing.T) 
 	written, _ := os.ReadFile(config)
 	if len(copied) != 0 || string(written) != "retired_body_lifetime: 30d\n" {
 		t.Errorf("an answer the file already holds under the new name should not be copied, got %v:\n%s", copied, written)
+	}
+}
+
+func TestTheOldEntryWordNameIsReadFromEveryLayer(t *testing.T) {
+	cases := []struct {
+		name   string
+		values layers
+		value  string
+		layer  string
+	}{
+		{name: "config.yaml", values: layers{config: "600"}, value: "600", layer: pluginconfig.LayerConfig},
+		{name: "user settings", values: layers{user: "700"}, value: "700", layer: pluginconfig.LayerUser},
+		{name: "user settings, quoted", values: layers{user: `"720"`}, value: "720", layer: pluginconfig.LayerUser},
+		{name: "the hook environment", values: layers{env: "800"}, value: "800", layer: pluginconfig.LayerAgent},
+		{name: "managed settings", values: layers{managed: "900"}, value: "900", layer: pluginconfig.LayerManaged},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolution := layered(t, "entry_max_words", tc.values)
+
+			if got := resolution.Options.Value("entry_target_words"); got != tc.value || resolution.From["entry_target_words"] != tc.layer {
+				t.Errorf("the old name should set the new key from its own layer, got %q from %q", got, resolution.From["entry_target_words"])
+			}
+
+			want := "entry_max_words is now entry_target_words (" + tc.value + "); rename it in " + tc.layer
+			if !slices.Contains(resolution.Problems, want) {
+				t.Errorf("the old name should be named with its layer, got %v", resolution.Problems)
+			}
+		})
+	}
+}
+
+func TestTheNewEntryWordNameWinsWhereALayerSetsBoth(t *testing.T) {
+	cases := []struct {
+		name     string
+		config   string
+		settings string
+	}{
+		{name: "config.yaml", config: "entry_max_words: 600\nentry_target_words: 650\n"},
+		{name: "user settings", settings: `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"entry_max_words":600,"entry_target_words":650}}}}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			config := filepath.Join(dir, "config.yaml")
+			user := filepath.Join(dir, "settings.json")
+			test.WriteFile(t, config, tc.config)
+			test.WriteFile(t, user, cmp.Or(tc.settings, "{}"))
+
+			resolution, err := pluginconfig.Resolve([]string{config, user}, nil)
+			if err != nil {
+				t.Fatalf("resolving should succeed: %v", err)
+			}
+
+			if got := resolution.Options.Value("entry_target_words"); got != "650" {
+				t.Errorf("the new name should win over the old one, got %q", got)
+			}
+
+			if !slices.ContainsFunc(resolution.Problems, func(problem string) bool {
+				return strings.HasPrefix(problem, "entry_max_words is now entry_target_words")
+			}) {
+				t.Errorf("the old name should still be named, got %v", resolution.Problems)
+			}
+		})
+	}
+}
+
+func TestMigrationCopiesAnOldEntryWordAnswerUnderItsNewName(t *testing.T) {
+	cases := []struct {
+		name    string
+		answer  string
+		config  string
+		copied  []string
+		written string
+	}{
+		{name: "an old answer, config.yaml naming neither", answer: own("entry_max_words", "700"), config: "entry_id_length: 6\n",
+			copied: []string{"entry_target_words"}, written: "entry_id_length: 6\nentry_target_words: 700\n"},
+		{name: "an old answer given as text", answer: own("entry_max_words", `"720"`), config: "entry_id_length: 6\n",
+			copied: []string{"entry_target_words"}, written: "entry_id_length: 6\nentry_target_words: 720\n"},
+		{name: "config.yaml naming the new key", answer: own("entry_max_words", "700"), config: "entry_target_words: 650\n",
+			written: "entry_target_words: 650\n"},
+		{name: "config.yaml naming the old key", answer: own("entry_max_words", "700"), config: "entry_max_words: 650\n",
+			written: "entry_max_words: 650\n"},
+		{name: "an answer under the new name", answer: own("entry_target_words", "700"), config: "# mine\n", written: "# mine\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			config := filepath.Join(dir, "config.yaml")
+			user := filepath.Join(dir, "settings.json")
+			test.WriteFile(t, user, tc.answer)
+
+			if tc.config != "" {
+				test.WriteFile(t, config, tc.config)
+			}
+
+			copied, err := pluginconfig.MigrateAgentAnswers([]string{config, user})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			written, _ := os.ReadFile(config)
+			if !slices.Equal(copied, tc.copied) || string(written) != tc.written {
+				t.Errorf("an old answer should land under the new name only where config.yaml names neither, got %v:\n%s", copied, written)
+			}
+
+			if settings, _ := os.ReadFile(user); string(settings) != tc.answer {
+				t.Error("the migration should leave the settings file as it was")
+			}
+		})
 	}
 }
 

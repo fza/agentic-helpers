@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -234,8 +235,10 @@ func configLine(key string, value string) (string, error) {
 
 // MigrateAgentAnswers copies each ConfigOnly key the user's settings still
 // answer into `config.yaml`, where the file names no value for it, so a value
-// set before the key left `userConfig` keeps applying. paths are as Paths
-// orders them; no settings file is written. It returns the keys copied.
+// set before the key left `userConfig` keeps applying; and each Renamed key
+// they answer under its old name, under its new one, so the answer outlives
+// the release that stops reading the old name. paths are as Paths orders them;
+// no settings file is written. It returns the keys copied.
 func MigrateAgentAnswers(paths []string) ([]string, error) {
 	if len(paths) < 2 || filepath.Ext(paths[0]) != configFileExt {
 		return nil, nil
@@ -266,7 +269,15 @@ func MigrateAgentAnswers(paths []string) ([]string, error) {
 
 	var copied []string
 
-	for _, key := range ConfigOnly {
+	keys := slices.Clone(ConfigOnly)
+
+	for _, old := range slices.Sorted(maps.Keys(Renamed)) {
+		if !slices.Contains(keys, old) {
+			keys = append(keys, old)
+		}
+	}
+
+	for _, key := range keys {
 		answer, found := parsed.PluginConfigs[PluginID].Options[key]
 		if !found || unset(answer) {
 			continue

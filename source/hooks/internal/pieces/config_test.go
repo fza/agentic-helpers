@@ -40,7 +40,7 @@ func runConfig(t *testing.T, env pieces.Env, args ...string) (int, string, strin
 }
 
 func TestConfigListsEveryKeyWithItsLayer(t *testing.T) {
-	env := layeredEnv(t, "entry_max_words: 600\nretired_body_lifetime: 120d\nbrief_note_limit: many\n", `"memory_language":"de"`)
+	env := layeredEnv(t, "entry_target_words: 600\nretired_body_lifetime: 120d\nbrief_note_limit: many\n", `"memory_language":"de"`)
 
 	code, out, _ := runConfig(t, env)
 	if code != 0 {
@@ -48,7 +48,7 @@ func TestConfigListsEveryKeyWithItsLayer(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"entry_max_words                 600  (config.yaml)\n",
+		"entry_target_words              600  (config.yaml)\n",
 		"memory_language                 de  (user settings)\n",
 		"retired_body_lifetime           120d  (config.yaml, never a plugin option)\n",
 		"embedding_provider              auto  (default)\n",
@@ -76,8 +76,8 @@ func TestConfigListsEveryKeyWithItsLayer(t *testing.T) {
 func TestConfigSetWritesAndNamesAnOverridingLayer(t *testing.T) {
 	env := layeredEnv(t, "# mine\n", `"memory_language":"de"`)
 
-	code, out, _ := runConfig(t, env, "set", "entry_max_words", "650")
-	if code != 0 || out != "entry_max_words set to 650 in "+env.Settings[0]+"\n" {
+	code, out, _ := runConfig(t, env, "set", "entry_target_words", "650")
+	if code != 0 || out != "entry_target_words set to 650 in "+env.Settings[0]+"\n" {
 		t.Errorf("config set should say what it wrote where, got %d %q", code, out)
 	}
 
@@ -87,7 +87,7 @@ func TestConfigSetWritesAndNamesAnOverridingLayer(t *testing.T) {
 	}
 
 	written, _ := os.ReadFile(env.Settings[0])
-	if string(written) != "# mine\nentry_max_words: 650\nmemory_language: \"fr\"\n" {
+	if string(written) != "# mine\nentry_target_words: 650\nmemory_language: \"fr\"\n" {
 		t.Errorf("config set should write config.yaml, keeping its comment, got:\n%s", written)
 	}
 
@@ -96,7 +96,7 @@ func TestConfigSetWritesAndNamesAnOverridingLayer(t *testing.T) {
 		t.Errorf("config set should refuse a value the reader refuses, got %d %q", code, errOut)
 	}
 
-	code, _, errOut = runConfig(t, pieces.Env{Settings: env.Settings[1:]}, "set", "entry_max_words", "650")
+	code, _, errOut = runConfig(t, pieces.Env{Settings: env.Settings[1:]}, "set", "entry_target_words", "650")
 	if code != 1 || !strings.Contains(errOut, "refused: no config.yaml to write") {
 		t.Errorf("config set without a config.yaml path should be refused, got %d %q", code, errOut)
 	}

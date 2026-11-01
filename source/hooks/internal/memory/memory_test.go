@@ -309,7 +309,7 @@ func TestNewTakesAnyBodyAndNotes(t *testing.T) {
 
 	out := h.must(long, "new", "--title", "Gate")
 	for _, want := range []string{
-		"the body has 8000 words, past the usual 500 (entry_max_words); it landed whole, no rewrite needed", "title has 1 word, a title takes 3-10", "retitle",
+		"the body has 8000 words, past the 500 an entry aims at (entry_target_words); it landed whole, no rewrite needed", "title has 1 word, a title takes 3-10", "retitle",
 		"no topic", "agentic-memory tag",
 	} {
 		if !strings.Contains(out, want) {

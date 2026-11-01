@@ -46,7 +46,7 @@ func TestADropInAndTheHookEnvironmentWin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if options.MemoryEnabled || options.ToolsEnabled || options.EntryMaxWords != 300 || !options.ScratchEnabled {
+	if options.MemoryEnabled || options.ToolsEnabled || options.EntryTargetWords != 300 || !options.ScratchEnabled {
 		t.Errorf("the hook environment should win over the user's settings, a drop-in over both, got %+v", options)
 	}
 

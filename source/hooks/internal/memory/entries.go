@@ -343,11 +343,11 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 ) []string {
 	var notes []string
 
-	limit := mem.options().EntryMaxWords
+	limit := mem.options().EntryTargetWords
 
 	count := words(held.body)
 	if limit > 0 && count > limit {
-		notes = append(notes, fmt.Sprintf("note: the body has %d words, past the usual %d (entry_max_words); it landed whole, no rewrite needed",
+		notes = append(notes, fmt.Sprintf("note: the body has %d words, past the %d an entry aims at (entry_target_words); it landed whole, no rewrite needed",
 			count, limit))
 	}
 

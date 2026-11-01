@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -26,7 +27,7 @@ import (
 
 const PluginID = "agentic-helpers@agentic-helpers"
 
-const DefaultEntryMaxWords = 500
+const DefaultEntryTargetWords = 500
 
 // DefaultMemoryLanguage / DefaultTemporarySeatLifetime / DefaultOrphanStoreGrace
 // are the built-in values of keys that read as text, so `agentic-helpers
@@ -189,7 +190,7 @@ type Options struct {
 	// document before they are embedded, `{text}` marking where the text goes.
 	EmbeddingQueryTemplate    string
 	EmbeddingDocumentTemplate string
-	EntryMaxWords             int
+	EntryTargetWords          int
 	// LandedScanInterval is how often the memory hooks scan the checkout's
 	// history for commits that may settle a live todo or trap.
 	LandedScanInterval   time.Duration
@@ -264,7 +265,7 @@ type Options struct {
 var Keys = []string{
 	"embedding_source", "embedding_provider", "embedding_model", "embedding_endpoint", "embedding_path",
 	"embedding_dimensions", "embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
-	"entry_max_words", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "cache_retention", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
+	"entry_target_words", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "cache_retention", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -290,13 +291,18 @@ var ConfigOnly = []string{
 }
 
 // Renamed is every key read under an older name for one release, by that
-// name, with the unit a bare number there counts in. The new name wins where
-// both are set; either way `agentic-helpers check` names the old one.
+// name, with the unit a bare number there counts in, none where the new key
+// counts in the same. The new name wins where a layer sets both; either way
+// `agentic-helpers check` names the old one. The old name is read from every
+// layer its new key is: a ConfigOnly key's from `config.yaml` and managed
+// settings alone, any other's from the user's settings and the hook
+// environment too.
 var Renamed = map[string]struct {
 	Key  string
 	Unit string
 }{
 	"retired_body_days": {Key: "retired_body_lifetime", Unit: "d"},
+	"entry_max_words":   {Key: "entry_target_words"},
 }
 
 // NeverConfig is every key `config.yaml` never sets. Any agent can write that
@@ -423,7 +429,7 @@ func Resolve(paths []string, getenv func(string) string) (Resolution, error) {
 	if getenv != nil {
 		values := map[string]json.RawMessage{}
 
-		for _, key := range Keys {
+		for _, key := range slices.Concat(Keys, slices.Sorted(maps.Keys(Renamed))) {
 			if slices.Contains(NeverConfig, key) {
 				continue
 			}
@@ -535,17 +541,17 @@ func (resolution *Resolution) take(values map[string]json.RawMessage, layer stri
 
 // renamed is values with each Renamed key a settings layer holds moved to its
 // new name, as renameOld moves it in `config.yaml`. An agent's layer never sets
-// one: every renamed key is ConfigOnly.
+// one whose new key is ConfigOnly, as it never sets that key.
 func (resolution *Resolution) renamed(values map[string]json.RawMessage, layer string, agent bool) (map[string]json.RawMessage, error) {
 	decoded := map[string]any{}
 
 	for key, raw := range values {
-		_, old := Renamed[key]
+		renamed, old := Renamed[key]
 		if !old {
 			continue
 		}
 
-		if agent || unset(raw) {
+		if agent && slices.Contains(ConfigOnly, renamed.Key) || unset(raw) {
 			decoded[key] = nil
 
 			continue
@@ -634,7 +640,7 @@ func (options *Options) clamp() {
 	options.CacheRetention = max(options.CacheRetention, MinCacheRetention)
 	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
 	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
-	options.EntryMaxWords = max(options.EntryMaxWords, 1)
+	options.EntryTargetWords = max(options.EntryTargetWords, 1)
 	options.EmbeddingDimensions = max(options.EmbeddingDimensions, 0)
 	options.LandedScanInterval = max(options.LandedScanInterval, MinLandedScanInterval)
 	options.AttachmentMaxMB = max(options.AttachmentMaxMB, 1)
@@ -647,7 +653,7 @@ func (options *Options) clamp() {
 
 func Defaults() Options {
 	return Options{
-		EntryMaxWords: DefaultEntryMaxWords, LandedScanInterval: DefaultLandedScanInterval, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime, CacheRetention: DefaultCacheRetention,
+		EntryTargetWords: DefaultEntryTargetWords, LandedScanInterval: DefaultLandedScanInterval, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime, CacheRetention: DefaultCacheRetention,
 		EmbeddingSource: EmbeddingSourceAuto, EmbeddingProvider: EmbeddingProviderAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
@@ -689,13 +695,13 @@ func (options *Options) fields() fields {
 			"shell_guard_extra_roots":        &options.ShellGuardExtraRoots,
 		},
 		numbers: map[string]*int{
-			"embedding_dimensions":     &options.EmbeddingDimensions,
-			"entry_max_words":          &options.EntryMaxWords,
-			"entry_id_length":          &options.EntryIDLength,
-			"brief_note_limit":         &options.BriefNoteLimit,
-			"attachment_max_mb":        &options.AttachmentMaxMB,
-			"attachments_total_mb":     &options.AttachmentsTotalMB,
-			"tools_total_mb":           &options.ToolsTotalMB,
+			"embedding_dimensions": &options.EmbeddingDimensions,
+			"entry_target_words":   &options.EntryTargetWords,
+			"entry_id_length":      &options.EntryIDLength,
+			"brief_note_limit":     &options.BriefNoteLimit,
+			"attachment_max_mb":    &options.AttachmentMaxMB,
+			"attachments_total_mb": &options.AttachmentsTotalMB,
+			"tools_total_mb":       &options.ToolsTotalMB,
 		},
 		spans: map[string]*time.Duration{
 			"retired_body_lifetime":   &options.RetiredBodyLifetime,

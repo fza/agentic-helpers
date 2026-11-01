@@ -34,7 +34,7 @@ func TestNearestPicksTheClosestCandidate(t *testing.T) {
 		candidates []string
 		nearest    string
 	}{
-		{name: "closest", word: "entry_max_word", candidates: []string{"brief_note_limit", "entry_max_words"}, nearest: "entry_max_words"},
+		{name: "closest", word: "entry_target_word", candidates: []string{"brief_note_limit", "entry_target_words"}, nearest: "entry_target_words"},
 		{name: "case ignored", word: "HEAT", candidates: []string{"heap", "heat"}, nearest: "heat"},
 		{name: "first among equals", word: "ab", candidates: []string{"aa", "bb"}, nearest: "aa"},
 		{name: "no candidate", word: "x", nearest: ""},

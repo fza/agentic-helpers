@@ -57,11 +57,11 @@ func TestRead(t *testing.T) {
 			name: "user settings configure the embedder",
 			user: own + `{
 				"embedding_provider":"openai","embedding_model":"gemma","embedding_endpoint":"http://127.0.0.1:1235",
-				"embedding_dimensions":256,"embedding_api_key_env":"OPENAI_API_KEY","entry_max_words":"700"}}}}`,
+				"embedding_dimensions":256,"embedding_api_key_env":"OPENAI_API_KEY","entry_target_words":"700"}}}}`,
 			want: defaultsWith(func(options *pluginconfig.Options) {
 				options.EmbeddingProvider, options.EmbeddingModel = "openai", "gemma"
 				options.EmbeddingEndpoint, options.EmbeddingDimensions = "http://127.0.0.1:1235", 256
-				options.EmbeddingAPIKeyEnv, options.EntryMaxWords = "OPENAI_API_KEY", 700
+				options.EmbeddingAPIKeyEnv, options.EntryTargetWords = "OPENAI_API_KEY", 700
 			}),
 		},
 		{
@@ -243,8 +243,8 @@ func TestRead(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "a non-numeric word limit is an error",
-			user:    own + `{"entry_max_words":"many"}}}}`,
+			name:    "a non-numeric word target is an error",
+			user:    own + `{"entry_target_words":"many"}}}}`,
 			wantErr: true,
 		},
 	}

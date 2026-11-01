@@ -70,10 +70,10 @@
       "description": "Wraps a memory entry or tool description before it is embedded, {text} marking where it goes, e.g. \"title: none | text: {text}\"; default none",
       "required": false
     },
-    "entry_max_words": {
+    "entry_target_words": {
       "type": "number",
-      "title": "Entry word limit",
-      "description": "Words an entry should stay within; longer entries still land, with a note; default 500",
+      "title": "Entry word target",
+      "description": "Words an entry body aims at, told to agents; longer bodies land whole; default 500",
       "min": 1,
       "required": false
     },

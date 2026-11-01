@@ -236,7 +236,7 @@ measurement, after an upgrade or a change of endpoint, embeds each index again o
 
 | Option | Default | What it controls |
 |---|---|---|
-| `entry_max_words` | `500` | Suggested word limit for an entry's body |
+| `entry_target_words` | `500` | Words an entry's body aims at, told to agents; a longer body lands whole. The older `entry_max_words` is still read for one release |
 | `landed_scan_interval` | `10m` | How often memory scans the checkout's history for commits that may settle a live todo or trap (at least `1m`); a git merge, commit, pull, rebase or cherry-pick scans at once |
 | `retired_body_lifetime` | `90d` | `config.yaml` only. How long a retired entry keeps its body (at least `14d`) |
 | `entry_id_length` | `6` | Characters after `m-` in a new entry's id (6 to 16) |

@@ -1042,7 +1042,7 @@ func (mem *memory) askedChange(held *ledger, prompt string) []itemPayload {
 		return nil
 	}
 
-	text := cutWords("asked "+prompt, mem.options().EntryMaxWords)
+	text := cutWords("asked "+prompt, mem.options().EntryTargetWords)
 	current := held.openHook(hookAsked)
 
 	switch {
