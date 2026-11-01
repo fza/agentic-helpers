@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strconv"
+	"time"
 )
 
 // presented is what the calling session's context already holds of each
@@ -57,9 +58,10 @@ func (mem *memory) presenting(ctx context.Context, again bool) func() {
 }
 
 // presentedKey names held as it stands: its id, and a digest of its full
-// line, which carries its status, flags and links, and of its event count.
+// line, which carries its status, flags and links, and of its event count. The
+// line is digested in UTC: a zone change leaves what the context holds unchanged.
 func presentedKey(here tree, held *entry) string {
-	digest := sha256.Sum256([]byte(line(here, held) + "\n" + strconv.Itoa(len(held.events))))
+	digest := sha256.Sum256([]byte(lineIn(here, held, time.UTC) + "\n" + strconv.Itoa(len(held.events))))
 
 	return held.id + "@" + hex.EncodeToString(digest[:6])
 }

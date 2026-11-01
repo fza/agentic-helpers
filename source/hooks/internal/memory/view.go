@@ -616,13 +616,13 @@ func (scope *viewScope) returnsLine(held *entry, reasons []returnReason) string 
 
 	var flags []string
 
-	for _, flag := range append(flagsOf(scope.here, held, foldedLinks(links)), declared(held)...) {
+	for _, flag := range append(flagsOf(scope.here, held, foldedLinks(links), time.Local), declared(held, time.Local)...) {
 		if !restated[flag] {
 			flags = append(flags, flag)
 		}
 	}
 
-	return withFlags(lineHead(held), flags)
+	return withFlags(lineHead(held, time.Local), flags)
 }
 
 // expandedLines is each link of held, where its section expands them: a

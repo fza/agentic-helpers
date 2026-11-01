@@ -12,7 +12,11 @@ import (
 const timeLayout = "2006-01-02 15:04 MST"
 
 func stamp(at time.Time) string {
-	return at.Local().Format(timeLayout)
+	return stampIn(at, time.Local)
+}
+
+func stampIn(at time.Time, zone *time.Location) string {
+	return at.In(zone).Format(timeLayout)
 }
 
 // line is how an entry shows in every list: id, title, the bracket naming seat,
@@ -20,11 +24,18 @@ func stamp(at time.Time) string {
 // time and commit, then its flags with the ended links folded as the short
 // line folds them; show's links section names each.
 func line(here tree, held *entry) string {
-	return withFlags(lineHead(held), append(flagsOf(here, held, foldedLinks(held.flags())), declared(held)...))
+	return lineIn(here, held, time.Local)
+}
+
+// lineIn is line with its stamps in zone.
+func lineIn(here tree, held *entry, zone *time.Location) string {
+	flags := flagsOf(here, held, foldedLinks(held.flags()), zone)
+
+	return withFlags(lineHead(held, zone), append(flags, declared(held, zone)...))
 }
 
 // lineHead is a full line before its flags: id, title and the bracket.
-func lineHead(held *entry) string {
+func lineHead(held *entry, zone *time.Location) string {
 	filer := held.seat
 	if held.recipients != "" {
 		filer += " → " + held.recipients
@@ -35,7 +46,7 @@ func lineHead(held *entry) string {
 		parts = append(parts, "retain "+retained)
 	}
 
-	parts = append(parts, "from "+held.from, stamp(held.filed))
+	parts = append(parts, "from "+held.from, stampIn(held.filed, zone))
 	if held.commit != "" {
 		parts = append(parts, held.commit)
 	}
@@ -57,7 +68,7 @@ func shortLine(here tree, held *entry, reader string, now time.Time, extra ...st
 		parts = append(parts, "retain "+retained)
 	}
 
-	flags := append(flagsOf(here, held, foldedLinks(held.flags())), extra...)
+	flags := append(flagsOf(here, held, foldedLinks(held.flags()), time.Local), extra...)
 
 	return withFlags(fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", ")), flags)
 }
@@ -111,8 +122,8 @@ func foldedLinks(flags []string) []string {
 // flagsOf is every flag an entry's line carries: its status, its staleness
 // against the checkout, the link flags given, and how many live or retired
 // entries link to it.
-func flagsOf(here tree, held *entry, links []string) []string {
-	flags := statusFlags(held)
+func flagsOf(here tree, held *entry, links []string, zone *time.Location) []string {
+	flags := statusFlags(held, zone)
 	flags = append(flags, staleness(here, held)...)
 	flags = append(flags, links...)
 
@@ -154,7 +165,7 @@ func (held *entry) linkedFrom(withSuperseded bool) []*entry {
 // names it: the conditions that end it, a trap's triggers, the moments a rule
 // is owed at and the calls proving it, and when it comes due. An ended entry
 // names no end and no due time: neither can come any more.
-func declared(held *entry) []string {
+func declared(held *entry, zone *time.Location) []string {
 	var flags []string
 
 	ended := held.status != statusLive
@@ -174,13 +185,13 @@ func declared(held *entry) []string {
 	}
 
 	if !held.due.IsZero() && !ended {
-		flags = append(flags, "due: "+stamp(held.due))
+		flags = append(flags, "due: "+stampIn(held.due, zone))
 	}
 
 	return flags
 }
 
-func statusFlags(held *entry) []string {
+func statusFlags(held *entry, zone *time.Location) []string {
 	last, found := held.latest()
 	if !found {
 		return nil
@@ -189,12 +200,12 @@ func statusFlags(held *entry) []string {
 	switch held.status {
 	case statusRetired:
 		if last.because != "" {
-			return []string{fmt.Sprintf("retired %s: %s", stamp(last.at), last.because)}
+			return []string{fmt.Sprintf("retired %s: %s", stampIn(last.at, zone), last.because)}
 		}
 
-		return []string{"retired " + stamp(last.at)}
+		return []string{"retired " + stampIn(last.at, zone)}
 	case statusSuperseded:
-		return []string{"superseded " + stamp(last.at) + supersession(last.by, last.because)}
+		return []string{"superseded " + stampIn(last.at, zone) + supersession(last.by, last.because)}
 	}
 
 	return nil

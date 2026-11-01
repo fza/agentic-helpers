@@ -319,9 +319,9 @@ func filedLine(here tree, held *entry, req request) string {
 		"due": {req.Due.text},
 	}
 
-	flags := flagsOf(here, held, held.flags())
+	flags := flagsOf(here, held, held.flags(), time.Local)
 
-	for _, flag := range declared(held) {
+	for _, flag := range declared(held, time.Local) {
 		name, value, _ := strings.Cut(flag, ": ")
 
 		given := make([]string, 0, len(sent[name]))
@@ -712,7 +712,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 	// The header leaves the link and anchor flags to the sections below,
 	// which name each state once.
 	other := branchFlag(here, held)
-	header := append(statusFlags(held), other...)
+	header := append(statusFlags(held, time.Local), other...)
 
 	for _, flag := range held.flags() {
 		if strings.HasPrefix(flag, "→ tool ") {
@@ -720,7 +720,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 		}
 	}
 
-	lines := []string{withFlags(lineHead(held), append(header, declared(held)...))}
+	lines := []string{withFlags(lineHead(held, time.Local), append(header, declared(held, time.Local)...))}
 
 	topics := folded.topicsOf(held)
 	if len(topics) > 0 {
