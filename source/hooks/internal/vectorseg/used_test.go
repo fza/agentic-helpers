@@ -24,9 +24,24 @@ func writeStamps(t *testing.T, dir string, held map[string]time.Time) {
 		t.Fatalf("encoding the stamps: %v", err)
 	}
 
-	err = os.WriteFile(filepath.Join(dir, "used.json"), data, 0o600)
+	path := filepath.Join(dir, "used.json")
+
+	err = os.WriteFile(path, data, 0o600)
 	if err != nil {
 		t.Fatalf("writing the stamps: %v", err)
+	}
+
+	// The file was last written when its newest stamp was.
+	var newest time.Time
+	for _, at := range held {
+		if at.After(newest) {
+			newest = at
+		}
+	}
+
+	err = os.Chtimes(path, newest, newest)
+	if err != nil {
+		t.Fatalf("dating the stamps: %v", err)
 	}
 }
 
@@ -168,25 +183,63 @@ func TestLastUse(t *testing.T) {
 	}
 }
 
-func TestTryHoldRefusesAStoreBeingFilled(t *testing.T) {
+func TestTryHoldRefusesAStoreBeingWritten(t *testing.T) {
 	store := filledStore(t)
 
-	release, taken, err := store.TryFill()
-	if err != nil || !taken {
-		t.Fatalf("taking the fill lock: %v", err)
+	release, err := store.TryHold()
+	if err != nil {
+		t.Fatalf("taking the hold: %v", err)
 	}
 
 	_, err = store.TryHold()
 	if !errors.Is(err, vectorseg.ErrHeld) {
-		t.Error("a hold should be refused while another holder fills the store")
+		t.Error("a hold should be refused while another holder has the segments")
 	}
 
 	release()
 
 	unhold, err := store.TryHold()
 	if err != nil {
-		t.Fatalf("a hold should be taken once the fill ends: %v", err)
+		t.Fatalf("a hold should be taken once the other ends: %v", err)
 	}
 
 	unhold()
+}
+
+func TestAHoldNeverMakesAFillSkip(t *testing.T) {
+	store := filledStore(t)
+
+	release, err := store.TryHold()
+	if err != nil {
+		t.Fatalf("taking the hold: %v", err)
+	}
+
+	defer release()
+
+	unfill, taken, err := store.TryFill()
+	if err != nil || !taken {
+		t.Fatal("a fill should take its lock while the store is held for removal")
+	}
+
+	unfill()
+}
+
+// A read of a store stamped today, the stamp check one stat of it.
+func BenchmarkASnapshotOfAStoreStampedToday(b *testing.B) {
+	dir := b.TempDir()
+	store := vectorseg.Open(dir, dir)
+
+	err := store.Write([]vectorseg.Row{{ID: "a", Hash: "h", Chunks: [][]float32{unit(4, 0)}}}, everything)
+	if err != nil {
+		b.Fatalf("writing a row: %v", err)
+	}
+
+	for b.Loop() {
+		snapshot, err := store.Snapshot()
+		if err != nil {
+			b.Fatalf("reading the store: %v", err)
+		}
+
+		_ = snapshot.Close()
+	}
 }

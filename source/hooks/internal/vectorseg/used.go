@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -33,20 +34,23 @@ const usedLimit = 64 << 10
 // store, as RFC 3339 UTC.
 type stamps map[string]string
 
-// touch refreshes this format's stamp where it is older than a day. The write
-// never creates the store's folder, so a read of a store nobody filled yet
-// creates nothing. A failure is passed over, since a missed stamp costs at
-// worst an early re-embed and never a search.
+// touch refreshes this format's stamp where the stamp file is older than a
+// day. The read path pays one stat for it: the file's own modification time
+// says when any binary last stamped, and a removal takes the newest stamp of
+// any format, so a fresh file needs no read. The write never creates the
+// store's folder, so a read of a store nobody filled yet creates nothing. A
+// failure is passed over, since a missed stamp costs at worst an early
+// re-embed and never a search.
 func (store *Store) touch() {
-	now := time.Now().UTC()
-	held := store.stamps()
+	now := time.Now()
 
-	last, err := time.Parse(time.RFC3339, held[Format])
-	if err == nil && now.Sub(last) < stampEvery && !last.After(now) {
+	info, err := os.Stat(filepath.Join(store.dir, usedName))
+	if err == nil && now.Sub(info.ModTime()) < stampEvery && !info.ModTime().After(now) {
 		return
 	}
 
-	held[Format] = now.Format(time.RFC3339)
+	held := store.stamps()
+	held[Format] = now.UTC().Format(time.RFC3339)
 
 	data, err := json.Marshal(held)
 	if err != nil {
@@ -66,10 +70,8 @@ func (store *Store) stamps() stamps {
 
 	defer func() { _ = file.Close() }()
 
-	data := make([]byte, usedLimit)
-
-	read, _ := file.Read(data)
-	if json.Unmarshal(data[:read], &held) != nil {
+	data, err := io.ReadAll(io.LimitReader(file, usedLimit))
+	if err != nil || json.Unmarshal(data, &held) != nil {
 		return stamps{}
 	}
 
@@ -109,45 +111,35 @@ func (store *Store) LastUse() (time.Time, bool) {
 	return newest, !newest.IsZero()
 }
 
-// ErrHeld is a store another process is writing or filling.
+// ErrHeld is a store another process is writing.
 var ErrHeld = errors.New("the vector store is in use")
 
-// TryHold takes the store's segment and fill locks without waiting, so a
-// caller removing the store never waits on a write or a fill and never
-// removes one under way. It answers ErrHeld while another process holds
-// either.
+// TryHold takes the store's segment lock without waiting, so a caller
+// removing the store never waits on a write and never removes one under way.
+// It answers ErrHeld while another process holds it. The fill lock is never
+// taken: a fill finding it held embeds nothing, so holding it would make a
+// foreground fill skip. A fill that read the store before the hold stamped
+// it, so the stamp a remover checks under the hold keeps that store; one
+// starting after the check finds the folder gone and fills a new one.
 func (store *Store) TryHold() (release func(), err error) {
-	var held []*os.File
-
-	release = func() {
-		for _, file := range held {
-			_ = filelock.Unlock(file)
-			_ = file.Close()
-		}
+	file, err := safefs.Lock(store.root, filepath.Join(store.dir, lockName), 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("opening the vector segment lock: %w", err)
 	}
 
-	for _, name := range []string{lockName, fillName} {
-		file, err := safefs.Lock(store.root, filepath.Join(store.dir, name), 0o600)
+	taken, err := filelock.TryExclusive(file)
+	if err != nil || !taken {
+		_ = file.Close()
+
 		if err != nil {
-			release()
-
-			return nil, fmt.Errorf("opening the vector store lock %s: %w", name, err)
+			return nil, fmt.Errorf("locking the vector segments: %w", err)
 		}
 
-		taken, err := filelock.TryExclusive(file)
-		if err != nil || !taken {
-			_ = file.Close()
-			release()
-
-			if err != nil {
-				return nil, fmt.Errorf("locking the vector store %s: %w", name, err)
-			}
-
-			return nil, ErrHeld
-		}
-
-		held = append(held, file)
+		return nil, ErrHeld
 	}
 
-	return release, nil
+	return func() {
+		_ = filelock.Unlock(file)
+		_ = file.Close()
+	}, nil
 }

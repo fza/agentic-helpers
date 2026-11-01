@@ -3,6 +3,7 @@ package cacheprune_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
+	"github.com/fza/agentic-helpers/source/hooks/internal/filelock"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/mcpserver"
 	"github.com/fza/agentic-helpers/source/hooks/internal/vectorseg"
@@ -150,16 +152,44 @@ func TestARunSkipsAStoreAnotherProcessHolds(t *testing.T) {
 	stale := now.Add(-retention - 24*time.Hour)
 	store := placeStore(t, roots, toolStore(roots, "aaa"), stale, map[string]time.Time{vectorseg.Format: stale})
 
-	release, taken, err := store.TryFill()
-	if err != nil || !taken {
-		t.Fatalf("taking the fill lock: %v", err)
+	release, err := store.TryHold()
+	if err != nil {
+		t.Fatalf("holding the store: %v", err)
 	}
 
 	defer release()
 
 	result := cacheprune.Run(context.Background(), roots, retention, now)
 	if result.Error != "" || len(result.Deleted) > 0 || !exists(store.Dir()) {
-		t.Error("a run should pass over a store being filled, quietly")
+		t.Error("a run should pass over a store being written, quietly")
+	}
+}
+
+func TestARunExitsWhileAnotherRuns(t *testing.T) {
+	roots := newRoots(t)
+	stale := now.Add(-retention - 24*time.Hour)
+	store := placeStore(t, roots, toolStore(roots, "aaa"), stale, map[string]time.Time{vectorseg.Format: stale})
+
+	err := os.MkdirAll(roots.Data, 0o700)
+	if err != nil {
+		t.Fatalf("creating the data root: %v", err)
+	}
+
+	lock, err := os.OpenFile(filepath.Join(roots.Data, "cache-prune.run.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatalf("opening the run lock: %v", err)
+	}
+
+	defer func() { _ = lock.Close() }()
+
+	taken, err := filelock.TryExclusive(lock)
+	if err != nil || !taken {
+		t.Fatalf("taking the run lock: %v", err)
+	}
+
+	result := cacheprune.Run(context.Background(), roots, retention, now)
+	if result.Error != "" || len(result.Deleted) > 0 || !exists(store.Dir()) {
+		t.Error("a run should exit at once while another holds the run lock")
 	}
 }
 
@@ -281,5 +311,120 @@ func TestASucceedingRunIsNeverWarned(t *testing.T) {
 
 	if cacheprune.Warning(roots) != "" {
 		t.Error("a run without an error should warn nothing")
+	}
+}
+
+// The foreground cost a SessionStart and an idle server pay on a day the run
+// already started: the claim and the warning check.
+func BenchmarkTheForegroundCheck(b *testing.B) {
+	root := b.TempDir()
+	roots := home.Roots{Data: filepath.Join(root, "data"), Cache: filepath.Join(root, "cache")}
+	starts := &test.Starts{}
+	executable := filepath.Join(root, "agentic-memory")
+
+	_ = cacheprune.Start(context.Background(), roots, starts, executable, now)
+
+	for b.Loop() {
+		_ = cacheprune.Start(context.Background(), roots, starts, executable, now.Add(time.Hour))
+		_ = cacheprune.Warning(roots)
+	}
+}
+
+// A foreground read of a live store, alone and while a run deletes stale
+// stores beside it: the run holds nothing the read takes.
+func BenchmarkASnapshotWhileARunDeletes(b *testing.B) {
+	for _, pruning := range []bool{false, true} {
+		name := "alone"
+		if pruning {
+			name = "while a run deletes"
+		}
+
+		b.Run(name, func(b *testing.B) {
+			root := b.TempDir()
+			roots := home.Roots{Data: filepath.Join(root, "data"), Cache: filepath.Join(root, "cache")}
+			live := vectorseg.Open(roots.Cache, toolStore(roots, "live"))
+
+			err := live.Write([]vectorseg.Row{{ID: "a", Hash: "h", Chunks: [][]float32{{1, 0, 0, 0}}}},
+				func(string, string) bool { return true })
+			if err != nil {
+				b.Fatalf("writing the live store: %v", err)
+			}
+
+			done := make(chan struct{})
+			stopped := make(chan struct{})
+
+			go func() {
+				defer close(stopped)
+
+				for round := 0; pruning; round++ {
+					select {
+					case <-done:
+						return
+					default:
+					}
+
+					for index := range 20 {
+						dir := toolStore(roots, fmt.Sprintf("stale-%d-%d", round, index))
+						stale := vectorseg.Open(roots.Cache, dir)
+						_ = stale.Write([]vectorseg.Row{{ID: "a", Hash: "h", Chunks: [][]float32{{1, 0, 0, 0}}}},
+							func(string, string) bool { return true })
+						_ = os.Remove(filepath.Join(dir, "used.json"))
+						old := now.Add(-2 * retention)
+
+						listed, _ := os.ReadDir(dir)
+						for _, entry := range listed {
+							_ = os.Chtimes(filepath.Join(dir, entry.Name()), old, old)
+						}
+					}
+
+					cacheprune.Run(context.Background(), roots, retention, now.Add(time.Duration(round)*25*time.Hour))
+				}
+			}()
+
+			for b.Loop() {
+				snapshot, err := live.Snapshot()
+				if err != nil {
+					b.Fatalf("reading the live store: %v", err)
+				}
+
+				_ = snapshot.Close()
+			}
+
+			close(done)
+			<-stopped
+		})
+	}
+}
+
+func TestTheChecksOnAQuietDayTakeNoLock(t *testing.T) {
+	roots := newRoots(t)
+	starts := &test.Starts{}
+	executable := filepath.Join(t.TempDir(), "agentic-memory")
+
+	if cacheprune.Warning(roots) != "" || exists(roots.Data) {
+		t.Error("a warning check with no run recorded should create nothing")
+	}
+
+	err := cacheprune.Start(context.Background(), roots, starts, executable, now)
+	if err != nil {
+		t.Fatalf("starting the run: %v", err)
+	}
+
+	lock := filepath.Join(roots.Data, "cache-prune.lock")
+
+	err = os.Remove(lock)
+	if err != nil {
+		t.Fatalf("removing the status lock: %v", err)
+	}
+
+	err = cacheprune.Start(context.Background(), roots, starts, executable, now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("checking the run: %v", err)
+	}
+
+	_ = cacheprune.Warning(roots)
+
+	if exists(lock) {
+		t.Error("the claim and the warning check should only read the status on a day the run started already")
 	}
 }

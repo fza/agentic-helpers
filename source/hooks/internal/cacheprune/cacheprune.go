@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -29,8 +30,9 @@ import (
 const StatusName = "cache-prune.json"
 
 const (
-	lockName = "cache-prune.lock"
-	runEvery = 24 * time.Hour
+	lockName    = "cache-prune.lock"
+	runLockName = "cache-prune.run.lock"
+	runEvery    = 24 * time.Hour
 	// Command is the `agentic-helpers` subcommand a detached run executes.
 	Command = "prune"
 	helpers = "agentic-helpers"
@@ -66,9 +68,12 @@ func readStatus(roots home.Roots) Status {
 
 	defer func() { _ = file.Close() }()
 
-	data := make([]byte, statusLimit)
-	read, _ := file.Read(data)
-	_ = json.Unmarshal(data[:read], &held)
+	data, err := io.ReadAll(io.LimitReader(file, statusLimit))
+	if err != nil {
+		return Status{}
+	}
+
+	_ = json.Unmarshal(data, &held)
 
 	return held
 }
@@ -122,13 +127,56 @@ func locked(roots home.Roots, change func(held *Status) bool) (bool, error) {
 	return true, writeStatus(roots, held)
 }
 
+// ErrRunning is a run another process is making.
+var ErrRunning = errors.New("a cache prune is running")
+
+// runLock takes the machine-wide run lock without waiting.
+func runLock(roots home.Roots) (func(), error) {
+	err := safefs.MkdirAll(roots.Data, roots.Data, 0o700)
+	if err != nil {
+		return nil, fmt.Errorf("creating the data root: %w", err)
+	}
+
+	file, err := safefs.Lock(roots.Data, filepath.Join(roots.Data, runLockName), 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("opening the cache prune run lock: %w", err)
+	}
+
+	taken, err := filelock.TryExclusive(file)
+	if err != nil || !taken {
+		_ = file.Close()
+
+		if err != nil {
+			return nil, fmt.Errorf("locking the cache prune run: %w", err)
+		}
+
+		return nil, ErrRunning
+	}
+
+	return func() {
+		_ = filelock.Unlock(file)
+		_ = file.Close()
+	}, nil
+}
+
 // Claim takes the day's run: where no run started within the last day, it
 // stamps now as the start and answers true, so of every process asking the
 // first alone starts one.
+// A caller pays one read of the status for it: the lock is taken only on the
+// day a run is due.
 func Claim(roots home.Roots, now time.Time) (bool, error) {
-	return locked(roots, func(held *Status) bool {
+	due := func(held Status) bool {
 		started, err := time.Parse(time.RFC3339, held.Started)
-		if err == nil && now.Sub(started) < runEvery && !started.After(now) {
+
+		return err != nil || now.Sub(started) >= runEvery || started.After(now)
+	}
+
+	if !due(readStatus(roots)) {
+		return false, nil
+	}
+
+	return locked(roots, func(held *Status) bool {
+		if !due(*held) {
 			return false
 		}
 
@@ -227,6 +275,22 @@ func folders(at string) []string {
 func Run(ctx context.Context, roots home.Roots, retention time.Duration, now time.Time) Status {
 	result := Status{Started: now.UTC().Format(time.RFC3339)}
 
+	// One run at a time on the machine: a run started by hand beside the
+	// daily one, or a second process claiming across a clock change, exits
+	// at once.
+	release, err := runLock(roots)
+	if errors.Is(err, ErrRunning) {
+		return result
+	}
+
+	if err != nil {
+		result.Error = err.Error()
+
+		return result
+	}
+
+	defer release()
+
 	var errs []error
 
 	for _, candidate := range stores(roots) {
@@ -253,7 +317,7 @@ func Run(ctx context.Context, roots home.Roots, retention time.Duration, now tim
 		result.Error = joined.Error()
 	}
 
-	_, err := locked(roots, func(stored *Status) bool {
+	_, err = locked(roots, func(stored *Status) bool {
 		started := stored.Started
 		*stored = result
 		stored.Started = cmpOr(started, result.Started)
@@ -315,8 +379,15 @@ func prune(candidate held, cutoff time.Time) (bool, error) {
 
 // Warning is the line a failed run owes, once: empty where the last run
 // succeeded or its failure was told already.
+// The status is read without the lock first, so a SessionStart after a
+// clean run pays one read.
 func Warning(roots home.Roots) string {
 	line := ""
+
+	unread := readStatus(roots)
+	if unread.Error == "" || unread.Warned {
+		return line
+	}
 
 	_, _ = locked(roots, func(held *Status) bool {
 		if held.Error == "" || held.Warned {

@@ -138,16 +138,21 @@ A changed embedder starts a new vector store, one per embedder fingerprint, for 
 `<cache>/stores/<id>/memory/<fp12>/` and for the tool library under `<cache>/tools/vectors/<fp>/`;
 the old one is deleted once no binary has read or written it for `cache_retention` (90 days unless
 set, never below 14, `config.yaml` only). Every read and write of a store refreshes `used.json` in
-it at most once a day, keyed by the store format of the binary using it; a store written by a
-release before the stamp is judged by its files' last write. There is no size limit: one would
-delete stores still in use and force an early re-embed.
+it at most once a day, keyed by the store format of the binary using it; a read pays one stat of
+that file, rewriting it only once it is a day old. A store written by a release before the stamp
+is judged by its files' last write. There is no size limit: one would delete stores still in use
+and force an early re-embed.
 
-At most once a day the first of agentic-memory's SessionStart hook and the `memory` and `tools` MCP
-servers' idle work to find no run since starts `agentic-helpers prune` in a process of its own,
-so nothing waits for it. It skips a store another process is writing or filling, records when it
-ran, what it deleted and any error in `<data>/cache-prune.json`, and after a failed run the next
-SessionStart says once: `agentic-memory: cache prune failed at <time>: <error>; see <path>`.
-`agentic-helpers prune` can be run by hand; it prints each store it deletes.
+Pruning is never noticed. At most once a day the first of agentic-memory's SessionStart hook and
+the `memory` and `tools` MCP servers' idle work to find no run since starts `agentic-helpers prune`
+in a process of its own, so nothing waits for it; on any other day each pays one read of
+`<data>/cache-prune.json`. The run takes `cache-prune.run.lock` without waiting and exits where
+another run holds it, takes each store's `segments.lock` without waiting and skips a store
+another process is writing, and never takes `fill.lock`, which would make a foreground fill skip;
+a search takes no lock at all. It records when it ran, what it deleted and any error in
+`<data>/cache-prune.json`, and after a failed run the next SessionStart says once:
+`agentic-memory: cache prune failed at <time>: <error>; see <path>`. `agentic-helpers prune` can
+be run by hand; it prints each store it deletes.
 
 ## sdd
 
