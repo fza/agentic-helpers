@@ -99,7 +99,7 @@ Questions it asks:
 
 | Reason | Means |
 |---|---|
-| `outside project: <targets>` | a removal target or a move's source outside the project and `/tmp`, or the project or `/tmp` itself |
+| `outside project: <targets>` | a removal target or a move's source outside the project, `/tmp` and the project's extra roots ([reference.md](reference.md#extra-roots)), or the project or `/tmp` itself |
 | `no project: <targets>` | the session started at `/` or `~`: no project, only `/tmp` passes |
 | `unresolvable: <targets>` | `~user` or a brace: placed only once the shell expands it |
 | `no target` | a removal naming nothing |

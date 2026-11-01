@@ -43,7 +43,32 @@ options off.
   `agentic-helpers bound` with options and duration all fixed text (no variable, substitution, glob
   or brace, quoted or not), or exactly `perl -e 'alarm N; exec @ARGV'`, which bound only how long
   the removal runs, never where or what (`agentic-helpers bound 30 rm -rf ./build` passes).
+- A target under an **extra root** the project opens through `shell_guard_extra_roots` (see
+  [Extra roots](#extra-roots)) passes as a target inside the project does.
 - Anything naming no removal and no `mktemp`.
+
+## Extra roots
+
+`shell_guard_extra_roots` names directories outside a project that its sessions may remove in
+and move from: comma-separated entries `<project>=<root>[;<root>]`, each path absolute or starting
+with `~`, the home directory. With
+
+    ~/code/app=~/code/lib/.tmp;~/code/shared
+
+a session in `~/code/app` removes `~/code/lib/.tmp/drafts/x.md` without an ask; a session in any
+other project still gets `outside project: ~/code/lib/.tmp/drafts/x.md`. The project is matched
+against `$CLAUDE_PROJECT_DIR`, so a worktree of `~/code/app` needs an entry of its own. A target is
+under a root when it is the root or lies below it, after the same symlink resolution a project
+target gets: a link inside the root pointing elsewhere is elsewhere and still asks. The same holds
+for a removal or `mv` source anywhere in a command and inside a script it runs.
+
+The option only loosens, so it is set in the `/plugin` dialog, `pluginConfigs` in the user
+settings, or managed settings; `config.yaml` never sets it and neither does
+`CLAUDE_PLUGIN_OPTION_SHELL_GUARD_EXTRA_ROOTS`, which an agent could prefix to its own command.
+An entry that does not parse, holds a path neither absolute nor under `~`, climbs through `..`, or
+opens `/` or `~` itself is ignored whole, and `agentic-helpers check` names it at session start:
+`agentic-helpers: shell_guard_extra_roots: <entry> ignored; <why>`. A root resolving to `/` or the
+home directory through a link opens nothing.
 
 ## The guards and their options
 
@@ -56,6 +81,7 @@ a looser value there is ignored and named at session start
 | Option | Values | Default | Judges |
 |---|---|---|---|
 | `shell_guard_outside_project` | `ask`, `deny`, `off` | `ask` | a lone removal whose target lies outside the project and `/tmp`, is the project or `/tmp` itself, cannot be resolved (`~user`, a brace, a `..` step, which a symlink before it would carry elsewhere, a glob that can match a name starting with a dot, `..` among them), or that names no target; and a command passed an argument whose name is not fixed text (`$CMD -rf /`, `"$tool" build`, `$'\162m' -rf /`), or passed none with a name that may split into words of its own (`$CMD`, `{rm,-rf,/}`), which could be a removal; and each source of `mv` or `git mv`, wherever it stands in the command, read as a lone removal's target (see [Moves](#moves)) |
+| `shell_guard_extra_roots` | comma-separated `<project>=<root>[;<root>]` | none | nothing itself: each root counts as inside its project for the outside-project verdict (see [Extra roots](#extra-roots)); never read from `config.yaml` or the environment |
 | `shell_guard_find_delete` | `ask`, `deny`, `off` | `ask` | `find ... -delete` |
 | `shell_guard_secrets` | `ask`, `deny`, `off` | `ask` | a command whose text holds what looks like a credential, found by the shared [credential scanner](../secrets/usage.md) |
 | `shell_guard_lone_removal` | boolean | `true` | a removal that is not the whole command |

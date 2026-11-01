@@ -169,6 +169,30 @@ func TestConfigYAMLLoosensNoGuardAndSetsNoEmbedderKey(t *testing.T) {
 	}
 }
 
+func TestTheSessionStartNamesEveryExtraRootIgnored(t *testing.T) {
+	env := layeredEnv(t, "shell_guard_extra_roots: \"/a=/b\"\n", `"shell_guard_extra_roots":"/c=/d, relative=/e"`)
+	env.Hook = true
+
+	var captured test.Captured
+
+	code := pieces.Main(context.Background(), []string{"check"}, env, captured.Streams(""))
+	if code != 0 {
+		t.Fatalf("check should exit 0, got %d", code)
+	}
+
+	want := "agentic-helpers: config.yaml never sets shell_guard_extra_roots; /a=/b ignored\n" +
+		"agentic-helpers: shell_guard_extra_roots: relative=/e ignored; relative is neither absolute nor under ~\n"
+	if out := captured.Out.String(); out != want {
+		t.Errorf("a session start should name a config.yaml value and a malformed entry as ignored, got %q", out)
+	}
+
+	code, out, _ := runConfig(t, env)
+	if code != 0 || !strings.Contains(out, "problem: shell_guard_extra_roots: relative=/e ignored; ") ||
+		!strings.Contains(out, "shell_guard_extra_roots         /c=/d, relative=/e  (user settings, never config.yaml)\n") {
+		t.Errorf("config should list the key as never set by config.yaml and name the malformed entry, got:\n%s", out)
+	}
+}
+
 const projectEndpointLine = "agentic-helpers: sdd's embedding endpoint is set in this repository's .sdd/ (layer project), " +
 	"which a clone can bring along; search by meaning stays off until `sdd config set` sets it in sdd's global layer, " +
 	"or embedding_provider and embedding_endpoint set one here\n"

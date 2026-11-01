@@ -100,6 +100,8 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 
 	for _, wording := range []string{
 		"shell_guard_secret_output", "shell_guard_secret_output_skip", "shell_guard_alternatives", "124",
+		"shell_guard_extra_roots", "CLAUDE_PLUGIN_OPTION_SHELL_GUARD_EXTRA_ROOTS",
+		"agentic-helpers: shell_guard_extra_roots: <entry> ignored; <why>",
 		fmt.Sprintf(reasonInScript, "x.fish", "inline code for fish names a removal or mktemp; refusing"),
 	} {
 		if !strings.Contains(whole.String(), wording) {

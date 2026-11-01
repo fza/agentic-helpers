@@ -98,10 +98,16 @@ type Options struct {
 	// Scratch is whether the project carries the .tmp/ the mktemp refusal
 	// points at.
 	Scratch bool
+	// ExtraRoots is every directory outside a project its removals and move
+	// sources may still reach, by project.
+	ExtraRoots []pluginconfig.ExtraRoot
 }
 
 func optionsFrom(read pluginconfig.Options) Options {
+	extraRoots, _ := pluginconfig.ExtraRoots(read.ShellGuardExtraRoots)
+
 	return Options{
+		ExtraRoots:     extraRoots,
 		OutsideProject: read.ShellGuardOutsideProject, FindDelete: read.ShellGuardFindDelete, Secrets: read.ShellGuardSecrets,
 		LoneRemoval: read.ShellGuardLoneRemoval, Expansion: read.ShellGuardExpansion,
 		NestedCode: read.ShellGuardNestedCode, Mktemp: read.ShellGuardMktemp, Alternatives: read.ShellGuardAlternatives,

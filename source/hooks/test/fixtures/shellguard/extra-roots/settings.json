@@ -1,0 +1,3 @@
+{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{
+  "shell_guard_extra_roots": "~/project=~/other/.tmp;{linkedroot};{homelink};{slashlink}, {third}={shared};relative/root, {third}"
+}}}}

@@ -83,7 +83,8 @@ Nothing leaves the machine unless one of these applies:
 
 ## What it decides
 
-- **shell-guard** asks before, or refuses, a Bash call that deletes outside the project and `/tmp`,
+- **shell-guard** asks before, or refuses, a Bash call that deletes outside the project, `/tmp` and
+  the directories `shell_guard_extra_roots` opens for that project,
   holds a credential, or uses a command missing on the machine. In auto mode an ask nobody answers
   is refused after a countdown. It never approves a call. After every tool call it replaces output
   lines from outside the project that look like a credential.
