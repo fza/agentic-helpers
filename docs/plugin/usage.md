@@ -149,7 +149,10 @@ in a process of its own, so nothing waits for it; on any other day each pays one
 `<data>/cache-prune.json`. The run takes `cache-prune.run.lock` without waiting and exits where
 another run holds it, takes each store's `segments.lock` without waiting and skips a store
 another process is writing, and never takes `fill.lock`, which would make a foreground fill skip;
-a search takes no lock at all. A store the run may not touch, as from inside a sandboxed job, is
+a search takes no lock at all. Under the lock a store is only renamed to `.pruned-<name>`, and it
+is removed once the lock is released, so the lock is held for one rename; a folder of that name a
+crash left goes with the next run. The tool library's pass pauses 50 ms after each lock session, so
+a writer polling for that store's lock every 25 ms gets in between. A store the run may not touch, as from inside a sandboxed job, is
 skipped and never reported as a failure, and the day's run is claimed again an hour later by
 whichever session comes next. The run stops after five minutes, starts with no terminal and no
 open pipes in a session of its own, so nothing a hook or job waits for holds it. It records when it ran, what it deleted and any error in
