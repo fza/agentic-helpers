@@ -775,6 +775,21 @@ func (f *File) Adopt(ctx context.Context, dir string, version int, legacy func()
 	})
 }
 
+// holds says the pair's newest twin already keeps value under key, written
+// at at: a legacy file a run took in and was stopped before removing is not
+// written a second time.
+func holds(twins [2]twin, key string, value []byte, at time.Time) bool {
+	winner := newest(twins)
+	if winner < 0 {
+		return false
+	}
+
+	held := twins[winner]
+
+	return held.key == key && held.written == at.UnixNano() && held.valueLen == len(value) &&
+		held.valueSum == crc32.Checksum(value, castagnoli)
+}
+
 // GetJSON decodes key's value into target, answering whether it held one
 // that decoded.
 func (f *File) GetJSON(ctx context.Context, key string, target any) bool {
@@ -820,6 +835,10 @@ func (f *File) importLocked(opened *os.File, header Header, legacy []Legacy) err
 		pair, twins, found, err := find(file, header, held.Key)
 		if err != nil {
 			return err
+		}
+
+		if found && holds(twins, held.Key, value, info.ModTime()) {
+			continue
 		}
 
 		if !found {
