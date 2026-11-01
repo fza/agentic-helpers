@@ -176,6 +176,8 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 
 	first := filed(`{"title":"Gate finding filed first","topic":["gate"],"body":"one"}`)
 	second := filed(`{"title":"Gate finding filed second","topic":["gate"],"body":"two"}`)
+	todo := filed(`{"title":"Gate work filed as todo","topic":["gate"],"body":"three","kind":"todo"}`)
+	h.putSlot("landed", `{"mappings":[{"target":"`+todo+`","commit":"c1c1c1c1c1c1c1c1","subject":"Gate","test":"path","score":0.5}]}`)
 
 	calls := []struct{ tool, arguments string }{
 		{"show", `{"ids":["` + first + `"]}`},
@@ -192,6 +194,7 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 		{"tag", `{"id":"` + first + `","topic":["hooks"]}`},
 		{"untag", `{"id":"` + first + `","topics":["hooks"]}`},
 		{"link", `{"id":"` + first + `","target":"` + second + `"}`},
+		{"landed", `{"ids":["` + todo + `"]}`},
 		{"retire", `{"ids":["` + second + `"],"because":"done"}`},
 		{"supersede", `{"ids":["` + second + `"],"because":"wrong"}`},
 	}

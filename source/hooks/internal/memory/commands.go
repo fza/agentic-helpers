@@ -589,6 +589,13 @@ func allCommands() []command {
 				`"because":{"type":"string","description":"why they ended"}},"required":["ids"]}`,
 		},
 		{
+			name: "landed", usage: "landed dismiss <id>...",
+			description: "dismiss landed-commit matches checked as not settling the work; the entries stay; all or none",
+			positional:  landedDismissPositional, run: (*memory).dismissLanded,
+			schema: `{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string","pattern":"^m-[a-z0-9]{4,16}(#[a-z0-9]+)?$"},` +
+				`"description":"entry ids or <todo>#<item> addresses whose match to forget; array even for one"}},"required":["ids"]}`,
+		},
+		{
 			name: "supersede", usage: "supersede <id>... [--by <id>] [--because '<why>'] [--items carry|leave]",
 			description: "take entries out of results, all or none; takes by, because or both, at least one; a todo with items needs items",
 			flags:       []flagSpec{{"by", flagText}, {"because", flagText}, {"items", flagText}}, positional: someIDs, run: (*memory).supersede,

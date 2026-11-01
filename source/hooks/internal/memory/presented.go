@@ -98,6 +98,18 @@ func (seen *presented) markBody(held *entry) {
 	}
 }
 
+// hasLanded is whether the context already holds mapping: a brief's flag or
+// a hook's line named it since the context last emptied.
+func (seen *presented) hasLanded(mapping landedMapping) bool {
+	return seen != nil && slices.Contains(seen.set.Landed, landedSeenKey(mapping))
+}
+
+func (seen *presented) markLanded(mapping landedMapping) {
+	if seen != nil {
+		seen.set.Landed = seen.mark(seen.set.Landed, landedSeenKey(mapping))
+	}
+}
+
 func (seen *presented) mark(ids []string, id string) []string {
 	if slices.Contains(ids, id) {
 		return ids

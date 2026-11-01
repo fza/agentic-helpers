@@ -771,8 +771,12 @@ stream held no more. Merges group the commits of their side by parent links in t
 reading by date that finds a side commit outside its stream reads `git log <first parent>..<merge>`
 once. Every landing is judged against every target before anything is stored, the subjects in one
 batched embedder call; the mappings go to the slot `landed` (`target`, `commit`, `subject`, `test`,
-`merge`, `score`), one per target, a higher score replacing a lower. Briefs and hooks read that
-slot and rewrite it without what they delivered and without targets that ended.
+`merge`, `score`), one per target, a higher score replacing a lower. Briefs read that slot and
+rewrite it without targets that ended; `landed dismiss` rewrites it without the targets it names.
+Delivery removes nothing: each brief or hook line naming a mapping marks `<target>@<sha>` in the
+`landed` list of the context's shown set (`shown/<session>`), so the prompt and tool line names a
+mapping once per context, and a brief prints a held mapping on the entry's pointer rather than its
+whole line. The set empties at a compaction, `/clear` and resume, as for every read.
 
 ## Todolists
 

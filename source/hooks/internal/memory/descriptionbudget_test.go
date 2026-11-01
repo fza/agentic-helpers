@@ -23,6 +23,7 @@ var toolBudgets = []struct {
 	{"claim", 110, "92 when set: the rule between name and shelf"},
 	{"confirm", 50, "39 when set"},
 	{"due", 80, "71 when set: the rule between due and clear"},
+	{"landed", 110, "93 when set: that the entries stay"},
 	{"link", 140, "121 when set: the rule between target and tool"},
 	{"new", 110, "96 when set"},
 	{"release", 20, "14 when set"},

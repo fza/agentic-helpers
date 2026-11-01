@@ -1096,18 +1096,28 @@ not its first: a test any of them passes maps the entry to the merge, naming the
 matched, and none of them is judged again on its own. Where several commits match one entry or
 item, the one scoring highest is reported, `0.8 × strength`, plus `0.2` for a merge, the newer
 winning a tie: a direct commit beats a merge only by more than 0.25 of strength. One mapping stands
-per entry or item; a later round replaces an undelivered one only with a higher score.
+per entry or item; a later round replaces a stored one only with a higher score.
 
-**Delivery.** A mapping is kept in the store, across sessions and claims, until the seat holding the
-entry is told, then dropped; one whose entry is retired or superseded, or whose item is ticked,
-goes unannounced. The claim brief and the post-compaction brief end the entry's line with
-`retire? landed: <sha> <subject>`, an item's mapping with `ack #<item>? landed: <sha> <subject>`. A
-running session gets one line at its next prompt or tool call (the main thread's, never a
-subagent's), hidden from the user:
+**Delivery.** A mapping is kept in the store, across sessions, compactions and claims, until its
+entry is retired or superseded, its item ticked, or the agent dismisses it; being told of it ends
+nothing, since a hint delivered just before a compaction is as much owed after it. Every brief ends
+the entry's line with `retire? landed: <sha> <subject>`, an item's mapping with
+`ack #<item>? landed: <sha> <subject>`: the whole line where the context does not hold the mapping
+yet, the entry's `(seen)` pointer otherwise. A running session gets one line at its next prompt or
+tool call (the main thread's, never a subagent's), hidden from the user, naming each mapping once
+per context: a compaction, `/clear` or resume empties the set that remembers it, as it does for
+every read.
 
     agentic-memory: landed commits may settle live work; check each against the repository, then: <id> by <sha> "<subject>" (<test>): agentic-memory retire <id> --because 'landed in <sha>'; <todo>#<item> by ...: agentic-memory ack <todo>#<item> --done
 
 No Stop hook carries it: Stop feedback always shows in the user's terminal.
+
+**Dismiss.** `agentic-memory landed dismiss <id>...` (MCP `landed`, key `ids`) forgets the stored
+match of each entry id or `<todo>#<item>` named, for a match checked and found not to settle the
+work; the entry stays live. All or none: an id holding no match of the seat refuses the call
+(`nothing dismissed:`, then `<id>: no landed match stored for this seat` per id). A later commit
+may match the entry again. A match left alone costs one brief line per context until settled or
+dismissed.
 
 ## Search
 
