@@ -85,7 +85,7 @@ a looser value there is ignored and named at session start
 | `shell_guard_find_delete` | `ask`, `deny`, `off` | `ask` | `find ... -delete` |
 | `shell_guard_secrets` | `ask`, `deny`, `off` | `ask` | a command whose text holds what looks like a credential, found by the shared [credential scanner](../secrets/usage.md) |
 | `shell_guard_lone_removal` | boolean | `true` | a removal that is not the whole command |
-| `shell_guard_expansion` | boolean | `true` | a removal target built from a variable or command substitution |
+| `shell_guard_expansion` | boolean | `true` | a removal target built from a variable the text does not fix (see [Paths the text fixes](#paths-the-text-fixes)) or a command substitution |
 | `shell_guard_nested_code` | boolean | `true` | a removal or `mktemp` inside `eval`, `trap`, a shell's `-c` or here-document, `at` or `batch` code, zsh's `sched` or `functions[name]=`, a tmux shell command, text arithmetic evaluates, or inline code for another interpreter (`perl -e`, `python -c`, `node -e`, `awk`, `ssh`, ..., naming `rm`, `unlink`, `rmtree`, `rmSync` and the like), and such code it cannot read or parse, a shell reading its code from a pipe among it; arithmetic on a variable set at run time, and a script the command runs that it cannot read, ask rather than deny |
 | `shell_guard_mktemp` | boolean | `true` | `mktemp` anywhere in the command |
 | `shell_guard_alternatives` | boolean | `true` | a command missing on the machine, or a usage its BSD flavour gets wrong (see [Command alternatives](#command-alternatives)); off, the session start line naming the machine's substitutions goes too |
@@ -130,8 +130,8 @@ options say**: the guard cannot judge it.
 A move takes a file away from where it was, so `mv ~/x /tmp/x` followed by `rm /tmp/x` would remove
 a file outside the project in two calls that each pass. Each source of `mv` and `git mv` is judged
 as a lone removal's target, wherever the move stands in the command: `mv ~/x ./` asks
-`outside project: ~/x`, `mv "$f" ./` is refused as an expansion, a glob is judged as the pattern it
-is. The target is never judged: moving into the project or `/tmp` removes nothing there, and
+`outside project: ~/x`, `mv "$f" ./` is refused as an expansion unless the command's own text fixes
+`f` (see [Paths the text fixes](#paths-the-text-fixes)), a glob is judged as the pattern it is. The target is never judged: moving into the project or `/tmp` removes nothing there, and
 `mv ./build /tmp/old` passes.
 
 - Every operand but the last is a source. `-t <dir>`, `--target-directory=<dir>` or a short group
@@ -178,14 +178,16 @@ the call keeps every rule: `mktemp && bash x.sh` is still refused.
   none passes. A removal word in a comment or a string asks too, and a removal's target is not
   checked against the project.
 - **Where it is read from**: the session's working directory, moved by a `cd` with a fixed operand
-  naming a directory that exists, in three forms, each one where what follows runs only where the
+  (written out, a variable the text fixes, or the script's own folder, see
+  [Paths the text fixes](#paths-the-text-fixes)) naming a directory that exists, in three forms, each one where what follows runs only where the
   `cd` took the shell. A `cd` that is a statement of its own or opens an `&&` chain of such cds
   (`cd sub && bash x.sh`) moves every later statement; `cd sub || exit 1` or `cd sub || return`
   does too, since a failed `cd` ends the shell or function there. A `cd` behind another command in a
   top-level `&&` chain (`make && cd sub && ./x.sh`) moves the rest of that chain only: a statement
   after the chain loses the place, since it runs whether or not the chain got as far as the `cd`.
   Any other move (a `cd` in a subshell, a function or a branch, one followed by `|| echo` or
-  anything but `exit` or `return`, one to a variable, `pushd`, `popd`, a sourced script that moves)
+  anything but `exit` or `return`, one to a variable the text does not fix, `pushd`, `popd`, a
+  sourced script that moves)
   loses the place, and a launcher's chdir
   option (`env -C`, `sudo -D`) loses it for what it runs. Code handed to `bash -c`, `eval` or a
   shell's here-document runs where the command stands; code run later (`trap`, `tmux`, `sched`,
@@ -214,6 +216,50 @@ the call keeps every rule: `mktemp && bash x.sh` is still refused.
 
 A script is judged as it is when the call is checked; one changed between the check and the run is
 not judged again.
+
+## Paths the text fixes
+
+A path the command's or script's own text fully determines is judged exactly as if written out, for
+removals, for the sources of `mv` and `git mv`, for a `cd` the walk follows and for a script's path.
+A script holding
+
+```bash
+cd "$(dirname "$0")/.."
+OPENGREP_TAG=v1.33.1
+OPENGREP_HOME=.tools/opengrep/$OPENGREP_TAG
+rm -f "$OPENGREP_HOME/opengrep.download"
+```
+
+removes `.tools/opengrep/v1.33.1/opengrep.download` under the script's parent folder, and passes
+when that lies inside the project.
+
+- **A variable resolves at a use** only where every assignment to it anywhere in the text is a
+  statement of the command's or script's own: bare (`X=a`), `export X=a` or `readonly X=a`, alone
+  or first in an `&&` or `||` chain, with no redirection. The last one before the use gives the
+  value, which is fixed text or fixed text joined with variables resolving by the same rule
+  (`B=$A/b`). The whole text counts, not only what precedes the use: a loop runs its body again
+  after a later assignment, and a function runs where it is called.
+- **It stays unresolved**, with the verdict an unresolved variable gets, wherever the text gives
+  any doubt: an assignment in a branch, loop, function, subshell or pipeline, behind another
+  command in a chain, for one command (`X=a cmd`), appending (`+=`) or to an array element; a use
+  inside a function; a value holding a command substitution, arithmetic, `~` or a backslash; a
+  parameter expansion with an operator (`${X:-y}`, `${X%/*}`); a variable never assigned in the
+  text, the environment's included, or one the shell itself changes (`PWD`, `IFS`, `REPLY`,
+  `BASH_*`, ...). Text that may set a variable the parse cannot see leaves every variable
+  unresolved: `eval`, `source`, `trap`, `read`, `mapfile`, `getopts`, `unset`, `let`, `printf -v`,
+  `declare`, `local`, `typeset` and their kin, arithmetic, `${X:=y}`, a descriptor stored in a name
+  (`{fd}>file`), `coproc`, and a command name built at run time.
+- **Unquoted, a value is written out** only where it stays the one word it spells: no space and no
+  glob character, and no assignment to `IFS` anywhere in the text. In double quotes it always is.
+- **The script's own folder**: in a script the walk reads, `$(dirname "$0")`,
+  `$(dirname "${BASH_SOURCE[0]}")` where bash runs the script, `${0%/*}` and
+  `$(cd "$(dirname "$0")" && pwd)`, each optionally followed by fixed text such as `/..`, name the
+  folder of the script's path as the call ran it, so a `cd` into one is followed like a `cd` to
+  fixed text. The folder must exist. On a command line, in a sourced script and in code handed to
+  a shell, `$0` is the shell's own name and resolves to nothing.
+
+Reading values from the hook's environment would be no answer: it is not the shell's at run time.
+Running the script or a part of it to learn them is what shell-guard exists to avoid.
 
 ## Command alternatives
 

@@ -28,6 +28,26 @@ Literal = plain text, quotes around plain text, or `$'...'` with no escape but `
 `\'` `\"` and two-digit `\x` (not `\x00`): `$'rm' -rf /` is `rm -rf /`. Any other escape = an
 expansion.
 
+## Fixed values
+
+A variable the text itself fixes is judged as its value written out, in a removal target, a move's
+source, a `cd` and a script's path:
+
+```bash
+OPENGREP_HOME=.tools/opengrep/v1.33.1          # fixed text, or fixed text joined with such variables
+rm -f "$OPENGREP_HOME/opengrep.download"       # judged as .tools/opengrep/v1.33.1/opengrep.download
+```
+
+It counts only where every assignment to the name anywhere in the text is a statement of its own
+(`X=a`, `export X=a`, `readonly X=a`, alone or first in an `&&` / `||` chain), the use is in no
+function, and the value holds no `$(...)`, arithmetic, `~` or backslash. Not fixed, with the verdict
+an unfixed variable gets: an assignment in `if`, a loop, a function, a subshell or pipeline, behind
+`cmd &&`, `X=a cmd`, `+=`; `${X:-y}`; a variable never assigned (the environment's too); and every
+variable once the text holds `eval`, `source`, `trap`, `read`, `unset`, `printf -v`, `declare`,
+`local`, arithmetic or a command name built at run time. Unquoted (`$X`), the value must hold no
+space or glob character. On a command line `rm` still runs alone; fixed values serve moves, `cd`
+and scripts.
+
 ## Moves
 
 Each source of `mv` / `git mv` (every operand but the target; all of them after `-t <dir>`) is
