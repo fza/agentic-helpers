@@ -130,7 +130,9 @@ A prunable version also goes by age, whatever space is left: once its tool repla
 than `tools_version_lifetime` (set in `config.yaml` only, a span), 90 days unless set, never below 14
 days. Age counts from the replacement, the recorded write of the next version, so a version current
 for a year keeps its way back for the full window after an update. A tool's current version never
-goes by age, so every tool stays findable however long nobody takes it.
+goes by age, so every tool stays findable however long nobody takes it. Age and space pruning
+across every store run once a day in the background `agentic-helpers prune`, so a version can
+outlast its window by up to a day; only a write that needs room prunes at once.
 
 Space left is the limit less the bytes of the versions that cannot be pruned. Every `add` and
 `update` reply ends with it, `space left: tools <left> of <limit>`; the agentic-memory brief

@@ -68,7 +68,9 @@ oldest prunable versions until the write fits, each foreign store under its own 
 one change a write makes to another project's store: the limit is one per machine, so the room may
 lie anywhere. Pruning appends the version's hashes to `<tool>/pruned.jnl` first, so a crash before
 the folder goes leaves the duplicate check whole, then removes `v<n>/` through `os.Root` and reads
-the tool's index row again. `tools.Prune`, run from agentic-memory's SessionStart pass, first
+the tool's index row again. `tools.Prune`, run by the daily detached `agentic-helpers prune`
+(never in a session start, so none reads every store or waits on a lock;
+[plugin usage](../plugin/usage.md#cache-pruning)), first
 prunes every prunable version replaced longer than `tools_version_lifetime` ago, by the earliest
 `written` time of a later version in the index, then does the same as a write over every store on
 the machine, passing over a store whose lock it cannot take within 200 ms,

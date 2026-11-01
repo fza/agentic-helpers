@@ -17,6 +17,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
+	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
 
 func main() {
@@ -51,6 +52,7 @@ func main() {
 		CacheRoot: cacheRoot,
 		SddConfig: process.SddConfig{},
 		Dir:       cmp.Or(os.Getenv("CLAUDE_PROJECT_DIR"), workingDir()),
+		ToolPrune: tools.Prune,
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

@@ -265,7 +265,7 @@ func TestTheBriefNamesOnlyAStoreRunningLow(t *testing.T) {
 	}
 }
 
-func TestSessionStartPrunesTheToolLibrary(t *testing.T) {
+func TestSessionStartLeavesToolVersionsToTheDailyRun(t *testing.T) {
 	for _, toolsOn := range []bool{true, false} {
 		t.Run(fmt.Sprintf("tools_enabled %t", toolsOn), func(t *testing.T) {
 			h := newHarness(t)
@@ -279,13 +279,11 @@ func TestSessionStartPrunesTheToolLibrary(t *testing.T) {
 
 			h.must(hookPayload("startup", "", ""), "session-start")
 
-			if _, err := os.Stat(filepath.Join(store, "word-count", "v1")); (err == nil) == toolsOn {
-				t.Error("the SessionStart pass should prune the oldest prunable tool version past tools_total_mb, " +
-					"and only while agentic-tools is on")
-			}
-
-			if _, err := os.Stat(filepath.Join(store, "word-count", "v2")); err != nil {
-				t.Error("the SessionStart pass should never prune a current tool version")
+			for _, version := range []string{"v1", "v2"} {
+				_, err := os.Stat(filepath.Join(store, "word-count", version))
+				if err != nil {
+					t.Error("the SessionStart pass should leave tool versions to the daily agentic-helpers prune")
+				}
 			}
 		})
 	}

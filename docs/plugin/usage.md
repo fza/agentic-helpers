@@ -151,8 +151,10 @@ another run holds it, takes each store's `segments.lock` without waiting and ski
 another process is writing, and never takes `fill.lock`, which would make a foreground fill skip;
 a search takes no lock at all. It records when it ran, what it deleted and any error in
 `<data>/cache-prune.json`, and after a failed run the next SessionStart says once:
-`agentic-memory: cache prune failed at <time>: <error>; see <path>`. `agentic-helpers prune` can
-be run by hand; it prints each store it deletes.
+`agentic-memory: cache prune failed at <time>: <error>; see <path>`. While agentic-tools is on, the
+same run prunes the tool library's versions past `tools_version_lifetime` or over `tools_total_mb`
+across every store ([tools usage](../tools/usage.md)). `agentic-helpers prune` can be run by hand;
+it prints each vector store it deletes.
 
 ## sdd
 

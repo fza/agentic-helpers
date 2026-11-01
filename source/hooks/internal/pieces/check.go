@@ -11,6 +11,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/dump"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
@@ -33,6 +34,9 @@ type Env struct {
 	// works in, for the line saying an `sdd` embedding source finds none.
 	SddConfig embed.Sdd
 	Dir       string
+	// ToolPrune is the tool library's version pruning, which `prune` runs
+	// beside the vector stores' while agentic-tools is on; nil runs none.
+	ToolPrune func(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Duration, now time.Time)
 }
 
 const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | prune | dump <file> | bound <duration> <command>"
@@ -163,6 +167,10 @@ func prune(ctx context.Context, env Env, streams hookio.Streams) int {
 	}
 
 	result := cacheprune.Run(ctx, env.Migration.Roots, options.CacheRetention, now())
+
+	if env.ToolPrune != nil && Tools.On(options) {
+		env.ToolPrune(ctx, env.Migration.Roots, options.ToolsTotalMB, options.ToolsVersionLifetime, now())
+	}
 
 	for _, deleted := range result.Deleted {
 		_, _ = fmt.Fprintln(streams.Out, "deleted "+deleted)
