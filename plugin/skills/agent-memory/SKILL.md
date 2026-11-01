@@ -149,7 +149,7 @@ agentic-memory show state
 - **Outcome, never the prompt.** Body = finding, decision, step owed. No playback of the user's
   prompt or answer, no "owner chose / asked / said": `--from user` already says whose. A rule
   quotes the instruction alone, nothing around it.
-- **Language and style → the brief's** (`entries in de, terse`, the local time after them): titles, bodies, state lines. Domain
+- **Language and style → the brief's** (`entries in de, terse`): titles, bodies, state lines. Domain
   terms keep the project's spelling. `terse`: no articles, filler or hedging; fragments fine; code,
   paths, ids, quotes, domain terms exact. `plain`: full sentences. Only agents read memory.
 - Title 3-10 words (unspaced scripts: a character a word), at least one topic. Wrong → lands; the
