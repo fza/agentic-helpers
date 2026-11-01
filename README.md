@@ -262,7 +262,7 @@ measurement, after an upgrade or a change of endpoint, embeds each index again o
 
 | Option | Default | What it controls |
 |---|---|---|
-| `capture_remove_draft` | `true` | `agentic-capture` deletes a draft once its entry is captured, unless git tracks it or it lies outside the work tree and `/tmp` |
+| `capture_remove_draft` | `true` | `agentic-capture` deletes a draft once its entry is captured, unless git tracks it or it lies outside the work tree, the graph repository's work tree and `/tmp` |
 
 ### Shell-guard
 

@@ -134,9 +134,11 @@ why:
 
 - `draft kept: <path> is tracked by git`: deleting it would leave a git change nobody asked for,
   which another commit could sweep in.
-- `draft kept: <path> is outside the work tree`: it lies outside both the work tree the capture runs
-  in and `/tmp`, the places shell-guard lets an agent remove files, so it may belong to something
-  other than the capture.
+- `draft kept: <path> is outside the work tree`: it lies outside the work tree the capture runs in,
+  the work tree of the repository holding the graph it wrote to, and `/tmp`, so it may belong to
+  something other than the capture. A draft under another repository's `.tmp/drafts/`, captured into
+  that repository's graph from a checkout of its own, is removed like one in the working directory's
+  tree.
 - `draft kept: <path> is not a regular file`: the path is a symlink or no plain file, and the capture
   never deletes through a link; neither the link nor its target is touched.
 - `draft kept: <path> changed while it was checked`: another file took the path while git was asked

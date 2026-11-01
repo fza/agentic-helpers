@@ -202,7 +202,7 @@
     "capture_remove_draft": {
       "type": "boolean",
       "title": "agentic-capture: remove the draft",
-      "description": "Delete a draft once its entry is captured, unless git tracks it or it lies outside the work tree and /tmp; off keeps every draft; default on",
+      "description": "Delete a draft once its entry is captured, unless git tracks it or it lies outside the work tree, the graph repository's work tree and /tmp; off keeps every draft; default on",
       "default": true,
       "required": false
     },

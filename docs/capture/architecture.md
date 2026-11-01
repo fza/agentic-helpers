@@ -41,9 +41,14 @@ Success is `sdd new` exiting 0; it writes and commits in one step, and nothing r
 draft is deleted only then, and only where `capture_remove_draft` is on. The path as given must be a
 regular file under `lstat`: a symlink stays with `draft kept: <path> is not a regular file`, since
 the checks below would judge its target. Every symlink among the path's parents is then resolved.
-`git rev-parse --show-toplevel`, asked in the working directory, names the work tree; a draft outside
-it and outside `/tmp` stays with `draft kept: <path> is outside the work tree`.
-`git ls-files -- <draft>`, asked in the draft's directory, then says whether git tracks it: a tracked
+`git rev-parse --show-toplevel`, asked in the working directory, names its work tree, and asked in
+the folder holding the governing `.sdd/`, names the work tree of the graph's repository; a draft
+outside both and outside `/tmp` stays with `draft kept: <path> is outside the work tree`. The graph's
+tree counts because the capture has just written to that graph, so a draft there belongs to the run
+as much as one in the working directory's tree. The draft's own repository does not count: judged
+from it, a capture would delete untracked files in repositories it never wrote to.
+`git ls-files -- <draft>`, asked in the draft's directory and so in the index of whichever tree
+holds it, then says whether git tracks it: a tracked
 draft stays with `draft kept: <path> is tracked by git`, since `git rm` would touch the index outside
 the capture's own commit and a plain deletion would be an uncommitted change another commit can sweep
 in. Git runs under `LC_ALL=C`, so its refusal outside a repository (`not a git repository`) reads the

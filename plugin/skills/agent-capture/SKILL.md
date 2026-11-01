@@ -187,8 +187,9 @@ Pre-flight is a model call. Provider failing → not the draft's fault → retri
 - **Kept, with a line saying why:**
   - `draft kept: <path> is tracked by git` → the capture leaves no git change nobody asked for. Remove
     it in its own commit if the project wants it gone.
-  - `draft kept: <path> is outside the work tree` → it lies outside the work tree and `/tmp`, where
-    a file may belong to something else. Leave it, or remove it by hand once sure it is yours.
+  - `draft kept: <path> is outside the work tree` → it lies outside the working directory's tree,
+    the graph repository's tree and `/tmp`, where a file may belong to something else. Leave it, or
+    remove it by hand once sure it is yours.
   - `draft kept: <path> is not a regular file` → the path is a symlink (or no plain file); the capture
     never deletes through one. Neither the link nor its target is touched.
   - `draft kept: <path> changed while it was checked` → another file took the path during the
