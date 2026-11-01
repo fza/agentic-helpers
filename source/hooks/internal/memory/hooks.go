@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
@@ -163,6 +164,11 @@ func (mem *memory) rewriteClaim(ctx context.Context, key string, still func(seat
 func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	mem.purgeEverywhere(ctx)
 	mem.sweepSensors()
+
+	pruneWarning := cacheprune.Warning(mem.env.Roots)
+	if pruneWarning != "" {
+		mem.say(self + ": " + pruneWarning)
+	}
 
 	if mem.question != nil {
 		mem.say(self + ": " + mem.question.Text(self))

@@ -310,7 +310,9 @@ plus `n` entries in a bounded heap rather than sorting all it kept.
 a changed embedder starts a fresh store instead of mixing two vector spaces. The fingerprint names the
 provider, the model, the dimensions and a hash of the query and document templates
 (`openai/<model>/<dims>/t<hash>`), every one of which changes the vectors; the endpoint and its path
-stay out, so moving a local server to another port keeps the store. The layout follows sdd's
+stay out, so moving a local server to another port keeps the store. A store no binary has used for
+`cache_retention` is deleted by the daily `agentic-helpers prune` (`internal/cacheprune`, judged by
+`used.json` in `segments/`; [plugin usage](../plugin/usage.md#cache-pruning)). The layout follows sdd's
 search segments:
 
 ```

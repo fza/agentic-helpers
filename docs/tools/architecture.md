@@ -106,7 +106,9 @@ Vectors live outside every store, in `<cache>/tools/vectors/<embedder>/`, one di
 per embedder fingerprint (provider, model, dimensions, template hash, as memory's), as segments of `internal/vectorseg`, the store agentic-memory keeps its
 entry vectors in (`docs/memory/architecture.md`, "The vector store"). A row is one description's
 vectors, keyed by the description's hash, so one vector serves every store naming that description
-and a fill embeds only a description no row is held for. Texts are sized as memory sizes them: the
+and a fill embeds only a description no row is held for. A directory no binary has used for
+`cache_retention` is deleted by the daily `agentic-helpers prune` (`used.json` in it records each
+use; [plugin usage](../plugin/usage.md#cache-pruning)). Texts are sized as memory sizes them: the
 endpoint's calibration, shared with memory under `<cache>/embedding-calibration/`, gives the cap,
 `manifest.json` in the vector directory records it as `max_runes`, a row's hash is
 `embed.RowHash` of the description's hash and that cap, and a description longer than the cap is

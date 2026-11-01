@@ -134,6 +134,14 @@ const (
 	MinToolsVersionLifetime     = 14 * 24 * time.Hour
 )
 
+// DefaultCacheRetention / MinCacheRetention bound how long a vector store no
+// binary used survives; the floor keeps the store of a project resting for
+// two weeks.
+const (
+	DefaultCacheRetention = 90 * 24 * time.Hour
+	MinCacheRetention     = 14 * 24 * time.Hour
+)
+
 // DefaultEntryIDLength / MinEntryIDLength / MaxEntryIDLength bound the
 // characters after `m-` in a new entry id. Six give 36^6, about 2.2 billion
 // ids; past sixteen an id is one nobody types.
@@ -192,14 +200,17 @@ type Options struct {
 	LandedScanInterval   time.Duration
 	RetiredBodyLifetime  time.Duration
 	ToolsVersionLifetime time.Duration
-	EntryIDLength        int
-	BriefNoteLimit       int
-	AttachmentMaxMB      int
-	AttachmentsTotalMB   int
-	ToolsTotalMB         int
-	MemoryLanguage       string
-	WritingStyle         string
-	MemoryRequireGit     bool
+	// CacheRetention is how long a vector store no binary used survives
+	// before the daily prune deletes it.
+	CacheRetention     time.Duration
+	EntryIDLength      int
+	BriefNoteLimit     int
+	AttachmentMaxMB    int
+	AttachmentsTotalMB int
+	ToolsTotalMB       int
+	MemoryLanguage     string
+	WritingStyle       string
+	MemoryRequireGit   bool
 	// MemoryTurnsOffAuto has a seat claim turn Claude Code's own auto memory
 	// off for the project through its `.claude/settings.local.json`.
 	MemoryTurnsOffAuto bool
@@ -258,7 +269,7 @@ type Options struct {
 var Keys = []string{
 	"embedding_source", "embedding_provider", "embedding_model", "embedding_endpoint", "embedding_path",
 	"embedding_dimensions", "embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
-	"entry_max_words", "state_stale_after_writes", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
+	"entry_max_words", "state_stale_after_writes", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "cache_retention", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
 	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
@@ -279,8 +290,8 @@ var Undeclared = []string{"embedding_source"}
 // cleanup. Only `config.yaml` and managed settings set them, and the plugin's
 // `userConfig` declares none.
 var ConfigOnly = []string{
-	"retired_body_lifetime", "tools_version_lifetime", "temporary_seat_lifetime", "tools_total_mb", "orphan_store_grace",
-	"retired_body_days",
+	"retired_body_lifetime", "tools_version_lifetime", "cache_retention", "temporary_seat_lifetime", "tools_total_mb",
+	"orphan_store_grace", "retired_body_days",
 }
 
 // Renamed is every key read under an older name for one release, by that
@@ -625,6 +636,7 @@ func unset(raw json.RawMessage) bool {
 func (options *Options) clamp() {
 	options.RetiredBodyLifetime = max(options.RetiredBodyLifetime, MinRetiredBodyLifetime)
 	options.ToolsVersionLifetime = max(options.ToolsVersionLifetime, MinToolsVersionLifetime)
+	options.CacheRetention = max(options.CacheRetention, MinCacheRetention)
 	options.EntryIDLength = min(max(options.EntryIDLength, MinEntryIDLength), MaxEntryIDLength)
 	options.BriefNoteLimit = max(options.BriefNoteLimit, 0)
 	options.EntryMaxWords = max(options.EntryMaxWords, 1)
@@ -641,7 +653,7 @@ func (options *Options) clamp() {
 
 func Defaults() Options {
 	return Options{
-		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, LandedScanInterval: DefaultLandedScanInterval, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime,
+		EntryMaxWords: DefaultEntryMaxWords, StateStaleAfterWrites: DefaultStateStaleAfterWrites, LandedScanInterval: DefaultLandedScanInterval, RetiredBodyLifetime: DefaultRetiredBodyLifetime, ToolsVersionLifetime: DefaultToolsVersionLifetime, CacheRetention: DefaultCacheRetention,
 		EmbeddingSource: EmbeddingSourceAuto, EmbeddingProvider: EmbeddingProviderAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
@@ -696,6 +708,7 @@ func (options *Options) fields() fields {
 			"retired_body_lifetime":   &options.RetiredBodyLifetime,
 			"landed_scan_interval":    &options.LandedScanInterval,
 			"tools_version_lifetime":  &options.ToolsVersionLifetime,
+			"cache_retention":         &options.CacheRetention,
 			"embedding_timeout":       &options.EmbeddingTimeout,
 			"shell_guard_ask_timeout": &options.ShellGuardAskTimeout,
 		},
