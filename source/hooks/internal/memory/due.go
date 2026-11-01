@@ -193,10 +193,12 @@ func (mem *memory) dueSection(here tree, folded *state, seatName string, now tim
 func (mem *memory) dueBrief(here tree, folded *state, seatName string) string {
 	now := mem.now()
 
+	flags := mem.landedFlagsOf(folded, seatName)
+
 	var lines []string
 
 	for _, held := range mem.dueEntries(folded, seatName) {
-		lines = append(lines, mem.lineOf(held, shortLine(here, held, seatName, now, dueFlag(held, now))))
+		lines = append(lines, withFlags(mem.lineOf(held, shortLine(here, held, seatName, now, dueFlag(held, now))), flags[held.id]))
 	}
 
 	if len(lines) == 0 {

@@ -103,10 +103,12 @@ func (mem *memory) briefCommand(ctx context.Context, req request) result {
 // kindBrief is every live entry of one kind the seat holds, hottest first,
 // whole: the place a note the brief's cap left out is read.
 func (mem *memory) kindBrief(here tree, folded *state, seatName string, kind string) string {
+	flags := mem.landedFlagsOf(folded, seatName)
+
 	var lines []string
 
 	for _, held := range mem.ownLive(folded, seatName, "kind", kind) {
-		lines = append(lines, mem.lineOf(held, shortLine(here, held, seatName, mem.now())))
+		lines = append(lines, withFlags(mem.lineOf(held, shortLine(here, held, seatName, mem.now())), flags[held.id]))
 	}
 
 	if len(lines) == 0 {
@@ -123,9 +125,16 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 	}
 
 	held := &budget{limit: briefBudget}
+	flags := mem.landedFlagsOf(folded, seatName)
 
 	for _, entry := range mem.ownLive(folded, seatName, "topic", topics...) {
-		mem.addLine(held, "", entry, shortLine(here, entry, seatName, mem.now()))
+		if mem.seen.hasLine(entry) {
+			held.add(withFlags(pointer(entry), flags[entry.id]))
+
+			continue
+		}
+
+		mem.addLine(held, "", entry, shortLine(here, entry, seatName, mem.now(), flags[entry.id]...))
 	}
 
 	if len(held.lines) == 0 {
@@ -138,6 +147,19 @@ func (mem *memory) topicBrief(here tree, folded *state, seatName string, topics 
 	}
 
 	return strings.Join(held.lines, "\n")
+}
+
+// landedFlagsOf is the flags of the seat's landed mappings, by entry id: a
+// narrowed brief ends an entry's line or pointer in them as the full brief does.
+func (mem *memory) landedFlagsOf(folded *state, seatName string) map[string][]string {
+	flags := map[string][]string{}
+
+	for _, mapping := range mem.landedFor(folded, seatName) {
+		id, _, _ := strings.Cut(mapping.Target, "#")
+		flags[id] = append(flags[id], landedFlag(mapping))
+	}
+
+	return flags
 }
 
 // briefFilter is the one filter a narrowed brief names: its kind, else its

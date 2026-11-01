@@ -53,6 +53,32 @@ func TestADeliveredMappingSurvivesAFreshContextAndAClaim(t *testing.T) {
 	}
 }
 
+func TestANarrowedBriefCarriesTheLandedFlag(t *testing.T) {
+	for _, narrowed := range [][]string{{"--kind", "todo"}, {"--topic", "gate"}, {"--due"}} {
+		t.Run(narrowed[0], func(t *testing.T) {
+			h := newLandedHarness(t)
+			h.must("", "claim", "main")
+			id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--topic", "gate", "--due", "2099-01-01",
+				"--about", "internal/gate/gate.go")
+
+			h.land(test.Commit{SHA: "c4c4c4c4c4c4c4c4", Message: "Rework waiter", Paths: []string{"internal/gate/gate.go"}})
+
+			h.runPrompt()
+
+			args := append([]string{"brief"}, narrowed...)
+
+			if line := narrowedLine(h.must("", append(args, "--again")...), id); !strings.HasSuffix(line, "retire? landed: c4c4c4c4 Rework waiter") {
+				t.Errorf("an entry's whole line should end in its landed flag:\n%s", line)
+			}
+
+			line := narrowedLine(h.must("", args...), id)
+			if !strings.Contains(line, "(seen)") || !strings.HasSuffix(line, "retire? landed: c4c4c4c4 Rework waiter") {
+				t.Errorf("an entry's seen pointer should end in its landed flag:\n%s", line)
+			}
+		})
+	}
+}
+
 func TestDismissForgetsAMatchUntilALaterCommit(t *testing.T) {
 	cases := []struct {
 		name   string

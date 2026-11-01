@@ -658,6 +658,11 @@ func TestEveryLinkEndedSkipsOwnPredecessorsAndATodosMemoryLinks(t *testing.T) {
 	}
 }
 
+// narrowedLine is a narrowed brief's line for id; those lines carry no indent.
+func narrowedLine(brief string, id string) string {
+	return briefLine("  "+strings.ReplaceAll(brief, "\n", "\n  "), id)
+}
+
 // briefLine is the brief's line for id, its two-space indent cut.
 func briefLine(brief string, id string) string {
 	for _, text := range strings.Split(brief, "\n") {
