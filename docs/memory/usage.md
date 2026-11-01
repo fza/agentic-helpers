@@ -1627,7 +1627,7 @@ to a route there the writer picks.
 | `embedding_provider` | where the embedder comes from: `auto` (sdd's, where sdd sets one) unless set, `openai` or `ollama` (the own options below), or `off` (none, and sdd never run for one) |
 | `embedding_model`, `embedding_endpoint`, `embedding_path`, `embedding_dimensions`, `embedding_api_key_env`, `embedding_timeout`, `embedding_query_template`, `embedding_document_template` | the own embedder search by meaning and prompt recall run on (see README `Embedder`) |
 | `embedding_source` | no longer in the plugin's dialog, still read where a layer sets it, and named at session start: `sdd` always takes sdd's embedder, `own` never runs sdd, `auto` changes nothing; an `off` provider wins over it |
-| `entry_max_words` | the words a body should stay within, 500 unless set; longer bodies land with a note |
+| `entry_max_words` | the words a body usually stays within, 500 unless set; a longer body lands whole, with a note saying no rewrite is needed |
 | `state_stale_after_writes` | the Edit, Write and NotebookEdit calls since the seat's last state write that hold Stop once for a new one, 5 unless set, never under 1 |
 | `landed_scan_interval` | how often the prompt and tool hooks scan the checkout's history for commits that may settle a live todo or trap ([Landed work](#landed-work)), a span; `10m` unless set, never under `1m`. A Bash call running `git merge`, `commit`, `pull`, `rebase` or `cherry-pick` scans at its PostToolUse whatever the interval |
 | `retired_body_lifetime` | `config.yaml` only: how long a retired entry keeps its body, a span (`90d`, `6w`); `90d` unless set, never under `14d`. The older `retired_body_days` (a number of days) is still read for one release, and `agentic-helpers check` names it |

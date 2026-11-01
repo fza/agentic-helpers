@@ -146,8 +146,9 @@ EOF
 - **Language and style → the brief's** (`entries in de, terse`): titles, bodies, state. Domain
   terms keep the project's spelling. `terse`: no articles, filler or hedging; fragments fine; code,
   paths, ids, quotes, domain terms exact. `plain`: full sentences. Only agents read memory.
-- Title 3-10 words (unspaced scripts: a character a word), at least one topic, body within
-  `entry_max_words` (500). Wrong → lands; the reply names the fix. One finding per entry.
+- Title 3-10 words (unspaced scripts: a character a word), at least one topic. Wrong → lands; the
+  reply names the fix. Body: usually within `entry_max_words` (500); longer where the finding needs
+  it, never rewritten to fit. One finding per entry.
 - **`similar: <id> <title> (<score>)`** in the reply (the closest only) → the same finding:
   `supersede <id> --by <new>`; related: `link <new> <id>`; else nothing. `+<n> more similar:
   agentic-memory search --query '<title>'` folds the rest: the fold rule holds. A near topic comes with its `merge`: run it if

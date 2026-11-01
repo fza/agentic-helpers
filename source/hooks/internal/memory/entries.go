@@ -347,7 +347,7 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 
 	count := words(held.body)
 	if limit > 0 && count > limit {
-		notes = append(notes, fmt.Sprintf("note: the body has %d words, past the %d an entry should hold (entry_max_words)",
+		notes = append(notes, fmt.Sprintf("note: the body has %d words, past the usual %d (entry_max_words); it landed whole, no rewrite needed",
 			count, limit))
 	}
 
