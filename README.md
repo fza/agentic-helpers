@@ -81,7 +81,17 @@ claude plugin install agentic-helpers@agentic-helpers
   marketplace; add this to `~/.claude/settings.json` (or turn it on under `/plugin`, Marketplaces):
 
   ```json
-  {"extraKnownMarketplaces": {"agentic-helpers": {"source": {"source": "github", "repo": "fza/agentic-helpers"}, "autoUpdate": true}}}
+  {
+    "extraKnownMarketplaces": {
+      "agentic-helpers": {
+        "source": {
+          "source": "github",
+          "repo": "fza/agentic-helpers"
+        },
+        "autoUpdate": true
+      }
+    }
+  }
   ```
 
 - **To update by hand**, run `claude plugin update agentic-helpers@agentic-helpers`. The update takes
@@ -108,22 +118,17 @@ writing to that graph needs the fork.
 
 ## Options
 
-Options are set once per machine and apply to every project.
+Options are set once per machine and apply to every project. Two places set them:
 
-**Every agent:** `~/.config/agentic-helpers/config.yaml` (under `$XDG_CONFIG_HOME` where it is set)
-holds options every agent on the machine shares, one `key: value` per line:
+- `~/.config/agentic-helpers/config.yaml`, shared by every agent. `agentic-helpers config` lists
+  every option and where its value comes from; `agentic-helpers config set <key> <value>` writes one.
+- Claude Code's `/plugin` dialog (agentic-helpers, Configure options), or `pluginConfigs` in
+  `~/.claude/settings.json`. It wins over `config.yaml`; managed settings win over both.
 
 ```yaml
 memory_language: "de"
 retired_body_lifetime: 120d
 ```
-
-`agentic-helpers config` lists every option, its value and where the value comes from;
-`agentic-helpers config set <key> <value>` writes one into the file, checked first.
-
-**Claude Code alone:** run `/plugin`, select agentic-helpers, then Configure options, or add them
-under `pluginConfigs` in your user settings, `~/.claude/settings.json` (or the one under
-`CLAUDE_CONFIG_DIR`):
 
 ```json
 {
@@ -135,37 +140,13 @@ under `pluginConfigs` in your user settings, `~/.claude/settings.json` (or the o
 }
 ```
 
-An answer given there wins over `config.yaml`. Managed settings (`managed-settings.json` and its
-`managed-settings.d/` drop-ins) take the same block and win over both, so an administrator can lock
-an option. An empty value counts as unset, and so does an answer equal to the built-in default:
-Claude Code's dialog, saved untouched, stores every switch and picker at its default, which would
-otherwise hide `config.yaml`. Setting a key back to its default over a different `config.yaml` takes
-editing `config.yaml`. A project's `.claude/settings.json` and
-`.claude/settings.local.json` are never read for plugin options: Claude Code itself ignores them
-there, and one embedder and one set of guards serve every project on the machine.
+Rules, in short ([docs/plugin/usage.md](docs/plugin/usage.md#options) has the detail):
 
-**`config.yaml` only:** `retired_body_lifetime`, `tools_version_lifetime`, `cache_retention`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace` decide when
-stored data every agent shares is deleted, so Claude Code's dialog lacks them and an answer there is
-ignored; two agents set apart would otherwise leave the lowest value deciding for both. A key deleting
-only what one session made for itself, such as `capture_remove_draft`, stays in the dialog.
-
-**`config.yaml` only tightens a guard.** Any agent can write the file in one Bash call, so it never
-lifts what shell-guard and the grounding gate hold. A guard switch (`shell_guard_enabled`,
-`grounding_gate_enabled`, `shell_guard_lone_removal`, `shell_guard_expansion`,
-`shell_guard_nested_code`, `shell_guard_mktemp`, `shell_guard_alternatives`) applies there only as
-`true`; a verdict (`shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets`)
-only stricter, `off` < `ask` < `deny`; `shell_guard_secret_output` only stricter, `off` < `files` <
-`all`; `shell_guard_ask_timeout` only shorter.
-
-**Time options take a span:** a whole count of seconds, minutes, hours, days or weeks (`45s`, `2m`,
-`12h`, `90d`, `2w`), a Go duration as sdd prints one (`1m0s`), or `0`. `retired_body_days`, a number
-of days, is still read as `retired_body_lifetime` for one release, and `agentic-helpers check` names it. A looser value there is ignored, and
-`agentic-helpers config set` refuses it. `embedding_endpoint`, `embedding_path`,
-`embedding_api_key_env`, `shell_guard_secret_output_skip` and `shell_guard_extra_roots` are never
-read from `config.yaml`: the endpoint and key variable together could send any environment variable
-to a server the writer picks, the path to a route there the writer picks, and the last two only
-loosen shell-guard. Loosen a guard or point the embedder elsewhere
-in Claude Code's settings, behind its permission prompts.
+- **`config.yaml` only tightens a guard**, since any agent can write it. Loosening one, or pointing
+  the embedder elsewhere, takes Claude Code's settings.
+- **Keys deleting shared data live in `config.yaml` only**, marked so in the tables below.
+- **Times take a span**: `45s`, `2m`, `12h`, `90d`, `2w`, or `0`.
+- A project's own `.claude/settings*.json` is never read for these options.
 
 ### Turning pieces off
 
@@ -181,17 +162,10 @@ in Claude Code's settings, behind its permission prompts.
 
 ### Search by meaning
 
-Memory and the tool library can find entries and tools by what they mean, not only by the words they
-contain. That needs an embedding model, which turns text into vectors that can be compared. With
-one set up:
-
-- `agentic-memory search --query` and `agentic-tools find --query` rank results by meaning.
-- Each prompt brings up the memory entries and tools related to it.
-- The tool library refuses a new tool that does the same as one it already holds.
-
-Without one, searching by meaning fails with a message naming the cause. Keyword search
-(`--term`) and everything else still work. The embedder can run locally (Ollama, LM Studio, any
-OpenAI-compatible server) or as a hosted service.
+An embedding model lets memory and the tool library search by meaning, bring up related entries
+and tools at each prompt, and refuse a duplicate tool. It runs locally (Ollama, LM Studio, any
+OpenAI-compatible server) or hosted. Without one, keyword search (`--term`) and everything else
+still work.
 
 | Option | Default | What it controls |
 |---|---|---|
@@ -206,32 +180,9 @@ OpenAI-compatible server) or as a hosted service.
 | `embedding_query_template` | none | Wraps a search query or a prompt before it is embedded, `{text}` marking where it goes, as sdd's `embedding.query_template` does (`task: search result \| query: {text}`) |
 | `embedding_document_template` | none | Wraps a memory entry or a tool description before it is embedded (`title: none \| text: {text}`) |
 
-**sdd's embedder.** Under sdd's configuration, agentic-helpers runs `sdd config get embedding` once
-per process in the project and takes sdd's provider, model, endpoint, path, dimensions, timeout and
-both templates together, never mixed with its own. No API key is sent then: sdd prints its keys masked,
-and its configuration is a file any agent can write, so a key sent to an endpoint read from it could
-go anywhere. sdd's embedder therefore serves a server needing no key, such as a local one; a hosted one
-is set in the options above. sdd's endpoint is taken only from its global configuration or its
-built-in default: one from the repository's `.sdd/config.yaml` or `.sdd/config.local.yaml`, either of
-which a clone can carry, is refused, since the clone would choose where every memory entry and prompt
-goes. sdd's `path` is taken from the same layers, for the same reason. The session start says so,
-and search by meaning stays off until `sdd config set` sets the endpoint or path globally. Without sdd, or with sdd setting no embedder, search by meaning is off.
-
-**`off`.** `embedding_provider: off` turns every use of an embedder off: search by meaning
-(`agentic-memory search --query`), the memory entries each prompt brings up, the tools offered at a
-prompt, `agentic-tools find --query`, and the near-duplicate description check on `agentic-tools add`.
-Keyword search, filing entries and tools, and the byte-identical duplicate check keep working.
-
-Changing the provider, the model, the dimensions or a template starts a fresh vector index, since vectors from
-two models cannot be compared. Memory embeds its entries again on its next search by meaning;
-`agentic-tools reindex` does the same for the tool library.
-
-**Input sizing.** An embedder past its input limit drops the rest of a text without an error, so
-every text is sized to fit. The first search on an endpoint measures its limit with a few probe
-requests, as sdd does, and keeps the result in the cache per model, endpoint and path. Entries and
-tool descriptions are embedded in chunks that fit; a search phrase or prompt past the limit is
-embedded by its head. A provider that reports no token count gets 2048 characters per input. A new
-measurement, after an upgrade or a change of endpoint, embeds each index again once, by itself.
+sdd's embedder is used without an API key, and only with an endpoint from sdd's global
+configuration, never one a repository's `.sdd/` carries. Changing the model or provider re-embeds
+everything once. [docs/memory/usage.md](docs/memory/usage.md) has the detail.
 
 ### Memory
 
@@ -270,8 +221,7 @@ measurement, after an upgrade or a change of endpoint, embeds each index again o
 
 ### Shell-guard
 
-An option whose default is `ask` also takes `deny` or `off`. `config.yaml` sets each only stricter
-than its default.
+An `ask` option also takes `deny` or `off`.
 
 | Option | Default | What it controls |
 |---|---|---|
@@ -311,8 +261,8 @@ agentic-helpers: scratch is off, so shell-guard's mktemp ban is off; turn scratc
 The rules live in [`AGENTS.md`](AGENTS.md), plus [`source/AGENTS.md`](source/AGENTS.md) for Go
 code. They apply to people and agents alike. In short:
 
-- **Match the code around your change**: its naming, its comment density, its idiom. A comment says
-  only what the code cannot.
+- **Maintain existing coding style.** Match the code around your change: its naming, its comment
+  density, its idiom. A comment says only what the code cannot.
 - **Every change carries tests, and they pass before it lands.** Break each new guard once and watch
   its test fail.
 - **Update the `docs/` pages and skills a change makes untrue, in the same commit.** A hook's output

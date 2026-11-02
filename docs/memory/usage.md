@@ -1710,6 +1710,21 @@ to a route there the writer picks.
 | `cache_retention` | `config.yaml` only: how long a vector store of memory or the tool library survives once no binary has read or written it, a span, 90 days unless set, never below 14; the daily `agentic-helpers prune` deletes it after ([plugin usage](../plugin/usage.md#cache-pruning)) |
 | `orphan_store_grace` | `config.yaml` only: how long an unclaimed store waits for a checkout to promote it before SessionStart deletes it, a span as `lifetime` takes one; `30d` unless set or where it holds no span ([plugin usage](../plugin/usage.md#the-home)) |
 
+**sdd's embedder.** Under sdd's configuration, agentic-helpers runs `sdd config get embedding` once
+per process in the project and takes sdd's provider, model, endpoint, path, dimensions, timeout and
+both templates together, never mixed with its own. No API key is sent then: sdd prints its keys
+masked, and its configuration is a file any agent can write, so a key sent to an endpoint read from
+it could go anywhere. sdd's embedder therefore serves a server needing no key, such as a local one;
+a hosted one is set in the own options. sdd's endpoint and path are taken only from its global
+configuration or its built-in default: one from the repository's `.sdd/config.yaml` or
+`.sdd/config.local.yaml`, either of which a clone can carry, is refused, since the clone would
+choose where every memory entry and prompt goes. The session start says so, and search by meaning
+stays off until `sdd config set` sets them globally.
+
+Changing the provider, the model, the dimensions or a template starts a fresh vector index, since
+vectors from two models cannot be compared. Memory embeds its entries again on its next search by
+meaning; `agentic-tools reindex` does the same for the tool library.
+
 Without an embedder, a search by meaning exits 1 naming the cause, a keyword search still answers,
 and filing never waits: the next call that reaches the endpoint embeds what is pending.
 Every text is sized to the embedder's input limit, which an embedder past it discards without an
