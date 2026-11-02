@@ -59,6 +59,10 @@ against the identity it names and rebuilds the index from every `identity.json` 
 disagrees, before a store is created, or where the file is missing. A pointer is confirmed by the
 store admitting the checkout's git common dir, or its volume and inode, or no admitted checkout
 still existing (a move across volumes); a pointer copied with a checkout confirms nothing and asks.
+A checkout admitted under its git common dir, or its volume and inode, is updated in place. A
+volume with no UUID (a tmpfs, a container's own disk) gives no inode identity, so a moved checkout
+there matches no entry; where its pointer names the store and no admitted checkout still exists,
+it replaces them instead of being added beside them.
 Every write to an identity, a pointer or the index happens under the lock, and the index is
 rewritten whole from the identities after each.
 

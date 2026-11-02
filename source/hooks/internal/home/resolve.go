@@ -447,7 +447,12 @@ func (held *mapping) confirms(identity Identity, checkout Checkout) bool {
 		}
 	}
 
-	for _, admitted := range identity.Checkouts {
+	return noneOnDisk(identity.Checkouts)
+}
+
+// noneOnDisk says no admitted checkout is still where it was recorded.
+func noneOnDisk(checkouts []Admitted) bool {
+	for _, admitted := range checkouts {
 		_, err := os.Stat(cmpOr(admitted.CommonDir, admitted.Path))
 		if err == nil {
 			return false
@@ -668,6 +673,13 @@ func (held *mapping) admit(identity *Identity, checkout Checkout, force bool) bo
 	at := slices.IndexFunc(identity.Checkouts, func(admitted Admitted) bool { return admitted.is(checkout) })
 
 	switch {
+	case at < 0 && checkout.Pointer == identity.ID && noneOnDisk(identity.Checkouts):
+		// A move on a volume that gives no identity (a tmpfs, a container's
+		// own disk) matches no entry by inode; the pointer names this store
+		// and every path it held is gone, so the moved checkout replaces
+		// them rather than piling up beside them.
+		identity.Checkouts = []Admitted{entry}
+		changed = true
 	case at < 0:
 		identity.Checkouts = append(identity.Checkouts, entry)
 		changed = true
