@@ -1554,7 +1554,10 @@ A tool's description says what it does in the words of its keys, never in comman
 flag or a `<placeholder>` there would name a shape the call does not take (`<id>...` where the key
 is `ids`). Descriptions and key descriptions are terse phrases, since the listing loads into every
 session's context; a key with a set lists its values in the schema. Every key carries its own description, and one naming entries says which shape it takes:
-`id`, one string, or `ids`, an array even for one. A rule between keys is stated in the tool's
+`id`, one string, or `ids`, one or several. Every key taking several values (`ids`, `term`, `topic`,
+`link`, `add`, `until` and the rest) is listed as one value or an array of them, and one value is
+read as a one-item array: a model asked for an array holding one value often writes it bare and
+unquoted (`"term": Tom`), which the client cannot parse and never sends. A rule between keys is stated in the tool's
 description: `supersede` takes `by`, `because` or both, `ack` takes `done` or `decline`, or for a todo's
 items and a seat's state lines one of `done`, `undo`, `decline`, `remove`, `add` or `order`.
 

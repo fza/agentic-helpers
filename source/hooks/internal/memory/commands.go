@@ -364,13 +364,14 @@ func validRetention(level string) bool {
 const idSchema = `{"type":"string","pattern":"^m-[a-z0-9]{4,16}$"}`
 
 // idKey and idsKey are the keys naming the entries a tool acts on: one
-// entry where the tool takes one, an array where it takes several, even for one.
+// entry where the tool takes one, a list where it takes several, which the
+// server lists as one id or an array of them.
 const (
 	idKey    = `"id":{"type":"string","pattern":"^m-[a-z0-9]{4,16}$","description":"entry id, one string"}`
-	idsKey   = `"ids":{"type":"array","items":` + idSchema + `,"description":"entry ids, array even for one"}`
+	idsKey   = `"ids":{"type":"array","items":` + idSchema + `,"description":"entry ids"}`
 	noHeat   = `"no_heat":{"type":"boolean","description":"add no heat"}`
 	againKey = `"again":{"type":"boolean","description":"print entries already seen in full"}`
-	topicKey = `"topic":{"type":"array","items":{"type":"string"},"description":"topics, array even for one"}`
+	topicKey = `"topic":{"type":"array","items":{"type":"string"},"description":"topics"}`
 	seatName = `"name":{"type":"string","description":"seat name"}`
 )
 
@@ -471,7 +472,7 @@ func allCommands() []command {
 			},
 			positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{` +
-				`"ids":{"type":"array","items":{"type":"string","pattern":"^(m-[a-z0-9]{4,16}|state)$"},"description":"entry ids, or state for this seat's ledger; array even for one"},` +
+				`"ids":{"type":"array","items":{"type":"string","pattern":"^(m-[a-z0-9]{4,16}|state)$"},"description":"entry ids, or state for this seat's ledger"},` +
 				noHeat + `,` + againKey + `,` +
 				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"},` +
 				`"with_removed":{"type":"boolean","description":"also a todo's removed items"},` +
@@ -565,7 +566,7 @@ func allCommands() []command {
 			},
 			positional: someIDs, run: (*memory).ack,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string","pattern":"^(m-[a-z0-9]{4,16}|state)(#[a-z0-9]+)?$"},` +
-				`"description":"rule ids, <todo>#<item> or state#<item> addresses, or one todo id or state for add and order; array even for one"},` +
+				`"description":"rule ids, <todo>#<item> or state#<item> addresses, or one todo id or state for add and order"},` +
 				`"done":{"type":"boolean","description":"done, or an item ticked"},"decline":{"type":"string","description":"why not done, or why an item is dropped"},` +
 				`"undo":{"type":"boolean","description":"untick items"},"remove":{"type":"boolean","description":"remove items that never belonged"},` +
 				`"add":{"type":"array","items":{"type":"string"},"description":"items or state lines to add at the end: text, or a memory or graph id"},` +
@@ -595,7 +596,7 @@ func allCommands() []command {
 			description: "dismiss landed-commit matches checked as not settling the work; the entries stay; all or none",
 			positional:  landedDismissPositional, run: (*memory).dismissLanded,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string","pattern":"^m-[a-z0-9]{4,16}(#[a-z0-9]+)?$"},` +
-				`"description":"entry ids or <todo>#<item> addresses whose match to forget; array even for one"}},"required":["ids"]}`,
+				`"description":"entry ids or <todo>#<item> addresses whose match to forget"}},"required":["ids"]}`,
 		},
 		{
 			name: "supersede", usage: "supersede <id>... [--by <id>] [--because '<why>'] [--items carry|leave]",
@@ -654,7 +655,7 @@ func allCommands() []command {
 			},
 			run: (*memory).untag,
 			schema: `{"type":"object","properties":{` + idKey +
-				`,"topics":{"type":"array","items":{"type":"string"},"description":"topics to remove, array even for one"}},"required":["id","topics"]}`,
+				`,"topics":{"type":"array","items":{"type":"string"},"description":"topics to remove"}},"required":["id","topics"]}`,
 		},
 		{
 			name: "link", usage: "link <id> <target> | link <id> --tool <name>[@<project>] [--no-heat]",

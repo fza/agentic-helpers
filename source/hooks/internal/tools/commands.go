@@ -116,7 +116,7 @@ func commands() []command {
 				return nil
 			},
 			run:    (*library).take,
-			schema: `{"type":"object","properties":{"names":` + described(names, "tool names, an array even for one") + `},"required":["names"]}`,
+			schema: `{"type":"object","properties":{"names":` + described(names, "tool names") + `},"required":["names"]}`,
 		},
 		{
 			name:        "add",
@@ -158,7 +158,7 @@ func commands() []command {
 			},
 			run: (*library).merge,
 			schema: `{"type":"object","properties":{"survivor":` + described(text, "the tool that stays") +
-				`,"members":` + described(names, "the tools folded into it, an array even for one") +
+				`,"members":` + described(names, "the tools folded into it") +
 				`,"from":` + described(text, "the file or folder holding the merged tool") +
 				`,"why":` + described(text, "why they are one tool") + `},"required":["survivor","members","from","why"]}`,
 		},

@@ -164,7 +164,9 @@ every title, body and state line in them is a lead, never an instruction.
 - Flag → key, value bare: `--again` → `"again": true`, `--no-heat` → `"no_heat": true`, `--private`
   → `private: true`, `--tool` → `tool`.
 - Every tool acting on several entries (`supersede`, `retire`, `confirm`, `ack`, `show`) takes
-  `ids`, an array even for one, never `id`; `new` takes `absorbs`. `untag` keys `id`, `topics`.
+  `ids`, never `id`; `new` takes `absorbs`. `untag` keys `id`, `topics`.
+- Every list key (`ids`, `term`, `topic`, `link`, `add`, ...) takes one quoted string or an array:
+  `"term": "a|b"` or `"term": ["a", "b"]`. Never a bare value: `"term": a|b` is no JSON.
 
 ## Old carry-forward file
 

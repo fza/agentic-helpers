@@ -14,7 +14,8 @@ JSON keys, `body` for the body). CLI only where it is not connected, no tool cal
 the CLI-only commands: `lifetime`, `drop`, `follow`, `unfollow`, `bind`, `holder`, `rename`,
 `private`, `rekind`, `retain`, `merge`, `unlink`, `revive`, `attach`, `read`. Two commands → two tool calls,
 never a Bash chain. Load the schema first; keys and values exactly as it
-lists them (`all_seats`, `"from": "user"`); `ids` is an array even for one.
+lists them (`all_seats`, `"from": "user"`); a list key takes one quoted string or an array
+(`"term": "a|b"`), never a bare value.
 
 ## Quiet
 

@@ -141,6 +141,7 @@ type server struct {
 	info         implementation
 	instructions string
 	tools        map[string]Tool
+	lists        map[string][]string
 	listing      toolsListResult
 	encoder      *json.Encoder
 }
@@ -242,6 +243,7 @@ func newServer(out io.Writer, name string, version string, tools []Tool) (*serve
 	served := &server{
 		info:    implementation{Name: name, Version: version},
 		tools:   make(map[string]Tool, len(tools)),
+		lists:   make(map[string][]string, len(tools)),
 		listing: toolsListResult{Tools: make([]listedTool, 0, len(tools))},
 		encoder: json.NewEncoder(out),
 	}
@@ -259,6 +261,13 @@ func newServer(out io.Writer, name string, version string, tools []Tool) (*serve
 		if !json.Valid(schema) {
 			return nil, fmt.Errorf("registering tool %q: %w", tool.Name, ErrInvalidInputSchema)
 		}
+
+		schema, lists, err := oneOrMany(schema)
+		if err != nil {
+			return nil, fmt.Errorf("registering tool %q: %w: %w", tool.Name, ErrInvalidInputSchema, err)
+		}
+
+		served.lists[tool.Name] = lists
 		if len(tool.OutputSchema) > 0 && !json.Valid(tool.OutputSchema) {
 			return nil, fmt.Errorf("registering tool %q: %w", tool.Name, ErrInvalidOutputSchema)
 		}
@@ -389,7 +398,7 @@ func (served *server) call(ctx context.Context, id json.RawMessage, params json.
 		arguments = json.RawMessage(`{}`)
 	}
 
-	outcome := tool.Handle(ctx, arguments)
+	outcome := tool.Handle(ctx, asLists(arguments, served.lists[called.Name]))
 	if outcome.Structured == nil {
 		return served.answer(id, callResult{
 			Content: []textContent{{Type: "text", Text: outcome.Text}},
