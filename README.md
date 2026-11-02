@@ -91,19 +91,18 @@ For projects keeping a decision graph with [sdd](https://github.com/networkteam/
 
 ## Measurements
 
-Measured by scripts over real Claude Code transcripts and stores, not estimated. Sizes are in
-characters; a token is about four characters.
+Token use with agentic-helpers against the same work without it, measured on real Claude Code
+transcripts. Output tokens are counted from the API's own `output_tokens`; output is priced at about
+five times input.
 
-| What | Measured | Over |
-|---|---|---|
-| Memory brief at session start | 2,214 characters on average | 367 session starts in 3 days |
-| Related entries brought up per prompt | 221 characters on average | 1,483 prompts in 3 days |
-| Grounding gate note before a graph call | 494 characters on average | 3 days of graph calls |
-| `memory` MCP tool listing | 52,200 characters cut to about 16,500 | one listing |
-| Seat state, written whole each time | 1.07 million characters, 89% never read again; replaced by a ledger changed a line at a time | 3 days of seated sessions |
-| Writing a small helper tool vs. finding it in the library | 1,307 output tokens to write (median) vs. 477 and 292 for the find and take replies | 49 of the 51 stored tools |
-| sdd output an agent had already seen | 42% of 13.8 million characters; collapsing repeats cut a run of repeated entry reads from 9,426 to 7,714 characters | 3 days of sdd calls |
-| A slot file of a store running one seat per job | 8 GiB cut to 512 MiB (about 128 MB on disk) once dead keys clear and the file shrinks | one store |
+| Work | Without agentic-helpers | With agentic-helpers | Saved |
+|---|---|---|---|
+| Getting a helper script the library already holds | write it: 1,307 output tokens (median), about 6,500 input-token equivalents | find and take it: about 4,100 input-token equivalents | about 37% per script; 40 of 49 stored tools cost more to write than to find |
+| Reading sdd decision-graph entries again | 42% of 13.8 million characters of sdd output repeat what the agent already saw | entries already shown come back as a short pointer; a run of repeated reads fell from 9,426 to 7,714 characters | about 18% on that run |
+
+Not yet measured: how many tokens memory saves by sparing an agent the re-reading and re-asking after
+a compaction or in a new session.
+
 
 ## Good to know
 
