@@ -142,7 +142,11 @@ lock exclusively, checks again, and migrates. The lock is its own file, not the 
   finding it takes the lock exclusively, runs the same undo (or, where `format.json` already
   stands, removes the trees set aside), removes the journal and migrates afresh. The journal goes
   only after `format.json`, so a call meeting both finishes the run rather than undoing it. The
-  failure line is said once per session, its marker under `<cache>/migration-failed/`.
+  failure line is said once per session, its marker under `<cache>/migration-failed/<session>`
+  holding the line, since a hook's stderr reaches no transcript; every call removes markers a week
+  old. A settled home (`format.json` standing, no journal) is never locked: the old trees stand
+  until the sweep, and a call that cannot open the lock, as a sandboxed one, would otherwise fail
+  on every run.
 - **Fences**: a stub is the old store's folder holding `{"format":999}`; a fence is a file starting
   `agentic-helpers moved this data to <data>`. Each old tree's remainder is renamed aside and
   removed after `format.json`.

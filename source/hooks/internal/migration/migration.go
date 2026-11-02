@@ -3,8 +3,9 @@
 // every project's memory store, tool library and writers list, the session
 // tree and the attachments. The first call of a release with the home runs it,
 // holding the migration lock exclusively, while every other call takes the
-// lock shared and so waits for it. `<data>/format.json` is written last: until
-// it stands, a failure renames every moved tree back.
+// lock shared and so waits for it, unless the home is settled already.
+// `<data>/format.json` is written last: until it stands, a failure renames
+// every moved tree back.
 //
 // Sessions still running an earlier release are fenced off from the old
 // trees: each old memory store is left as a stub only a newer format reads,
@@ -168,6 +169,7 @@ func Prepare(ctx context.Context, env Env, stderr io.Writer) {
 	}
 
 	ExpireBackups(ctx, env)
+	ExpireMarkers(env)
 }
 
 // ExpireBackups removes every `<data>/backup/legacy-<stamp>/` older than
@@ -186,7 +188,11 @@ func ExpireBackups(ctx context.Context, env Env) {
 // is settled first: undone, or finished where `format.json` stands. A call
 // finding nothing to do still waits for a migration another call is running.
 func Run(ctx context.Context, env Env) (bool, error) {
-	if !env.usable() || !env.pending() {
+	// A settled home stays settled: format.json is written last and the
+	// journal removed after it, so no lock is needed to read that. The old
+	// trees stay standing for older releases until the sweep, and a call that
+	// cannot open the lock (a sandboxed one) would otherwise fail on every run.
+	if !env.usable() || !env.pending() || env.settled() {
 		return false, nil
 	}
 
@@ -259,12 +265,59 @@ func (env Env) reportOnce(stderr io.Writer, cause error) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(stderr, "%s: migrating to %s failed: %v; nothing moved, and the next call tries again\n", self,
+	said := fmt.Sprintf("%s: migrating to %s failed: %v; nothing moved, and the next call tries again\n", self,
 		env.Roots.Data, cause)
 
+	_, _ = io.WriteString(stderr, said)
+
+	// The marker keeps the line: a hook's stderr reaches no transcript, so the
+	// marker is the one place the cause can be read later.
 	err = safefs.MkdirAll(env.Roots.Cache, filepath.Dir(marker), 0o700)
 	if err == nil {
-		_ = safefs.WriteFile(env.Roots.Cache, marker, nil, 0o600)
+		_ = safefs.WriteFile(env.Roots.Cache, marker, []byte(said), 0o600)
+	}
+}
+
+// markerLifetime is how long a failure marker stays: past it, the session it
+// speaks for has long ended.
+const markerLifetime = 7 * 24 * time.Hour
+
+// ExpireMarkers removes every failure marker older than markerLifetime, and
+// their folder once it is empty.
+func ExpireMarkers(env Env) {
+	if !env.usable() {
+		return
+	}
+
+	held, err := safefs.At(env.Roots.Cache, filepath.Join(env.Roots.Cache, failedDir))
+	if err != nil {
+		return
+	}
+
+	listed, err := held.Entries()
+	if err != nil {
+		held.Close()
+
+		return
+	}
+
+	left := len(listed)
+
+	for _, entry := range listed {
+		info, err := entry.Info()
+		if err != nil || env.now().Sub(info.ModTime()) < markerLifetime {
+			continue
+		}
+
+		if held.Remove(entry.Name()) == nil {
+			left--
+		}
+	}
+
+	held.Close()
+
+	if left == 0 {
+		_ = os.Remove(filepath.Join(env.Roots.Cache, failedDir))
 	}
 }
 
