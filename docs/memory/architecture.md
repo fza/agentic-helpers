@@ -72,7 +72,11 @@ Store format 6 keeps what changes often in binary formats agentic-tools and shel
   crc32c of the value, a generation counter, the write time, the key's and value's lengths; then the
   key and value. A write goes with `pwrite` to the older twin of its key's pair at the next
   generation, so a torn write leaves the other twin whole; a read takes, with `pread`, the newer twin
-  whose checksums hold, the older one where they do not. Clearing a key frees its pair for the next
+  whose checksums hold, the older one where they do not. A write of the value a key already holds
+  writes nothing while the held copy is under a day old: most hook calls put back an unchanged
+  value, and on APFS each write of a sparse file spends about a slot's span on disk. A day bounds the
+  skip because readers drop a key by its write time, a week on at the shortest, so a key still in
+  use is written again once a day. Clearing a key frees its pair for the next
   key, so the file holds its header's count of slots of its width and nothing more. A SessionEnd
   clears the session's `shown`, `instructions`, `ladder`, `waiter`, `graph-seen` and `fork` keys; the
   SessionStart pass clears every session key older than `staleAfter` (a session that never reached

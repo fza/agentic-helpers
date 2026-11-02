@@ -67,6 +67,8 @@ const (
 	initialPairs = 8
 	// maxPairs bounds the pairs a file read from disk may claim.
 	maxPairs = 1 << 20
+
+	unchangedRefresh = 24 * time.Hour
 )
 
 var (
@@ -203,21 +205,23 @@ func (f *File) Update(ctx context.Context, key string, change func(value []byte,
 			return err
 		}
 
-		var current []byte
+		var current Slot
 
 		if found {
-			slot, held, err := valueOf(file, twins, key)
+			current, _, err = valueOf(file, twins, key)
 			if err != nil {
 				return err
 			}
-
-			if held {
-				current = slot.Value
-			}
 		}
 
-		value, err := change(current, found)
-		if errors.Is(err, ErrUnchanged) {
+		value, err := change(current.Value, found)
+		// A value equal to the one held writes nothing while the held copy is
+		// fresh: most hook calls put back what the key already holds, and each
+		// write is a twin rewrite. Readers drop a key by its write time, a week
+		// on at the shortest, so a key still in use is rewritten once a day. A
+		// key absent or unreadable holds the zero time, never fresh.
+		if errors.Is(err, ErrUnchanged) || (err == nil && bytes.Equal(value, current.Value) &&
+			f.now().Sub(current.Written) < unchangedRefresh) {
 			return nil
 		}
 

@@ -71,6 +71,13 @@ func ageSlots(t *testing.T, cacheDir string, prefix string, at time.Time) {
 
 	for _, slot := range held {
 		if strings.HasPrefix(slot.Key, prefix) {
+			// Putting back the same value writes nothing while it is fresh, so
+			// the key is cleared first.
+			err = file.Delete(context.Background(), slot.Key)
+			if err != nil {
+				t.Fatalf("clearing %s: %v", slot.Key, err)
+			}
+
 			err = file.Put(context.Background(), slot.Key, slot.Value)
 			if err != nil {
 				t.Fatalf("aging %s: %v", slot.Key, err)

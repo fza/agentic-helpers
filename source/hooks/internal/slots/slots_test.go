@@ -220,6 +220,47 @@ func TestAnUnchangedUpdateWritesNothing(t *testing.T) {
 	}
 }
 
+func TestPuttingTheValueAKeyHoldsWritesNothing(t *testing.T) {
+	file := openFile(t)
+	put(t, file, "ladder/session", `{"nudges":1}`)
+
+	before := generation(t, file, "ladder/session")
+
+	put(t, file, "ladder/session", `{"nudges":1}`)
+
+	if generation(t, file, "ladder/session") != before {
+		t.Error("putting back the value a key holds should write nothing")
+	}
+
+	put(t, file, "ladder/session", `{"nudges":2}`)
+
+	if value, _ := get(t, file, "ladder/session"); value != `{"nudges":2}` || generation(t, file, "ladder/session") != before+1 {
+		t.Errorf("a changed value should still be written, got %q", value)
+	}
+
+	dayOn := time.Now().Add(25 * time.Hour)
+	file.Now = func() time.Time { return dayOn }
+
+	put(t, file, "ladder/session", `{"nudges":2}`)
+
+	if generation(t, file, "ladder/session") != before+2 {
+		t.Error("putting back a value written over a day ago should write it again, so readers dropping keys by age keep it")
+	}
+
+	put(t, file, "ladder/empty", "")
+
+	if _, found := get(t, file, "ladder/empty"); !found {
+		t.Error("an empty value for a new key should still be written")
+	}
+
+	failed := errors.New("no value")
+
+	err := file.Update(context.Background(), "ladder/empty", func([]byte, bool) ([]byte, error) { return nil, failed })
+	if !errors.Is(err, failed) {
+		t.Errorf("a change that fails should answer its error, even where nothing would be written, got %v", err)
+	}
+}
+
 func generation(t *testing.T, file *slots.File, key string) uint64 {
 	t.Helper()
 
