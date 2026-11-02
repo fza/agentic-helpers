@@ -85,6 +85,22 @@ Memory and the tool library are also available as MCP servers, `memory` and `too
 - **Commands that work on this machine.** A command missing here (`timeout`) or a usage BSD `sed`
   or `date` gets wrong is refused, naming the one that works.
 
+## Measurements
+
+Every number below comes from real Claude Code transcripts on the maintainer's machine, read by
+scripts, not estimated. Characters, not tokens; a token is about four characters.
+
+| What | Measured | Over |
+|---|---|---|
+| Memory brief at session start | 2,214 characters on average | 367 starts, 3 days to 2026-11-01 |
+| Related entries brought up per prompt | 221 characters on average | 1,483 prompts, same 3 days |
+| Grounding gate note before a graph call | 494 characters on average | same 3 days |
+| `memory` MCP tool listing | 52,200 characters cut to about 16,500 | one listing, 2026-10-29 |
+| Seat state, written whole each time | 1.07 million characters in 3 days, 89% never read again; replaced by a ledger changed a line at a time | 2026-10-29 to 2026-11-01 |
+| Writing a small helper tool vs. finding it in the library | 1,307 output tokens to write (median) vs. 477 and 292 for the find and take replies | 49 of the 51 stored tools |
+| sdd output an agent had already seen | 42% of 13.8 million characters; collapsing repeats cut a run of repeated entry reads from 9,426 to 7,714 characters | 3 days of sdd calls |
+| A slot file of a store running one seat per job | 8 GiB cut to 512 MiB (about 128 MB on disk) once dead keys clear and the file shrinks | one store, 2026-11-02 |
+
 ## Good to know
 
 - **One install covers the whole machine.** Each piece stays quiet in a project where it has nothing
