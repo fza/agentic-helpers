@@ -715,6 +715,60 @@ func TestAScriptAnEarlierCommandNamesIsWrittenBeforeItRuns(t *testing.T) {
 	}
 }
 
+func TestAScriptAShellOnlyParsesIsNotJudged(t *testing.T) {
+	g := newGuard(t, true, "")
+	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)
+
+	const judged = "in the script clean-outside.sh: outside project: {outside}/x"
+
+	cases := []struct {
+		name     string
+		command  string
+		decision string
+		reason   string
+	}{
+		{"bash -n", "bash -n clean-outside.sh", "allow", ""},
+		{"sh -n", "sh -n clean-outside.sh", "allow", ""},
+		{"zsh -n", "zsh -n clean-outside.sh", "allow", ""},
+		{"dash -n", "dash -n clean-outside.sh", "allow", ""},
+		{"ksh -n", "ksh -n clean-outside.sh", "allow", ""},
+		{"mksh -n", "mksh -n clean-outside.sh", "allow", ""},
+		{"-n grouped", "bash -en clean-outside.sh", "allow", ""},
+		{"-n behind another option", "bash -x -n clean-outside.sh", "allow", ""},
+		{"-n before --", "bash -n -- clean-outside.sh", "allow", ""},
+		{"-n through a launcher", "env bash -n clean-outside.sh", "allow", ""},
+		{"-n on a script holding eval", "cat > x.sh <<'EOF'\neval \"$1\"\nEOF\nbash -n x.sh", "allow", ""},
+		{"-n on a missing script", "bash -n missing.sh", "allow", ""},
+		{"a parse is no write of what runs next", "bash -n clean-outside.sh && bash clean-outside.sh", "ask", judged},
+		{"-n taken back", "bash -n +n clean-outside.sh", "ask", judged},
+		{"-n on an interactive shell", "bash -n -i clean-outside.sh", "ask", judged},
+		{"-n grouped with interactive", "bash -in clean-outside.sh", "ask", judged},
+		{"-n beside a named option", "bash -n -o pipefail clean-outside.sh", "ask", judged},
+		{"-n beside a shopt", "bash -n -O extglob clean-outside.sh", "ask", judged},
+		{"-n beside a long option", "bash -n --verbose clean-outside.sh", "ask", judged},
+		{"-n as an option's value", "bash --rcfile -n clean-outside.sh", "ask", judged},
+		{"-n behind the script", "bash clean-outside.sh -n", "ask", judged},
+		{"no -n", "bash -e clean-outside.sh", "ask", judged},
+		{"-n with an operand built at run time", `bash -n "$script"`, "ask", "cannot read the script $script (its path is built at run time)"},
+		{"-n on a fish script", "fish -n clean.fish", "ask", "in the script clean.fish: inline code for fish names a removal or mktemp; refusing"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision, reason := g.judge(tc.command, "{project}/scripts")
+
+			want := ""
+			if tc.reason != "" {
+				want = "agentic-shell-guard: " + g.placeholders.Replace(tc.reason)
+			}
+
+			if decision != tc.decision || reason != want {
+				t.Errorf("a script should be judged unless the shell only parses it, got %s %q", decision, reason)
+			}
+		})
+	}
+}
+
 func TestAFishScriptIsJudgedAsInlineCode(t *testing.T) {
 	g := newGuard(t, true, "")
 	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)

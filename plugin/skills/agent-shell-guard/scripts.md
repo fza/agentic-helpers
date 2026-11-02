@@ -5,6 +5,9 @@ none, are read and judged by the same guards as a typed command, relative to the
 a `cd sub && ...`, a lone `cd sub;` or `cd sub || exit 1;` moves (a `cd` behind another command,
 `make && cd sub && ./x.sh`, moves the rest of its `&&` chain only).
 
+- **A script a shell only parses is not read**: `bash -n x.sh`, `sh -en x.sh`, `bash -n -- x.sh`
+  pass, whatever it holds. `+n`, `-i`, `-o`, `-O`, a long option or an operand built at run time
+  beside `-n` keep the read, and `fish -n` does too.
 - **The script's own folder**: inside a script run as one (not sourced), a `cd` into
   `"$(dirname "$0")"`, `"$(dirname "${BASH_SOURCE[0]}")"` (bash only), `"${0%/*}"` or
   `"$(cd "$(dirname "$0")" && pwd)"`, each optionally followed by fixed text such as `/..`, moves

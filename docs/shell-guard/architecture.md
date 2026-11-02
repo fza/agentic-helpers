@@ -232,7 +232,11 @@ payload's `cwd`; the plain `Walk` reads none. A script is the operand of `sh`, `
 `dash`, `ksh` or `mksh` given no code (`scriptOperand`, reading options as `namesScript` does, and
 taking the word after `--`), the file `source` or `.` reads, or a command named by a literal path
 holding `/` whose base name is no shell, launcher or interpreter. Only a call the walk is certain
-runs counts. A script `fish` runs, or one run by its path whose `#!` line names fish, goes out as
+runs counts. A script a shell only parses (`parsesOnly`: `-n`, alone or grouped, and a literal
+operand) goes unread, since none of it runs, and still counts as run rather than written, so
+`bash -n x.sh && bash x.sh` reads it for the second call. Every option that may take `-n` back
+(`+n`, `-i`, `-o`, `-O`, any long option) keeps the read: a list of the harmless ones is short, a
+list of the harmful ones spans six shells. A script `fish` runs, or one run by its path whose `#!` line names fish, goes out as
 `Visitor.Script` with `fish` as its interpreter: its syntax is no shell's the parser reads, so
 shell-guard judges its text by the removal and `mktemp` names `Inline` looks for, as it judges
 `python3` code. Asking on every fish script was rejected: it costs a confirmation for harmless ones

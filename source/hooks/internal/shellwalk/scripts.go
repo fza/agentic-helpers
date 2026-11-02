@@ -627,7 +627,9 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 			return -1
 		}
 
-		walked.script(args[1+at], dir, false, name == fishShell, name)
+		if name == fishShell || !parsesOnly(args[1:2+at]) {
+			walked.script(args[1+at], dir, false, name == fishShell, name)
+		}
 
 		return 1 + at
 	case name == "source" || name == ".":
@@ -889,6 +891,37 @@ func scriptOperand(args []*syntax.Word) int {
 	}
 
 	return -1
+}
+
+// parsesOnly is whether a shell's words, up to and including its script, have
+// it parse the script and run none of it: -n, alone or grouped, with nothing
+// that may take it back. `+n` turns it off, bash's manual has an interactive
+// shell ignore it, and the value of -o or -O, or any long option, may set an
+// option the walk does not weigh. A script word built at run time may be an
+// option itself. fish's options are not these.
+func parsesOnly(words []*syntax.Word) bool {
+	script, options := words[len(words)-1], words[:len(words)-1]
+
+	_, isLiteral := Literal(script)
+	if !isLiteral || Patterned(script) {
+		return false
+	}
+
+	parses := false
+
+	for _, word := range options {
+		value, _ := Literal(word)
+
+		switch {
+		case value == "--":
+		case !strings.HasPrefix(value, "-") || strings.HasPrefix(value, "--") || strings.Contains(value, "i"):
+			return false
+		case strings.Contains(value, "n"):
+			parses = true
+		}
+	}
+
+	return parses
 }
 
 func standardOperand(word *syntax.Word) bool {
