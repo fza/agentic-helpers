@@ -101,9 +101,6 @@ five times input.
 | Getting a helper script the library already holds | write it: 1,307 output tokens (median), about 6,500 input-token equivalents | find and take it: about 4,100 input-token equivalents | about 37% per script; 40 of 49 stored tools cost more to write than to find |
 | Reading sdd decision-graph entries again | 42% of 13.8 million characters of sdd output repeat what the agent already saw | entries already shown come back as a short pointer; a run of repeated reads fell from 9,426 to 7,714 characters | about 18% on that run |
 
-Not yet measured: how many tokens memory saves by sparing an agent the re-reading and re-asking after
-a compaction or in a new session.
-
 
 ## Good to know
 
