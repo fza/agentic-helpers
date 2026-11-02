@@ -41,8 +41,9 @@ Memory and the tool library are also available as MCP servers, `memory` and `too
   time lasts months, a todo days. Stale notes drop out without cleanup.
 - **The right note at the right time.** Each prompt brings up the few entries related to it, by
   words or by meaning.
-- **Edits to `CLAUDE.md` reach running sessions.** Claude Code reads `CLAUDE.md`, `CLAUDE.local.md`,
-  their `@` imports and `~/.claude/CLAUDE.md` only at session start. Memory watches them, and every
+- **Edits to `CLAUDE.md` and `AGENTS.md` reach running sessions.** Claude Code reads `CLAUDE.md`,
+  `CLAUDE.local.md`, their `@` imports (an `AGENTS.md`, say) and `~/.claude/CLAUDE.md` only at
+  session start. Memory watches them, and every
   running session that loaded a changed one reads it again at its next prompt or tool call.
 - **Short-term memory beside the decision graph.** [sdd](https://github.com/networkteam/sdd) keeps
   a project's decisions and their reasons under `.sdd/`, in the repository, reviewed like code.
