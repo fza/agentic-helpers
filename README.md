@@ -1,13 +1,24 @@
 # agentic-helpers
 
-A coding agent forgets. When its context fills up, the session is summarised and the next one
-starts from scratch. An instruction written into `CLAUDE.md` while it runs never reaches it. It
-answers questions about a project from whatever it read last, and it leaves probes and
-half-finished drafts lying around.
+Your coding agent is smart, but it forgets. Once its context fills up, the work so far shrinks to a
+summary, and a new session knows nothing at all. It writes the same helper script for the third
+time, guesses about decisions your team already made, leaves probe files behind, and now and then
+runs a command you would never have allowed.
 
-agentic-helpers is a Claude Code plugin that builds better habits into every session. It adds hooks
-that run on their own, commands the agent can call, and one skill per piece that explains the piece
-to the agent. Memory and the tool library are also available as MCP servers, `memory` and `tools`.
+agentic-helpers fixes that, quietly, for every Claude Code session on your machine. Install it once:
+your agent remembers where work stands, reuses what other agents already built, checks your
+project's decisions before it acts, cleans up after itself, and stays inside safe limits. There is
+nothing to run by hand. Hooks do the work in the background, and a short skill per piece tells the
+agent what it is doing. The goal is an agent you can leave alone for longer, and trust more when you
+come back.
+
+> **Your data stays on your machine.** agentic-helpers keeps memory, tools and state in local files
+> and sends none of it anywhere. Text leaves the machine only for an embedding model you configure
+> for search by meaning, and that model can run locally (Ollama, LM Studio). Beyond that, it
+> downloads its own release from GitHub and, once a day while auto-update is off, asks GitHub
+> whether a newer one is out (`update_notice: false` stops it). A graph capture runs sdd's
+> pre-flight, which sends the draft to Claude through `claude -p`.
+> [plugin/README.md](plugin/README.md#what-it-sends) lists every case.
 
 | Piece | Command | What it does |
 |---|---|---|
@@ -18,26 +29,60 @@ to the agent. Memory and the tool library are also available as MCP servers, `me
 | capture | `agentic-capture` | Writes new graph entries through one checked path, free of credentials |
 | shell-guard | `agentic-shell-guard` | Keeps deletions inside the project, and credentials out of commands and output |
 
-**Edits to `CLAUDE.md` reach sessions already running.** Claude Code reads a project's `CLAUDE.md`,
-`CLAUDE.local.md`, every file they import with `@` (an `AGENTS.md`, say), each `CLAUDE.md` in
-a subfolder it works in, and `~/.claude/CLAUDE.md` when a session starts, and never again until a
-compaction. agentic-memory watches every one of these files a session loaded. When one changes,
-every running session that loaded it, in a project using memory, is told to read it again at its
-next prompt or tool call, seat or none. A rule written into `CLAUDE.md` mid-session holds in every
-session from then on, not only in the next one.
+Memory and the tool library are also available as MCP servers, `memory` and `tools`.
 
-## Memory and the decision graph
+## Features
 
-The grounding gate and capture exist for [sdd](https://github.com/networkteam/sdd), which keeps a
-project's decision graph under `.sdd/`.
+### Memory
 
-- **sdd is long-term memory.** It holds decisions, the signals behind them, and why, for everyone on
-  the project. It lives in the repository, is reviewed like code, and never changes an entry once
-  written.
-- **agentic-memory is short-term memory.** It holds what one job needs to pick up where it left off:
-  where work stands, a judgment call made without asking, a trap that already cost time. It lives on
-  the machine, outside the repository, and fades at a rate set by each entry's kind. A memory entry
-  points at a graph entry by id and never copies a decision.
+- **Work survives a compaction.** The agent claims a seat, notes where work stands as it goes, and
+  gets it back after a compaction or in the next session.
+- **Notes fade on their own.** Each entry has a kind: a rule from you never fades, a trap that cost
+  time lasts months, a todo days. Stale notes drop out without cleanup.
+- **The right note at the right time.** Each prompt brings up the few entries related to it, by
+  words or by meaning.
+- **Edits to `CLAUDE.md` reach running sessions.** Claude Code reads `CLAUDE.md`, `CLAUDE.local.md`,
+  their `@` imports and `~/.claude/CLAUDE.md` only at session start. Memory watches them, and every
+  running session that loaded a changed one reads it again at its next prompt or tool call.
+- **Short-term memory beside the decision graph.** [sdd](https://github.com/networkteam/sdd) keeps
+  a project's decisions and their reasons under `.sdd/`, in the repository, reviewed like code.
+  Memory keeps what one job needs to carry on, on the machine, and points at graph entries instead of
+  copying them.
+
+### Tool library
+
+- **Helper scripts are shared.** A script one agent wrote is found by every other agent on the
+  machine, in any project, by name or by meaning.
+- **No tool twice.** A new tool that does what a stored one does is refused, naming the existing one.
+- **Versions are kept.** An update keeps the old version for a while; a change to another project's
+  tool becomes a fork.
+
+### Scratch sweep
+
+- **One place for throwaway files.** Each seat or session gets its own folder under `.tmp/`.
+- **Emptied when the work ends**: at release, at session end, or after a week unused, as you choose.
+  Nothing outside that folder is ever touched.
+
+### Grounding gate
+
+- **Decisions are read before they are discussed.** In a project with an sdd graph, the agent must
+  search and list the graph before it asks you a question, drafts an entry or captures one.
+- **Repeated sdd output shrinks.** An entry the agent was already shown comes back as a short
+  pointer instead of in full.
+
+### Capture
+
+- **One checked path into the graph.** Every new entry passes the project's lint, sdd's pre-flight
+  and a credential scan before it is written.
+
+### Shell-guard
+
+- **Deletions stay inside the project.** Removals and moves outside the project and `/tmp` ask
+  first, and so does `find -delete`.
+- **Credentials stay out.** A command holding what looks like a credential asks first, and output
+  lines from outside the project that look like one are withheld.
+- **Commands that work on this machine.** A command missing here (`timeout`) or a usage BSD `sed`
+  or `date` gets wrong is refused, naming the one that works.
 
 ## Good to know
 
