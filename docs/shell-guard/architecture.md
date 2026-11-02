@@ -217,20 +217,42 @@ in the same command or before it; a duplicated descriptor (`0<&3`, or `0>&3`, an
 descriptor numbered 0, `00` included) may be the pipe; a named descriptor (`{fd}<<< x`) is a new
 one and leaves the input on the pipe; and every
 redirection counts, not only the last, since zsh's MULTIOS feeds all of them to the command. Its first operand past
-its options is the script, unless it names the input itself (`/dev/stdin`, a descriptor under
-`/dev/fd/` or `/proc/<pid>/fd/`, read cleaned, so `//dev/./stdin` counts, and `-` to fish). `--` and a lone `-`
-end the options, so `bash - x.sh` runs `x.sh`, `-c` past them is an operand, and `-` alone leaves the input
-as the code; fish's manual gives `-` no such role, so to fish it stays the input. `-C` is a flag on every shell
-but fish. An option taking a value (`-o`, `-O`, fish's `-C`, grouped as `-eo`, and
-the long options each shell's manual gives a separate value, `longValues`: `--rcfile` and `--init-file` on
-`bash` and `sh`, `--emulate` on `zsh`, and fish's `--debug`, `--debug-output`, `--features`, `--profile`
-and `--profile-startup`) takes the next word with it. Any other long option, `--name` or zsh's `+-name`,
-takes none: zsh sets each of its options by name, so `zsh --exec x.sh` runs `x.sh`, and a list of flags
-was rejected as the list that misses one. A long option a shell rejects runs nothing, so the word after
-it is read for no gain, the side a guard errs on. Only
-`-c` or `--command` replaces the input as the code source; fish's `-C` init code runs before it. A shell's code is the first operand past its
-options once an option carries `c`, since every shell reads options after `-c` too (`bash -c -e 'code'`, `-c -- 'code'`, `-c - 'code'`, `-co pipefail 'code'`).
-fish takes the next word as code after `-c`, `-C`, `--command` or `--init-command`, whatever it spells. A here-document or here-string fed to another interpreter is judged as its
+its options is the script, unless it names the input itself (`/dev/stdin`, or a descriptor under
+`/dev/fd/` or `/proc/<pid>/fd/`, read cleaned, so `//dev/./stdin` counts), and a shell handed no script, and no
+code, reads the pipe.
+
+### A shell's arguments
+
+`shellwalk.readShellArguments` reads a shell's arguments for all three of these: the script, the pipe and the
+code. Its tables hold what each shell did when run with marker scripts, since the shells differ and a manual
+leaves some of it out:
+
+| | `bash`, `sh` | `zsh` | `dash` | `ksh` | `mksh` | `fish` |
+|---|---|---|---|---|---|---|
+| ends the options | `--`, `-` | `--`, `-`, `+`, `+-`, a group holding `b` | `--`, `-` | `--`, `-`, `+` | `--`, `-`, `+` | `--` |
+| short option taking a value | `o`, `O` | `o` | `o` | `o`, `R` | `o`, `T` | `c`, `C`, `d`, `D`, `f`, `o`, `p` |
+| value attached to its letter | no | yes | no | yes | yes | yes |
+| long option taking a value | `--rcfile`, `--init-file` | `--emulate` | none | none | none | every name in `fishLongValues`, by unique prefix, or `=value` |
+| `+c` is `-c` | yes | yes | yes | no | no | no such word |
+| `+s` is `-s` | yes | no | no | no | no | no such word |
+| input runs beside `-c` with `-s` | no, but `sh` may be dash | no | yes | no | no | no `-s` |
+
+Options stop at the first operand, so `bash x.sh -c code` runs `x.sh` with those arguments. An operand `-` is a
+file of that name on every shell: `bash -` alone reads the input because nothing follows the option-ending `-`,
+while `bash - -`, `bash -- -` and `fish -` run a file named `-`. A letter after a value letter on a shell that
+attaches values is that value, so `zsh -ocorrect` holds no `c`, `zsh -osh_word_split` no `s` and `zsh -ono_rcs`
+no `n`. Any other long option, `--name` or zsh's `+-name`, takes no word: zsh sets each of its options by name,
+so `zsh --exec x.sh` runs `x.sh`, and a list of flags was rejected as the list that misses one. A long option a
+shell rejects runs nothing, so the word after it is read for no gain, the side a guard errs on. `-C` is noclobber
+everywhere but fish.
+
+A shell's code is its first operand once an option carries `c`, since every shell but fish reads options after
+`-c` too (`bash -c -e 'code'`, `-c -- 'code'`, `-c - 'code'`, `-co pipefail 'code'`). fish runs the value of each
+`-c` and `-C`, attached or the next word, whatever it spells (`fish -c'code'`, `fish --comm='code'`,
+`fish -c a -c b`), and a script or the input after its `-C` code. Only `-c` replaces the input as the code
+source.
+
+A here-document or here-string fed to another interpreter is judged as its
 inline code. Any other guard's verdict found inside nested code counts as found outside it.
 
 ## Scripts

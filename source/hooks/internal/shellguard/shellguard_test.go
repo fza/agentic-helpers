@@ -271,12 +271,11 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"code piped to fish with features", "{project}", "echo 'rm x' | fish --features flag", "deny"},
 		{"code piped to a lone dash", "{project}", "echo 'rm x' | bash -", "deny"},
 		{"code piped to a lone dash naming the input", "{project}", "echo 'rm x' | bash - /dev/stdin", "deny"},
-		{"code piped to a lone dash twice", "{project}", "echo 'rm x' | bash - -", "deny"},
-		{"code piped to -- naming the input", "{project}", "echo 'rm x' | bash -- -", "deny"},
+		{"a file named - past a lone dash leaves the input unread", "{project}", "echo 'rm x' | bash - -", "ask"},
+		{"a file named - past -- leaves the input unread", "{project}", "echo 'rm x' | bash -- -", "ask"},
 		{"code piped to -s past a lone dash", "{project}", "echo 'rm x' | bash -s - foo", "deny"},
 		{"code piped to -s with an option after it", "{project}", "echo 'rm x' | bash -s -e foo", "deny"},
-		{"code piped to fish's lone dash", "{project}", "echo 'rm x' | fish -", "deny"},
-		{"code piped to fish's lone dash past which a word stands", "{project}", "echo 'rm x' | fish - scripts/build.sh", "deny"},
+		{"fish takes - for a file and leaves the input unread", "{project}", "echo 'rm x' | fish -", "ask"},
 		{"input piped to a script past a lone dash", "{project}", "echo x | bash - scripts/build.sh", "allow"},
 		{"input piped to a script past --", "{project}", "echo x | bash -- scripts/build.sh", "allow"},
 		{"input piped to a script past -C", "{project}", "echo x | bash -C scripts/build.sh", "allow"},
@@ -865,7 +864,6 @@ func TestALoneDashEndsAShellsOptions(t *testing.T) {
 		{"-C is a flag", "bash -C clean-outside.sh", "ask", judged},
 		{"-C is a flag, grouped", "bash -eC clean-outside.sh", "ask", judged},
 		{"zsh's -C is a flag", "zsh -C clean-outside.sh", "ask", judged},
-		{"fish keeps it as the input", "fish - clean.fish", "allow", ""},
 	}
 
 	for _, tc := range cases {
@@ -915,7 +913,6 @@ func TestShellCodeIsTheFirstOperandPastTheOptions(t *testing.T) {
 		{"grouped with -C, a flag", "bash -Cc 'rm x'", "deny"},
 		{"-C holds no code but on fish", "bash -C 'echo hi'", "ask"},
 		{"fish's -C holds code", "fish -C 'rm x'", "deny"},
-		{"fish's lone dash ends nothing", "fish - -c 'rm x'", "deny"},
 		{"fish's -c with no word after it", "fish -c", "allow"},
 		{"fish's -c takes the next word", "fish -c -e 'rm x'", "allow"},
 		{"fish's --command takes the next word", "fish --command -e 'rm x'", "allow"},

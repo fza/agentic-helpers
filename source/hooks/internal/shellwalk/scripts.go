@@ -618,11 +618,7 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 
 	switch {
 	case slices.Contains(scriptShells, name) || name == fishShell:
-		if shellCode(name, args[1:]) != nil {
-			return -1
-		}
-
-		at := scriptOperand(name, args[1:])
+		at := readShellArguments(name, args[1:]).scriptOperand(args[1:])
 		if at < 0 {
 			return -1
 		}
@@ -854,72 +850,13 @@ func shebang(text string) (string, bool) {
 	return "", true
 }
 
-// scriptOperand is the index of the script a shell's arguments name, or -1
-// where it names none: -s reads standard input, and the operand may name the
-// input itself.
-func scriptOperand(shell string, args []*syntax.Word) int {
-	at, readsInput := firstOperand(shell, args)
-	if readsInput || at < 0 || standardOperand(args[at]) {
-		return -1
-	}
-
-	return at
-}
-
-// firstOperand is the index of the first word past a shell's options, or -1
-// where none stands there, and whether -s sends the operands to the script
-// read from standard input. `--` and a lone `-` end the options, as bash's and
-// zsh's manuals say and POSIX says of sh; fish's manual gives `-` no such role,
-// so to fish it stays an operand. An option taking a value, -o, -O, grouped as
-// -eo, fish's -C and the shell's longValues, takes the next word with it. -C is
-// a flag everywhere else, noclobber to set.
-func firstOperand(shell string, args []*syntax.Word) (int, bool) {
-	valueLetters := "oO"
-	if shell == fishShell {
-		valueLetters = "oOC"
-	}
-
-	readsInput := false
-
-	for index := 0; index < len(args); index++ {
-		value, isLiteral := Literal(args[index])
-
-		switch {
-		case !isLiteral:
-			return index, readsInput
-		case value == "--" || value == "-" && shell != fishShell:
-			if index+1 < len(args) {
-				return index + 1, readsInput
-			}
-
-			return -1, readsInput
-		case value == "-":
-			return index, readsInput
-		case longOption(value):
-			if slices.Contains(longValues[shell], value) {
-				index++
-			}
-		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
-			flags := strings.TrimLeft(value, "-+")
-			readsInput = readsInput || strings.Contains(flags, "s")
-
-			if strings.ContainsAny(flags, valueLetters) {
-				index++
-			}
-		default:
-			return index, readsInput
-		}
-	}
-
-	return -1, readsInput
-}
-
 // parsesOnly is whether a shell's words, up to and including its script, have
 // it parse the script and run none of it: -n, alone or grouped, with nothing
 // that may take it back. `+n` turns it off, bash's manual has an interactive
 // shell ignore it, and the value of -o or -O, or any long option, may set an
-// option the walk does not weigh. A script word built at run time may be an
-// option itself. fish's options are not these.
+// option the walk does not weigh; a value attached to its letter counts too, or
+// the n of `zsh -ono_rcs x.sh` reads as -n. A script word built at run time may
+// be an option itself. fish's options are not these.
 func parsesOnly(words []*syntax.Word) bool {
 	script, options := words[len(words)-1], words[:len(words)-1]
 
@@ -935,7 +872,7 @@ func parsesOnly(words []*syntax.Word) bool {
 
 		switch {
 		case value == "--":
-		case !strings.HasPrefix(value, "-") || strings.HasPrefix(value, "--") || strings.Contains(value, "i"):
+		case !strings.HasPrefix(value, "-") || strings.HasPrefix(value, "--") || strings.ContainsAny(value, "io"):
 			return false
 		case strings.Contains(value, "n"):
 			parses = true

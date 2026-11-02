@@ -54,24 +54,6 @@ var interpreters = []string{
 	"ssh", "lua", "tclsh", "rscript", "jshell", "swift", "watch", "su", "script",
 }
 
-// longValues are the long options taking the next word as their value, by
-// shell: its manual's whole list. One shell's value option may be another's
-// flag (`bash --debug`), and any other long option takes none: zsh sets every
-// option it has by name (`zsh --exec x.sh`), so taking a word by default leaves
-// the script unread. A list of flags was rejected as the list that misses one.
-var longValues = map[string][]string{
-	"bash": {"--rcfile", "--init-file"},
-	"sh":   {"--rcfile", "--init-file"},
-	"zsh":  {"--emulate"},
-	"fish": {"--debug", "--debug-output", "--features", "--profile", "--profile-startup"},
-}
-
-// longOption is whether a shell's word is a long option: `--name`, or zsh's
-// `+-name` clearing it.
-func longOption(value string) bool {
-	return strings.HasPrefix(value, "--") || strings.HasPrefix(value, "+-")
-}
-
 // LauncherOptions / Value / Chdir are the options of a launcher the walk
 // knows: Value those taking the next word as their value, so that word is no
 // command (`env -C dir sdd` runs sdd); Chdir those running the command in
@@ -699,8 +681,7 @@ func offer(visitor Visitor, call Call) {
 			visitor.Code("trap", []*syntax.Word{handler}, "")
 		}
 	case slices.Contains(Shells, name):
-		code := shellCode(name, args[1:])
-		if code != nil {
+		for _, code := range readShellArguments(name, args[1:]).runCode() {
 			visitor.Code(name+" -c", []*syntax.Word{code}, call.Dir)
 		}
 	case IsInterpreter(name) && prefixLaunch(args) < 0:
@@ -1058,7 +1039,8 @@ func pipedCall(visitor Visitor, call *syntax.CallExpr) {
 		return
 	}
 
-	if replacesInput(args[1:]) || scriptOperand(name, args[1:]) >= 0 {
+	parsed := readShellArguments(name, args[1:])
+	if parsed.replacesInput(name) || parsed.scriptOperand(args[1:]) >= 0 {
 		return
 	}
 
@@ -1153,14 +1135,16 @@ func launchedShell(args []*syntax.Word) []*syntax.Word {
 	return nil
 }
 
-var standardInput = regexp.MustCompile(`^(?:-|/dev/stdin|/dev/fd/[0-9]+|/proc/[^/]+/fd/[0-9]+)$`)
+var standardInput = regexp.MustCompile(`^(?:/dev/stdin|/dev/fd/[0-9]+|/proc/[^/]+/fd/[0-9]+)$`)
 
 // StandardInput is whether a shell's operand names its standard input instead
-// of a script: `-`, /dev/stdin, or a descriptor under /dev/fd or
-// /proc/<pid>/fd, which a redirection may point at the input as well. The
-// path is read cleaned, so `//dev/./stdin` names it too.
+// of a script: /dev/stdin, or a descriptor under /dev/fd or /proc/<pid>/fd,
+// which a redirection may point at the input as well. The path is read cleaned,
+// so `//dev/./stdin` names it too. `-` is none: every shell runs an operand `-`
+// as a file of that name, and only an option-ending `-` with nothing after it
+// leaves the input as the code.
 func StandardInput(value string) bool {
-	return value == "-" || standardInput.MatchString(path.Clean(value))
+	return standardInput.MatchString(path.Clean(value))
 }
 
 // trapHandler is the code trap sets, past its options, or nil where it sets none.
@@ -1173,66 +1157,6 @@ func trapHandler(args []*syntax.Word) *syntax.Word {
 
 		if index+1 < len(args) || !isLiteral {
 			return arg
-		}
-
-		return nil
-	}
-
-	return nil
-}
-
-// replacesInput is whether a shell is handed its code with -c or --command,
-// and so reads none from its standard input; fish's -C init code runs before
-// the input is read.
-func replacesInput(args []*syntax.Word) bool {
-	for _, arg := range args {
-		value, _ := Literal(arg)
-		if value == "--command" || (strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.Contains(value, "c")) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// shellCode is the word a shell runs as code. Given an option carrying c, a
-// shell goes on reading options and runs its first operand past them
-// (`bash -c -e 'code'`, `-c -- 'code'`, `-co pipefail 'code'`). fish's -c, -C,
-// --command and --init-command take the next word whatever it spells. Past the
-// end of the options, a word spelling -c is an operand.
-func shellCode(shell string, args []*syntax.Word) *syntax.Word {
-	fish := shell == fishShell
-
-	codeLetters := "c"
-	if fish {
-		codeLetters = "cC"
-	}
-
-	for index, arg := range args {
-		value, _ := Literal(arg)
-
-		if !fish && (value == "--" || value == "-") {
-			return nil
-		}
-
-		short := strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.ContainsAny(value, codeLetters)
-		if !short && value != "--command" && value != "--init-command" {
-			continue
-		}
-
-		at := index + 1
-
-		if short && !fish {
-			operand, _ := firstOperand(shell, args[index:])
-			if operand < 0 {
-				return nil
-			}
-
-			at = index + operand
-		}
-
-		if at < len(args) {
-			return args[at]
 		}
 
 		return nil

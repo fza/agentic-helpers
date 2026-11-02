@@ -173,7 +173,11 @@ the call keeps every rule: `mktemp && bash x.sh` is still refused.
   by a path (`./x`, `bin/x`, `/opt/tool/run`) whose name is no shell, launcher or interpreter.
 - **What is not read**: a script a shell only parses, `bash -n x.sh` or `sh -en x.sh`, since none of
   it runs. Anything beside `-n` that could take it back keeps the read: `+n`, `-i`, `-o`, `-O`, a
-  long option, or an operand built at run time. `fish -n` is read as ever.
+  long option, a value attached to its letter (`zsh -ono_rcs`), or an operand built at run time.
+  `fish -n` is read as ever.
+- **What each shell runs is what it does when run**: `bash x.sh -c code` runs `x.sh`, `bash -c -e code`
+  runs `code`, `bash -` reads the input while `bash - -` runs a file named `-`, and `fish -C code x.fish`
+  runs both. [architecture.md](architecture.md#a-shells-arguments) holds the table by shell.
 - **A file run by its path** is judged by its first line: a shell's `#!` line, or none, as a shell
   script; another interpreter's (`#!/usr/bin/env python3`) as that interpreter's inline code, which
   the nested-code guard judges by the removal calls it names, asking where it names one; any other
