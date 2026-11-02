@@ -64,18 +64,6 @@ Memory and the tool library are also available as MCP servers, `memory` and `too
 - **Emptied when the work ends**: at release, at session end, or after a week unused, as you choose.
   Nothing outside that folder is ever touched.
 
-### Grounding gate
-
-- **Decisions are read before they are discussed.** In a project with an sdd graph, the agent must
-  search and list the graph before it asks you a question, drafts an entry or captures one.
-- **Repeated sdd output shrinks.** An entry the agent was already shown comes back as a short
-  pointer instead of in full.
-
-### Capture
-
-- **One checked path into the graph.** Every new entry passes the project's lint, sdd's pre-flight
-  and a credential scan before it is written.
-
 ### Shell-guard
 
 - **Deletions stay inside the project.** Removals and moves outside the project and `/tmp` ask
@@ -84,6 +72,22 @@ Memory and the tool library are also available as MCP servers, `memory` and `too
   lines from outside the project that look like one are withheld.
 - **Commands that work on this machine.** A command missing here (`timeout`) or a usage BSD `sed`
   or `date` gets wrong is refused, naming the one that works.
+
+## Extended sdd features
+
+For projects keeping a decision graph with [sdd](https://github.com/networkteam/sdd) under `.sdd/`.
+
+### Grounding gate
+
+- **Decisions are read before they are discussed.** The agent must search and list the graph before
+  it asks you a question, drafts an entry or captures one.
+- **Repeated sdd output shrinks.** An entry the agent was already shown comes back as a short
+  pointer instead of in full.
+
+### Capture
+
+- **One checked path into the graph.** Every new entry passes the project's lint, sdd's pre-flight
+  and a credential scan before it is written.
 
 ## Measurements
 
