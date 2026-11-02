@@ -75,7 +75,8 @@ Memory and the tool library are also available as MCP servers, `memory` and `too
 
 ## Extended sdd features
 
-For projects keeping a decision graph with [sdd](https://github.com/networkteam/sdd) under `.sdd/`.
+For projects keeping a decision graph with [sdd](https://github.com/networkteam/sdd), in the
+repository itself or in a separate one.
 
 ### Grounding gate
 
