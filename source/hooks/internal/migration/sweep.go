@@ -151,12 +151,25 @@ func removeStubs(root string) error {
 
 	for _, folder := range slices.Backward(folders) {
 		listed, readErr := os.ReadDir(folder)
-		if readErr == nil && len(listed) == 0 {
-			_ = os.Remove(folder)
+		if readErr != nil || slices.ContainsFunc(listed, func(entry fs.DirEntry) bool { return !finderOnly(entry) }) {
+			continue
 		}
+
+		for _, entry := range listed {
+			_ = os.Remove(filepath.Join(folder, entry.Name()))
+		}
+
+		_ = os.Remove(folder)
 	}
 
 	return nil
+}
+
+// finderOnly is a file macOS's Finder writes into every folder it shows,
+// holding no data: a folder holding only it counts as empty, or the old tree
+// a person once browsed would stand for good.
+func finderOnly(entry fs.DirEntry) bool {
+	return entry.Name() == ".DS_Store"
 }
 
 // StartSweep starts the sweep in a process of its own, `agentic-helpers

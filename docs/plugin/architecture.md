@@ -144,10 +144,11 @@ lock exclusively, checks again, and migrates. The lock is its own file, not the 
   only after `format.json`, so a call meeting both finishes the run rather than undoing it. The
   failure line is said once per session, its marker under `<cache>/migration-failed/<session>`
   holding the line, since a hook's stderr reaches no transcript; every call removes markers a week
-  old. A settled home (`format.json` standing, no journal) is never locked: the old trees stand
+  old, and every marker once the home is settled, since no failure is left to say. A settled home (`format.json` standing, no journal) is never locked: the old trees stand
   until the sweep, and a call that cannot open the lock, as a sandboxed one, would otherwise fail
   on every run.
-- **Fences**: a stub is the old store's folder holding `{"format":999}`; a fence is a file starting
+- **Fences**: a stub is the old store's folder holding `{"format":999}`, beside Finder's `.DS_Store`
+  at most; a fence is a file starting
   `agentic-helpers moved this data to <data>`. Each old tree's remainder is renamed aside and
   removed after `format.json`.
 
@@ -163,7 +164,10 @@ cache remains. It lists every process of the user whose name starts with `agenti
 runs from another folder than its own binary's, or where the table cannot be read. It takes the
 migration lock without waiting, then removes the old caches, each fence, each stub, the readings an
 older session's hooks module (`register.ts`) keeps writing to `~/.claude/agentic-memory/sessions/`
-while that root exists, and every folder left empty below `~/.claude/agentic-memory`. `mcpserver.ServeIdle` runs it after two minutes
+while that root exists, and every folder left empty below `~/.claude/agentic-memory`, a folder
+holding only `.DS_Store` files counting as empty: Finder writes one into every folder it shows, and
+a tree once browsed would otherwise stand for good, the migration pending and a sweep owed at
+every session's end. `mcpserver.ServeIdle` runs it after two minutes
 without a message, again after every further two; `agentic-helpers end` starts `agentic-helpers
 sweep` in a new session (`setsid`) and returns.
 

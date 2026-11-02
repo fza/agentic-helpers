@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
@@ -33,10 +34,16 @@ func stubText() []byte {
 	return append(data, '\n')
 }
 
-// isStub says the folder holds nothing but a stub's `format.json`.
+// isStub says the folder holds nothing but a stub's `format.json`, beside a
+// Finder file at most.
 func isStub(dir string) bool {
 	listed, err := os.ReadDir(dir)
-	if err != nil || len(listed) != 1 || listed[0].Name() != formatName {
+	if err != nil {
+		return false
+	}
+
+	listed = slices.DeleteFunc(listed, finderOnly)
+	if len(listed) != 1 || listed[0].Name() != formatName {
 		return false
 	}
 

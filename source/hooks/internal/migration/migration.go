@@ -282,10 +282,21 @@ func (env Env) reportOnce(stderr io.Writer, cause error) {
 // speaks for has long ended.
 const markerLifetime = 7 * 24 * time.Hour
 
-// ExpireMarkers removes every failure marker older than markerLifetime, and
-// their folder once it is empty.
+// ExpireMarkers removes every failure marker older than markerLifetime. A
+// settled home has no failure left to say once, so it removes them all, with
+// their folder.
 func ExpireMarkers(env Env) {
 	if !env.usable() {
+		return
+	}
+
+	if env.settled() {
+		cache, err := safefs.At(env.Roots.Cache, env.Roots.Cache)
+		if err == nil {
+			_ = cache.RemoveAll(failedDir)
+			cache.Close()
+		}
+
 		return
 	}
 
@@ -294,30 +305,18 @@ func ExpireMarkers(env Env) {
 		return
 	}
 
+	defer held.Close()
+
 	listed, err := held.Entries()
 	if err != nil {
-		held.Close()
-
 		return
 	}
 
-	left := len(listed)
-
 	for _, entry := range listed {
 		info, err := entry.Info()
-		if err != nil || env.now().Sub(info.ModTime()) < markerLifetime {
-			continue
+		if err == nil && env.now().Sub(info.ModTime()) >= markerLifetime {
+			_ = held.Remove(entry.Name())
 		}
-
-		if held.Remove(entry.Name()) == nil {
-			left--
-		}
-	}
-
-	held.Close()
-
-	if left == 0 {
-		_ = os.Remove(filepath.Join(env.Roots.Cache, failedDir))
 	}
 }
 

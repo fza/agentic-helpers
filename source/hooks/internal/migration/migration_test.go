@@ -627,6 +627,41 @@ func TestTheSweepLeavesWhatItDidNotPlace(t *testing.T) {
 	}
 }
 
+func TestTheSweepTakesAFolderHoldingOnlyFinderFilesForEmpty(t *testing.T) {
+	m := newOldMachine(t)
+	m.prepare()
+
+	late := m.claude("agentic-memory", "github.com", "acme", "app", "late.json")
+	test.WriteFile(t, late, "{}")
+
+	for _, folder := range []string{"", "local", "github.com", filepath.Join("github.com", "acme", "app")} {
+		test.WriteFile(t, filepath.Join(m.claude("agentic-memory"), folder, ".DS_Store"), "finder")
+	}
+
+	swept, err := migration.Sweep(context.Background(), m.env)
+	if err != nil || !swept {
+		t.Fatalf("the sweep should run, got %v %v", swept, err)
+	}
+
+	if test.Exists(t, m.claude("agentic-memory", "local")) {
+		t.Error("a folder holding only a Finder file should go as an empty one does")
+	}
+
+	if !test.Exists(t, late) || !test.Exists(t, m.claude("agentic-memory", "github.com", "acme", "app", ".DS_Store")) {
+		t.Error("a folder holding anything else should stay whole, its Finder file too")
+	}
+
+	err = os.Remove(late)
+	if err != nil {
+		t.Fatalf("removing the late file: %v", err)
+	}
+
+	_, err = migration.Sweep(context.Background(), m.env)
+	if err != nil || test.Exists(t, m.claude("agentic-memory")) || migration.Owed(m.env) {
+		t.Errorf("an old tree holding only Finder files should go whole, leaving no sweep owed: %v", err)
+	}
+}
+
 func TestASweepIsOwedWhileAnyStubRemains(t *testing.T) {
 	m := newOldMachine(t)
 	m.prepare()
