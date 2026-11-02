@@ -219,7 +219,12 @@ one and leaves the input on the pipe; and every
 redirection counts, not only the last, since zsh's MULTIOS feeds all of them to the command. Its first operand past
 its options is the script, unless it names the input itself (`-`, `/dev/stdin`, a descriptor under
 `/dev/fd/` or `/proc/<pid>/fd/`, read cleaned, so `//dev/./stdin` counts), an option taking a value (`-o`, `-O`, fish's `-C`, grouped as `-eo`, and
-every long option but the shells' known flags such as `--norc`) taking the next word with it. Only
+the long options each shell's manual gives a separate value, `longValues`: `--rcfile` and `--init-file` on
+`bash` and `sh`, `--emulate` on `zsh`, and fish's `--debug`, `--debug-output`, `--features`, `--profile`
+and `--profile-startup`) taking the next word with it. Any other long option, `--name` or zsh's `+-name`,
+takes none: zsh sets each of its options by name, so `zsh --exec x.sh` runs `x.sh`, and a list of flags
+was rejected as the list that misses one. A long option a shell rejects runs nothing, so the word after
+it is read for no gain, the side a guard errs on. Only
 `-c` or `--command` replaces the input as the code source; fish's `-C` init code runs before it. A shell's code is the word after an option carrying `c`,
 or fish's `C`, or after `--command` or `--init-command`. A here-document or here-string fed to another interpreter is judged as its
 inline code. Any other guard's verdict found inside nested code counts as found outside it.

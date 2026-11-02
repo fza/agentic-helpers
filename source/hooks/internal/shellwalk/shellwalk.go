@@ -54,10 +54,22 @@ var interpreters = []string{
 	"ssh", "lua", "tclsh", "rscript", "jshell", "swift", "watch", "su", "script",
 }
 
-// longFlags are the shells' long options that take no value.
-var longFlags = []string{
-	"--norc", "--noprofile", "--login", "--posix", "--noediting", "--verbose", "--restricted", "--debugger",
-	"--dump-strings", "--no-config", "--private", "--interactive", "--no-execute", "--emulate-sh",
+// longValues are the long options taking the next word as their value, by
+// shell: its manual's whole list. One shell's value option may be another's
+// flag (`bash --debug`), and any other long option takes none: zsh sets every
+// option it has by name (`zsh --exec x.sh`), so taking a word by default leaves
+// the script unread. A list of flags was rejected as the list that misses one.
+var longValues = map[string][]string{
+	"bash": {"--rcfile", "--init-file"},
+	"sh":   {"--rcfile", "--init-file"},
+	"zsh":  {"--emulate"},
+	"fish": {"--debug", "--debug-output", "--features", "--profile", "--profile-startup"},
+}
+
+// longOption is whether a shell's word is a long option: `--name`, or zsh's
+// `+-name` clearing it.
+func longOption(value string) bool {
+	return strings.HasPrefix(value, "--") || strings.HasPrefix(value, "+-")
 }
 
 // LauncherOptions / Value / Chdir are the options of a launcher the walk
@@ -1046,7 +1058,7 @@ func pipedCall(visitor Visitor, call *syntax.CallExpr) {
 		return
 	}
 
-	if replacesInput(args[1:]) || namesScript(args[1:]) {
+	if replacesInput(args[1:]) || namesScript(name, args[1:]) {
 		return
 	}
 
@@ -1144,9 +1156,9 @@ func launchedShell(args []*syntax.Word) []*syntax.Word {
 // namesScript is whether a shell's arguments name a script for it to run: its
 // first operand, unless -s sends it to standard input or the operand names
 // the input itself. An option taking a
-// value (-o, -O, grouped as -eo, and every long option but the shells' known
-// flags) takes the next word with it.
-func namesScript(args []*syntax.Word) bool {
+// value (-o, -O, grouped as -eo, and the shell's longValues) takes the next
+// word with it.
+func namesScript(shell string, args []*syntax.Word) bool {
 	for index := 0; index < len(args); index++ {
 		value, isLiteral := Literal(args[index])
 
@@ -1155,10 +1167,10 @@ func namesScript(args []*syntax.Word) bool {
 			return true
 		case value == "--" || StandardInput(value):
 			return false
-		case slices.Contains(longFlags, value):
-		case strings.HasPrefix(value, "--"):
-			// A long option it does not know may take a value: the next word goes with it.
-			index++
+		case longOption(value):
+			if slices.Contains(longValues[shell], value) {
+				index++
+			}
 		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
 			flags := strings.TrimLeft(value, "-+")
 			if strings.Contains(flags, "s") {

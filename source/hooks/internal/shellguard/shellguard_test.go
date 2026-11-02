@@ -258,12 +258,17 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"code piped to bash with a grouped option value", "{project}", "echo 'rm x' | bash -eo pipefail", "deny"},
 		{"fish init command with a removal", "{project}", "fish -C 'rm x'", "deny"},
 		{"code piped to fish with init code", "{project}", "echo 'rm x' | fish -C 'echo hi'", "deny"},
-		{"code piped to bash after an unknown long option", "{project}", "echo 'rm x' | bash --dump-po-strings x", "deny"},
+		{"a missing script past a long flag", "{project}", "echo 'rm x' | bash --dump-po-strings x", "ask"},
 		{"shell --command with a removal", "{project}", "fish --command 'rm x'", "deny"},
 		{"inline code for an interpreter it does not know", "{project}", `rust-script -e 'std::fs::remove_dir_all("x")'`, "allow"},
 		{"ruby code naming rm_f", "{project}", `ruby -e 'FileUtils.rm_f("x")'`, "deny"},
 		{"code piped to bash with an rcfile", "{project}", "echo 'rm x' | bash --rcfile rc", "deny"},
 		{"input piped to a bash script after a long option", "{project}", "echo x | bash --norc scripts/build.sh", "allow"},
+		{"input piped to a zsh script after a long option", "{project}", "echo x | zsh --exec scripts/build.sh", "allow"},
+		{"code piped to zsh with an emulation", "{project}", "echo 'rm x' | zsh --emulate sh", "deny"},
+		{"code piped to zsh after a named option", "{project}", "echo 'rm x' | zsh --exec", "deny"},
+		{"code piped to zsh after its plus spelling", "{project}", "echo 'rm x' | zsh +-sh-word-split", "deny"},
+		{"code piped to fish with features", "{project}", "echo 'rm x' | fish --features flag", "deny"},
 		{"code piped to bash -es with arguments", "{project}", "echo 'rm x' | bash -es foo", "deny"},
 		{"trap after its options", "{project}", "trap -- 'rm -f x' EXIT", "deny"},
 		{"trap under a launcher", "{project}", "command trap 'rm -f x' EXIT", "deny"},
@@ -764,6 +769,54 @@ func TestAScriptAShellOnlyParsesIsNotJudged(t *testing.T) {
 
 			if decision != tc.decision || reason != want {
 				t.Errorf("a script should be judged unless the shell only parses it, got %s %q", decision, reason)
+			}
+		})
+	}
+}
+
+func TestALongOptionLeavesTheScriptToBeJudged(t *testing.T) {
+	g := newGuard(t, true, "")
+	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)
+
+	const (
+		judged     = "in the script clean-outside.sh: outside project: {outside}/x"
+		judgedFish = "in the script clean.fish: inline code for fish names a removal or mktemp; refusing"
+	)
+
+	cases := []struct {
+		name    string
+		command string
+		reason  string
+	}{
+		{"zsh setting an option by name", "zsh --exec clean-outside.sh", judged},
+		{"zsh clearing an option by name", "zsh --no-rcs clean-outside.sh", judged},
+		{"zsh's plus spelling holding an s", "zsh +-sh-word-split clean-outside.sh", judged},
+		{"zsh's plus spelling holding an o", "zsh +-no-rcs clean-outside.sh", judged},
+		{"bash long flag", "bash --dump-po-strings clean-outside.sh", judged},
+		{"long option carrying its value", "bash --name=value clean-outside.sh", judged},
+		{"long option of no shell", "dash --name clean-outside.sh", judged},
+		{"bash's --debug takes no value, unlike fish's", "bash --debug clean-outside.sh", judged},
+		{"zsh's --rcfile takes no value, unlike bash's", "zsh --rcfile clean-outside.sh", judged},
+		{"bash --rcfile", "bash --rcfile rc clean-outside.sh", judged},
+		{"bash --init-file", "bash --init-file rc clean-outside.sh", judged},
+		{"sh --rcfile", "sh --rcfile rc clean-outside.sh", judged},
+		{"sh --init-file", "sh --init-file rc clean-outside.sh", judged},
+		{"zsh --emulate", "zsh --emulate sh clean-outside.sh", judged},
+		{"fish --debug", "fish --debug proc clean.fish", judgedFish},
+		{"fish --debug-output", "fish --debug-output log clean.fish", judgedFish},
+		{"fish --features", "fish --features flag clean.fish", judgedFish},
+		{"fish --profile", "fish --profile log clean.fish", judgedFish},
+		{"fish --profile-startup", "fish --profile-startup log clean.fish", judgedFish},
+		{"fish option carrying its value", "fish --debug=proc clean.fish", judgedFish},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision, reason := g.judge(tc.command, "{project}/scripts")
+
+			want := "agentic-shell-guard: " + g.placeholders.Replace(tc.reason)
+			if decision != "ask" || reason != want {
+				t.Errorf("the script past a shell's long options should be judged, got %s %q", decision, reason)
 			}
 		})
 	}

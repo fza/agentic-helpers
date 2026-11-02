@@ -169,7 +169,7 @@ with, two rules aside:
 the call keeps every rule: `mktemp && bash x.sh` is still refused.
 
 - **What is read**: the operand of `sh`, `bash`, `zsh`, `dash`, `ksh` or `mksh` given no `-c`, `-s`
-  or input path (`bash -e x.sh`, `bash -- x.sh`), the file `source` or `.` reads, and a command named
+  or input path (`bash -e x.sh`, `bash -- x.sh`, `zsh --exec x.sh`), the file `source` or `.` reads, and a command named
   by a path (`./x`, `bin/x`, `/opt/tool/run`) whose name is no shell, launcher or interpreter.
 - **What is not read**: a script a shell only parses, `bash -n x.sh` or `sh -en x.sh`, since none of
   it runs. Anything beside `-n` that could take it back keeps the read: `+n`, `-i`, `-o`, `-O`, a

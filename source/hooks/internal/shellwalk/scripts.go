@@ -622,7 +622,7 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 			return -1
 		}
 
-		at := scriptOperand(args[1:])
+		at := scriptOperand(name, args[1:])
 		if at < 0 {
 			return -1
 		}
@@ -858,7 +858,7 @@ func shebang(text string) (string, bool) {
 // where it names none: -s reads standard input, and the operand may name the
 // input itself. An option taking a value takes the next word with it, as
 // namesScript reads them.
-func scriptOperand(args []*syntax.Word) int {
+func scriptOperand(shell string, args []*syntax.Word) int {
 	for index := 0; index < len(args); index++ {
 		value, isLiteral := Literal(args[index])
 
@@ -873,9 +873,10 @@ func scriptOperand(args []*syntax.Word) int {
 			return -1
 		case StandardInput(value):
 			return -1
-		case slices.Contains(longFlags, value):
-		case strings.HasPrefix(value, "--"):
-			index++
+		case longOption(value):
+			if slices.Contains(longValues[shell], value) {
+				index++
+			}
 		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
 			flags := strings.TrimLeft(value, "-+")
 			if strings.Contains(flags, "s") {
