@@ -5,8 +5,7 @@ Go rules, loaded when a session touches code under `source/`.
 ## Layout
 
 - **One module, `source/hooks`.** Every hook is a binary under `cmd/agentic-<hook>/`, published by
-  each release and built for development with `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...`
-  from the checkout root, never into `~/go/bin`. The `agentic-`
+  each release and built for development as the root [`AGENTS.md`](../AGENTS.md) sets out. The `agentic-`
   prefix is not optional: a bare name on a PATH can shadow a system tool.
 - **`.goreleaser.yaml` lists every binary the release builds.** A new `cmd/` directory is added
   there, or the plugin's launcher finds no binary for it.
@@ -32,8 +31,6 @@ Go rules, loaded when a session touches code under `source/`.
 - **A hook stays silent in a project without its directory.** It reads nothing, creates nothing and
   exits 0 before it touches stdin. Shell-guard has no directory to wait for: its work is every Bash
   call.
-- **Output wording is part of the contract.** Skills and agents quote it. Change it on purpose, never
-  in passing.
 
 ## Code
 
@@ -41,9 +38,13 @@ Go rules, loaded when a session touches code under `source/`.
 - **Wrap with context:** `fmt.Errorf("reading the payload: %w", err)`. Never log an error and then
   return it.
 - **Sentinel errors are package-level `var Err...`**, compared with `errors.Is`.
+- **Accept interfaces, return structs.** An interface is declared beside the code that consumes it.
+- **No `panic` outside `main`**, and none there past argument parsing. The one exception re-raises:
+  a `recover` that turns a memory fault into an error panics again with anything else it caught.
+- **Names say what a thing is for**, not what it holds.
 - **Context first** on anything reaching a process or a file.
-- **No comment per function, variable or constant.** Comment only the reasoning a name cannot carry.
-  Package comment above the `package` clause of a real source file.
+- **No comment per function, variable or constant.** Package comment above the `package` clause of
+  a real source file.
 
 ## Tests
 
@@ -55,4 +56,3 @@ Go rules, loaded when a session touches code under `source/`.
   `*_internal_test.go`; every other test file declares the `<pkg>_test` package.
 - **Fixtures are real files under `test/fixtures/`**, embedded with `go:embed`.
 - **Assertion messages describe the behaviour**, never repeat the expected value.
-- **Break every guard, watch its test fail, restore the file byte-identically.**

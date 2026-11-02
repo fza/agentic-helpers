@@ -3,8 +3,7 @@
 # CLAUDE.md
 
 The rules for this repository live in [`AGENTS.md`](AGENTS.md), imported above. They are not restated
-here: two copies drift, and a reader obeys whichever they opened. Go work additionally loads
-[`source/AGENTS.md`](source/AGENTS.md) when a session touches code under `source/`.
+here: two copies drift, and a reader obeys whichever they opened.
 
 What follows is Claude-Code-specific and applies on top.
 
@@ -15,8 +14,8 @@ them.
 
 - **A hook change reaches this session through `AGENTIC_HELPERS_BIN_DIR`.** With it pointing at the
   checkout's `.claude/bin`, the next hook event runs what
-  `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...` just built, and no `agentic-*`
-  binary ever goes into `~/go/bin`; without it, the session runs the release the plugin names.
+  `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...` just built; without it, the
+  session runs the release the plugin names.
 - **Never delete a binary a hook still runs.** A missing one leaves its hook doing nothing, and the
   grounding gate refusing every call it guards.
 - **`AGENTIC_HELPERS_BIN_DIR` lives in this checkout's gitignored `.claude/settings.local.json`,

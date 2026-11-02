@@ -44,15 +44,11 @@ migrate another project's memory store to a format no release reads. `go install
 **The hooks ship as a Claude Code plugin** from `plugin/`, and `plugin/hooks/run` runs the binaries
 of the release named in `plugin/.claude-plugin/plugin.json`. Claude Code loads every component it
 finds at a plugin's root, so nothing but the plugin's own files goes into `plugin/`; the repository's
-`.mcp.json` and instruction files stay at the root. A machine
-working on them sets `AGENTIC_HELPERS_BIN_DIR` to that `.claude/bin`, so a change reaches a session on
-the next hook event after `go install` runs again. A release is cut only by the
-`release` workflow; `docs/plugin/` describes both.
+`.mcp.json` and instruction files stay at the root. A release is cut only by the `release`
+workflow; `docs/plugin/` describes it and how a development build reaches a session.
 
 ## Working agreements
 
-- **Never build to check that code compiles - run the tests.** `go vet ./...` inside `source/hooks`
-  is the quick compile check.
 - **A commit message is one line**: a Conventional Commits prefix (`feat:`, `fix:`, `docs:`,
   `chore:`, `refactor:`, `test:`, `build:`, `style:`), then the description, 100 characters at most.
   Nothing follows the subject line.
@@ -64,7 +60,17 @@ the next hook event after `go install` runs again. A release is cut only by the
 - **A change that lands updates the `docs/` pages it makes untrue, in the same change.** A skill
   changes with it wherever the skill describes what changed.
 - **Break every new guard, watch its test fail, and restore the file byte-identically.** A guard no
-  test can fail is removed rather than kept.
+  test can fail is removed rather than kept. Guards checking one thing hide each other: break them
+  together, then each alone. A guard no test can reach, such as a race between system calls, is
+  named as unreachable, never counted as caught.
+- **A failing test changes the code only for a defect**: behaviour against the decision or intent,
+  shown by the test failing against the unchanged code first, and named in the commit. Otherwise the
+  test is wrong, and the test is fixed.
+- **Never green a test by weakening it**: no loosened assertion, wider tolerance, skipped case or
+  special-cased input. No production code exists only for a test: no flag, branch or hook a test
+  alone uses.
+- **Code no longer needed is removed** once nothing else depends on it.
+- **`--amend` only the commit just made**, and never once it is pushed.
 
 ## Authoring
 
