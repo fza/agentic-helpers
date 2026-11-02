@@ -1014,6 +1014,10 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 		mem.clearSlot(mem.instructionsKey(payload.SessionID))
 	}
 
+	// The landed and dirty lines below read the ladder, so the session's own
+	// state goes last.
+	defer mem.clearEnded(payload.SessionID)
+
 	mem.endSubagents(ctx, payload.SessionID)
 
 	mem.adopt(ctx, payload)

@@ -331,6 +331,92 @@ func TestReclaimClearsTheKeysItIsAskedTo(t *testing.T) {
 	}
 }
 
+func TestAReclaimLeavingFewKeysShrinksTheFile(t *testing.T) {
+	cases := []struct {
+		name   string
+		kept   int
+		pairs  int
+		shrunk bool
+	}{
+		{name: "a quarter of the pairs left", kept: 32, pairs: 64, shrunk: true},
+		{name: "two keys left", kept: 2, pairs: 8, shrunk: true},
+		{name: "more than a quarter left", kept: 33, shrunk: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			file := openFile(t)
+
+			for key := range 64 {
+				put(t, file, fmt.Sprintf("session/%02d", key), fmt.Sprintf("value %d", key))
+			}
+
+			grown := header(t, file)
+			if grown.Count != 1+2*128 {
+				t.Fatalf("64 keys should grow the file to 128 pairs, got %d slots", grown.Count)
+			}
+
+			before, err := os.Stat(file.Path)
+			if err != nil {
+				t.Fatalf("measuring the slot file: %v", err)
+			}
+
+			err = file.Reclaim(context.Background(), func(slot slots.Slot) bool {
+				var key int
+
+				_, _ = fmt.Sscanf(slot.Key, "session/%d", &key)
+
+				return key >= tc.kept
+			})
+			if err != nil {
+				t.Fatalf("reclaiming: %v", err)
+			}
+
+			read := header(t, file)
+			if (read.Count < grown.Count) != tc.shrunk || (tc.shrunk && read.Count != 1+2*tc.pairs) {
+				t.Errorf("a file left holding a quarter of its pairs or fewer should shrink to twice its keys, "+
+					"one holding more should keep its size; got %d slots from %d", read.Count, grown.Count)
+			}
+
+			if size(t, file) != int64(read.Count*read.Width) || read.Width != grown.Width {
+				t.Error("a shrunk file should keep its width and match its header")
+			}
+
+			after, err := os.Stat(file.Path)
+			if err != nil {
+				t.Fatalf("measuring the slot file: %v", err)
+			}
+
+			if os.SameFile(before, after) == tc.shrunk {
+				t.Error("only a file that shrinks should be written anew; one keeping its size stays the file it was")
+			}
+
+			for key := range 64 {
+				value, found := get(t, file, fmt.Sprintf("session/%02d", key))
+				if found != (key < tc.kept) || (found && value != fmt.Sprintf("value %d", key)) {
+					t.Errorf("a reclaim should keep exactly the kept keys and their values, wrong at %d", key)
+				}
+			}
+		})
+	}
+}
+
+func TestAnEmptyFileReclaimedKeepsItsFirstSize(t *testing.T) {
+	file := openFile(t)
+	put(t, file, "session/a", "held")
+
+	before := size(t, file)
+
+	err := file.Reclaim(context.Background(), func(slots.Slot) bool { return true })
+	if err != nil {
+		t.Fatalf("reclaiming: %v", err)
+	}
+
+	if size(t, file) != before {
+		t.Error("a file at its first size should not be written anew")
+	}
+}
+
 func TestANonSlotFileIsRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sessions.slots")
 

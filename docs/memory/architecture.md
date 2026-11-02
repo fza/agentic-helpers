@@ -72,14 +72,19 @@ Store format 6 keeps what changes often in binary formats agentic-tools and shel
   crc32c of the value, a generation counter, the write time, the key's and value's lengths; then the
   key and value. A write goes with `pwrite` to the older twin of its key's pair at the next
   generation, so a torn write leaves the other twin whole; a read takes, with `pread`, the newer twin
-  whose checksums hold, the older one where they do not. Clearing a key (a SessionEnd, or the
-  SessionStart pass reclaiming state older than `staleAfter`) frees its pair for the next key, so the
-  file holds its header's count of slots of its width and nothing more. A file out of free pairs is
-  written anew with twice the pairs it needs and renamed over the old one. Writers hold
+  whose checksums hold, the older one where they do not. Clearing a key frees its pair for the next
+  key, so the file holds its header's count of slots of its width and nothing more. A SessionEnd
+  clears the session's `shown`, `instructions`, `ladder`, `waiter`, `graph-seen` and `fork` keys; the
+  SessionStart pass clears every session key older than `staleAfter` (a session that never reached
+  its end), and every seat key whose seat the registry no longer holds or holds expired, as the
+  purge of a temporary shelf leaves it: a store running a temporary seat per job would otherwise keep
+  every job's keys. A file out of free pairs is written anew with twice the pairs it needs and
+  renamed over the old one; a pass leaving a quarter of the pairs or fewer in use writes it anew at
+  that size, since slots are wide (128 KiB) and a file would otherwise only grow. Writers hold
   `sessions.slots.lock`; readers take no lock. Keys are `<purpose>/<session or seat id>`: `shown`,
-  `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`, `do-now`,
-  `skipped`, `brief`, `seen` per seat; `graph-names/<yyyy>/<mm>` per month. A value is the JSON the
-  per-session file held.
+  `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`,
+  `do-now`, `skipped`, `brief`, `seen`, `ledger-ended` per seat; `graph-names/<yyyy>/<mm>` per month. A
+  value is the JSON the per-session file held.
 - **Journal** (`internal/memorylog`): the log's tail, `log/tail.jnl`, is the 8-byte header
   `AGMJNL\0` and format 1, then length-prefixed records, each a length, a crc32c over the length and
   the record, a kind byte, a schema byte and the body, appended under the log's lock. A reader skips a

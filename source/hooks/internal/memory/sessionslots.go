@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 )
@@ -28,6 +29,16 @@ var sessionPurposes = []string{
 	"shown/", "ladder/", "graph-seen/", "fork/", "waiter/", "migration-failed/", "instructions/", "agents/", "seen/agent/",
 	"spawn/",
 }
+
+// seatPurposes are the keys a seat's own state goes under, `<purpose>/<seat
+// id>`: what the housekeeping reclaims once the registry holds the seat no
+// longer, as a temporary shelf's purge leaves it, or holds it expired. A
+// store running a temporary seat per job otherwise keeps every job's keys.
+var seatPurposes = []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/"}
+
+// endedPurposes are the keys a session's own state goes under that nothing
+// reads once it ends: SessionEnd clears them, beside its shown set.
+var endedPurposes = []string{"ladder/", "waiter/", "graph-seen/", "fork/"}
 
 func (mem *memory) slotFile() *slots.File {
 	file := slots.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), sessionSlotsName), sessionSlotWidth)
@@ -119,6 +130,8 @@ func (mem *memory) reclaimSessions(ctx context.Context, stale func(slots.Slot) b
 		graphNamesPrefix + monthStart.AddDate(0, 0, -1).Format("2006/01"),
 	}
 
+	registry, found := mem.registry()
+
 	_ = mem.slotFile().Reclaim(ctx, func(slot slots.Slot) bool {
 		if strings.HasPrefix(slot.Key, graphNamesPrefix) {
 			return !slices.Contains(kept, slot.Key)
@@ -130,8 +143,28 @@ func (mem *memory) reclaimSessions(ctx context.Context, stale func(slots.Slot) b
 			}
 		}
 
+		for _, purpose := range seatPurposes {
+			id, isSeat := strings.CutPrefix(slot.Key, purpose)
+			if isSeat {
+				return found && seat.IsID(id) && seatGone(registry, id)
+			}
+		}
+
 		return false
 	})
+}
+
+func seatGone(registry seat.Registry, id string) bool {
+	held, found := registry.Seats[id]
+
+	return !found || held.Expired
+}
+
+// clearEnded clears the state of the session nothing reads once it ended.
+func (mem *memory) clearEnded(session string) {
+	for _, purpose := range endedPurposes {
+		mem.clearSlot(purpose + session)
+	}
 }
 
 // trim drops the older half of each mark list, answering whether anything

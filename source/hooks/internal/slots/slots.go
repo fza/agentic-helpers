@@ -266,13 +266,17 @@ func (f *File) Delete(ctx context.Context, key string) error {
 }
 
 // Reclaim clears every key drop names; drop sees each slot's key, generation
-// and time, never its value.
+// and time, never its value. A file left holding a quarter of its pairs or
+// fewer is written anew at the size a file of that many keys gets, since a
+// file only ever grows otherwise.
 func (f *File) Reclaim(ctx context.Context, drop func(Slot) bool) error {
 	if !exists(f.Path) {
 		return nil
 	}
 
 	return f.locked(ctx, func(file *os.File, header Header) error {
+		kept := 0
+
 		for pair := range pairsOf(header) {
 			twins, err := readPair(file, header, pair)
 			if err != nil {
@@ -280,7 +284,7 @@ func (f *File) Reclaim(ctx context.Context, drop func(Slot) bool) error {
 			}
 
 			if twins[0].blank && twins[1].blank {
-				return nil
+				break
 			}
 
 			winner := newest(twins)
@@ -289,15 +293,28 @@ func (f *File) Reclaim(ctx context.Context, drop func(Slot) bool) error {
 			}
 
 			held := twins[winner]
-			if drop(Slot{Key: held.key, Generation: held.generation, Written: time.Unix(0, held.written)}) {
-				err = writeTwin(file, header, pair, twins, "", nil, f.now())
-				if err != nil {
-					return err
-				}
+			if !drop(Slot{Key: held.key, Generation: held.generation, Written: time.Unix(0, held.written)}) {
+				kept++
+
+				continue
+			}
+
+			err = writeTwin(file, header, pair, twins, "", nil, f.now())
+			if err != nil {
+				return err
 			}
 		}
 
-		return nil
+		if 2*pairsFor(kept) > pairsOf(header) {
+			return nil
+		}
+
+		_, held, err := Read(file)
+		if err != nil {
+			return err
+		}
+
+		return replace(f.Root, f.Path, Header{Width: header.Width, Count: 1 + 2*pairsFor(len(held))}, held)
 	})
 }
 
