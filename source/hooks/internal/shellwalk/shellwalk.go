@@ -699,7 +699,7 @@ func offer(visitor Visitor, call Call) {
 			visitor.Code("trap", []*syntax.Word{handler}, "")
 		}
 	case slices.Contains(Shells, name):
-		code := shellCode(args[1:])
+		code := shellCode(name, args[1:])
 		if code != nil {
 			visitor.Code(name+" -c", []*syntax.Word{code}, call.Dir)
 		}
@@ -1058,7 +1058,7 @@ func pipedCall(visitor Visitor, call *syntax.CallExpr) {
 		return
 	}
 
-	if replacesInput(args[1:]) || namesScript(name, args[1:]) {
+	if replacesInput(args[1:]) || scriptOperand(name, args[1:]) >= 0 {
 		return
 	}
 
@@ -1153,43 +1153,6 @@ func launchedShell(args []*syntax.Word) []*syntax.Word {
 	return nil
 }
 
-// namesScript is whether a shell's arguments name a script for it to run: its
-// first operand, unless -s sends it to standard input or the operand names
-// the input itself. An option taking a
-// value (-o, -O, grouped as -eo, and the shell's longValues) takes the next
-// word with it.
-func namesScript(shell string, args []*syntax.Word) bool {
-	for index := 0; index < len(args); index++ {
-		value, isLiteral := Literal(args[index])
-
-		switch {
-		case !isLiteral:
-			return true
-		case value == "--" || StandardInput(value):
-			return false
-		case longOption(value):
-			if slices.Contains(longValues[shell], value) {
-				index++
-			}
-		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
-			flags := strings.TrimLeft(value, "-+")
-			if strings.Contains(flags, "s") {
-				return false
-			}
-
-			// A grouped option taking a value, as -eo pipefail or fish's -C init code,
-			// takes the next word.
-			if strings.ContainsAny(flags, "oOC") {
-				index++
-			}
-		default:
-			return true
-		}
-	}
-
-	return false
-}
-
 var standardInput = regexp.MustCompile(`^(?:-|/dev/stdin|/dev/fd/[0-9]+|/proc/[^/]+/fd/[0-9]+)$`)
 
 // StandardInput is whether a shell's operand names its standard input instead
@@ -1232,21 +1195,47 @@ func replacesInput(args []*syntax.Word) bool {
 	return false
 }
 
-// shellCode is the word a shell runs as code: the one after an option
-// carrying c, or C, fish's init command, or the long --command and
-// --init-command.
-func shellCode(args []*syntax.Word) *syntax.Word {
+// shellCode is the word a shell runs as code. Given an option carrying c, a
+// shell goes on reading options and runs its first operand past them
+// (`bash -c -e 'code'`, `-c -- 'code'`, `-co pipefail 'code'`). fish's -c, -C,
+// --command and --init-command take the next word whatever it spells. Past the
+// end of the options, a word spelling -c is an operand.
+func shellCode(shell string, args []*syntax.Word) *syntax.Word {
+	fish := shell == fishShell
+
+	codeLetters := "c"
+	if fish {
+		codeLetters = "cC"
+	}
+
 	for index, arg := range args {
 		value, _ := Literal(arg)
 
-		short := strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.ContainsAny(value, "cC")
-		if short || value == "--command" || value == "--init-command" {
-			if index+1 < len(args) {
-				return args[index+1]
-			}
-
+		if !fish && (value == "--" || value == "-") {
 			return nil
 		}
+
+		short := strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.ContainsAny(value, codeLetters)
+		if !short && value != "--command" && value != "--init-command" {
+			continue
+		}
+
+		at := index + 1
+
+		if short && !fish {
+			operand, _ := firstOperand(shell, args[index:])
+			if operand < 0 {
+				return nil
+			}
+
+			at = index + operand
+		}
+
+		if at < len(args) {
+			return args[at]
+		}
+
+		return nil
 	}
 
 	return nil

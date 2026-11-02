@@ -618,7 +618,7 @@ func (walked *walker) runs(args []*syntax.Word, dir string) int {
 
 	switch {
 	case slices.Contains(scriptShells, name) || name == fishShell:
-		if shellCode(args[1:]) != nil {
+		if shellCode(name, args[1:]) != nil {
 			return -1
 		}
 
@@ -856,42 +856,62 @@ func shebang(text string) (string, bool) {
 
 // scriptOperand is the index of the script a shell's arguments name, or -1
 // where it names none: -s reads standard input, and the operand may name the
-// input itself. An option taking a value takes the next word with it, as
-// namesScript reads them.
+// input itself.
 func scriptOperand(shell string, args []*syntax.Word) int {
+	at, readsInput := firstOperand(shell, args)
+	if readsInput || at < 0 || standardOperand(args[at]) {
+		return -1
+	}
+
+	return at
+}
+
+// firstOperand is the index of the first word past a shell's options, or -1
+// where none stands there, and whether -s sends the operands to the script
+// read from standard input. `--` and a lone `-` end the options, as bash's and
+// zsh's manuals say and POSIX says of sh; fish's manual gives `-` no such role,
+// so to fish it stays an operand. An option taking a value, -o, -O, grouped as
+// -eo, fish's -C and the shell's longValues, takes the next word with it. -C is
+// a flag everywhere else, noclobber to set.
+func firstOperand(shell string, args []*syntax.Word) (int, bool) {
+	valueLetters := "oO"
+	if shell == fishShell {
+		valueLetters = "oOC"
+	}
+
+	readsInput := false
+
 	for index := 0; index < len(args); index++ {
 		value, isLiteral := Literal(args[index])
 
 		switch {
 		case !isLiteral:
-			return index
-		case value == "--":
-			if index+1 < len(args) && !standardOperand(args[index+1]) {
-				return index + 1
+			return index, readsInput
+		case value == "--" || value == "-" && shell != fishShell:
+			if index+1 < len(args) {
+				return index + 1, readsInput
 			}
 
-			return -1
-		case StandardInput(value):
-			return -1
+			return -1, readsInput
+		case value == "-":
+			return index, readsInput
 		case longOption(value):
 			if slices.Contains(longValues[shell], value) {
 				index++
 			}
 		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
 			flags := strings.TrimLeft(value, "-+")
-			if strings.Contains(flags, "s") {
-				return -1
-			}
+			readsInput = readsInput || strings.Contains(flags, "s")
 
-			if strings.ContainsAny(flags, "oOC") {
+			if strings.ContainsAny(flags, valueLetters) {
 				index++
 			}
 		default:
-			return index
+			return index, readsInput
 		}
 	}
 
-	return -1
+	return -1, readsInput
 }
 
 // parsesOnly is whether a shell's words, up to and including its script, have

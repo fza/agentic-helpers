@@ -269,6 +269,18 @@ func TestTheDefaultsJudgeEveryCommandAsTheMachineGuard(t *testing.T) {
 		{"code piped to zsh after a named option", "{project}", "echo 'rm x' | zsh --exec", "deny"},
 		{"code piped to zsh after its plus spelling", "{project}", "echo 'rm x' | zsh +-sh-word-split", "deny"},
 		{"code piped to fish with features", "{project}", "echo 'rm x' | fish --features flag", "deny"},
+		{"code piped to a lone dash", "{project}", "echo 'rm x' | bash -", "deny"},
+		{"code piped to a lone dash naming the input", "{project}", "echo 'rm x' | bash - /dev/stdin", "deny"},
+		{"code piped to a lone dash twice", "{project}", "echo 'rm x' | bash - -", "deny"},
+		{"code piped to -- naming the input", "{project}", "echo 'rm x' | bash -- -", "deny"},
+		{"code piped to -s past a lone dash", "{project}", "echo 'rm x' | bash -s - foo", "deny"},
+		{"code piped to -s with an option after it", "{project}", "echo 'rm x' | bash -s -e foo", "deny"},
+		{"code piped to fish's lone dash", "{project}", "echo 'rm x' | fish -", "deny"},
+		{"code piped to fish's lone dash past which a word stands", "{project}", "echo 'rm x' | fish - scripts/build.sh", "deny"},
+		{"input piped to a script past a lone dash", "{project}", "echo x | bash - scripts/build.sh", "allow"},
+		{"input piped to a script past --", "{project}", "echo x | bash -- scripts/build.sh", "allow"},
+		{"input piped to a script past -C", "{project}", "echo x | bash -C scripts/build.sh", "allow"},
+		{"code piped to bash -C", "{project}", "echo 'rm x' | bash -C", "deny"},
 		{"code piped to bash -es with arguments", "{project}", "echo 'rm x' | bash -es foo", "deny"},
 		{"trap after its options", "{project}", "trap -- 'rm -f x' EXIT", "deny"},
 		{"trap under a launcher", "{project}", "command trap 'rm -f x' EXIT", "deny"},
@@ -817,6 +829,103 @@ func TestALongOptionLeavesTheScriptToBeJudged(t *testing.T) {
 			want := "agentic-shell-guard: " + g.placeholders.Replace(tc.reason)
 			if decision != "ask" || reason != want {
 				t.Errorf("the script past a shell's long options should be judged, got %s %q", decision, reason)
+			}
+		})
+	}
+}
+
+func TestALoneDashEndsAShellsOptions(t *testing.T) {
+	g := newGuard(t, true, "")
+	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)
+
+	const judged = "in the script clean-outside.sh: outside project: {outside}/x"
+
+	cases := []struct {
+		name     string
+		command  string
+		decision string
+		reason   string
+	}{
+		{"bash", "bash - clean-outside.sh", "ask", judged},
+		{"sh", "sh - clean-outside.sh", "ask", judged},
+		{"zsh", "zsh - clean-outside.sh", "ask", judged},
+		{"dash", "dash - clean-outside.sh", "ask", judged},
+		{"ksh", "ksh - clean-outside.sh", "ask", judged},
+		{"mksh", "mksh - clean-outside.sh", "ask", judged},
+		{"past an option", "bash -x - clean-outside.sh", "ask", judged},
+		{"past a long option", "zsh --exec - clean-outside.sh", "ask", judged},
+		{"past an option's value", "bash -o errexit - clean-outside.sh", "ask", judged},
+		{"parsing only", "bash -n - clean-outside.sh", "allow", ""},
+		{"-n past it is the script's name", "bash - -n clean-outside.sh", "ask", "cannot read the script -n (no such file)"},
+		{"-c past it is the script's name", "bash - -c clean-outside.sh", "ask", "cannot read the script -c (no such file)"},
+		{"-c past -- is the script's name", "bash -- -c clean-outside.sh", "ask", "cannot read the script -c (no such file)"},
+		{"naming only the input", "bash -", "allow", ""},
+		{"naming the input again", "bash - /dev/stdin", "allow", ""},
+		{"a value of -o", "bash -o - clean-outside.sh", "ask", judged},
+		{"-C is a flag", "bash -C clean-outside.sh", "ask", judged},
+		{"-C is a flag, grouped", "bash -eC clean-outside.sh", "ask", judged},
+		{"zsh's -C is a flag", "zsh -C clean-outside.sh", "ask", judged},
+		{"fish keeps it as the input", "fish - clean.fish", "allow", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision, reason := g.judge(tc.command, "{project}/scripts")
+
+			want := ""
+			if tc.reason != "" {
+				want = "agentic-shell-guard: " + g.placeholders.Replace(tc.reason)
+			}
+
+			if decision != tc.decision || reason != want {
+				t.Errorf("a lone dash should end the options before the script, got %s %q", decision, reason)
+			}
+		})
+	}
+}
+
+func TestShellCodeIsTheFirstOperandPastTheOptions(t *testing.T) {
+	g := newGuard(t, true, "")
+
+	cases := []struct {
+		name     string
+		command  string
+		decision string
+	}{
+		{"bash past --", "bash -c -- 'rm x'", "deny"},
+		{"bash past a lone dash", "bash -c - 'rm x'", "deny"},
+		{"bash past a flag", "bash -c -e 'rm x'", "deny"},
+		{"bash past several flags", "bash -c -e -x 'rm x'", "deny"},
+		{"bash past a plus flag", "bash -c +e 'rm x'", "deny"},
+		{"bash past an option's value", "bash -c -o pipefail 'rm x'", "deny"},
+		{"bash with a value option grouped beside it", "bash -co pipefail 'rm x'", "deny"},
+		{"bash past -s", "bash -c -s 'rm x'", "deny"},
+		{"sh past --", "sh -c -- 'rm x'", "deny"},
+		{"zsh past --", "zsh -c -- 'rm x'", "deny"},
+		{"zsh past a lone dash", "zsh -c - 'rm x'", "deny"},
+		{"zsh past a flag", "zsh -c -e 'rm x'", "deny"},
+		{"dash past --", "dash -c -- 'rm x'", "deny"},
+		{"ksh past --", "ksh -c -- 'rm x'", "deny"},
+		{"past -- with a launcher", "env bash -c -- 'rm x'", "deny"},
+		{"a word built at run time", `bash -c -- "$CODE"`, "deny"},
+		{"harmless code past --", "bash -c -- 'echo hi'", "allow"},
+		{"arguments after the code", "bash -c 'echo hi' 'rm x'", "allow"},
+		{"no code past the options", "bash -c -e", "allow"},
+		{"past -C, a flag", "bash -c -C 'rm x'", "deny"},
+		{"grouped with -C, a flag", "bash -Cc 'rm x'", "deny"},
+		{"-C holds no code but on fish", "bash -C 'echo hi'", "ask"},
+		{"fish's -C holds code", "fish -C 'rm x'", "deny"},
+		{"fish's lone dash ends nothing", "fish - -c 'rm x'", "deny"},
+		{"fish's -c with no word after it", "fish -c", "allow"},
+		{"fish's -c takes the next word", "fish -c -e 'rm x'", "allow"},
+		{"fish's --command takes the next word", "fish --command -e 'rm x'", "allow"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision, _ := g.judge(tc.command, "{project}")
+			if decision != tc.decision {
+				t.Errorf("a shell's code should be judged past the options, got %s", decision)
 			}
 		})
 	}
