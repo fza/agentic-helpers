@@ -337,6 +337,7 @@ file loads only when its trigger shows up and carries no budget.
 
 ```bash
 cd source/hooks && go vet ./... && go test -race ./...   # every Go suite
+scripts/linux-test                                       # every Go suite on Linux, in a container
 claude plugin validate .                                 # the plugin and marketplace manifests
 claude plugin test plugin                                # the plugin's hooks module, register.ts
 ```
@@ -350,3 +351,7 @@ is asserted from both sides: the same call is driven once with the evidence pres
 missing, and the two outcomes have to differ.
 
 Pushes and pull requests run the same suites on Linux and macOS (`.github/workflows/test.yml`).
+`scripts/linux-test` runs `go vet` and `go test -race` on a macOS machine inside a Linux container
+of Apple's `container` tool, with the checkout mounted, the suites run as the calling user (as root,
+every test of a permission refusal would pass), and Go's caches kept in `.tmp/linux-test/`; its
+arguments go to `go test`. The README's Testing section says how to start the service.

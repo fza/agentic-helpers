@@ -1,0 +1,45 @@
+#!/bin/sh
+# Runs every Go suite on Linux, inside a container of Apple's `container` tool:
+# scripts/linux-test [go test arguments], from the repository root. Development
+# happens on macOS; this is how Linux support is tested before a push, beside
+# the ubuntu job CI runs. The module and build caches live in .tmp/linux-test/
+# so a second run downloads and compiles nothing it already has.
+set -eu
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+image=${LINUX_TEST_IMAGE:-docker.io/library/golang:1.27}
+cache="$root/.tmp/linux-test"
+
+if ! command -v container >/dev/null 2>&1; then
+  echo "linux-test needs Apple's container tool: brew install container" >&2
+  exit 1
+fi
+
+# `container system status` can deny a running service; listing containers asks
+# the service itself.
+if ! container list >/dev/null 2>&1; then
+  echo "linux-test needs the container service: run container system start" >&2
+  exit 1
+fi
+
+if [ "$#" -eq 0 ]; then
+  set -- ./...
+fi
+
+mkdir -p "$cache/mod" "$cache/build" "$cache/home"
+
+# The whole checkout is mounted, since tests read the plugin, the skills and
+# the docs beside the module. The suites run as the calling user, as CI's do:
+# as root, every test of a permission refusal would pass through it.
+exec container run --rm --cpus 4 --memory 8g \
+  --user "$(id -u):$(id -g)" \
+  --volume "$root:/repo" \
+  --volume "$cache/mod:/cache/mod" \
+  --volume "$cache/build:/cache/build" \
+  --volume "$cache/home:/cache/home" \
+  --env GOMODCACHE=/cache/mod \
+  --env GOCACHE=/cache/build \
+  --env HOME=/cache/home \
+  --env GOTOOLCHAIN=local \
+  --workdir /repo/source/hooks "$image" \
+  sh -c 'go vet ./... && go test -race "$@"' linux-test "$@"

@@ -326,6 +326,33 @@ shell would run them ahead of the plugin. To run your checkout's binaries in you
 point `AGENTIC_HELPERS_BIN_DIR` at the checkout's `.claude/bin`; [`docs/plugin/usage.md`](docs/plugin/usage.md) explains how. Only the
 `release` workflow cuts releases.
 
+## Testing
+
+Development happens on macOS, and Linux support is tested in Linux containers. CI runs every Go
+suite on ubuntu and macOS for each push; `scripts/linux-test` runs the same `go vet` and
+`go test -race` locally, in a container of Apple's [`container`](https://github.com/apple/container)
+tool, before a push.
+
+`container` runs each Linux container as a lightweight virtual machine on Apple silicon. Its
+service, `container-apiserver`, runs under launchd once started and stays up across shells. The
+first start installs the Linux kernel the virtual machines boot. `scripts/linux-test` mounts the
+checkout into a `golang` image, since tests read the plugin and docs beside the module, and runs
+the suites as your own user, as CI does: as root, a test of a permission refusal would pass through
+it. Go's module and build caches stay in `.tmp/linux-test/`, so a second run downloads and compiles
+only what changed. Its arguments go to `go test` (`./...` when it gets none).
+
+```bash
+brew install container                          # once
+container system start --enable-kernel-install  # once per boot; installs the kernel on the first start
+container list                                  # answers while the service runs
+scripts/linux-test                              # vet and race-test every package on Linux
+scripts/linux-test ./internal/slots/            # one package
+```
+
+`container system status` can report the service as not running while it runs; `container list`
+asks the service itself. Where macOS and Linux differ, as in what a sparse file costs on disk, a
+change is measured on both.
+
 ## Documentation
 
 How to use each piece, and how each one works inside: [`docs/index.md`](docs/index.md).
