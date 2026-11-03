@@ -21,6 +21,20 @@ func TestEveryStoreKeepsItsSessionSlotsThroughTheLayoutStep(t *testing.T) {
 	ctx := context.Background()
 
 	for _, start := range append(killStarts, releaseStarts(t)...) {
+		// A release from the layout step on wrote its store past it, so the
+		// step never runs on that store.
+		laid := cutMemory(t.TempDir())
+		start.lay(t, laid)
+
+		version, err := formatsteps.Read(laid.storeComponent().Dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if version >= formatsteps.Newest(laid.formatSteps()) {
+			continue
+		}
+
 		t.Run(start.name, func(t *testing.T) {
 			root := t.TempDir()
 			start.lay(t, cutMemory(root))
