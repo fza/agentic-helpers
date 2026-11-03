@@ -62,6 +62,10 @@ var (
 	// cites.
 	citedMemory = regexp.MustCompile(`\bm-[a-z0-9]{4,16}(?:#[a-z0-9]{3})?\b`)
 	landingOnly = regexp.MustCompile(`\bgit\b[^;&|\n]*?\s(?:merge|commit|cherry-pick)\b`)
+	// citedAddress and citedCommit find the line address and the commits an
+	// agent's line names, for the hook lines it settles.
+	citedAddress = regexp.MustCompile(`\bstate#([a-z0-9]+)\b`)
+	citedCommit  = regexp.MustCompile(`\b[0-9a-f]{7,40}\b`)
 )
 
 // ledger is one seat's state lines in the order added, removed ones
@@ -1094,6 +1098,49 @@ func cutWords(text string, limit int) string {
 	}
 
 	return strings.Join(kept, "\n")
+}
+
+// unsettled is every landed or captured line a hook added after since that
+// the agent has not settled: ticked, dropped, or cited by a line of its own.
+// The hook saw that work happen, so settling each line proves the agent
+// looked at each piece of it, with no text matched against what it did.
+func (held *ledger) unsettled(since time.Time) []ledgerLine {
+	var open []ledgerLine
+
+	for _, line := range held.Lines {
+		if (line.Hook != hookLanded && line.Hook != hookCaptured) || !line.Added.After(since) || line.State != itemOpen {
+			continue
+		}
+
+		if !slices.ContainsFunc(held.Lines, func(own ledgerLine) bool {
+			return own.Hook == "" && own.State != itemRemoved && cites(own, line)
+		}) {
+			open = append(open, line)
+		}
+	}
+
+	return open
+}
+
+// cites is whether an agent's line names a hook line: its address, the
+// commit a landed line records, or the graph entry a captured one does.
+func cites(own ledgerLine, hook ledgerLine) bool {
+	for _, address := range citedAddress.FindAllStringSubmatch(own.Text, -1) {
+		if address[1] == hook.ID {
+			return true
+		}
+	}
+
+	switch hook.Hook {
+	case hookLanded:
+		return slices.ContainsFunc(citedCommit.FindAllString(own.Text, -1), func(sha string) bool {
+			return sameCommit(sha, hook.Commit)
+		})
+	case hookCaptured:
+		return own.Link == hook.Link || strings.Contains(own.Text, hook.Link)
+	}
+
+	return false
 }
 
 func (held *ledger) openHook(hook string) *ledgerLine {

@@ -60,6 +60,30 @@ const stateFirst = ledgerAsk + ". " +
 
 const nudgeText = "Context near compaction. " + stateFirst
 
+// unsettledAsk opens what a nudge adds while hook lines since it stay
+// unsettled, naming each.
+const unsettledAsk = ". Answered once each hook line since is cited in a line of yours, ticked or dropped: "
+
+// reminder is the nudge, naming the landed and captured lines added since
+// the seat was first nudged that keep it unanswered.
+func (mem *memory) reminder(ctx context.Context, seatName string, since time.Time) string {
+	folded, err := mem.load(ctx)
+	if err != nil {
+		return nudgeText
+	}
+
+	var addresses []string
+	for _, line := range folded.ledgerFor(seatName).unsettled(since) {
+		addresses = append(addresses, ledgerID+"#"+line.ID)
+	}
+
+	if len(addresses) == 0 {
+		return nudgeText
+	}
+
+	return nudgeText + unsettledAsk + strings.Join(addresses, ", ")
+}
+
 const backstopText = "Memory overdue, two nudges unanswered. " + ledgerAsk + ". File findings with " + self +
 	" new before ending the turn."
 
@@ -612,16 +636,20 @@ func (mem *memory) crossed(session string, transcriptPath string, held ladder) b
 	return transcriptSize(transcriptPath)-held.TranscriptBase >= transcriptDeltaThreshold
 }
 
-// answer resets the ladder once the seat filed after the last nudge: any entry
-// answers it. The rung climbs past where the context stands, since a rung
-// already passed could never fire again inside this window.
+// answer resets the ladder once the seat answered the last nudge: an entry or
+// a state line of its own after it, once every landed or captured line a hook
+// added since is settled, since a throwaway line would otherwise silence a
+// nudge while the work it asks about stays unrecorded. The rung climbs past
+// where the context stands, since a rung already passed could never fire
+// again inside this window.
 func (mem *memory) answer(ctx context.Context, seatName string, session string, transcriptPath string, held ladder) ladder {
 	if held.Nudges == 0 {
 		return held
 	}
 
 	folded, err := mem.load(ctx)
-	if err != nil || !mem.newestOwn(folded, seatName).After(held.NudgedAt) {
+	if err != nil || !mem.newestOwn(folded, seatName).After(held.NudgedAt) ||
+		len(folded.ledgerFor(seatName).unsettled(held.NudgedAt)) > 0 {
 		return held
 	}
 
@@ -708,9 +736,14 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	// would only repeat it on every prompt.
 	nudged := steps.Nudges < nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps)
 	if nudged {
+		// The hook lines a nudge waits on are those since the first one
+		// unanswered: a later nudge moving the mark would let them go unsettled.
+		if steps.Nudges == 0 {
+			steps.NudgedAt = mem.now()
+		}
+
 		steps.Nudges++
-		steps.NudgedAt = mem.now()
-		out = append(out, nudgeText)
+		out = append(out, mem.reminder(ctx, name, steps.NudgedAt))
 	}
 
 	replay := mem.replayNudge(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath), &steps)

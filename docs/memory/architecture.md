@@ -874,7 +874,11 @@ state` and `show state` resolve the calling seat first. No memory id collides, e
 replacing its one dirty or asked line. Ids come from the todo items' draw, `old` reserved. The fold
 keeps each line with its state and whether an ack set it, and `changed`, the time of the seat's
 newest row carrying no `hook`: the point the replay, the nudges and the replay nudge count from
-(`newestOwn`), which a hook line therefore never moves. An `uncheck` sets the state too, so a line
+(`newestOwn`), which a hook line therefore never moves. A nudge also waits on the ledger's
+`landed` and `captured` lines added since the first unanswered one (`ledger.unsettled`, the ladder's
+`nudged_at` set only by that first nudge): each counts as settled once ticked, removed, or cited by
+an agent line that is not removed, through its `state#<item>` address, a commit word matching its
+commit (`sameCommit`) or, for a captured line, its graph id in the text or as the pin. An `uncheck` sets the state too, so a line
 brought back stays open whatever ended it.
 
 A line's end is worked out at read, never stored: a declared end through the end check's probe, run

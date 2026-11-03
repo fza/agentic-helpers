@@ -259,11 +259,11 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   against the repository; tick or retire a todo in the turn its work lands. `landed commits may
   settle live work` or `retire? landed: <sha>` → check each, then its command; not this work →
   `agentic-memory landed dismiss <id>...`, or it returns each context.
-- **`Context near compaction. Add or tick state lines where work moved: agentic-memory ack state
-  --add '<line>' | ack state#<item> --done. ...`** → add or tick state lines, file what outlives the
-  moment. Measured against Claude Code's compaction window. Fires at most twice until answered;
-  ignored twice → the next prompt or tool call after `Stop` brings `Memory overdue, two nudges
-  unanswered. ...`. Only your own ledger change or an entry answers; a hook line does not.
+- **`Context near compaction. Add or tick state lines where work moved: ...`** → add or tick
+  state lines, file what outlives the moment. Fires at most twice until answered; ignored twice →
+  the next prompt or tool call after `Stop` brings `Memory overdue, two nudges unanswered. ...`.
+  Your own line or entry answers it once `landed`/`captured` lines since settle: `Answered once
+  each hook line since is cited in a line of yours, ticked or dropped: <state#item>, ...`.
 - **`Turns since your newest entry or state line no longer fit the post-compaction replay. ...`**
   → add or tick state lines now.
 - Replay cut → its first piece names `<k> older pieces cut, the full transcript at <path>`; read it

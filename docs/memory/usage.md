@@ -1466,8 +1466,16 @@ Near compaction a nudge asks for state lines first:
 
     Context near compaction. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
-Any change the agent makes to its state ledger, or any entry, answers it; a hook line does not. It
-fires on at most two prompts until answered; past that, `Stop` owes the backstop, which the next
+Any change the agent makes to its state ledger after the first unanswered nudge, or any entry,
+answers it, once every `landed` or `captured` line a hook added since is settled: ticked, dropped,
+or cited by a line of the agent's, which names its address `state#<item>`, its commit (seven hex
+digits or more) or, for a captured line, its graph id. A hook line itself answers nothing, and the
+`dirty` and `asked` lines wait on nothing. While such lines stay open a nudge names them:
+
+    ... < body. Answered once each hook line since is cited in a line of yours, ticked or dropped: state#k3p, state#q8w
+
+A throwaway line would otherwise silence the nudge while the work it asks about stays unrecorded;
+one `ack` per batch of landed or captured work settles it. It fires on at most two prompts until answered; past that, `Stop` owes the backstop, which the next
 prompt or tool call carries ([Do-now rules](#do-now-rules) says how): `Memory overdue, two nudges
 unanswered. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack
 state#<item> --done. File findings with agentic-memory new before ending the turn.`
