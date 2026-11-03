@@ -53,6 +53,10 @@ var (
 	memoryID    = regexp.MustCompile(`^m-[a-z0-9]{4,16}$`)
 	// listLine is a body line written as a list item: `- `, `* `, `1. `, `- [ ] `.
 	listLine = regexp.MustCompile(`(?m)^\s*(?:[-*]|\d+[.)])\s+\S`)
+	// listItem is one body line written as a list item, its indent and its text.
+	listItem = regexp.MustCompile(`^(\s*)(?:[-*]|\d+[.)])\s+(\S.*)$`)
+	// bareWord is a word the shell reads as written, quoted nowhere.
+	bareWord = regexp.MustCompile(`^[A-Za-z0-9_./:@%+=,-]+$`)
 )
 
 // itemPayload is one change to a todolist or to a seat's state ledger. A
@@ -512,6 +516,133 @@ func (folded *state) itemsFinished(held *entry) (bool, int) {
 // --item, which the filing reply names.
 func listLines(body string) int {
 	return len(listLine.FindAllString(body, -1))
+}
+
+// stepRun is the fewest consecutive list lines that read as a plan's steps
+// rather than a list a finding quotes.
+const stepRun = 3
+
+// bodySteps reads a body for a step list: whether it holds stepRun or more
+// consecutive list lines, and the list lines as --item texts where every one
+// is a plain step. A nested, ticked or continued list line is no plain step:
+// its place in the plan does not survive as one flat item.
+func bodySteps(body string) (bool, []string) {
+	lines := strings.Split(body, "\n")
+
+	var steps []string
+
+	run, longest, plain := 0, 0, true
+
+	for index, line := range lines {
+		match := listItem.FindStringSubmatch(line)
+		if match == nil {
+			// An indented line under a list line continues that item, which
+			// keeps the list running.
+			if run == 0 || !continuesItem(line) {
+				run = 0
+			}
+
+			continue
+		}
+
+		run++
+		longest = max(longest, run)
+
+		step, isPlain := plainStep(match[1], match[2], lines[index+1:])
+		plain = plain && isPlain
+		steps = append(steps, step)
+	}
+
+	if longest < stepRun {
+		return false, nil
+	}
+
+	if !plain {
+		return true, nil
+	}
+
+	return true, steps
+}
+
+func plainStep(indent string, text string, rest []string) (string, bool) {
+	if indent != "" {
+		return "", false
+	}
+
+	text = strings.TrimSpace(text)
+	if strings.HasPrefix(text, "[x]") || strings.HasPrefix(text, "[X]") {
+		return "", false
+	}
+
+	text = strings.TrimSpace(strings.TrimPrefix(text, "[ ]"))
+	if text == "" {
+		return "", false
+	}
+
+	if len(rest) > 0 && continuesItem(rest[0]) {
+		return "", false
+	}
+
+	return text, true
+}
+
+// continuesItem is whether a line under a list line carries on that item's
+// text: indented, not blank, and no list line itself.
+func continuesItem(line string) bool {
+	return strings.TrimSpace(line) != "" && !listItem.MatchString(line) && strings.TrimLeft(line, " \t") != line
+}
+
+// stepsHint is the reply line to a non-todo whose body lists steps, and the
+// ready filing of the todo it reads as, absorbing the entry just filed, where
+// every list line is a plain step. Over MCP the filing is the new tool's call.
+func stepsHint(held *entry, steps []string, overMCP bool) []string {
+	if overMCP {
+		lines := []string{self + `: this body lists steps; a todo ticks each one: "kind":"todo","item":[…]`}
+		if len(steps) == 0 {
+			return lines
+		}
+
+		call, err := json.Marshal(struct {
+			Kind    string   `json:"kind"`
+			Absorbs []string `json:"absorbs"`
+			Title   string   `json:"title"`
+			Topic   []string `json:"topic,omitempty"`
+			Item    []string `json:"item"`
+		}{kindTodo, []string{held.id}, held.title, held.topics, steps})
+		if err != nil {
+			return lines
+		}
+
+		return append(lines, "  → new "+string(call))
+	}
+
+	lines := []string{self + ": this body lists steps; a todo ticks each one: --kind todo --item …"}
+	if len(steps) == 0 {
+		return lines
+	}
+
+	words := []string{self, "new", "--kind", kindTodo, "--absorbs", held.id, "--title", shellQuoted(held.title)}
+	for _, topic := range held.topics {
+		words = append(words, "--topic", shellWord(topic))
+	}
+
+	for _, step := range steps {
+		words = append(words, "--item", shellQuoted(step))
+	}
+
+	return append(lines, "  → "+strings.Join(words, " "))
+}
+
+func shellQuoted(text string) string {
+	return "'" + strings.ReplaceAll(text, "'", `'\''`) + "'"
+}
+
+func shellWord(text string) string {
+	if bareWord.MatchString(text) {
+		return text
+	}
+
+	return shellQuoted(text)
 }
 
 // ackItems changes a todo's items for good: ticks, unticks, drops or removes

@@ -101,6 +101,9 @@ type request struct {
 	// inherited marks a claim a hook makes for a resumed or forked session,
 	// which the user never asked for.
 	inherited bool
+	// overMCP marks a call the MCP server answers, whose reply offers a tool
+	// call where the command line's offers a command.
+	overMCP bool
 }
 
 type result struct {

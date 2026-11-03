@@ -308,6 +308,13 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		lines = append(lines, fmt.Sprintf("%d list lines in the text; steps go into --item", counted))
 	}
 
+	if kind != kindTodo {
+		listsSteps, steps := bodySteps(req.Body)
+		if listsSteps {
+			lines = append(lines, stepsHint(held, steps, req.overMCP)...)
+		}
+	}
+
 	// A todo with no end tied to its work stays live after the work lands.
 	if kind == kindTodo && len(req.Until) == 0 && listedItems == 0 {
 		lines = append(lines, todoEndHint)
@@ -419,9 +426,8 @@ func similarLines(offered []scored, title string) []string {
 	lines := []string{fmt.Sprintf("similar: %s %s (%.2f)", best.label, best.title, best.score)}
 
 	if len(offered) > 1 {
-		quotedTitle := "'" + strings.ReplaceAll(title, "'", `'\''`) + "'"
 		lines = append(lines, runBefore(fmt.Sprintf("+%d more similar: %s search --query %s", len(offered)-1, self,
-			quotedTitle), "concluding none is the same finding"))
+			shellQuoted(title)), "concluding none is the same finding"))
 	}
 
 	return lines

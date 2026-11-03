@@ -139,6 +139,7 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 
 	read := slices.Contains(mcpJSONReads, held.name)
 	req.JSON = read
+	req.overMCP = true
 
 	if req.ID != "" && len(req.IDs) == 0 {
 		req.IDs = []string{req.ID}

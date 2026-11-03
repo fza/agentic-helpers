@@ -949,6 +949,23 @@ A todo filed with list lines in its body (`- `, `* `, `1. `) lands as written, a
 `<n> list lines in the text; steps go into --item`: not every list is a todolist, so lines never
 turn into items.
 
+A note, rule or trap whose body holds three or more consecutive list lines (an indented line
+continuing one keeps them consecutive, a blank line does not) files as sent, and the
+reply adds `agentic-memory: this body lists steps; a todo ticks each one: --kind todo --item …`: a
+plan filed as a note has no step to tick, so the ledger never shows its
+progress. Where every list line is a plain step (unindented, no `[x]`, no indented line continuing
+it; a `[ ] ` box drops), a ready command follows on a line of its own, filing the todo in place of
+the entry just filed, each list line an `--item`, every free-text word single-quoted for the shell:
+
+```text
+  → agentic-memory new --kind todo --absorbs <id> --title '<title>' --topic <topic> --item '<step>'...
+```
+
+Over MCP the hint reads `... a todo ticks each one: "kind":"todo","item":[…]`, and the line after
+it is the `new` tool's arguments, `  → new {"kind":"todo","absorbs":["<id>"],"title":...,"item":[...]}`.
+The ready filing carries the title, topics and steps; the rest of the body stays on the superseded
+entry. A note only quoting a list gets the line too, and ignores it.
+
 ## Shared entries
 
 An entry can reach seats besides the one that filed it. A seat receives an entry when any of these

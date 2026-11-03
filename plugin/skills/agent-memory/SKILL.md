@@ -283,6 +283,6 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 | a file bigger than a body, `attached file`, `attachment` | [attachments.md](attachments.md) |
 | a question no flag answers, `returns`, `layout:` refusals | [view.md](view.md) |
 | `no store is bound to the checkout`, `keep their memory in two stores`, `from the store`, `is not offered for this checkout`, `is this checkout's own store`, `migrating to`, `writers.json cannot be read` | [store.md](store.md) |
-| `due (`, `due later`, `due for`, `--due`, `due <id>`, `retire? due`, `still holds; file it again`, `from other seats:`, `more notes:`, `holds a todolist`, `list lines in the text`, `no end declared`, `landed:`, `settled (`, `→ tool`, `release <new> is out`, `seat moved from` | [reference.md](reference.md) |
+| `due (`, `due later`, `due for`, `--due`, `due <id>`, `retire? due`, `still holds; file it again`, `from other seats:`, `more notes:`, `holds a todolist`, `list lines in the text`, `this body lists steps`, `no end declared`, `landed:`, `settled (`, `→ tool`, `release <new> is out`, `seat moved from` | [reference.md](reference.md) |
 | `retain`, cross-repo links, `--json`, MCP key or value refusals, `.memory/carryforward`, `off on this machine`, launcher claims (`--session`), `holder` | [reference.md](reference.md) |
 | `agentic-helpers level:`, `the subagent runs at agentic-helpers level`, `stays with the session that spawned the subagent`, `--agent`; spawning a subagent | [subagents.md](subagents.md) |

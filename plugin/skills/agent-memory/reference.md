@@ -58,6 +58,11 @@ agentic-memory holder --session <id> --json
   without → `<id> holds a todolist; pass --items carry or --items leave`.
 - `<n> list lines in the text; steps go into --item` after filing → those lines were steps: file a
   todo with `--item`, supersede the one just filed.
+- `agentic-memory: this body lists steps; a todo ticks each one: ...` after filing a note, rule or
+  trap → a plan's steps: run the `  → agentic-memory new --kind todo --absorbs <id> ...` line under
+  it (over MCP, `  → new {...}`: those arguments to `new`), which files the todo in place of the
+  entry. No such line → a list line was nested, ticked or continued: file the todo by hand. A list
+  the entry only quotes → leave it.
 - `no end declared: --until merged:<branch> ...` after filing a todo → nothing ties it to its work
   landing: supersede it with `--until merged:<branch>` where the branch is known, or with items
   splitting the work (`--item build --item capture`), so the landed part ends without the rest.
