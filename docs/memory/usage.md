@@ -1238,7 +1238,7 @@ matches only commits dated at or after its filing, an item only those at or afte
 | `id` | its full message names a graph entry the todo, item or trap links to: the full id, `<repo-id>:<id>`, or the short id (`d-tac-pu1`) where exactly one linked entry carries it | 1.0 |
 | `branch` | its subject or a merge's branch names the branch of a `merged:` end, or a merge's branch is one the entry's text names (never `main`, `master`, `trunk` or `develop`) | 1.0 |
 | `path` | it changes a path the entry is anchored to or names with `--about` | 0.5 |
-| `subject` | the store's embedder places its subject close to the entry's or item's text; an embedder outage or none skips this test alone | the cosine stretched to 0..1 above the threshold |
+| `subject` | the store's embedder places its subject close to the text of the entry or state line, at a cosine of 0.75 or more; for a todo's open item, it places the whole commit (message and changed file names) closer to that item than to any other of the todo's items, at 0.55 or more and 0.05 ahead of the next; an embedder outage or none skips this test alone | the cosine stretched to 0..1 above 0.75, or above 0.55 for an item |
 
 A merge is judged with every commit it brings in, the commits reachable from its later parents and
 not its first: a test any of them passes maps the entry to the merge, naming the commit that

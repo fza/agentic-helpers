@@ -74,9 +74,9 @@ agentic-memory holder --session <id> --json
 ## Landed work
 
 The hooks scan git for commits that may settle a live todo, item or trap (by a linked graph id in
-the message, a branch, a changed anchored or `--about` path, or a similar subject) and keep each
-match until the entry or item ends or the match is dismissed. Never retired by the tool: a match
-is evidence.
+the message, a branch, a changed anchored or `--about` path, a similar subject, or, for an item,
+a whole commit closer to it than to its todo's other items) and keep each match until the entry or
+item ends or the match is dismissed. Never retired by the tool: a match is evidence.
 
 - Brief: `retire? landed: <sha> <subject>` ending an entry's line (its `(seen)` pointer's too),
   `ack #<item>? landed: ...` an item's, in every brief. Prompt or tool call, once per context:

@@ -38,8 +38,18 @@ const (
 	// round that died.
 	roundStale = 10 * time.Minute
 	// landedSimilarity is the cosine at or above which a commit subject counts
-	// as naming an entry's or item's work.
+	// as naming an entry's or a state line's work.
 	landedSimilarity = 0.75
+	// landedItemFloor and landedItemMargin judge a todo's open items against
+	// a landing's whole commits, message and changed file names: the item a
+	// commit sits closest to counts as its work where its cosine is at or
+	// above the floor and ahead of the todo's next closest item by the
+	// margin. Both are tuned to the store's embedding model,
+	// embeddinggemma-300m, where an item and the commit doing it score 0.56
+	// to 0.67 and the items of one todo crowd each other within a few
+	// hundredths.
+	landedItemFloor  = 0.55
+	landedItemMargin = 0.05
 	landedTextRunes  = 2000
 	landedSubject    = 72
 )
@@ -110,10 +120,12 @@ type landedCommit struct {
 
 // landedTarget is what one live todo, open item or trap is matched by; floor
 // is its filing time, an item's the time it was added, before which no
-// commit matches it.
+// commit matches it. Item marks an open item, ranked against its todo's
+// other items.
 type landedTarget struct {
 	address  string
 	held     *entry
+	item     bool
 	floor    time.Time
 	text     string
 	links    []string
@@ -323,8 +335,8 @@ func (mem *memory) runRound(ctx context.Context, key string) {
 	found, unjudged := mem.matchLandings(ctx, targets, mem.landings(ctx, here.root, commits, byDate))
 	stored := mem.storeMappings(folded, found, commits)
 
-	// A commit whose subject an embedder outage left unjudged stays past the
-	// mark, so the next round judges it again.
+	// A commit an embedder outage left unjudged stays past the mark, so the
+	// next round judges it again.
 	for index, commit := range commits {
 		if slices.Contains(unjudged, commit.sha) {
 			stored = min(stored, index-1)
@@ -527,7 +539,9 @@ func landedTargets(folded *state) []landedTarget {
 				continue
 			}
 
-			itemTarget := landedTarget{address: held.id + "#" + item.ID, held: held, floor: cmp.Or(item.added, held.filed), text: item.Text}
+			itemTarget := landedTarget{
+				address: held.id + "#" + item.ID, held: held, item: true, floor: cmp.Or(item.added, held.filed), text: item.Text,
+			}
 			if graphLink(item.Link) {
 				itemTarget.links = []string{item.Link}
 			}
@@ -725,7 +739,7 @@ type evidenceMatch struct {
 // for a target where any of its commits passes a test, at the strength of
 // the strongest; of the landings passing for a target, the highest score is
 // reported, the newer landing winning a tie. Unjudged is the commits of the
-// landings whose subjects an embedder outage left untested.
+// landings an embedder outage left untested.
 func (mem *memory) matchLandings(ctx context.Context, targets []landedTarget, landings []landing) (found []landedMapping, unjudged []string) {
 	shortOwners := map[string][]string{}
 
@@ -850,12 +864,14 @@ func commitStrength(commit landedCommit, target landedTarget, shortOwners map[st
 }
 
 // similarLandings raises each judged pair to the strength of its landing's
-// subject closest to the target's text, where the store's embedder places it
-// at or above the threshold and above what another test gave. One embedder
-// call covers the round, holding only the subjects of landings at or after
-// some target's floor; no embedder configured skips this test alone. A
-// subject holding a credential never reaches the endpoint. It answers false
-// where an embedder failed or timed out, leaving the subjects unjudged.
+// commit closest to the target's text, where the store's embedder places it
+// close enough and above what another test gave: an entry or a state line by
+// the commit's subject at or above the threshold, an open item by the whole
+// commit as rankItems ranks it among its todo's items. One embedder call
+// covers the round, holding only the commits of landings at or after some
+// target's floor; no embedder configured skips this test alone. A text
+// holding a credential never reaches the endpoint. It answers false where an
+// embedder failed or timed out, leaving the commits unjudged.
 func (mem *memory) similarLandings(ctx context.Context, targets []landedTarget, landings []landing, judged [][2]int,
 	matched map[[2]int]evidenceMatch,
 ) bool {
@@ -868,25 +884,33 @@ func (mem *memory) similarLandings(ctx context.Context, targets []landedTarget, 
 		return errors.Is(err, embed.ErrNotConfigured)
 	}
 
-	subjectRow, targetRow := map[string]int{}, map[int]int{}
+	subjectRow, wholeRow, targetRow := map[string]int{}, map[string]int{}, map[int]int{}
 
 	var texts []string
 
+	addRow := func(rows map[string]int, sha string, text string) {
+		_, known := rows[sha]
+		if known {
+			return
+		}
+
+		if text == "" || len(secrets.Scan(ctx, text, "")) > 0 {
+			rows[sha] = -1
+
+			return
+		}
+
+		rows[sha] = len(texts)
+		texts = append(texts, text)
+	}
+
 	for _, pair := range judged {
 		for _, evidence := range landings[pair[0]].evidence {
-			_, known := subjectRow[evidence.sha]
-			if known {
-				continue
+			if targets[pair[1]].item {
+				addRow(wholeRow, evidence.sha, embed.Cut(wholeCommit(evidence), landedTextRunes))
+			} else {
+				addRow(subjectRow, evidence.sha, evidence.subject)
 			}
-
-			if evidence.subject == "" || len(secrets.Scan(ctx, evidence.subject, "")) > 0 {
-				subjectRow[evidence.sha] = -1
-
-				continue
-			}
-
-			subjectRow[evidence.sha] = len(texts)
-			texts = append(texts, evidence.subject)
 		}
 
 		_, known := targetRow[pair[1]]
@@ -904,14 +928,33 @@ func (mem *memory) similarLandings(ctx context.Context, targets []landedTarget, 
 		return false
 	}
 
+	closest := map[[2]int]itemCosine{}
+
 	for _, pair := range judged {
+		item := targets[pair[1]].item
+
+		rows := subjectRow
+		if item {
+			rows = wholeRow
+		}
+
 		for index, evidence := range landings[pair[0]].evidence {
-			row := subjectRow[evidence.sha]
+			row := rows[evidence.sha]
 			if row < 0 {
 				continue
 			}
 
 			cosine := embed.Cosine(vectors[row], vectors[targetRow[pair[1]]])
+
+			if item {
+				best, hit := closest[pair]
+				if !hit || cosine > best.cosine {
+					closest[pair] = itemCosine{cosine: cosine, evidence: index}
+				}
+
+				continue
+			}
+
 			if cosine < landedSimilarity {
 				continue
 			}
@@ -925,7 +968,74 @@ func (mem *memory) similarLandings(ctx context.Context, targets []landedTarget, 
 		}
 	}
 
+	rankItems(targets, closest, matched)
+
 	return true
+}
+
+// wholeCommit is what an item is compared with: the commit's message,
+// subject and body, and the names of the files it changed.
+func wholeCommit(commit landedCommit) string {
+	return strings.Join(append([]string{commit.message}, commit.paths...), "\n")
+}
+
+// itemCosine is how close a landing's closest commit sits to an item, and
+// which of its evidence that commit is.
+type itemCosine struct {
+	cosine   float32
+	evidence int
+}
+
+// rankItems raises, for each landing and todo, the pair of the item the
+// landing sits closest to, where its cosine is at or above landedItemFloor
+// and ahead of every other item of that todo judged against the landing by
+// landedItemMargin; a todo with one item judged needs the floor alone. The
+// strength stretches the cosine above the floor onto 0..1.
+func rankItems(targets []landedTarget, closest map[[2]int]itemCosine, matched map[[2]int]evidenceMatch) {
+	type group struct {
+		landing int
+		todo    *entry
+	}
+
+	type ranking struct {
+		best      [2]int
+		bestScore float32
+		runnerUp  float32
+	}
+
+	rankings := map[group]*ranking{}
+
+	for pair, scored := range closest {
+		key := group{landing: pair[0], todo: targets[pair[1]].held}
+
+		held, known := rankings[key]
+		if !known {
+			rankings[key] = &ranking{best: pair, bestScore: scored.cosine, runnerUp: -1}
+
+			continue
+		}
+
+		switch {
+		case scored.cosine > held.bestScore || (scored.cosine == held.bestScore && pair[1] < held.best[1]):
+			held.runnerUp = held.bestScore
+			held.best, held.bestScore = pair, scored.cosine
+		case scored.cosine > held.runnerUp:
+			held.runnerUp = scored.cosine
+		}
+	}
+
+	for _, held := range rankings {
+		if held.bestScore < landedItemFloor || float64(held.bestScore)-float64(held.runnerUp) < landedItemMargin {
+			continue
+		}
+
+		strength := (float64(held.bestScore) - landedItemFloor) / (1 - landedItemFloor)
+
+		best, hit := matched[held.best]
+		if !hit || strength > best.strength {
+			matched[held.best] = evidenceMatch{strength: strength, test: landedBySubject, evidence: closest[held.best].evidence}
+		}
+	}
 }
 
 // idChars and branchChars are what a graph id and a branch name are spelled

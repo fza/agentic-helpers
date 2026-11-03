@@ -947,9 +947,19 @@ HEAD` holds, else `--since=<mark date> HEAD`, and on a first round `--since=<old
 It processes the first 200 commits and moves the mark to the last of them, or to `HEAD` where the
 stream held no more. Merges group the commits of their side by parent links in the stream; a round
 reading by date that finds a side commit outside its stream reads `git log <first parent>..<merge>`
-once. Every landing is judged against every target before anything is stored, the subjects in one
-batched embedder call. No embedder configured (`embed.ErrNotConfigured`) skips the subject test;
-an embedder that fails or times out leaves the mark before the first commit whose subject it left
+once. Every landing is judged against every target before anything is stored, the texts in one
+batched embedder call: a commit's subject for an entry or a state line, and for an open item the
+whole commit, its message and changed file names, cut to 2,000 runes. An entry or a line matches
+at a cosine of 0.75 or more (`landedSimilarity`). An item never meets that: an item and the commit
+doing it score 0.56 to 0.67 under embeddinggemma-300m, while a todo's items crowd each other within
+a few hundredths. Items are ranked within their todo instead: per landing and todo, the item the
+landing sits closest to matches where its cosine is at least `landedItemFloor` (0.55) and
+`landedItemMargin` (0.05) ahead of the todo's next closest item, its strength the cosine stretched
+onto 0..1 above the floor. Both constants are tuned to that model. A near tie flags nothing, since
+a hint naming the wrong item costs more than a missed one; the items of two todos never rank
+against each other. Comparing items against the subject alone was rejected: a subject names the
+change, the body and file names the work. No embedder configured (`embed.ErrNotConfigured`) skips the subject test;
+an embedder that fails or times out leaves the mark before the first commit it left
 unjudged, so the next round reads that commit again rather than never judging it, at the cost of
 re-reading up to the batch from there each round while the outage lasts. The mappings go to the
 slot `landed` (`target`, `commit`, `subject`, `test`,
