@@ -46,6 +46,13 @@ every agent and every worktree of the project shares:
 | `<data>/update-check.json` | the latest release GitHub named, when it was asked, and the day the update notice showed ([updates](#updates)) |
 | `<git common dir>/agentic-store` | the id of the checkout's store |
 
+On macOS the cache root stays out of Time Machine backups: it carries the sticky exclusion mark
+`tmutil addexclusion` sets, so `tmutil isexcluded <cache>` answers `[Excluded]`. The writer that
+makes the root sets it, and every SessionStart sets it again where the root stands without it, so a
+mark removed by hand comes back. The data root stays in backups, and other platforms get no mark.
+A cache backed up anyway would be copied whole at every change of a slot file, for data that
+rebuilds itself.
+
 Each component keeps what changes often in binary files: what a session or seat keeps between hook
 calls in a slot file (`sessions.slots`), its append-only records in journals (`.jnl`, memory's log
 tail and agentic-tools' histories), and a size ledger (`.ledger`) the space figures read instead of

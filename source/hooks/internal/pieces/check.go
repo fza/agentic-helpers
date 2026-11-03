@@ -59,7 +59,8 @@ const usage = "usage: " + self + " check | config [get <key> | set <key> <value>
 
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into
-// `config.yaml`. As the SessionStart hook it then prints one line per broken
+// `config.yaml`. As the SessionStart hook it marks the cache root for
+// backups to skip (home.Roots.ExcludeCache), then prints one line per broken
 // tie and per `config.yaml` problem, then one naming the command
 // substitutions the machine needs, nothing where none is; run as a command
 // it lists every piece on or off and, under each, its features off through a
@@ -90,6 +91,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	_, _ = pluginconfig.MigrateAgentAnswers(env.Settings)
+
+	if env.Hook {
+		env.Migration.Roots.ExcludeCache()
+	}
 
 	resolution, err := pluginconfig.Resolve(env.Settings, env.Getenv)
 	if err != nil {

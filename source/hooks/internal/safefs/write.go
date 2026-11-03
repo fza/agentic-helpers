@@ -8,7 +8,9 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -32,12 +34,35 @@ func Root(root string) (*Dir, error) {
 	return &Dir{root: opened, path: root}, nil
 }
 
+// created holds, per root, what EnsureRoot runs once it has made that root.
+var created sync.Map
+
+// OnCreate has EnsureRoot run made on root whenever it makes that root, so a
+// mark the root must carry is set by whichever writer comes first.
+func OnCreate(root string, made func(root string)) {
+	created.Store(filepath.Clean(root), made)
+}
+
 // EnsureRoot is Root, making the root and every missing folder above it
 // first.
 func EnsureRoot(root string) (*Dir, error) {
+	var made func(string)
+
+	stored, registered := created.Load(filepath.Clean(root))
+	if registered {
+		_, err := os.Lstat(root)
+		if errors.Is(err, fs.ErrNotExist) {
+			made, _ = stored.(func(string))
+		}
+	}
+
 	err := os.MkdirAll(root, 0o700)
 	if err != nil {
 		return nil, fmt.Errorf("creating %s: %w", root, err)
+	}
+
+	if made != nil {
+		made(root)
 	}
 
 	return Root(root)

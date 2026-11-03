@@ -76,6 +76,17 @@ only `.sdd/config.local.yaml`, which would stop stock sdd's committed `graph_dir
 `project_dir` from ever joining; requiring the graph repository to name the code repository back,
 which no sdd release writes.
 
+On darwin the cache root carries `com.apple.metadata:com_apple_backup_excludeItem`, the value
+`tmutil addexclusion` writes without `-p` (`com.apple.backupd` as a binary property list), set
+through `unix.Setxattr` so no `tmutil` process runs. `migration.Machine`, which every binary's
+`main` settles first, registers the cache root with `safefs.OnCreate`, so `safefs.EnsureRoot` marks
+it when it is the call making the root; it pays one lstat for that root alone. `agentic-helpers
+check`, as the SessionStart hook, calls `Roots.ExcludeCache`, which reads the attribute and sets it
+where the root exists without it. A failure to set it is ignored: the backup only costs more.
+Rejected: `tmutil addexclusion` as a subprocess, a process per check where one system call does the
+same; a path exclusion (`-p`), which needs root and breaks once the folder moves; a plugin option to
+opt out, for a case nobody has. The data root carries no mark.
+
 The home is bookkeeping, not a boundary: any process able to write it can edit a pointer or an
 identity, which decides which store a call works on, never whether it may. `<data>/format.json`
 versions the layout; each component keeps its own format beside its data.

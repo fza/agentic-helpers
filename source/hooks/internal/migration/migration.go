@@ -77,16 +77,21 @@ type Env struct {
 	halt   func() bool
 }
 
-// Machine is the environment of the running process.
+// Machine is the environment of the running process. Every binary settles
+// it first, so whichever of its writers makes the cache root marks it for
+// backups (home.Roots.ExcludeCacheOnCreate).
 func Machine(userHome string, getenv func(string) string) Env {
 	executable, err := os.Executable()
 	if err != nil {
 		executable = ""
 	}
 
+	roots := home.Locate(userHome, getenv)
+	roots.ExcludeCacheOnCreate()
+
 	return Env{
 		UserHome:   userHome,
-		Roots:      home.Locate(userHome, getenv),
+		Roots:      roots,
 		Lookup:     project.GitCommonDir{},
 		Git:        process.Git{},
 		Processes:  process.Table{},

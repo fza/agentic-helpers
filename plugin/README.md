@@ -73,7 +73,8 @@ Nothing leaves the machine unless one of these applies:
 
 - Its data and cache under `~/.local/share/agentic-helpers` and `~/.cache/agentic-helpers` (or
   their XDG locations): memory stores, the tool library, the tail of each session's transcript
-  for the next claim, and recent prompts with their vectors.
+  for the next claim, and recent prompts with their vectors. On macOS the cache folder carries
+  Time Machine's exclusion mark, since everything in it rebuilds itself.
 - `~/.config/agentic-helpers/config.yaml`, when an option is set there.
 - `.claude/settings.local.json` of the project's main checkout: claiming a seat sets
   `autoMemoryEnabled` to `false` there, so Claude Code's own memory does not compete. The option
