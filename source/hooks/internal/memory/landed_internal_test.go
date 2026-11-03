@@ -86,7 +86,7 @@ func TestMatchLandingsRanksAmongMatches(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			found := mem.matchLandings(context.Background(), []landedTarget{target}, tc.landings)
+			found, _ := mem.matchLandings(context.Background(), []landedTarget{target}, tc.landings)
 			if len(found) != 1 || found[0].Commit != tc.want {
 				t.Fatalf("the highest score among the matches should be reported: %+v", found)
 			}

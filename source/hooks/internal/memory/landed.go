@@ -327,7 +327,19 @@ func (mem *memory) runRound(ctx context.Context, key string) {
 
 	probe.learnTips(commits, watched)
 
-	stored := mem.storeMappings(folded, mem.matchLandings(ctx, targets, mem.landings(ctx, here.root, commits, byDate)), commits)
+	found, unjudged := mem.matchLandings(ctx, targets, mem.landings(ctx, here.root, commits, byDate))
+	stored := mem.storeMappings(folded, found, commits)
+
+	// A commit whose subject an embedder outage left unjudged stays past the
+	// mark, so the next round judges it again.
+	for index, commit := range commits {
+		if slices.Contains(unjudged, commit.sha) {
+			stored = min(stored, index-1)
+
+			break
+		}
+	}
+
 	finish(reachedAfter(stored, commits, reached, mark))
 }
 
@@ -719,8 +731,9 @@ type evidenceMatch struct {
 // the landing's committer date, before anything is stored. A landing passes
 // for a target where any of its commits passes a test, at the strength of
 // the strongest; of the landings passing for a target, the highest score is
-// reported, the newer landing winning a tie.
-func (mem *memory) matchLandings(ctx context.Context, targets []landedTarget, landings []landing) []landedMapping {
+// reported, the newer landing winning a tie. Unjudged is the commits of the
+// landings whose subjects an embedder outage left untested.
+func (mem *memory) matchLandings(ctx context.Context, targets []landedTarget, landings []landing) (found []landedMapping, unjudged []string) {
 	shortOwners := map[string][]string{}
 
 	for _, target := range targets {
@@ -758,9 +771,14 @@ func (mem *memory) matchLandings(ctx context.Context, targets []landedTarget, la
 		}
 	}
 
-	mem.similarLandings(ctx, targets, landings, judged, matched)
-
-	var found []landedMapping
+	if !mem.similarLandings(ctx, targets, landings, judged, matched) {
+		for _, pair := range judged {
+			sha := landings[pair[0]].commit.sha
+			if !slices.Contains(unjudged, sha) {
+				unjudged = append(unjudged, sha)
+			}
+		}
+	}
 
 	for targetIndex, target := range targets {
 		chosen := -1
@@ -786,7 +804,7 @@ func (mem *memory) matchLandings(ctx context.Context, targets []landedTarget, la
 		}
 	}
 
-	return found
+	return found, unjudged
 }
 
 func mappingOf(target landedTarget, landed landing, evidence landedCommit, test string, score float64) landedMapping {
@@ -842,18 +860,19 @@ func commitStrength(commit landedCommit, target landedTarget, shortOwners map[st
 // subject closest to the target's text, where the store's embedder places it
 // at or above the threshold and above what another test gave. One embedder
 // call covers the round, holding only the subjects of landings at or after
-// some target's floor; an outage or no embedder skips this test alone. A
-// subject holding a credential never reaches the endpoint.
+// some target's floor; no embedder configured skips this test alone. A
+// subject holding a credential never reaches the endpoint. It answers false
+// where an embedder failed or timed out, leaving the subjects unjudged.
 func (mem *memory) similarLandings(ctx context.Context, targets []landedTarget, landings []landing, judged [][2]int,
 	matched map[[2]int]evidenceMatch,
-) {
+) bool {
 	if len(judged) == 0 {
-		return
+		return true
 	}
 
 	embedder, err := mem.embedder(ctx)
 	if err != nil {
-		return
+		return errors.Is(err, embed.ErrNotConfigured)
 	}
 
 	subjectRow, targetRow := map[string]int{}, map[int]int{}
@@ -889,7 +908,7 @@ func (mem *memory) similarLandings(ctx context.Context, targets []landedTarget, 
 
 	vectors, err := embedder.Documents(bounded, texts)
 	if err != nil || len(vectors) != len(texts) {
-		return
+		return false
 	}
 
 	for _, pair := range judged {
@@ -912,6 +931,8 @@ func (mem *memory) similarLandings(ctx context.Context, targets []landedTarget, 
 			}
 		}
 	}
+
+	return true
 }
 
 // idChars and branchChars are what a graph id and a branch name are spelled

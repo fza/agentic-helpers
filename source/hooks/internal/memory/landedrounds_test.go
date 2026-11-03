@@ -1,6 +1,7 @@
 package memory_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,5 +77,43 @@ func TestADeadRoundsLockIsTakenOver(t *testing.T) {
 
 	if starts := h.starter.Starts(); len(starts) != 2 {
 		t.Errorf("a lock a dead round left should be taken over: %v", starts)
+	}
+}
+
+func TestASubjectTheEmbedderFailedToJudgeIsJudgedByTheNextRound(t *testing.T) {
+	h := newLandedHarness(t)
+	h.must("", "claim", "main")
+	id := h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "build")
+
+	h.embedder.Err = errors.New("connection refused")
+	h.land(test.Commit{SHA: "c5c5c5c5c5c5c5c5", Message: "Rework waiter polling loop deadline"})
+
+	if line := landedLine(h.runPrompt()); strings.Contains(line, id+" by c5c5c5c5") {
+		t.Fatalf("a round whose embedder failed should match nothing by subject:\n%s", line)
+	}
+
+	h.embedder.Err = nil
+	again := h.bashHook("git pull") + "\n" + h.runPrompt()
+
+	if line := landedLine(again); !strings.Contains(line, id+" by c5c5c5c5 ") || !strings.Contains(line, "(subject)") {
+		t.Errorf("a commit whose subject the embedder failed to judge should be judged by the next round:\n%s", again)
+	}
+}
+
+func TestARoundWithoutAnEmbedderMovesItsMarkPastEveryCommit(t *testing.T) {
+	h := newLandedHarness(t)
+	h.must("", "claim", "main")
+	h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "build")
+
+	h.embedding = false
+	h.land(test.Commit{SHA: "c5c5c5c5c5c5c5c5", Message: "Rework waiter polling loop deadline"})
+	h.runPrompt()
+
+	h.land(test.Commit{SHA: "c6c6c6c6c6c6c6c6", Message: "Tidy"})
+	h.bashHook("git pull")
+
+	reads := h.logReads()
+	if last := reads[len(reads)-1]; last[len(last)-1] != "c5c5c5c5c5c5c5c5..HEAD" {
+		t.Errorf("a round no embedder is configured for should leave no commit behind its mark: %v", reads)
 	}
 }
