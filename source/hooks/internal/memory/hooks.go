@@ -55,11 +55,12 @@ const (
 // stateFirst is what both nudges ask for: where work moved goes into the
 // state ledger a line at a time, and an entry is filed only for what
 // outlives the moment.
-const stateFirst = ledgerAsk + ". " +
-	"File an entry only for a finding, an open question or a judgment call: " +
-	self + " new --kind <kind> --title '<3-10 words>' --topic <name>... < body"
+func stateFirst(at channel) string {
+	return ledgerAsk(at) + ". " +
+		"File an entry only for a finding, an open question or a judgment call: " + newEntryHint().in(at)
+}
 
-const nudgeText = "Context near compaction. " + stateFirst
+func nudgeText(at channel) string { return "Context near compaction. " + stateFirst(at) }
 
 // unsettledAsk opens what a nudge adds while hook lines since it stay
 // unsettled, naming each.
@@ -68,9 +69,11 @@ const unsettledAsk = ". Answered once each hook line since is cited in a line of
 // reminder is the nudge, naming the landed and captured lines added since
 // the seat was first nudged that keep it unanswered.
 func (mem *memory) reminder(ctx context.Context, seatName string, since time.Time) string {
+	nudge := nudgeText(mem.hintChannel(ctx))
+
 	folded, err := mem.load(ctx)
 	if err != nil {
-		return nudgeText
+		return nudge
 	}
 
 	var addresses []string
@@ -79,10 +82,10 @@ func (mem *memory) reminder(ctx context.Context, seatName string, since time.Tim
 	}
 
 	if len(addresses) == 0 {
-		return nudgeText
+		return nudge
 	}
 
-	return nudgeText + unsettledAsk + strings.Join(addresses, ", ")
+	return nudge + unsettledAsk + strings.Join(addresses, ", ")
 }
 
 // remind is the reminder while upkeep is owed: from the first nudge threshold
@@ -381,9 +384,9 @@ func (mem *memory) seatless(ctx context.Context) string {
 	// A prompt naming a seat loosely ("Haupt-Session") reads as no task to an
 	// agent that never loaded the memory skill, so the notice says what such a
 	// prompt asks for.
-	return fmt.Sprintf("%s: this session holds no seat. Seats: %s. Claim one: %s claim <seat>. "+
+	return fmt.Sprintf("%s: this session holds no seat. Seats: %s. Claim one: %s. "+
 		"A prompt naming a seat in other words or another language (\"main seat\", \"Haupt-Session\") asks "+
-		"to claim it: claim it, then answer with where work stands (agentic-helpers:agent-memory)", self, seats, self)
+		"to claim it: claim it, then answer with where work stands (agentic-helpers:agent-memory)", self, seats, claimHint().in(mem.hintChannel(ctx)))
 }
 
 // housekeep clears the per-session slots nobody came back to, in the store's
@@ -515,8 +518,7 @@ type ladder struct {
 	ToolCalls int    `json:"tool_calls,omitempty"`
 }
 
-const replayNudgeText = "Turns since your newest entry or state line no longer fit the post-compaction replay. " +
-	stateFirst
+const replayNudgeOpening = "Turns since your newest entry or state line no longer fit the post-compaction replay. "
 
 var fileWriters = []string{"Edit", "Write", "NotebookEdit"}
 
@@ -565,7 +567,7 @@ func (mem *memory) replayNudge(ctx context.Context, seatName string, transcriptP
 
 	held.ReplayNudgedFor = newest
 
-	return replayNudgeText
+	return replayNudgeOpening + stateFirst(mem.hintChannel(ctx))
 }
 
 type sensor struct {

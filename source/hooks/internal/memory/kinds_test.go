@@ -129,7 +129,7 @@ func TestTheStateLedger(t *testing.T) {
 
 	brief := strings.Split(h.must("", "brief"), "\n")
 	if len(brief) < 3 || !strings.Contains(brief[0], "0 live") ||
-		brief[1] != "state (ack state#<item> --done | --remove):" || brief[2] != "  #"+id[1]+": halfway through the gate fix" {
+		brief[1] != "state (agentic-memory ack state#<item> --done | ack state#<item> --remove):" || brief[2] != "  #"+id[1]+": halfway through the gate fix" {
 		t.Errorf("the brief should open with the ledger, counting no entry:\n%s", strings.Join(brief, "\n"))
 	}
 

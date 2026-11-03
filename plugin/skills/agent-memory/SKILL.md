@@ -15,6 +15,8 @@ the CLI-only commands: `lifetime`, `drop`, `follow`, `unfollow`, `bind`, `holder
 `private`, `rekind`, `retain`, `merge`, `unlink`, `revive`, `attach`, `read`. Two commands → two tool calls,
 never a Bash chain. Load the schema first; keys and values exactly as it
 lists them (`all_seats`, `"from": "user"`); a list key: one quoted string or an array.
+Hints take your channel's form (`memory <tool> {...}` after a tool call, a command after Bash); a
+line answering no call follows your last ([reference.md](reference.md#hint-forms)).
 
 ## Quiet
 
@@ -106,8 +108,7 @@ agentic-memory show state [--with-history] [--all-items]
   pins the target. A line citing ids ends once every id it cites ended; `--until` takes `new
   --until`'s forms. `hook:` lines (`landed`, `captured`, `dirty`, `asked`) come free; cite or drop
   them, never copy them. `ledger holds <n> lines; drop the settled ones` → remove what is settled.
-- **`#old (...)` + `state is a ledger now: split this into lines (...), then agentic-memory ack
-  state#old --done`** → do both steps. A new line alone does not settle it.
+- **`#old (...)` + `state is a ledger now: split this into lines (...), then ...`** → do both steps. A new line alone does not settle it.
 - `agentic-memory state` refuses: `state is a ledger now, changed a line at a time: ...`.
 - **Kind** sets decay and brief section:
 
@@ -159,12 +160,12 @@ agentic-memory show state [--with-history] [--all-items]
   it, never rewritten to fit. One finding per entry.
 - **`similar: <id> <title> (<score>)`** in the reply (the closest only) → the same finding:
   `supersede <id> --by <new>`; related: `link <new> <id>`; else nothing. `+<n> more similar:
-  agentic-memory search --query '<title>'` folds the rest: the fold rule holds. A near topic comes with its `merge`: run it if
+  <search>` folds the rest: the fold rule holds. A near topic comes with its `merge`: run it if
   it fits. `agentic-memory topics` lists topics; reuse before coining.
 - Paths in title or body anchor the entry; `--about <path>` also tells the next call naming it.
 - **No credential, ever.** `agentic-memory: <where> looks like a credential (<rule ids>, line <n>);
   memory never holds one` → nothing written: trim it, name where it lives, send again.
-  `possible credential: <id> <title> (<rule ids>); supersede it --because 'credential'` in a brief →
+  `possible credential: <id> <title> (<rule ids>); supersede it: <call>` in a brief →
   check, then run it.
 
 | In memory | Elsewhere |
@@ -201,7 +202,7 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - **`<id> (<name>) 92% <title>`**: score, whole percent of the best hit (100). A listing prints none.
 - **JSON (MCP, `--json`): an absent key is empty** (`[]`, `{}`, `null`, `""`, `false` left out; `0`
   and defaults stay).
-- `14 more: --skip 10  (run before concluding none fits)` / `more: --skip 10  (...)` → next page. No
+- `14 more: --skip 10  (...)` / `more: --skip 10  (...)` → next page. No
   line → last page.
 - **`--query` exits 1 → no working embedder** (none set, `embedding_provider` `off`, unreachable,
   calibration failing; [reference.md](reference.md)), not "nothing found". Fall back to `--term`,
@@ -215,7 +216,7 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
   nobody asked for (sweep, script, loop) → `--no-heat`.
 - `who` rows end `filed <n> / used <m>` over the 14d its header names; a shelf only when not the
   seat's. Filing far more than using → file less, retire unread. Unused seats fold into `+<n>
-  unused seats: agentic-memory who --unused  (run before claiming a new seat)`; a seat the user
+  unused seats: <who unused>  (...)`; a seat the user
   names is missing → run it.
 
 ## Change

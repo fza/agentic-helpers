@@ -109,7 +109,7 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   pair, a class file only for the pairs it holds. Writers hold `sessions.slots.lock`; readers take no
   lock. Keys are `<purpose>/<session or seat id>`: `shown`,
   `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`,
-  `do-now`, `skipped`, `brief`, `seen`, `ledger-ended` per seat; `graph-names/<yyyy>/<mm>` per month. A
+  `do-now`, `skipped`, `brief`, `seen`, `ledger-ended`, `channel` per seat; `graph-names/<yyyy>/<mm>` per month. A
   value is the JSON the per-session file held. A hook takes its payload's `session_id` only in the
   shape `^[A-Za-z0-9_-]{1,128}$` (`hookSessionShape`, as the tool library and the prompt vectors
   take it); a payload carrying none or one of another shape reads as carrying none, and every
@@ -808,6 +808,32 @@ description was shortened to fit: a caller without the skill forms its call from
 key descriptions keep naming the values and shapes they take, since values are taken exactly.
 Rejected: trimming the largest descriptions, a small saving for less guidance on the tools carrying
 the most rules.
+
+## Hint forms
+
+Every command a reply or a hook line names is a `hintCall` (`internal/memory/hints.go`): its verb
+and its arguments, each with its MCP key, its place (a flag, a positional, the body on stdin) and
+its command-line spelling, held once and spelled for a channel. `in(channelCLI)` writes
+`agentic-memory <verb> ...`, a key's flag its hyphenated name; `in(channelMCP)` writes
+`memory <verb> {...}`, the keys in the order given and `<` kept unescaped, so a placeholder reads as
+typed. A verb whose command is `cliOnly` is spelled as a command line in both. `hintChoice`,
+`hintArgs`, `hintKey` and `hintVerb` spell a choice of calls, bare arguments, one key and a verb
+alone. Holding both forms in one value keeps them from drifting; two hand-written strings per hint
+were rejected for that. A test holds every MCP form to its tool's schema through `exactKeys`.
+
+The channel a run spells for is `mem.hints`. A command sets its own before it runs: the command
+line `cli`, `callTool` `mcp`. A hook settles it on the first hint it spells (`hintChannel`): the
+call a tool hook follows where that is a memory call (a tool under `memoryToolPrefix` → `mcp`, a
+Bash command whose parse holds an `agentic-memory` call → `cli`), else the seat's last channel,
+`mcp` where it has none, since the plugin always ships the server.
+
+The last channel is the slot `channel/<seat id>`, `{"last_channel":"mcp"|"cli"}`, a fixed-shape
+value of the per-seat kind the brief mark is, which every memory call writes once it ran
+(`noteChannel`), except where a subagent reads on the seat's behalf; the slot file writes nothing
+where the value stands. It lives in the slot file with the other per-seat marks rather than in the claim file: a
+claim rewrite takes the seats lock and writes the store at every call, and a new claim would drop
+it. No format step: an older release passes the unknown key over, and the housekeeping reclaims it
+with the seat's other keys.
 
 ## Links
 

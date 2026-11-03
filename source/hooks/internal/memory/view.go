@@ -444,7 +444,10 @@ func (mem *memory) view(ctx context.Context, req request) result {
 	}
 
 	if req.Layout == briefName {
-		return refused("brief is the brief's own layout: %s brief prints it, %s view --explain brief shows it", self, self)
+		at := mem.hintChannel(ctx)
+
+		return refused("brief is the brief's own layout: %s prints it, %s shows it", briefHint().in(at),
+			explainBriefHint().in(at))
 	}
 
 	folded, err := mem.load(ctx)
@@ -518,7 +521,8 @@ func (scope *viewScope) viewText(sections []viewSection) string {
 				}
 
 				scope.mem.seen.markBody(held)
-				lines = append(lines, showBlock(scope.here, scope.folded, held, scope.mem.options().RetiredBodyLifetime, itemsShown{}, false))
+				lines = append(lines, showBlock(scope.here, scope.folded, held, scope.mem.options().RetiredBodyLifetime,
+					itemsShown{hints: scope.mem.hintChannel(scope.ctx)}, false))
 				lines = append(lines, scope.expandedLines(section, held, "  ")...)
 			}
 		case renderGrouped:

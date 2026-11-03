@@ -141,7 +141,7 @@ func (mem *memory) setLifetime(ctx context.Context, shelf string, value string) 
 func (mem *memory) lifetime(ctx context.Context, req request) result {
 	own, _ := mem.ownSeat(ctx)
 	if own == "" {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	held, err := mem.setLifetime(ctx, mem.shelfOf(own), req.Value)

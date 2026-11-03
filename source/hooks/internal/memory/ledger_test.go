@@ -343,7 +343,7 @@ func TestAnEndedLineAppearsOnceUnderEndedSinceLastBrief(t *testing.T) {
 	h.clock.Advance(4 * time.Hour)
 
 	brief := h.must("", "brief")
-	if !strings.Contains(brief, "state#"+id+" ends at noon: end reached: at:2026-10-25T12:00:00Z (ack state#"+id+" --undo)") {
+	if !strings.Contains(brief, "state#"+id+" ends at noon: end reached: at:2026-10-25T12:00:00Z (agentic-memory ack state#"+id+" --undo)") {
 		t.Errorf("the ended line should name its end and its undo, got:\n%s", brief)
 	}
 }

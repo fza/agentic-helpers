@@ -46,11 +46,18 @@ const (
 	writtenFiles     = 20
 )
 
-const ledgerAsk = "Add or tick state lines where work moved: " + self + " ack state --add '<line>' | ack state#<item> --done"
+func ledgerAsk(at channel) string {
+	return "Add or tick state lines where work moved: " +
+		hintChoice(at, addStateHint(), settleHint(ledgerID+"#<item>", "done"))
+}
 
-const oldStateAsk = "state is a ledger now: split this into lines (" + self + " ack state --add '<line>' ...), then " +
-	self + " ack state#old --done"
+func oldStateAsk(at channel) string {
+	return "state is a ledger now: split this into lines (" + addStateHint().in(at) + " ...), then " +
+		settleHint(ledgerID+"#old", "done").in(at)
+}
 
+// stateRefusal answers `state`, which the MCP server does not list, so it
+// only ever answers a command line.
 const stateRefusal = "state is a ledger now, changed a line at a time: " + self + " ack state --add '<line>' | " +
 	self + " ack state#<item> --done | --undo | --remove; " + self + " show state prints it"
 
@@ -441,7 +448,7 @@ func (folded *state) citedEnded(probe *endProbe, ctx context.Context, id string)
 func (mem *memory) ackState(ctx context.Context, req request) result {
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	changes := 0
@@ -657,10 +664,12 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 		return []string{"state: empty"}
 	}
 
-	lines := []string{"state (ack state#<item> --done | --remove):"}
+	at := mem.hintChannel(ctx)
+	lines := []string{"state (" + hintChoice(at, settleHint(ledgerID+"#<item>", "done"),
+		settleHint(ledgerID+"#<item>", "remove")) + "):"}
 
 	if pending {
-		lines = append(lines, mem.oldLines(old)...)
+		lines = append(lines, mem.oldLines(at, old)...)
 	}
 
 	nested := mem.ledgerLanded(folded, seatName)
@@ -701,7 +710,7 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 
 	for index, view := range history {
 		if index == briefHookLines {
-			lines = append(lines, fmt.Sprintf("  (%d more: %s show state --with-history)", len(history)-briefHookLines, self))
+			lines = append(lines, fmt.Sprintf("  (%d more: %s)", len(history)-briefHookLines, showHint(ledgerID, "with_history").in(at)))
 
 			break
 		}
@@ -730,13 +739,13 @@ func sameCommit(one string, other string) bool {
 
 // oldLines is the slot the seat wrote before the ledger, as item state#old,
 // with what to do with it.
-func (mem *memory) oldLines(old stateSlot) []string {
+func (mem *memory) oldLines(at channel, old stateSlot) []string {
 	where := age(mem.now().Sub(old.at)) + " old"
 	if old.Branch != "" {
 		where += ", branch " + old.Branch
 	}
 
-	return []string{fmt.Sprintf("  #old (%s): %s", where, old.Body), "  " + oldStateAsk}
+	return []string{fmt.Sprintf("  #old (%s): %s", where, old.Body), "  " + oldStateAsk(at)}
 }
 
 // oldStateNotice is the old slot's request alone, for a resumed session,
@@ -752,7 +761,7 @@ func (mem *memory) oldStateNotice(ctx context.Context, seatName string) string {
 		return ""
 	}
 
-	return strings.Join(append([]string{self + ": state#old waits to be split:"}, mem.oldLines(old)...), "\n")
+	return strings.Join(append([]string{self + ": state#old waits to be split:"}, mem.oldLines(mem.hintChannel(ctx), old)...), "\n")
 }
 
 type ledgerEnds struct {
@@ -783,7 +792,7 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 		kept = append(kept, view.line.ID)
 
 		if !slices.Contains(marked.Shown, view.line.ID) {
-			lines = append(lines, fmt.Sprintf("  state#%s %s: %s (ack state#%s --undo)", view.line.ID, view.text, view.reason, view.line.ID))
+			lines = append(lines, fmt.Sprintf("  state#%s %s: %s (%s)", view.line.ID, view.text, view.reason, settleHint(ledgerID+"#"+view.line.ID, "undo").in(mem.hintChannel(ctx))))
 		}
 	}
 
@@ -873,7 +882,7 @@ func (mem *memory) showState(ctx context.Context, folded *state, seatName string
 	var lines []string
 
 	if old, pending := folded.oldState(seatName); pending {
-		lines = append(lines, mem.oldLines(old)...)
+		lines = append(lines, mem.oldLines(mem.hintChannel(ctx), old)...)
 	}
 
 	read := mem.stateLines(ctx, folded, seatName, shown)
@@ -905,11 +914,11 @@ func (mem *memory) showState(ctx context.Context, folded *state, seatName string
 	}
 
 	if read.history > 0 {
-		lines = append(lines, fmt.Sprintf("  (%d older landed and captured: %s show state --with-history)", read.history, self))
+		lines = append(lines, fmt.Sprintf("  (%d older landed and captured: %s)", read.history, showHint(ledgerID, "with_history").in(mem.hintChannel(ctx))))
 	}
 
 	if read.settled > 0 {
-		lines = append(lines, fmt.Sprintf("  (%d settled: %s show state --all-items)", read.settled, self))
+		lines = append(lines, fmt.Sprintf("  (%d settled: %s)", read.settled, showHint(ledgerID, "all_items").in(mem.hintChannel(ctx))))
 	}
 
 	if len(lines) == 0 {

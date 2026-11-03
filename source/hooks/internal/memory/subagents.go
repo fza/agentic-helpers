@@ -459,7 +459,7 @@ func (mem *memory) subagentBlock(ctx context.Context, payload hookio.Payload, gr
 	}
 
 	if granted >= levelSilent {
-		block = append(block, mem.subagentMemoryLine(granted, parent, held))
+		block = append(block, mem.subagentMemoryLine(mem.hintChannel(ctx), granted, parent, held))
 	}
 
 	return block
@@ -551,7 +551,7 @@ const subagentSkills = "Load agentic-helpers:agent-memory before reading or fili
 	"agentic-helpers:agent-scratch before writing a probe or a draft, and agentic-helpers:agent-shell-guard " +
 	"when a hook refuses a call."
 
-func (mem *memory) subagentMemoryLine(granted level, parent string, held string) string {
+func (mem *memory) subagentMemoryLine(at channel, granted level, parent string, held string) string {
 	if parent == "" {
 		return fmt.Sprintf("%s: read-only (search, show, brief, topics, view, who); every write is refused. %s",
 			self, subagentSkills)
@@ -562,8 +562,9 @@ func (mem *memory) subagentMemoryLine(granted level, parent string, held string)
 	switch granted {
 	case levelFull:
 		return fmt.Sprintf("%s: the subagent holds seat %s on shelf %s while it runs: file what outlives the task "+
-			"with %s new, write where it stands with %s state; its shelf mates are told of its entries and it of "+
-			"theirs. The seat is released when it stops. %s", self, held, shelf, self, self, subagentSkills)
+			"with %s, write where it stands with %s; its shelf mates are told of its entries and it of "+
+			"theirs. The seat is released when it stops. %s", self, held, shelf, hintVerb(at, "new"),
+			addStateHint().in(at), subagentSkills)
 	case levelShared:
 		return fmt.Sprintf("%s: read-only on seat %s (search, show, brief, topics, view, who); every write is "+
 			"refused. A line at its tool calls names what other seats on shelf %s file or change. %s", self, parent,

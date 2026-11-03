@@ -50,7 +50,7 @@ func (mem *memory) change(ctx context.Context, id string, ownerOnly bool,
 ) (string, *entry, result, bool) {
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
-		return "", nil, refused("%s", ErrNoSeat), false
+		return "", nil, refused("%s", noSeatText(mem.hintChannel(ctx))), false
 	}
 
 	folded, err := mem.load(ctx)
@@ -101,7 +101,7 @@ func (mem *memory) batch(ctx context.Context, verb string, ids []string, ownerOn
 ) (*state, []string, result, bool) {
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
-		return nil, nil, refused("%s", ErrNoSeat), false
+		return nil, nil, refused("%s", noSeatText(mem.hintChannel(ctx))), false
 	}
 
 	folded, err := mem.load(ctx)
@@ -453,7 +453,8 @@ func (mem *memory) untag(ctx context.Context, req request) result {
 		}
 
 		if !slices.ContainsFunc(current, func(topic string) bool { return !slices.Contains(wanted, topic) }) {
-			return fmt.Errorf("%s keeps at least one topic; tag the right one first: %s tag %s <topic>", held.id, self, held.id)
+			return fmt.Errorf("%s keeps at least one topic; tag the right one first: %s", held.id,
+				tagHint(held.id).in(mem.hintChannel(ctx)))
 		}
 
 		for _, topic := range held.topics {
@@ -478,7 +479,7 @@ func (mem *memory) merge(ctx context.Context, req request) result {
 
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	from, into := normalTopic(req.FromTopic), normalTopic(req.Into)

@@ -159,8 +159,8 @@ func (mem *memory) reserve(ctx context.Context, req request, key string) (string
 func (mem *memory) inUseRefusal(ctx context.Context, name string, existing seat.Claim) string {
 	switch {
 	case mem.alive(ctx, existing):
-		return fmt.Sprintf("%s is held by session %s (pid %d), still running; its holder releases it with `%s release`, "+
-			"or the seat frees when that session ends", name, short(existing.SessionID), existing.PID, self)
+		return fmt.Sprintf("%s is held by session %s (pid %d), still running; its holder releases it with `%s`, "+
+			"or the seat frees when that session ends", name, short(existing.SessionID), existing.PID, releaseHint().in(mem.hintChannel(ctx)))
 	case mem.freshReservation(existing):
 		return fmt.Sprintf("%s is reserved for session %s until it starts, at most %s", name,
 			short(existing.SessionID), reservationKeep)

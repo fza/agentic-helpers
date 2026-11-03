@@ -200,7 +200,7 @@ func (mem *memory) showJSON(ctx context.Context, here tree, folded *state, req r
 		if id == ledgerID {
 			name, isSeated := mem.seated(ctx)
 			if !isSeated {
-				missing = append(missing, "state: "+ErrNoSeat.Error())
+				missing = append(missing, "state: "+noSeatText(mem.hintChannel(ctx)))
 
 				continue
 			}

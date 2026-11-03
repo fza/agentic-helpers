@@ -396,9 +396,9 @@ func (mem *memory) carryForwardHint(ctx context.Context, seatName string) string
 		return ""
 	}
 
-	return fmt.Sprintf("%s still holds this seat's carry-forward: read it once, file each finding with %s new, "+
+	return fmt.Sprintf("%s still holds this seat's carry-forward: read it once, file each finding with %s, "+
 		"then delete that one file; no other file under .memory/ is touched (agentic-helpers:agent-memory)",
-		relative, self)
+		relative, hintVerb(mem.hintChannel(ctx), "new"))
 }
 
 // newestOwn is when the seat last filed an entry or changed its state

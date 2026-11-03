@@ -40,7 +40,7 @@ func (mem *memory) who(ctx context.Context, req request) result {
 	if mem.storeExists() {
 		here = mem.key
 
-		rows := seatLines(mem.seatRecords(ctx, mem.mayFree(ctx)), req.Unused, self+" who --unused")
+		rows := seatLines(mem.seatRecords(ctx, mem.mayFree(ctx)), req.Unused, whoHint("unused").in(mem.hintChannel(ctx)))
 		if len(rows) > 0 {
 			firstRows = 0
 		} else {
@@ -64,7 +64,7 @@ func (mem *memory) who(ctx context.Context, req request) result {
 			continue
 		}
 
-		rows := seatLines(records, req.Unused, self+" who --all --unused")
+		rows := seatLines(records, req.Unused, whoHint("all", "unused").in(mem.hintChannel(ctx)))
 		if len(rows) > 0 {
 			blocks = append(blocks, held.Name()+" ("+held.ID+"):\n"+indent(rows))
 			if firstRows < 0 {
@@ -79,7 +79,7 @@ func (mem *memory) who(ctx context.Context, req request) result {
 
 	text := strings.Join(blocks, "\n\n")
 	if elsewhere > 0 {
-		text += "\n" + runBefore("+"+plural(elsewhere, "seat")+" in other projects: "+self+" who --all",
+		text += "\n" + runBefore("+"+plural(elsewhere, "seat")+" in other projects: "+whoHint("all").in(mem.hintChannel(ctx)),
 			"concluding a seat is not held")
 	}
 

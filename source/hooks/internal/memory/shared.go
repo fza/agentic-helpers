@@ -51,7 +51,7 @@ func (held *recipients) UnmarshalJSON(raw []byte) error {
 // recipientsFor turns the names a `--for` gave into the shelf ids an entry
 // stores: a shelf name names that shelf, a seat name the seat's shelf. A name
 // neither carries is refused, and the filer's own shelf is left out.
-func (mem *memory) recipientsFor(names []string, filer string) (*recipients, error) {
+func (mem *memory) recipientsFor(at channel, names []string, filer string) (*recipients, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -71,7 +71,7 @@ func (mem *memory) recipientsFor(names []string, filer string) (*recipients, err
 		}
 
 		if shelf == "" {
-			return nil, fmt.Errorf("--for names no seat or shelf called %s; %s who lists them", name, self)
+			return nil, fmt.Errorf("--for names no seat or shelf called %s; %s lists them", name, whoHint().in(at))
 		}
 
 		if shelf != own && !slices.Contains(held.Seats, shelf) {
@@ -170,7 +170,7 @@ func (mem *memory) annotate(folded *state) {
 func (mem *memory) setFollows(ctx context.Context, req request, add bool) result {
 	own, _ := mem.ownSeat(ctx)
 	if own == "" {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	var topics []string

@@ -550,7 +550,7 @@ An ended line leaves the state section and shows once under the brief's
 `ended since last brief`, naming why and its undo:
 
     ended since last brief (revive to undo):
-      state#k3x settle m-abc123 and m-def456: every id it cites ended (ack state#k3x --undo)
+      state#k3x settle m-abc123 and m-def456: every id it cites ended (agentic-memory ack state#k3x --undo)
 
 `--undo` brings it back, open until the agent ticks or removes it: whatever ended it would end it
 again at the next read.
@@ -581,7 +581,7 @@ The brief opens with the ledger, after its first line: the slot waiting to be sp
 lines, then the newest 12 open `landed` and `captured` lines, newest first, the other open ones
 folded into a count:
 
-    state (ack state#<item> --done | --remove):
+    state (agentic-memory ack state#<item> --done | ack state#<item> --remove):
       #k3x: gate fix half done: the Bash path records reads, the MCP path not yet
         landed 9c0ffee1 fix: the gate reads MCP calls
       #p9a: Gate reads Bash only today  → m-abc123
@@ -621,7 +621,7 @@ reasoning and does none of that.
 A seat whose newest state is a free-text slot the agent wrote, from a release before the ledger,
 shows it as `state#old` in its brief at claim, after a compaction and on resume, with what to do:
 
-    state (ack state#<item> --done | --remove):
+    state (agentic-memory ack state#<item> --done | ack state#<item> --remove):
       #old (2d old, branch main): gate fix half done; next: the MCP path, then docs
       state is a ledger now: split this into lines (agentic-memory ack state --add '<line>' ...), then agentic-memory ack state#old --done
 
@@ -654,7 +654,7 @@ language may follow it in parentheses.
 `untag <id> <topic>...` (MCP `untag`, keys `id` and `topics`) removes them, naming each as the entry
 reads now, through topic merges. Every entry keeps at least one topic, which `brief --topic` and the
 topic counts rely on: removing the last one is refused,
-`<id> keeps at least one topic; tag the right one first: agentic-memory tag <id> <topic>`, and a
+`<id> keeps at least one topic; tag the right one first: agentic-memory tag <id> <topic>...`, and a
 topic the entry does not carry is refused as `<id> carries no topic <topic>`. Replacing an entry's
 only topic is a `tag`, then an `untag`.
 
@@ -963,8 +963,8 @@ the entry just filed, each list line an `--item`, every free-text word single-qu
   → agentic-memory new --kind todo --absorbs <id> --title '<title>' --topic <topic> --item '<step>'...
 ```
 
-Over MCP the hint reads `... a todo ticks each one: "kind":"todo","item":[…]`, and the line after
-it is the `new` tool's arguments, `  → new {"kind":"todo","absorbs":["<id>"],"title":...,"item":[...]}`.
+Over MCP the hint reads `... a todo ticks each one: "kind":"todo","item":["…"]`, and the line after
+it is the `new` tool's call, `  → memory new {"kind":"todo","absorbs":["<id>"],"title":...,"item":[...]}`.
 The ready filing carries the title, topics and steps; the rest of the body stays on the superseded
 entry. A note only quoting a list gets the line too, and ignores it.
 
@@ -1610,7 +1610,7 @@ instead.
 The migration to format 4 scans every entry still holding its body once, over the same fields, and the next brief of each
 seat that filed one with a finding lists it, once:
 
-    possible credential: <id> <title> (<rule ids>); supersede it --because 'credential'
+    possible credential: <id> <title> (<rule ids>); supersede it: agentic-memory supersede <id> --because 'credential'
 
 A superseded body drops 14 days on.
 
@@ -1624,6 +1624,52 @@ listing loads into every session's context and an agent seldom runs them, and a 
 refused with its command line:
 
     agentic-memory: <subcommand> is no MCP tool; run it through Bash: agentic-memory <usage>
+
+### Hint forms
+
+Every command a reply or a hook line names takes the form of the channel the agent uses, never
+both: an MCP call, `memory <tool> {json}` with exactly the keys that tool's schema takes, or a
+command line, `agentic-memory <subcommand> ...`. An agent copies the command it is shown, so a
+command line handed to an agent working through the tools moves it to Bash: a shell round trip and
+a guard pass per call.
+
+- A command's reply follows its own call: an MCP tool answers MCP calls, the command line command
+  lines.
+- A PostToolUse line follows the call it follows: after a `mcp__plugin_agentic-helpers_memory__*`
+  tool, MCP calls; after a Bash call running `agentic-memory`, command lines.
+- A line answering no call (the brief at SessionStart and after a compaction, the prompt hook's
+  lines such as the near-compaction nudge, Stop holds, landed and captured lines, a line after any
+  other tool call) follows the seat's `last_channel`, which every memory call sets to `mcp` or
+  `cli`; a seat with none gets MCP calls.
+- A CLI-only command (`merge`, `read`, `bind` and the rest above) is named as a command line in
+  every channel.
+
+Each line in both forms:
+
+| Line | Command line | MCP |
+|---|---|---|
+| near-compaction and replay nudges | `agentic-memory ack state --add '<line>' \| ack state#<item> --done`, `agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body` | `memory ack {"ids":["state"],"add":["<line>"]} \| ack {"ids":["state#<item>"],"done":true}`, `memory new {"kind":"<kind>","title":"<3-10 words>","topic":["<name>"],"body":"<body>"}` |
+| the brief's state header | `state (agentic-memory ack state#<item> --done \| ack state#<item> --remove):` | `state (memory ack {"ids":["state#<item>"],"done":true} \| ack {"ids":["state#<item>"],"remove":true}):` |
+| `#old` | `split this into lines (agentic-memory ack state --add '<line>' ...), then agentic-memory ack state#old --done` | `split this into lines (memory ack {"ids":["state"],"add":["<line>"]} ...), then memory ack {"ids":["state#old"],"done":true}` |
+| an ended line | `(agentic-memory ack state#<id> --undo)` | `(memory ack {"ids":["state#<id>"],"undo":true})` |
+| ledger folds | `agentic-memory show state --with-history`, `agentic-memory show state --all-items` | `memory show {"ids":["state"],"with_history":true}`, `memory show {"ids":["state"],"all_items":true}` |
+| landed | `agentic-memory retire <id> --because 'landed in <sha>'`, `agentic-memory ack <todo>#<item> --done` | `memory retire {"ids":["<id>"],"because":"landed in <sha>"}`, `memory ack {"ids":["<todo>#<item>"],"done":true}` |
+| captured | `agentic-memory link <todo> <graph id>` | `memory link {"id":"<todo>","target":"<graph id>"}` |
+| forbidden | `→ agentic-memory retire <id> --because 'forbidden by <rule id>'` | `→ memory retire {"ids":["<id>"],"because":"forbidden by <rule id>"}` |
+| possible credential | `supersede it: agentic-memory supersede <id> --because 'credential'` | `supersede it: memory supersede {"ids":["<id>"],"because":"credential"}` |
+| brief folds | `agentic-memory brief --due`, `brief --kind note`, `brief --topic <name>`, `search --all-seats --status live`, `search --topic <name> --term .` | `memory brief {"due":true}`, `{"kind":"note"}`, `{"topic":["<name>"]}`, `memory search {"all_seats":true,"status":["live"]}`, `{"topic":["<name>"],"term":["."]}` |
+| filing notes | `agentic-memory retitle <id> '<title>'`, `agentic-memory tag <id> <topic>...`, `agentic-memory search --query '<title>'` | `memory retitle {"id":"<id>","title":"<title>"}`, `memory tag {"id":"<id>","topic":["<topic>"]}`, `memory search {"query":"<title>"}` |
+| todo filing | `steps go into --item`, `--until merged:<branch>`, `--item build --item capture`, `--kind todo --item …` | `steps go into "item"`, `"until":["merged:<branch>"]`, `"item":["build","capture"]`, `"kind":"todo","item":["…"]` |
+| a todo's folds | `agentic-memory show <todo> --all-items` | `memory show {"ids":["<todo>"],"all_items":true}` |
+| a search's next page | `--skip 10` | `"skip":10` |
+| `who` folds | `agentic-memory who --unused`, `who --all`, `who --all --unused`; `--for` refusal `agentic-memory who lists them` | `memory who {"unused":true}`, `{"all":true}`, `{"all":true,"unused":true}`; `memory who {} lists them` |
+| no seat | `claim a seat first: agentic-memory claim <seat>`, `Claim one: agentic-memory claim <seat>` | `claim a seat first: memory claim {"name":"<seat>"}`, `Claim one: memory claim {"name":"<seat>"}` |
+| held seat | ``its holder releases it with `agentic-memory release` `` | ``its holder releases it with `memory release {}` `` |
+| `view --layout brief` | `agentic-memory brief prints it, agentic-memory view --explain brief shows it` | `memory brief {} prints it, memory view {"explain":"brief"} shows it` |
+| carry-forward, full subagent | `file each finding with agentic-memory new`; `with agentic-memory new, write where it stands with agentic-memory ack state --add '<line>'` | `file each finding with memory new`; `with memory new, write where it stands with memory ack {"ids":["state"],"add":["<line>"]}` |
+
+Lines answering only a command line stay command lines: usage refusals, `state`'s refusal, and
+every line of a CLI-only command, `read`'s next page and a topic merge among them.
 
 A `bind` naming a store, or a `merge` naming two stores, that the command line would refuse an
 agent is refused with that refusal instead, `agentic-memory: <store> is not offered for this

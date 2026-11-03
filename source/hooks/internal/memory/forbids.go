@@ -34,7 +34,7 @@ func forbidsFor(kind string, given []string) ([]string, error) {
 // forbidden is the warning for every live rule the filing seat's brief would
 // show whose patterns the entry's title or body matches. The entry has landed
 // either way: a loose pattern must not block a real entry.
-func (mem *memory) forbidden(folded *state, held *entry, seatName string) []string {
+func (mem *memory) forbidden(at channel, folded *state, held *entry, seatName string) []string {
 	var lines []string
 
 	for _, rule := range mem.ownLive(folded, seatName, "") {
@@ -55,7 +55,7 @@ func (mem *memory) forbidden(folded *state, held *entry, seatName string) []stri
 
 			lines = append(lines, fmt.Sprintf("forbidden by %s %s", rule.label(), rule.title),
 				fmt.Sprintf("  matched: %q", matched),
-				fmt.Sprintf("  → %s retire %s --because 'forbidden by %s'", self, held.id, rule.id))
+				"  → "+retireHint(held.id, "forbidden by "+rule.id).in(at))
 
 			break
 		}

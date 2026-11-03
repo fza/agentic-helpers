@@ -114,7 +114,7 @@ func TestTheMigrationScanTellsTheOwningSeatOnce(t *testing.T) {
 	}
 
 	first := h.must("", "brief")
-	if !strings.Contains(first, "possible credential: m-leak01 Deploy notes with a token (generic-api-key, github-pat); supersede it --because 'credential'") {
+	if !strings.Contains(first, "possible credential: m-leak01 Deploy notes with a token (generic-api-key, github-pat); supersede it: agentic-memory supersede m-leak01 --because 'credential'") {
 		t.Errorf("the owning seat's next brief should list what the migration scan found:\n%s", first)
 	}
 

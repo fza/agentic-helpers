@@ -241,7 +241,7 @@ func (mem *memory) ack(ctx context.Context, req request) result {
 
 	name, held := mem.ownSeat(ctx)
 	if name == "" {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	because := strings.TrimSpace(req.Decline)

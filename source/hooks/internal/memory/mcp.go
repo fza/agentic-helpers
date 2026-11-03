@@ -139,7 +139,6 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 
 	read := slices.Contains(mcpJSONReads, held.name)
 	req.JSON = read
-	req.overMCP = true
 
 	if req.ID != "" && len(req.IDs) == 0 {
 		req.IDs = []string{req.ID}
@@ -148,10 +147,14 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 	req.normalize()
 	mem.resolveNames(&req, held.name)
 
+	mem.hints = channelMCP
 	answer := held.run(mem, ctx, req)
 	if answer.failed {
 		return mcpserver.Refusal(self + ": " + answer.text)
 	}
+
+	// A refused call writes nothing, its seat's last channel included.
+	mem.noteChannel(ctx, channelMCP)
 
 	// A read answering text, as view's explain does, answers it as a message.
 	if read && json.Valid([]byte(answer.text)) {

@@ -461,6 +461,7 @@ var slotKinds = []struct {
 	{prefix: "waiter/", fresh: func() slots.Fitted { return &fixedValue{} }},
 	{prefix: "migration-failed/", fresh: func() slots.Fitted { return &fixedValue{} }},
 	{prefix: "brief/", fresh: func() slots.Fitted { return &fixedValue{} }},
+	{prefix: "channel/", fresh: func() slots.Fitted { return &fixedValue{} }},
 	{prefix: "landed-scan/", fresh: func() slots.Fitted { return &fixedValue{} }},
 }
 

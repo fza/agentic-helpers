@@ -42,7 +42,6 @@ const self = "agentic-memory"
 
 var (
 	ErrUsage    = errors.New("usage: " + self + " <subcommand>; " + self + " help lists them")
-	ErrNoSeat   = errors.New("claim a seat first: " + self + " claim <seat>")
 	ErrNoEntry  = errors.New("no such entry")
 	ErrNoLanded = errors.New("no landed match stored for this seat")
 )
@@ -176,6 +175,10 @@ type memory struct {
 	// for that subagent: named by `--agent` on the command line, or by the
 	// MCP call's id.
 	acting string
+
+	// hints is the channel this run's command hints are spelled for, settled
+	// by hintChannel; a command sets its own.
+	hints channel
 
 	clock storeClock
 }
@@ -558,6 +561,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 			return mem.refuse(err)
 		}
 
+		mem.noteChannel(ctx, channelCLI)
 		mem.say(mem.who(ctx, req).text)
 
 		return 0
@@ -640,6 +644,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	request.normalize()
 	mem.resolveNames(&request, command.name)
 
+	mem.hints = channelCLI
 	result := command.run(mem, ctx, request)
 	if result.failed {
 		_, _ = fmt.Fprintln(streams.Err, self+": "+result.text)
@@ -647,6 +652,8 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		return 1
 	}
 
+	// A refused call writes nothing, its seat's last channel included.
+	mem.noteChannel(ctx, channelCLI)
 	mem.say(result.text)
 
 	return result.code

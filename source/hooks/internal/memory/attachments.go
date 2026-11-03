@@ -391,7 +391,7 @@ func attachedLine(id string, file attachPayload) string {
 func (mem *memory) attach(ctx context.Context, req request) result {
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	folded, err := mem.load(ctx)

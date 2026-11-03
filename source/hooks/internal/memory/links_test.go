@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -292,11 +293,22 @@ func TestTheSimilarHintIsOneLine(t *testing.T) {
 	}
 }
 
+// foldsOf is the fold line naming the search for the further matches, in
+// each surface's form.
+func foldsOf(more int) map[string]string {
+	const run = "  (run before concluding none is the same finding)"
+
+	return map[string]string{
+		"cli": fmt.Sprintf(`+%d more similar: agentic-memory search --query 'Gate seals the tail'\''s manifest'`, more) + run,
+		"mcp": fmt.Sprintf(`+%d more similar: memory search {"query":"Gate seals the tail's manifest"}`, more) + run,
+	}
+}
+
 func TestAFilingNamesTheClosestSimilarEntryAndFoldsTheRest(t *testing.T) {
 	cases := []struct {
 		name    string
 		similar []string
-		fold    string
+		fold    map[string]string
 	}{
 		{
 			name:    "one match",
@@ -305,8 +317,7 @@ func TestAFilingNamesTheClosestSimilarEntryAndFoldsTheRest(t *testing.T) {
 		{
 			name:    "three matches",
 			similar: []string{"Gate seals the tail first", "Gate seals the tail second", "Gate seals the tail third"},
-			fold: `+2 more similar: agentic-memory search --query 'Gate seals the tail'\''s manifest'  ` +
-				"(run before concluding none is the same finding)",
+			fold:    foldsOf(2),
 		},
 		{
 			name: "five matches",
@@ -314,8 +325,7 @@ func TestAFilingNamesTheClosestSimilarEntryAndFoldsTheRest(t *testing.T) {
 				"Gate seals the tail first", "Gate seals the tail second", "Gate seals the tail third",
 				"Gate seals the tail fourth", "Gate seals the tail fifth",
 			},
-			fold: `+4 more similar: agentic-memory search --query 'Gate seals the tail'\''s manifest'  ` +
-				"(run before concluding none is the same finding)",
+			fold: foldsOf(4),
 		},
 	}
 
@@ -347,11 +357,11 @@ func TestAFilingNamesTheClosestSimilarEntryAndFoldsTheRest(t *testing.T) {
 					t.Errorf("%s: the filing should name the closest similar entry alone, got:\n%s", surface, out)
 				}
 
-				if tc.fold == "" && strings.Contains(out, "more similar") {
+				if tc.fold == nil && strings.Contains(out, "more similar") {
 					t.Errorf("%s: a single match should come with no fold line, got:\n%s", surface, out)
 				}
 
-				if tc.fold != "" && !strings.Contains(out, tc.fold) {
+				if tc.fold != nil && !strings.Contains(out, tc.fold[surface]) {
 					t.Errorf("%s: further matches should fold into a count with the search naming them, got:\n%s",
 						surface, out)
 				}

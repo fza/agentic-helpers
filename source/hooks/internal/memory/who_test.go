@@ -137,7 +137,7 @@ func TestWhoNamesTheSessionToMessageForEachLiveHolder(t *testing.T) {
 	}
 
 	if answer := mcpMessage(t, h.mcp(`{"name":"who","arguments":{}}`)); !strings.Contains(answer, "message: memory rework") ||
-		!strings.Contains(answer, "+2 seats in other projects: agentic-memory who --all") {
+		!strings.Contains(answer, `+2 seats in other projects: memory who {"all":true}`) {
 		t.Errorf("the MCP who should answer as the command does, got:\n%s", answer)
 	}
 

@@ -423,9 +423,9 @@ func (folded *state) briefItems(held *entry, indent string) (string, []string) {
 }
 
 // showItems is held's todolist: open items in full, done and dropped ones
-// folded into a count unless allItems, removed ones only where asked.
-func (folded *state) showItems(held *entry, withRemoved bool, allItems bool) []string {
-	views, settled, total := folded.itemViews(held, withRemoved)
+// folded into a count unless asked for, removed ones only where asked.
+func (folded *state) showItems(held *entry, shown itemsShown) []string {
+	views, settled, total := folded.itemViews(held, shown.removed)
 	if len(views) == 0 {
 		return nil
 	}
@@ -435,7 +435,7 @@ func (folded *state) showItems(held *entry, withRemoved bool, allItems bool) []s
 	done, dropped := 0, 0
 
 	for _, view := range views {
-		if !allItems && (view.state == itemDone || view.state == itemDropped) {
+		if !shown.settled && (view.state == itemDone || view.state == itemDropped) {
 			if view.state == itemDone {
 				done++
 			} else {
@@ -466,8 +466,8 @@ func (folded *state) showItems(held *entry, withRemoved bool, allItems bool) []s
 	}
 
 	if done+dropped > 0 {
-		lines = append(lines, runBefore(fmt.Sprintf("  %d settled (%d done, %d dropped): %s show %s --all-items",
-			done+dropped, done, dropped, self, held.id), "judging what was done"))
+		lines = append(lines, runBefore(fmt.Sprintf("  %d settled (%d done, %d dropped): %s",
+			done+dropped, done, dropped, showHint(held.id, "all_items").in(shown.hints)), "judging what was done"))
 	}
 
 	return lines
@@ -594,43 +594,15 @@ func continuesItem(line string) bool {
 
 // stepsHint is the reply line to a non-todo whose body lists steps, and the
 // ready filing of the todo it reads as, absorbing the entry just filed, where
-// every list line is a plain step. Over MCP the filing is the new tool's call.
-func stepsHint(held *entry, steps []string, overMCP bool) []string {
-	if overMCP {
-		lines := []string{self + `: this body lists steps; a todo ticks each one: "kind":"todo","item":[…]`}
-		if len(steps) == 0 {
-			return lines
-		}
-
-		call, err := json.Marshal(struct {
-			Kind    string   `json:"kind"`
-			Absorbs []string `json:"absorbs"`
-			Title   string   `json:"title"`
-			Topic   []string `json:"topic,omitempty"`
-			Item    []string `json:"item"`
-		}{kindTodo, []string{held.id}, held.title, held.topics, steps})
-		if err != nil {
-			return lines
-		}
-
-		return append(lines, "  → new "+string(call))
-	}
-
-	lines := []string{self + ": this body lists steps; a todo ticks each one: --kind todo --item …"}
+// every list line is a plain step.
+func stepsHint(at channel, held *entry, steps []string) []string {
+	lines := []string{self + ": this body lists steps; a todo ticks each one: " +
+		hintArgs(at, hintFlag("kind", kindTodo), hintFlag("item", []string{"…"}))}
 	if len(steps) == 0 {
 		return lines
 	}
 
-	words := []string{self, "new", "--kind", kindTodo, "--absorbs", held.id, "--title", shellQuoted(held.title)}
-	for _, topic := range held.topics {
-		words = append(words, "--topic", shellWord(topic))
-	}
-
-	for _, step := range steps {
-		words = append(words, "--item", shellQuoted(step))
-	}
-
-	return append(lines, "  → "+strings.Join(words, " "))
+	return append(lines, "  → "+stepsTodoHint(held, steps).in(at))
 }
 
 func shellQuoted(text string) string {
@@ -651,7 +623,7 @@ func shellWord(text string) string {
 func (mem *memory) ackItems(ctx context.Context, req request) result {
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	because := strings.TrimSpace(req.Decline)

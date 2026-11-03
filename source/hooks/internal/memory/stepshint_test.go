@@ -212,11 +212,11 @@ func TestTheTodoHintOverMCPOffersTheNewCall(t *testing.T) {
 
 	answer := mcpMessage(t, h.mcp(`{"name":"new","arguments":{"title":"Port the waiter's clock","topic":["gate"],"body":`+string(body)+`}}`))
 	note := idPattern.FindString(answer)
-	if !strings.Contains(answer, stepsHintLine+`"kind":"todo","item":[…]`) {
+	if !strings.Contains(answer, stepsHintLine+`"kind":"todo","item":["…"]`) {
 		t.Fatalf("a body listing steps should get the todo hint over MCP:\n%s", answer)
 	}
 
-	_, call, found := strings.Cut(answer, "  → new ")
+	_, call, found := strings.Cut(answer, "  → memory new ")
 	call, _, _ = strings.Cut(call, "\n")
 
 	if !found || !json.Valid([]byte(call)) {

@@ -35,7 +35,7 @@ func (mem *memory) seated(ctx context.Context) (string, bool) {
 func (mem *memory) newEntry(ctx context.Context, req request) result {
 	name, claim := mem.ownSeat(ctx)
 	if name == "" {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	kind := cmp.Or(req.Kind, kindNote)
@@ -119,7 +119,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		}
 	}
 
-	shared, err := mem.recipientsFor(req.For, name)
+	shared, err := mem.recipientsFor(mem.hintChannel(ctx), req.For, name)
 	if err != nil {
 		return refused("%v", err)
 	}
@@ -305,23 +305,24 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	counted := listLines(req.Body)
 	if kind == kindTodo && counted > 0 {
-		lines = append(lines, fmt.Sprintf("%d list lines in the text; steps go into --item", counted))
+		lines = append(lines, fmt.Sprintf("%d list lines in the text; steps go into %s", counted,
+			hintKey(mem.hintChannel(ctx), "item")))
 	}
 
 	if kind != kindTodo {
 		listsSteps, steps := bodySteps(req.Body)
 		if listsSteps {
-			lines = append(lines, stepsHint(held, steps, req.overMCP)...)
+			lines = append(lines, stepsHint(mem.hintChannel(ctx), held, steps)...)
 		}
 	}
 
 	// A todo with no end tied to its work stays live after the work lands.
 	if kind == kindTodo && len(req.Until) == 0 && listedItems == 0 {
-		lines = append(lines, todoEndHint)
+		lines = append(lines, todoEndHint(mem.hintChannel(ctx)))
 	}
 
 	lines = append(lines, mem.filingNotes(ctx, folded, held, existing, req.Absorbs)...)
-	lines = append(lines, mem.forbidden(folded, held, name)...)
+	lines = append(lines, mem.forbidden(mem.hintChannel(ctx), folded, held, name)...)
 
 	if len(prepared) > 0 {
 		lines = append(lines, space.Line(mem.recordAttached(ctx, prepared)))
@@ -366,6 +367,7 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 ) []string {
 	var notes []string
 
+	at := mem.hintChannel(ctx)
 	limit := mem.options().EntryTargetWords
 
 	count := words(held.body)
@@ -376,12 +378,12 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 
 	titleWords := words(held.title)
 	if titleWords < 3 || titleWords > 10 {
-		notes = append(notes, fmt.Sprintf("note: title has %s, a title takes 3-10; %s retitle %s '<title>'",
-			plural(titleWords, "word"), self, held.id))
+		notes = append(notes, fmt.Sprintf("note: title has %s, a title takes 3-10; %s",
+			plural(titleWords, "word"), retitleHint(held.id).in(at)))
 	}
 
 	if len(held.topics) == 0 {
-		notes = append(notes, fmt.Sprintf("note: no topic; %s tag %s <topic>...", self, held.id))
+		notes = append(notes, "note: no topic; "+tagHint(held.id).in(at))
 	}
 
 	for _, topic := range held.topics {
@@ -400,7 +402,7 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 		}
 
 		notes = append(notes, fmt.Sprintf("new topic %s; near: %s", topic, strings.Join(named, ", ")),
-			fmt.Sprintf("  → %s merge %s %s", self, topic, near[0]))
+			"  → "+mergeTopicsHint(topic, near[0]).in(at))
 	}
 
 	var offered []scored
@@ -411,13 +413,13 @@ func (mem *memory) filingNotes(ctx context.Context, folded *state, held *entry, 
 		}
 	}
 
-	return append(notes, similarLines(offered, held.title)...)
+	return append(notes, similarLines(at, offered, held.title)...)
 }
 
 // similarLines names the closest of the offered entries alone and folds the
 // rest into a count: the agent acts on the closest in nearly every filing, and
 // each further line repeated the same hint.
-func similarLines(offered []scored, title string) []string {
+func similarLines(at channel, offered []scored, title string) []string {
 	if len(offered) == 0 {
 		return nil
 	}
@@ -426,8 +428,8 @@ func similarLines(offered []scored, title string) []string {
 	lines := []string{fmt.Sprintf("similar: %s %s (%.2f)", best.label, best.title, best.score)}
 
 	if len(offered) > 1 {
-		lines = append(lines, runBefore(fmt.Sprintf("+%d more similar: %s search --query %s", len(offered)-1, self,
-			shellQuoted(title)), "concluding none is the same finding"))
+		lines = append(lines, runBefore(fmt.Sprintf("+%d more similar: %s", len(offered)-1,
+			searchHint(hintText("query", title)).in(at)), "concluding none is the same finding"))
 	}
 
 	return lines
@@ -635,7 +637,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 		if id == ledgerID {
 			name, isSeated := mem.seated(ctx)
 			if !isSeated {
-				blocks = append(blocks, "state: "+ErrNoSeat.Error())
+				blocks = append(blocks, "state: "+noSeatText(mem.hintChannel(ctx)))
 				missing = true
 
 				continue
@@ -664,7 +666,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 
 		mem.seen.markBody(held)
 
-		block := []string{showBlock(here, folded, held, retiredBodyLifetime, showItemsOf(req), req.WithSuperseded)}
+		block := []string{showBlock(here, folded, held, retiredBodyLifetime, showItemsOf(req, mem.hintChannel(ctx)), req.WithSuperseded)}
 		block = append(block, mem.toolSection(here, mem.takenTools(ctx, held, req.Again))...)
 		blocks = append(blocks, strings.Join(block, "\n"))
 	}
@@ -722,13 +724,15 @@ func daysOrSpan(held time.Duration) string {
 	return span.Format(held)
 }
 
-// itemsShown is which of a todo's items show prints beside the open ones.
+// itemsShown is which of a todo's items show prints beside the open ones, and
+// the channel its fold lines name the call bringing the rest back in.
 type itemsShown struct {
 	removed, settled bool
+	hints            channel
 }
 
-func showItemsOf(req request) itemsShown {
-	return itemsShown{removed: req.WithRemoved, settled: req.AllItems}
+func showItemsOf(req request, at channel) itemsShown {
+	return itemsShown{removed: req.WithRemoved, settled: req.AllItems, hints: at}
 }
 
 func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.Duration, items itemsShown, withSuperseded bool) string {
@@ -822,7 +826,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 	}
 
 	lines = append(lines, "---")
-	lines = append(lines, folded.showItems(held, items.removed, items.settled)...)
+	lines = append(lines, folded.showItems(held, items)...)
 
 	var events []string
 
@@ -845,8 +849,8 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 	}
 
 	if hiddenItemChanges > 0 {
-		events = append(events, runBefore(fmt.Sprintf("  %d item changes: %s show %s --all-items", hiddenItemChanges, self, held.id),
-			"judging what changed"))
+		events = append(events, runBefore(fmt.Sprintf("  %d item changes: %s", hiddenItemChanges,
+			showHint(held.id, "all_items").in(items.hints)), "judging what changed"))
 	}
 
 	if len(events) > 0 {
@@ -1114,11 +1118,13 @@ func (mem *memory) search(ctx context.Context, req request) result {
 		lines = append(lines, text)
 	}
 
+	nextPage := hintArgs(mem.hintChannel(ctx), hintFlag("skip", next))
+
 	switch {
 	case total < 0 && len(ranked) == window:
-		lines = append(lines, runBefore(fmt.Sprintf("more: --skip %d", next), "concluding none fits"))
+		lines = append(lines, runBefore("more: "+nextPage, "concluding none fits"))
 	case total > next:
-		lines = append(lines, runBefore(fmt.Sprintf("%d more: --skip %d", total-next, next), "concluding none fits"))
+		lines = append(lines, runBefore(fmt.Sprintf("%d more: %s", total-next, nextPage), "concluding none fits"))
 	}
 
 	warm()

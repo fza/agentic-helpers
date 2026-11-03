@@ -51,8 +51,12 @@ const (
 	landedBySubject = "subject"
 )
 
-const todoEndHint = "no end declared: --until merged:<branch> ends it at its merge; " +
-	"or split the work into items, such as --item build --item capture"
+// todoEndHint answers a todo filed with nothing tying it to its work.
+func todoEndHint(at channel) string {
+	return "no end declared: " + hintArgs(at, hintFlag("until", []string{"merged:<branch>"})) +
+		" ends it at its merge; or split the work into items, such as " +
+		hintArgs(at, hintFlag("item", []string{"build", "capture"}))
+}
 
 // landingCall is a Bash command that may land commits in the checkout.
 var landingCall = regexp.MustCompile(`\bgit\b[^;&|\n]*?\s(?:merge|commit|pull|rebase|cherry-pick)\b`)
@@ -1018,7 +1022,7 @@ func landedSeenKey(mapping landedMapping) string {
 func (mem *memory) dismissLanded(ctx context.Context, req request) result {
 	name, isSeated := mem.seated(ctx)
 	if !isSeated {
-		return refused("%s", ErrNoSeat)
+		return refused("%s", noSeatText(mem.hintChannel(ctx)))
 	}
 
 	folded, err := mem.load(ctx)
@@ -1082,12 +1086,12 @@ func landedFlag(mapping landedMapping) string {
 
 // landedAnswer is the command that settles a mapping once the agent checked
 // it: ack on an item, retire on an entry.
-func landedAnswer(mapping landedMapping) string {
+func landedAnswer(at channel, mapping landedMapping) string {
 	if strings.Contains(mapping.Target, "#") {
-		return fmt.Sprintf("%s ack %s --done", self, mapping.Target)
+		return settleHint(mapping.Target, "done").in(at)
 	}
 
-	return fmt.Sprintf("%s retire %s --because 'landed in %s'", self, mapping.Target, shortCommit(mapping.Commit))
+	return retireHint(mapping.Target, "landed in "+shortCommit(mapping.Commit)).in(at)
 }
 
 // landedNotice is the one line a running session gets for its seat's pending
@@ -1121,7 +1125,7 @@ func (mem *memory) landedNotice(ctx context.Context, seatName string, session st
 
 		shown.Landed = append(shown.Landed, key)
 		parts = append(parts, fmt.Sprintf("%s by %s %q (%s): %s", mapping.Target, shortCommit(mapping.Commit),
-			mapping.Subject, mapping.Test, landedAnswer(mapping)))
+			mapping.Subject, mapping.Test, landedAnswer(mem.hintChannel(ctx), mapping)))
 	}
 
 	if len(parts) == 0 {

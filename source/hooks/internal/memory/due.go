@@ -147,7 +147,7 @@ func (mem *memory) dueEntries(folded *state, seatName string) []*entry {
 // a day, earliest first and capped, then one line counting the rest. The ids
 // it names as already due are returned, so the session is not told of them
 // again.
-func (mem *memory) dueSection(here tree, folded *state, seatName string, now time.Time) ([]string, []*entry) {
+func (mem *memory) dueSection(at channel, here tree, folded *state, seatName string, now time.Time) ([]string, []*entry) {
 	var near, later []*entry
 
 	for _, held := range mem.dueEntries(folded, seatName) {
@@ -176,12 +176,12 @@ func (mem *memory) dueSection(here tree, folded *state, seatName string, now tim
 		}
 
 		if more := len(near) - len(shown); more > 0 {
-			lines = append(lines, runBefore(fmt.Sprintf("+%d more due: %s brief --due", more, self), "choosing what to do next"))
+			lines = append(lines, runBefore(fmt.Sprintf("+%d more due: %s", more, briefHint(hintSwitch("due")).in(at)), "choosing what to do next"))
 		}
 	}
 
 	if len(later) > 0 {
-		lines = append(lines, runBefore(fmt.Sprintf("%d due later (next %s): %s brief --due", len(later), stamp(later[0].due), self),
+		lines = append(lines, runBefore(fmt.Sprintf("%d due later (next %s): %s", len(later), stamp(later[0].due), briefHint(hintSwitch("due")).in(at)),
 			"planning ahead"))
 	}
 
@@ -244,7 +244,7 @@ func (mem *memory) comeDue(ctx context.Context, folded *state, seatName string) 
 	}
 
 	if more := len(fresh) - len(shown); more > 0 {
-		lines = append(lines, runBefore(fmt.Sprintf("+%d more due: %s brief --due", more, self), "choosing what to do next"))
+		lines = append(lines, runBefore(fmt.Sprintf("+%d more due: %s", more, briefHint(hintSwitch("due")).in(mem.hintChannel(ctx))), "choosing what to do next"))
 	}
 
 	return strings.Join(lines, "\n")

@@ -137,8 +137,8 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 		return "", gained
 	}
 
-	return fmt.Sprintf("%s: graph gained %s; open todos waiting for a capture: %s; link the one it settles: %s link <todo> <graph id>",
-		self, strings.Join(gained, ", "), strings.Join(waiting, ", "), self), gained
+	return fmt.Sprintf("%s: graph gained %s; open todos waiting for a capture: %s; link the one it settles: %s",
+		self, strings.Join(gained, ", "), strings.Join(waiting, ", "), linkCaptureHint().in(mem.hintChannel(ctx))), gained
 }
 
 // namesPerPart is how many names one part of a month's table holds: a busy
