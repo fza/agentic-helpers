@@ -23,6 +23,7 @@ import (
 const (
 	repository = "../../../.."
 	pluginRoot = repository + "/plugin"
+	linksDir   = repository + "/source/hooks/cmd/agentic-helpers/links"
 )
 
 func TestTheOverrideRunsItsOwnDirectory(t *testing.T) {
@@ -341,8 +342,8 @@ func TestTheMCPServerRunsThroughTheCommandLauncher(t *testing.T) {
 			continue
 		}
 
-		if !test.Exists(t, filepath.Join(repository, "source", "hooks", "cmd", server.Args[1])) {
-			t.Errorf("the %s server should name a binary the release builds, got: %s", name, server.Args[1])
+		if !released(t, server.Args[1]) {
+			t.Errorf("the %s server should name a binary the release carries, got: %s", name, server.Args[1])
 		}
 	}
 }
@@ -877,6 +878,155 @@ func TestTheReleaseBuildsEveryBinary(t *testing.T) {
 	}
 }
 
+// releaseLinks is every name the release archive carries as a link to
+// agentic-helpers: the links under cmd/agentic-helpers/links/ it packs.
+func releaseLinks(t *testing.T) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(linksDir)
+	if err != nil {
+		t.Fatalf("reading the release links: %v", err)
+	}
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	return names
+}
+
+// released is whether the release carries name: a program it builds from
+// cmd/, or a link to agentic-helpers.
+func released(t *testing.T, name string) bool {
+	t.Helper()
+
+	return test.Exists(t, filepath.Join(repository, "source", "hooks", "cmd", name)) || slices.Contains(releaseLinks(t), name)
+}
+
+func TestTheReleaseCarriesTheCommandNamesAsLinksToAgenticHelpers(t *testing.T) {
+	config, err := os.ReadFile(filepath.Join(repository, ".goreleaser.yaml"))
+	if err != nil {
+		t.Fatalf("reading .goreleaser.yaml: %v", err)
+	}
+
+	if !strings.Contains(string(config), "- src: source/hooks/cmd/agentic-helpers/links/agentic-*\n        strip_parent: true\n") {
+		t.Error("the release archive should pack every link at its root")
+	}
+
+	links := releaseLinks(t)
+	if !slices.Equal(links, []string{"agentic-capture", "agentic-memory", "agentic-tools"}) {
+		t.Errorf("the release should carry each folded command's name and no other, got: %v", links)
+	}
+
+	for _, name := range links {
+		target, err := os.Readlink(filepath.Join(linksDir, name))
+		if err != nil || target != "agentic-helpers" {
+			t.Errorf("every name should be a link to agentic-helpers beside it, got %s: %q %v", name, target, err)
+		}
+
+		if test.Exists(t, filepath.Join(repository, "source", "hooks", "cmd", name)) ||
+			strings.Contains(string(config), "binary: "+name+"\n") {
+			t.Errorf("a folded command should build no program of its own, got one for %s", name)
+		}
+	}
+}
+
+func TestTheOverrideLinksEachCommandNameToAgenticHelpers(t *testing.T) {
+	for _, name := range []string{"agentic-memory", "agentic-tools", "agentic-capture"} {
+		t.Run(name, func(t *testing.T) {
+			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+			built := filepath.Join(t.TempDir(), "bin")
+			plugin.Binaries(t, built, "agentic-helpers")
+
+			got := plugin.Run(t, "hooks/run", []string{"AGENTIC_HELPERS_BIN_DIR=" + built}, name, "mcp")
+			if got.Code != 0 || !strings.Contains(got.Stdout, "ran "+filepath.Join(built, name)+" mcp") {
+				t.Errorf("the name should run agentic-helpers under that name, got: %+v", got)
+			}
+
+			target, err := os.Readlink(filepath.Join(built, name))
+			if err != nil || target != "agentic-helpers" {
+				t.Errorf("the launcher should leave the name as a link to agentic-helpers, got: %q %v", target, err)
+			}
+
+			leftovers, _ := filepath.Glob(filepath.Join(built, ".*"))
+			if leftovers != nil {
+				t.Errorf("linking should leave nothing else behind, got: %v", leftovers)
+			}
+		})
+	}
+}
+
+func TestTheOverrideReplacesAProgramAnEarlierBuildLeftOnlyOnceAgenticHelpersIsNewer(t *testing.T) {
+	cases := []struct {
+		name     string
+		age      time.Duration
+		replaced bool
+	}{
+		{name: "older than agentic-helpers", age: time.Hour, replaced: true},
+		{name: "newer than agentic-helpers", age: -time.Hour, replaced: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+			built := filepath.Join(t.TempDir(), "bin")
+			plugin.Binaries(t, built, "agentic-helpers", "agentic-memory")
+
+			then := time.Now().Add(-tc.age)
+
+			err := os.Chtimes(filepath.Join(built, "agentic-memory"), then, then)
+			if err != nil {
+				t.Fatalf("aging the earlier program: %v", err)
+			}
+
+			got := plugin.Run(t, "hooks/run", []string{"AGENTIC_HELPERS_BIN_DIR=" + built}, "agentic-memory", "prompt")
+			if got.Code != 0 || !strings.Contains(got.Stdout, "ran "+filepath.Join(built, "agentic-memory")+" prompt") {
+				t.Errorf("the name should run, got: %+v", got)
+			}
+
+			_, err = os.Readlink(filepath.Join(built, "agentic-memory"))
+			if (err == nil) != tc.replaced {
+				t.Errorf("an earlier build's program should give way to the link only once agentic-helpers is newer, got link error: %v", err)
+			}
+		})
+	}
+}
+
+func TestTheOverrideLinksNoOtherName(t *testing.T) {
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+	built := filepath.Join(t.TempDir(), "bin")
+	plugin.Binaries(t, built, "agentic-helpers")
+
+	plugin.Run(t, "hooks/run", []string{"AGENTIC_HELPERS_BIN_DIR=" + built}, "agentic-scratch", "start")
+
+	if test.Exists(t, filepath.Join(built, "agentic-scratch")) {
+		t.Error("a hook program of its own should never be linked to agentic-helpers")
+	}
+}
+
+func TestAReleaseCarryingTheNamesAsLinksRunsEachUnderItsName(t *testing.T) {
+	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
+	plugin.FoldedRelease(t, "1.4.0", "agentic-memory", "agentic-tools", "agentic-capture")
+
+	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-memory", "session-start")
+	if got.Code != 0 || !strings.Contains(got.Stdout, "ran "+filepath.Join(plugin.Data, "1.4.0", "agentic-memory")+" session-start") {
+		t.Fatalf("the fetched release should run agentic-helpers under the hook's name, got: %+v", got)
+	}
+
+	for _, name := range []string{"agentic-tools", "agentic-capture"} {
+		target, err := os.Readlink(filepath.Join(plugin.Data, "1.4.0", name))
+		if err != nil || target != "agentic-helpers" {
+			t.Errorf("unpacking should keep every name a link, got %s: %q %v", name, target, err)
+		}
+
+		got := plugin.Run(t, "hooks/run", nil, name, "prompt")
+		if got.Code != 0 || !strings.Contains(got.Stdout, "ran "+filepath.Join(plugin.Data, "1.4.0", name)+" prompt") {
+			t.Errorf("each name should run from the release, got: %+v", got)
+		}
+	}
+}
+
 func TestEveryHookRunsThroughTheLauncher(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
 	if err != nil {
@@ -920,8 +1070,8 @@ func TestEveryHookRunsThroughTheLauncher(t *testing.T) {
 				}
 
 				binary := strings.Fields(strings.TrimPrefix(arguments, "--session-start "))[0]
-				if !test.Exists(t, filepath.Join(repository, "source", "hooks", "cmd", binary)) {
-					t.Errorf("every hook should name a binary the release builds, got: %s", binary)
+				if !released(t, binary) {
+					t.Errorf("every hook should name a binary the release carries, got: %s", binary)
 				}
 			}
 		}

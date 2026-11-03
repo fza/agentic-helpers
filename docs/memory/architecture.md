@@ -835,7 +835,8 @@ session's directory>` in the slot file (`head`, its committer `date`, and `at`, 
 finished), and start a round where `landed_scan_interval` passed or a Bash call matched
 `git … merge|commit|pull|rebase|cherry-pick`. Starting takes `landed-scan-<hash>.lock` in the
 store's cache with `O_EXCL`, writing a fresh token, then starts `agentic-memory landed-round
-<token>` detached (`Setsid`); a lock older than ten minutes was left by a round that died and is
+<token>` detached (`Setsid`), from the `agentic-memory` link beside the program, since
+`agentic-helpers` picks its command by the name it runs under; a lock older than ten minutes was left by a round that died and is
 taken over. The round runs only while the lock holds its token, and removes it when done.
 
 A round asks `git log -1 --format=%H%x1f%cI HEAD`; a mark equal to it reads nothing more. Otherwise

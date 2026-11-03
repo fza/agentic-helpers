@@ -4,10 +4,14 @@ project_name: agentic-helpers
 
 builds:
   - &binary
-    id: agentic-capture
+    id: agentic-helpers
     dir: source/hooks
-    main: ./cmd/agentic-capture
-    binary: agentic-capture
+    main: ./cmd/agentic-helpers
+    binary: agentic-helpers
+    # Drops the build machine's paths from every program, which also keeps
+    # the unpacked release within its size budget.
+    flags:
+      - -trimpath
     env:
       - CGO_ENABLED=0
     goos:
@@ -17,10 +21,6 @@ builds:
       - amd64
       - arm64
   - <<: *binary
-    id: agentic-memory
-    main: ./cmd/agentic-memory
-    binary: agentic-memory
-  - <<: *binary
     id: agentic-grounding-gate
     main: ./cmd/agentic-grounding-gate
     binary: agentic-grounding-gate
@@ -29,25 +29,22 @@ builds:
     main: ./cmd/agentic-scratch
     binary: agentic-scratch
   - <<: *binary
-    id: agentic-tools
-    main: ./cmd/agentic-tools
-    binary: agentic-tools
-  - <<: *binary
     id: agentic-shell-guard
     main: ./cmd/agentic-shell-guard
     binary: agentic-shell-guard
-  - <<: *binary
-    id: agentic-helpers
-    main: ./cmd/agentic-helpers
-    binary: agentic-helpers
 
 # hooks/run fetches agentic-helpers_<version>_<os>_<arch>.tar.gz and checks it
-# against checksums.txt; both names are part of its contract.
+# against checksums.txt; both names are part of its contract. agentic-memory,
+# agentic-tools and agentic-capture are links to agentic-helpers, which runs
+# the command its name picks; the archive keeps them as links, so no name
+# costs a copy of the program.
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
+      - src: source/hooks/cmd/agentic-helpers/links/agentic-*
+        strip_parent: true
 
 checksum:
   name_template: checksums.txt

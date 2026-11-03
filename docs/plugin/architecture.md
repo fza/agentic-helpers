@@ -13,7 +13,7 @@
 | `plugin/bin/` | the commands the Bash tool finds, each handing its call to the launcher |
 | `plugin/skills/` | one skill per hook |
 | `plugin/README.md` | what the plugin is, and everything it runs, sends, writes and decides, for a user reading the installed plugin |
-| `source/hooks/` | one Go module: a binary per hook and command under `cmd/`, everything else under `internal/` |
+| `source/hooks/` | one Go module: under `cmd/`, a binary per hook program and `agentic-helpers`, which runs as `agentic-memory`, `agentic-tools` and `agentic-capture` under those names (its `links/` holds them as links for the release archive); everything else under `internal/` |
 
 Claude Code loads every component it finds at a plugin's root, so nothing but the plugin's own
 files goes into `plugin/`.
@@ -274,7 +274,12 @@ The plugin holds no binaries. Every hook runs through `plugin/hooks/run`, which 
 the release named by the plugin's own `version`, kept under the plugin's data directory
 (`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
 
-1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched.
+1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched. For
+   `agentic-memory`, `agentic-tools` and `agentic-capture` the launcher first links the name to
+   `agentic-helpers` beside it where the name is missing, or is a program an earlier build left
+   that `agentic-helpers` is newer than, since `go install` builds `agentic-helpers` alone. The
+   link is made under a name of its own and renamed into place, so a hook starting at the same
+   moment never finds the name missing.
 2. The plugin's version is there: it runs.
 3. At SessionStart, or for a command an agent runs (a `bin/` shim, the `memory` or `tools` MCP server), the
    release archive for this machine and the release's `checksums.txt` are downloaded; the archive
@@ -288,6 +293,20 @@ the release named by the plugin's own `version`, kept under the plugin's data di
 
 The archive is unpacked in the fetch's work directory and renamed into place, so a version
 directory is complete or absent.
+
+The archive holds `agentic-shell-guard`, `agentic-grounding-gate`, `agentic-scratch` and
+`agentic-helpers` as programs, and `agentic-memory`, `agentic-tools` and `agentic-capture` as links
+to `agentic-helpers`, which `tar` keeps as links. `agentic-helpers` picks
+its command by the base of the path it runs under, so the launcher runs `<version>/agentic-memory`
+as it runs any other name, and an earlier release whose archive holds a program under each name
+runs unchanged. Each program carries its own copy of the Go runtime and of the packages it shares,
+so one program for the three commands and `agentic-helpers` keeps one copy: a darwin arm64
+release unpacks to about 30 MB, where a program per name took 50 MB. The hook programs that refuse
+a call when they fail stay apart: a fault in the startup code of a memory or tool-library package
+(a Go panic exits 2, which Claude Code reads as a refusal) breaks every name of `agentic-helpers`,
+never a Bash or graph call, and shell-guard's start loads only its own packages. agentic-memory starts a
+landed-commit round from its own name beside the program, since Linux names a running program by
+the file its links point to. Building every program and the links is `.goreleaser.yaml`'s.
 
 A SessionStart hook that runs a binary from a version directory first writes
 `<data>/<version>/used` with the shell's own `echo`, so no process is spawned for it; a directory
@@ -377,7 +396,10 @@ The rules for this code live in [`source/AGENTS.md`](../../source/AGENTS.md). Ea
 binary's `Main` against a tree built in a temporary directory, with processes faked, never the real
 ones. The plugin's suite runs the real `plugin/hooks/run` and `plugin/bin/` shims against a fake
 `curl` and a temporary data directory, and checks that every hook in `plugin/hooks/hooks.json` goes
-through the launcher and that the release builds every binary under `source/hooks/cmd/`. Every guard
+through the launcher and that the release builds every binary under `source/hooks/cmd/` and packs
+every name under `cmd/agentic-helpers/links/` as a link to `agentic-helpers`. The folded program's
+own suite starts the test binary under each name through a link and checks that the name runs its
+command. Every guard
 is asserted from both sides: the same call is driven once with the evidence present and once with it
 missing, and the two outcomes have to differ.
 

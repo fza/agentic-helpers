@@ -1,6 +1,7 @@
 # agentic-tools: architecture
 
-The binary is `source/hooks/cmd/agentic-tools`; every decision lives in
+The program is `source/hooks/cmd/agentic-helpers` run under the name `agentic-tools`
+(`cmd/agentic-helpers/tools.go` resolves its environment); every decision lives in
 `source/hooks/internal/tools`.
 
 ## Store

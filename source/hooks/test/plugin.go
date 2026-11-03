@@ -89,6 +89,20 @@ func (plugin *Plugin) Installed(t *testing.T, version string, names ...string) {
 func (plugin *Plugin) Release(t *testing.T, version string, sum string, names ...string) {
 	t.Helper()
 
+	plugin.publish(t, version, sum, names, nil)
+}
+
+// FoldedRelease publishes version as the release archive carries it: a fake
+// agentic-helpers and each of links as a symbolic link to it.
+func (plugin *Plugin) FoldedRelease(t *testing.T, version string, links ...string) {
+	t.Helper()
+
+	plugin.publish(t, version, "", []string{"agentic-helpers"}, links)
+}
+
+func (plugin *Plugin) publish(t *testing.T, version string, sum string, names []string, links []string) {
+	t.Helper()
+
 	var packed bytes.Buffer
 
 	zipped := gzip.NewWriter(&packed)
@@ -106,6 +120,15 @@ func (plugin *Plugin) Release(t *testing.T, version string, sum string, names ..
 		_, err = archive.Write([]byte(binary))
 		if err != nil {
 			t.Fatalf("packing %s: %v", name, err)
+		}
+	}
+
+	for _, name := range links {
+		header := &tar.Header{Name: name, Mode: 0o777, Typeflag: tar.TypeSymlink, Linkname: "agentic-helpers"}
+
+		err := archive.WriteHeader(header)
+		if err != nil {
+			t.Fatalf("packing the link %s: %v", name, err)
 		}
 	}
 

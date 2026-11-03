@@ -46,7 +46,31 @@ fi
 binary=$1
 shift
 
+# agentic-memory, agentic-tools and agentic-capture are links to
+# agentic-helpers, which runs the command its name picks. A release carries the
+# links; `go install` builds agentic-helpers alone, so the launcher links a
+# missing name beside it, and replaces a program an earlier build left under
+# that name once agentic-helpers is newer. The link is made under a name of
+# its own and renamed into place, so a hook starting beside it never finds the
+# name missing.
+link_command() {
+	case $binary in
+	agentic-memory | agentic-tools | agentic-capture) ;;
+	*) return 0 ;;
+	esac
+
+	# -nt also holds where the name is missing, in bash and dash alike; a link
+	# to agentic-helpers is the same file, never newer, and stays.
+	[ "$1/agentic-helpers" -nt "$1/$binary" ] || return 0
+
+	ln -s agentic-helpers "$1/.$binary.$$" 2>/dev/null &&
+		mv -f "$1/.$binary.$$" "$1/$binary" 2>/dev/null
+	rm -f "$1/.$binary.$$"
+	return 0
+}
+
 if [ -n "${AGENTIC_HELPERS_BIN_DIR:-}" ]; then
+	link_command "$AGENTIC_HELPERS_BIN_DIR"
 	exec "$AGENTIC_HELPERS_BIN_DIR/$binary" "$@"
 fi
 

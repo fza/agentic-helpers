@@ -1,7 +1,3 @@
-// Command agentic-memory is the agent memory store: the subcommands a session
-// runs to claim a seat and file, search and retire entries, the stdio MCP
-// server offering the same as tools, and the Claude Code hooks replaying what
-// a fresh context needs.
 package main
 
 import (
@@ -20,6 +16,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
+	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/process"
 	"github.com/fza/agentic-helpers/source/hooks/internal/project"
@@ -27,16 +24,14 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/updates"
 )
 
-var version = "dev"
-
-func main() {
+func memoryMain() int {
 	ctx := context.Background()
 
 	base := os.Getenv("CLAUDE_PROJECT_DIR")
 	if base == "" {
 		working, err := os.Getwd()
 		if err != nil {
-			os.Exit(0)
+			return 0
 		}
 
 		base = working
@@ -44,7 +39,7 @@ func main() {
 
 	userHome, err := os.UserHomeDir()
 	if err != nil {
-		os.Exit(0)
+		return 0
 	}
 
 	cacheRoot := os.Getenv("XDG_CACHE_HOME")
@@ -62,10 +57,7 @@ func main() {
 		window = 0
 	}
 
-	executable, err := os.Executable()
-	if err != nil {
-		executable = ""
-	}
+	executable := namedPath(pieces.Memory.Binary)
 
 	machine := migration.Machine(userHome, os.Getenv)
 	migration.Prepare(ctx, machine, os.Stderr)
@@ -100,5 +92,5 @@ func main() {
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
-	os.Exit(memory.Main(ctx, os.Args[1:], env, streams))
+	return memory.Main(ctx, os.Args[1:], env, streams)
 }

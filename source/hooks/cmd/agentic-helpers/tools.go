@@ -1,7 +1,3 @@
-// Command agentic-tools is the library of agents' helper tools: the verbs a
-// session runs to find, take, add and update tools, the stdio MCP server
-// offering the same, and the Claude Code hooks offering tools and nudging a
-// session to register what it wrote.
 package main
 
 import (
@@ -22,16 +18,14 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
 
-var version = "dev"
-
-func main() {
+func toolsMain() int {
 	ctx := context.Background()
 
 	base := os.Getenv("CLAUDE_PROJECT_DIR")
 	if base == "" {
 		working, err := os.Getwd()
 		if err != nil {
-			os.Exit(0)
+			return 0
 		}
 
 		base = working
@@ -39,7 +33,7 @@ func main() {
 
 	userHome, err := os.UserHomeDir()
 	if err != nil {
-		os.Exit(0)
+		return 0
 	}
 
 	owner := os.Getenv("AGENTIC_MEMORY_PROCESS_NAME")
@@ -71,5 +65,5 @@ func main() {
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
-	os.Exit(tools.Main(ctx, os.Args[1:], env, streams))
+	return tools.Main(ctx, os.Args[1:], env, streams)
 }

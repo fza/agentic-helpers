@@ -195,7 +195,8 @@ func download(ctx context.Context, url string) ([]byte, error) {
 }
 
 // unpack writes every regular file of the archive whose name is a bare
-// agentic- binary into bin, nothing else.
+// agentic- binary into bin, and every such name linked to agentic-helpers as
+// that link, nothing else.
 func unpack(packed []byte, bin string) error {
 	unzipped, err := gzip.NewReader(bytes.NewReader(packed))
 	if err != nil {
@@ -220,7 +221,22 @@ func unpack(packed []byte, bin string) error {
 		}
 
 		name := header.Name
-		if header.Typeflag != tar.TypeReg || strings.ContainsAny(name, `/\`) || !strings.HasPrefix(name, "agentic-") {
+		if strings.ContainsAny(name, `/\`) || !strings.HasPrefix(name, "agentic-") {
+			continue
+		}
+
+		// A release may carry agentic-memory, agentic-tools and
+		// agentic-capture as links to agentic-helpers beside them.
+		if header.Typeflag == tar.TypeSymlink && header.Linkname == "agentic-helpers" {
+			err = os.Symlink(header.Linkname, filepath.Join(bin, name))
+			if err != nil {
+				return fmt.Errorf("linking %s: %w", name, err)
+			}
+
+			continue
+		}
+
+		if header.Typeflag != tar.TypeReg {
 			continue
 		}
 

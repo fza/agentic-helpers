@@ -1,6 +1,3 @@
-// Command agentic-capture turns a draft file into a captured sdd graph entry:
-// the header's fields become `sdd new` flags, the body passes as one argument,
-// the project's own lint and the tool's pre-flight run first.
 package main
 
 import (
@@ -20,10 +17,10 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/sddcaps"
 )
 
-func main() {
+func captureMain() int {
 	working, err := os.Getwd()
 	if err != nil {
-		os.Exit(1)
+		return 1
 	}
 
 	// Every command runs in a process group of its own, out of reach of the
@@ -40,6 +37,8 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	migration.Prepare(ctx, migration.Machine(home, os.Getenv), os.Stderr)
 
 	env := capture.Env{
@@ -56,8 +55,5 @@ func main() {
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
-	code := capture.Main(ctx, os.Args[1:], env, streams)
-
-	stop()
-	os.Exit(code)
+	return capture.Main(ctx, os.Args[1:], env, streams)
 }

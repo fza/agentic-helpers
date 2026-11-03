@@ -1,70 +1,56 @@
-// Command agentic-helpers reports on the plugin as a whole: `check` names the
-// features off because a piece they rest on is off, and the command
-// substitutions the machine needs. `bound` runs a command for at most a
-// duration, standing in for a missing `timeout`.
+// Command agentic-helpers is one program answering to four names, the base of
+// the path it runs under picking the command:
+//
+//   - agentic-memory, the agent memory store: the subcommands a session runs
+//     to claim a seat and file, search and retire entries, the stdio MCP
+//     server offering the same, and the hooks replaying what a fresh context
+//     needs;
+//   - agentic-tools, the library of agents' helper tools: find, take, add and
+//     update, its MCP server, and the hooks offering tools;
+//   - agentic-capture, turning a draft file into a captured sdd graph entry;
+//   - any other name, agentic-helpers itself: `check` names the features off
+//     because a piece they rest on is off, and `bound` runs a command for at
+//     most a duration, standing in for a missing `timeout`.
+//
+// The release archive and the launcher link each of the three names to this
+// program. The hook programs agentic-shell-guard, agentic-grounding-gate and
+// agentic-scratch stay programs of their own, so a fault in this one's
+// packages never refuses a Bash or graph call.
 package main
 
 import (
-	"cmp"
-	"context"
 	"os"
-	"runtime"
+	"path/filepath"
 
-	"github.com/fza/agentic-helpers/source/hooks/internal/bound"
-	"github.com/fza/agentic-helpers/source/hooks/internal/home"
-	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
-	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
-	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
-	"github.com/fza/agentic-helpers/source/hooks/internal/process"
-	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 )
 
-func main() {
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		userHome = ""
-	}
+var version = "dev"
 
-	cacheRoot := ""
-	if userHome != "" || os.Getenv("XDG_CACHE_HOME") != "" {
-		cacheRoot = home.Locate(userHome, os.Getenv).Cache
-	}
-
-	ctx := context.Background()
-
-	// A bounded run reads no settings and migrates nothing, so it starts at
-	// once and its output is the command's alone.
-	if len(os.Args) > 1 && os.Args[1] == "bound" {
-		os.Exit(bound.Main(ctx, os.Args[2:], hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}))
-	}
-
-	machine := migration.Machine(userHome, os.Getenv)
-	migration.Prepare(ctx, machine, os.Stderr)
-
-	// Claude Code sets CLAUDE_PLUGIN_ROOT for a plugin's hooks and never for a
-	// command the Bash tool runs.
-	env := pieces.Env{
-		Settings:  pluginconfig.Paths(userHome, runtime.GOOS, os.Getenv),
-		Getenv:    os.Getenv,
-		Hook:      os.Getenv("CLAUDE_PLUGIN_ROOT") != "",
-		Migration: machine,
-		CacheRoot: cacheRoot,
-		SddConfig: process.SddConfig{},
-		SddValues: process.SddConfig{},
-		Dir:       cmp.Or(os.Getenv("CLAUDE_PROJECT_DIR"), workingDir()),
-		ToolPrune: tools.Prune,
-	}
-	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
-
-	os.Exit(pieces.Main(ctx, os.Args[1:], env, streams))
+var commands = map[string]func() int{
+	pieces.Memory.Binary:  memoryMain,
+	pieces.Tools.Binary:   toolsMain,
+	pieces.Capture.Binary: captureMain,
 }
 
-func workingDir() string {
-	dir, err := os.Getwd()
+func main() {
+	command, found := commands[filepath.Base(os.Args[0])]
+	if !found {
+		command = helpersMain
+	}
+
+	os.Exit(command())
+}
+
+// namedPath is this program's path under name: the link beside it that the
+// release archive and the launcher put there. A process started from it runs
+// as that command, where Linux resolves the program's own path to the file
+// the links point to.
+func namedPath(name string) string {
+	executable, err := os.Executable()
 	if err != nil {
 		return ""
 	}
 
-	return dir
+	return filepath.Join(filepath.Dir(executable), name)
 }
