@@ -21,11 +21,10 @@ import (
 
 const (
 	slotsName = "sessions.slots"
-	// slotWidth holds a vector of several thousand floats as JSON.
-	slotWidth = 128 << 10
-	// format is the prompt vectors' layout: one slot per session; 1 was a
-	// JSON file per session.
-	format = 2
+	// format is the prompt vectors' layout: one slot per session in a slot
+	// directory with its classes; 2 kept them in one fixed-width slot file, 1
+	// in a JSON file per session.
+	format = 3
 	// Ceiling bounds a session's slot value in bytes.
 	Ceiling = 128_100
 )
@@ -160,7 +159,7 @@ func Reclaim(ctx context.Context, dir string) error {
 // release kept there are taken in. dir is Dir of the cache root, so its
 // folder is the root its writes walk from.
 func open(ctx context.Context, dir string) (*slots.File, error) {
-	file := slots.Open(filepath.Dir(dir), filepath.Join(dir, slotsName), slotWidth)
+	file := slots.Open(filepath.Dir(dir), filepath.Join(dir, slotsName))
 
 	err := file.Adopt(ctx, dir, format, func() []slots.Legacy {
 		paths, _ := filepath.Glob(filepath.Join(dir, "*.json"))

@@ -45,7 +45,7 @@ func TestImportTakesInAFileItHoldsOnce(t *testing.T) {
 				}
 			}
 
-			file := slots.Open(root, filepath.Join(root, "sessions.slots"), width)
+			file := slots.Open(root, filepath.Join(root, "sessions.slots"))
 
 			write(`{"rung":75}`)
 

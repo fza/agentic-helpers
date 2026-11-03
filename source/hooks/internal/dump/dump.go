@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
@@ -97,7 +98,7 @@ func Dump(ctx context.Context, w io.Writer, path string) error {
 
 	switch {
 	case slots.IsSlotFile(data):
-		err = dumpSlots(file, encoder)
+		err = dumpSlots(ctx, path, encoder)
 	case memorylog.IsJournal(data):
 		err = dumpJournal(data, encoder)
 	case memorylog.IsSegment(data):
@@ -122,8 +123,10 @@ func stamp(at time.Time) string {
 	return at.UTC().Format(time.RFC3339Nano)
 }
 
-func dumpSlots(file io.ReaderAt, encoder *json.Encoder) error {
-	_, held, err := slots.Read(file)
+// dumpSlots prints a slot directory's keys with the values its classes hold,
+// a class file's or a fixed-width file's as their twins hold them.
+func dumpSlots(ctx context.Context, path string, encoder *json.Encoder) error {
+	held, err := slots.Open(filepath.Dir(path), path).All(ctx)
 	if err != nil {
 		return err
 	}

@@ -17,14 +17,16 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memory"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
+	"github.com/fza/agentic-helpers/source/hooks/internal/promptvector"
+	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 const (
-	currentMemoryFormat = 9
-	currentToolsFormat  = 2
+	currentMemoryFormat = 10
+	currentToolsFormat  = 3
 	claimOwnerPID       = test.OwnerPID
 )
 
@@ -313,7 +315,59 @@ func TestEveryCommittedReleaseMigratesToWhatItHeld(t *testing.T) {
 			if mismatches := test.LedgerMismatches(t, run.storeOf(home.Memory)); len(mismatches) > 0 {
 				t.Errorf("the size ledger should match the files: %s", strings.Join(mismatches, "; "))
 			}
+
+			laidOut(t, run.roots().Cache)
 		})
+	}
+}
+
+// laidOut checks every slot file a release left in the cache is a slot
+// directory once each component opened it, the prompt vectors opened as
+// SessionStart's reclaim opens them; shell-guard's state stays fixed-width.
+func laidOut(t *testing.T, cache string) {
+	t.Helper()
+
+	err := promptvector.Reclaim(context.Background(), promptvector.Dir(cache))
+	if err != nil {
+		t.Fatalf("opening the prompt vectors: %v", err)
+	}
+
+	paths, err := filepath.Glob(filepath.Join(cache, "*", "sessions.slots"))
+	if err == nil {
+		var stores []string
+
+		stores, err = filepath.Glob(filepath.Join(cache, "stores", "*", "*", "sessions.slots"))
+		paths = append(paths, stores...)
+	}
+
+	if err != nil || len(paths) < 3 {
+		t.Fatalf("the release should leave its slot files, found %v %v", paths, err)
+	}
+
+	for _, dir := range []string{promptvector.Dir(cache), filepath.Join(cache, home.Tools)} {
+		version, err := formatsteps.Read(dir)
+		if err != nil || version != 3 {
+			t.Errorf("%s should stand at the format laying its slot file out, got %d %v", dir, version, err)
+		}
+	}
+
+	for _, path := range paths {
+		opened, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		header, _, err := slots.Read(opened)
+		_ = opened.Close()
+
+		want := 2
+		if filepath.Base(filepath.Dir(path)) == "shell-guard" {
+			want = 1
+		}
+
+		if err != nil || header.Format != want {
+			t.Errorf("%s should stand at slot format %d, got %d %v", path, want, header.Format, err)
+		}
 	}
 }
 

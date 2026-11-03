@@ -22,9 +22,12 @@ import (
 // which a format-6 binary cannot read; format 7 holds no state ledger, `item`
 // rows of the entry `state`, which a format-7 binary would drop unread;
 // format 8 names no entry, and a format-8 binary would file entries the index
-// never names.
+// never names; format 9 keeps the cache's session state in one fixed-width
+// slot file, where format 10 keeps a slot directory with its classes, which a
+// format-9 binary cannot read.
 const (
-	storeFormat  = 9
+	storeFormat  = 10
+	namesFormat  = 9
 	ledgerFormat = 8
 	dueFormat    = 7
 	slotsFormat  = 6

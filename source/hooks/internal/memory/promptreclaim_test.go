@@ -14,7 +14,7 @@ func TestSessionStartReclaimsThePromptVectorsOfSessionsGoneAWeek(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	file := slots.Open(h.roots().Cache, filepath.Join(promptvector.Dir(h.roots().Cache), "sessions.slots"), slots.MinWidth)
+	file := slots.Open(h.roots().Cache, filepath.Join(promptvector.Dir(h.roots().Cache), "sessions.slots"))
 
 	for key, written := range map[string]time.Time{
 		"crashed": time.Now().Add(-slots.StaleAge - time.Hour),

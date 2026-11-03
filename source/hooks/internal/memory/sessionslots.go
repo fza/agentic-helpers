@@ -14,12 +14,8 @@ import (
 
 // Per-session state, and the per-seat state a session leaves its seat's next
 // one, lives in the store's slot file in the cache, `sessions.slots`, keyed
-// `<purpose>/<session or seat key>` (internal/slots). sessionSlotWidth holds
-// a month's capture names and a long session's shown set.
-const (
-	sessionSlotsName = "sessions.slots"
-	sessionSlotWidth = 128 << 10
-)
+// `<purpose>/<session or seat key>` (internal/slots).
+const sessionSlotsName = "sessions.slots"
 
 // sessionPurposes are the keys a session's own state goes under: what the
 // housekeeping reclaims once nobody came back to it.
@@ -39,7 +35,7 @@ var seatPurposes = []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", 
 var endedPurposes = []string{"ladder/", "waiter/", "graph-seen/", "fork/"}
 
 func (mem *memory) slotFile() *slots.File {
-	file := slots.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), sessionSlotsName), sessionSlotWidth)
+	file := slots.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), sessionSlotsName))
 	file.Now = mem.now
 
 	return file

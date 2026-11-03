@@ -219,7 +219,7 @@ format is all it writes.
 |---|---|---|
 | memory store | `formatSteps`, `internal/memory/migrate.go` ([memory architecture](../memory/architecture.md#the-format-and-its-migration)) | the store lock |
 | tool library | `libraryComponent`, `internal/tools/format.go` ([tools architecture](../tools/architecture.md)) | the library's lock, which every caller already holds |
-| slot-file adoption | `File.Adopt`, `internal/slots/slots.go`, one step for shell-guard's state, the prompt vectors and the tools' seen list | the slot file's writers' lock |
+| slot-file adoption | `File.Adopt`, `internal/slots/slots.go`: to format 2 taking in the per-session files, for shell-guard's state, the prompt vectors and the tools' seen list; to format 3 laying the fixed-width file out as a slot directory with its classes, for the prompt vectors and the seen list, while shell-guard's 4 KiB file, bounded by construction, stays fixed-width | the slot file's writers' lock |
 | home | `Roots.Layout`, `internal/home/home.go`, an empty table: format 1 is the only one the home has held | none taken while the table is empty |
 
 The move from the layout before the home (above) is no step of that last table: it moves trees
@@ -230,8 +230,10 @@ the step's starting format, applies the step's first k operations as a run kille
 runs the table again in a new process and compares the result with an uninterrupted run, the minted
 seat and shelf ids named by what they stand for. `TestEveryStepCarriesOnFromAnyOperation` covers the
 memory store, on the oldest hand-laid store and on every committed release;
-`TestEveryLibraryOperationCarriesOn` and `TestAdoptionCarriesOnFromAnyOperation` the tool library and
-adoption. A new step is covered by declaring its operations; no production code exists for the test,
+`TestEveryLibraryOperationCarriesOn`, `TestEveryLayoutOperationCarriesOn`,
+`TestAdoptionCarriesOnFromAnyOperation` and `TestAdoptionLaysAFixedFileOutFromAnyOperation` the tool
+library and adoption. `TestEveryStoreKeepsItsSessionSlotsThroughTheLayoutStep` lays every committed
+release's store out and checks every key of its slot file keeps its value, generation and time. A new step is covered by declaring its operations; no production code exists for the test,
 and no operation carries a hook to stop at.
 
 ### Release fixtures
@@ -253,7 +255,8 @@ reads through the current `Main`s and compares them with `dump.json`, or with it
 format changed an answer: `successors` holds one function per such format, format 8 turning a
 seat's state slot into the ledger's `state#old`; format 9, which names every entry, adds to each
 entry object the name the migrated store's index holds, after checking the index names every entry
-the fixture filed, no two alike. `TestTheNamedReleaseHasAFixture` fails while no
+the fixture filed, no two alike. It then checks every slot file the release left is a slot directory
+once its component opened it, shell-guard's fixed-width file aside. `TestTheNamedReleaseHasAFixture` fails while no
 fixture exists for the release `plugin/.claude-plugin/plugin.json` names.
 
 Rejected: hand-built fixtures per format, which show what format N was thought to be, not what a

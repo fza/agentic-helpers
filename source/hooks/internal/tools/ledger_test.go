@@ -80,7 +80,7 @@ func TestAnEarlierLibraryMovesToJournalsAndSlots(t *testing.T) {
 	h.must("take", "word-count")
 
 	format, _ := os.ReadFile(filepath.Join(store, "format.json"))
-	if !strings.Contains(string(format), `"format":2`) {
+	if !strings.Contains(string(format), `"format":3`) {
 		t.Errorf("the library should record its format once moved, got %s", format)
 	}
 
@@ -113,7 +113,7 @@ func TestALibraryOfANewerFormatIsRefused(t *testing.T) {
 
 	got := h.run("", "add", "line-count", "--from", h.file("lines.py", "print(1)\n"), "--summary",
 		"Count the lines of a file", "--usage", "python3 the script < file")
-	if got.code == 0 || !strings.Contains(got.err, "has format 9; this release reads up to 2") {
+	if got.code == 0 || !strings.Contains(got.err, "has format 9; this release reads up to 3") {
 		t.Errorf("a write to a library of a newer format should be refused naming both, got %d %q", got.code, got.err)
 	}
 

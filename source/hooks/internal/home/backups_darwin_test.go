@@ -18,7 +18,7 @@ func TestAWriterMakingTheCacheRootMarksItForBackupsToSkip(t *testing.T) {
 	roots := test.Roots(t.TempDir())
 	roots.ExcludeCacheOnCreate()
 
-	err := slots.Open(roots.Cache, filepath.Join(roots.Cache, "prompt-vectors", "sessions.slots"), slots.MinWidth).
+	err := slots.Open(roots.Cache, filepath.Join(roots.Cache, "prompt-vectors", "sessions.slots")).
 		Put(context.Background(), "session", []byte("held"))
 	if err != nil {
 		t.Fatalf("writing below the cache root: %v", err)

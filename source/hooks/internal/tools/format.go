@@ -3,6 +3,7 @@ package tools
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -19,10 +20,11 @@ import (
 
 // libraryFormat is a tool store's layout: each tool's history, takes and
 // pruned versions as journals of typed records, each session's state in the
-// cache's slot file, and the size ledger. A store without format.json is
-// format 1: JSON-lines files beside each tool and a JSON file per session
-// under `sessions/`.
-const libraryFormat = 2
+// cache's slot directory with its classes, and the size ledger. A store
+// without format.json is format 1: JSON-lines files beside each tool and a
+// JSON file per session under `sessions/`; format 2 keeps the sessions in one
+// fixed-width slot file.
+const libraryFormat = 3
 
 // prepareStore brings the store at at to libraryFormat through its step
 // table (internal/formatsteps); every caller holds the store's lock already.
@@ -34,10 +36,37 @@ func libraryComponent(store *safefs.Dir, roots home.Roots, at string, cache stri
 	return formatsteps.Component{
 		Name: at, Dir: at, Root: roots.Data,
 		Lock: func(context.Context) (func(), error) { return func() {}, nil },
-		Steps: []formatsteps.Step{{From: 1, To: libraryFormat, Ops: func(context.Context) ([]formatsteps.Operation, error) {
-			return journalSteps(store, roots, at, cache), nil
-		}}},
+		Steps: []formatsteps.Step{
+			{From: 1, To: 2, Ops: func(context.Context) ([]formatsteps.Operation, error) {
+				return journalSteps(store, roots, at, cache), nil
+			}},
+			{From: 2, To: libraryFormat, Ops: func(context.Context) ([]formatsteps.Operation, error) {
+				return []formatsteps.Operation{{Name: "laying the session slots out in classes", Apply: func(ctx context.Context) error {
+					return slots.Open(roots.Cache, filepath.Join(cache, "sessions.slots")).Relayout(ctx, refitSession)
+				}}}, nil
+			}},
+		},
 	}
+}
+
+// refitSession is the value the layout step keeps of a session's slot: as
+// held within the ceiling, else fitted to it, and nothing of one that does
+// not decode.
+func refitSession(slot slots.Slot) ([]byte, bool) {
+	if len(slot.Value) <= sessionCeiling {
+		return slot.Value, true
+	}
+
+	var held sessionState
+
+	err := json.Unmarshal(slot.Value, &held)
+	if err != nil {
+		return nil, false
+	}
+
+	data, err := held.fit()
+
+	return data, err == nil
 }
 
 // journalSteps move a format-1 store to format 2: every journal is written
@@ -57,7 +86,7 @@ func journalSteps(store *safefs.Dir, roots home.Roots, at string, cache string) 
 			})
 		}},
 		{Name: "taking in the session files", Apply: func(ctx context.Context) error {
-			return slots.Open(roots.Cache, filepath.Join(cache, "sessions.slots"), sessionSlotWidth).Import(ctx, legacySessions(at))
+			return slots.Open(roots.Cache, filepath.Join(cache, "sessions.slots")).Import(ctx, legacySessions(at))
 		}},
 		{Name: "removing the legacy files", Apply: func(context.Context) error {
 			return eachFolder(store, func(folder *safefs.Dir) error {

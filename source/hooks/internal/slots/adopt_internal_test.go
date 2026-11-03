@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ func adoptionRoot(t *testing.T) (string, *File, func() []Legacy) {
 		legacy = append(legacy, Legacy{Path: path, Key: "session/" + name})
 	}
 
-	return root, Open(root, filepath.Join(root, "sessions.slots"), 4096), func() []Legacy {
+	return root, Open(root, filepath.Join(root, "sessions.slots")), func() []Legacy {
 		var left []Legacy
 
 		for _, held := range legacy {
@@ -106,6 +107,78 @@ func TestAdoptionCarriesOnFromAnyOperation(t *testing.T) {
 
 			version, err := formatsteps.Read(dir)
 			if err != nil || version != 2 {
+				t.Errorf("the component should stand at the new format, got %d %v", version, err)
+			}
+		})
+	}
+}
+
+// A component at format 2 keeps a fixed-width file; every cut of the step to
+// format 3, followed by a new run, leaves a directory holding every key's
+// value.
+func TestAdoptionLaysAFixedFileOutFromAnyOperation(t *testing.T) {
+	ctx := context.Background()
+
+	for cut := range 2 {
+		t.Run(fmt.Sprintf("cut after %d operations", cut), func(t *testing.T) {
+			fixed, want := fixedStore(t)
+			dir := filepath.Join(fixed.Root, "component")
+
+			err := os.MkdirAll(dir, 0o700)
+			if err == nil {
+				err = os.WriteFile(filepath.Join(dir, formatsteps.FileName), []byte(`{"format":2}`), 0o600)
+			}
+
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			file := Open(fixed.Root, fixed.Path)
+			none := func() []Legacy { return nil }
+			component := file.adoption(dir, 3, none)
+
+			unlock, err := component.Lock(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			step := slices.IndexFunc(component.Steps, func(step formatsteps.Step) bool { return step.From == 2 })
+			if step < 0 {
+				t.Fatal("the adoption should hold a step from format 2")
+			}
+
+			listed, err := component.Steps[step].Ops(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, operation := range listed[:cut] {
+				err = operation.Apply(ctx)
+				if err != nil {
+					t.Fatalf("%s: %v", operation.Name, err)
+				}
+			}
+
+			unlock()
+
+			err = file.Adopt(ctx, dir, 3, none)
+			if err != nil {
+				t.Fatalf("the run after the cut should carry the step on: %v", err)
+			}
+
+			if header := headerOf(t, file.Path); header.Format != formatDirectory {
+				t.Errorf("the fixed file should become a directory, format %d", header.Format)
+			}
+
+			got, err := file.All(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			sameSlots(t, got, want)
+
+			version, err := formatsteps.Read(dir)
+			if err != nil || version != 3 {
 				t.Errorf("the component should stand at the new format, got %d %v", version, err)
 			}
 		})

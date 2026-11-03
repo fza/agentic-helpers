@@ -22,7 +22,15 @@ func openFile(t *testing.T) *slots.File {
 
 	dir := t.TempDir()
 
-	return slots.Open(dir, filepath.Join(dir, "sessions.slots"), width)
+	return slots.Open(dir, filepath.Join(dir, "sessions.slots"))
+}
+
+func openFixed(t *testing.T) *slots.File {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	return slots.OpenFixed(dir, filepath.Join(dir, "sessions.slots"), width)
 }
 
 func put(t *testing.T, file *slots.File, key string, value string) {
@@ -103,7 +111,7 @@ func TestASlotReadsBackItsNewestValue(t *testing.T) {
 }
 
 func TestAValuePastTheSlotWidthIsRefused(t *testing.T) {
-	file := openFile(t)
+	file := openFixed(t)
 
 	err := file.Put(context.Background(), "big", bytes.Repeat([]byte("x"), width))
 	if !errors.Is(err, slots.ErrTooLarge) {
@@ -128,10 +136,12 @@ func TestTwoSessionsWritingConcurrentlyKeepTheirOwnSlots(t *testing.T) {
 
 	for session := range sessions {
 		group.Go(func() {
-			own := slots.Open(file.Root, file.Path, width)
+			own := slots.Open(file.Root, file.Path)
 
 			for write := range writes {
-				value := bytes.Repeat(fmt.Appendf(nil, "%02d-%03d;", session, write), 20)
+				// Values grow past the directory's twin and through the
+				// classes, so each moves while the others are written.
+				value := bytes.Repeat(fmt.Appendf(nil, "%02d-%03d;", session, write), 20+write*30)
 
 				err := own.Put(context.Background(), fmt.Sprintf("shown/%02d", session), value)
 				if err != nil {
@@ -154,7 +164,7 @@ func TestTwoSessionsWritingConcurrentlyKeepTheirOwnSlots(t *testing.T) {
 
 	for session := range sessions {
 		value, found := get(t, file, fmt.Sprintf("shown/%02d", session))
-		want := string(bytes.Repeat(fmt.Appendf(nil, "%02d-%03d;", session, writes-1), 20))
+		want := string(bytes.Repeat(fmt.Appendf(nil, "%02d-%03d;", session, writes-1), 20+(writes-1)*30))
 
 		if !found || value != want {
 			t.Errorf("session %d's slot should hold its own last write", session)
@@ -178,7 +188,7 @@ func TestWritersUpdatingOneSlotInTurnKeepEveryChange(t *testing.T) {
 
 	for writer := range writers {
 		group.Go(func() {
-			own := slots.Open(file.Root, file.Path, width)
+			own := slots.Open(file.Root, file.Path)
 
 			for added := range appends {
 				err := own.Update(context.Background(), "graph-names/2026/10", func(value []byte, _ bool) ([]byte, error) {
@@ -386,7 +396,7 @@ func TestAReclaimLeavingFewKeysShrinksTheFile(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			file := openFile(t)
+			file := openFixed(t)
 
 			for key := range 64 {
 				put(t, file, fmt.Sprintf("session/%02d", key), fmt.Sprintf("value %d", key))
@@ -466,7 +476,7 @@ func TestANonSlotFileIsRefused(t *testing.T) {
 		t.Fatalf("writing: %v", err)
 	}
 
-	_, _, err = slots.Open(filepath.Dir(path), path, width).Get(context.Background(), "shown/one")
+	_, _, err = slots.Open(filepath.Dir(path), path).Get(context.Background(), "shown/one")
 	if !errors.Is(err, slots.ErrNotSlotFile) {
 		t.Errorf("a file of another kind should not read as slots, got %v", err)
 	}

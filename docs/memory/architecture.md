@@ -26,7 +26,8 @@
 <data>/attachments/<sha256>[.gz]                        every project's attached files, once each
 <data>/attachments/.ledger                              the size ledger: each stored file, its length, crc32c and the size its attach recorded
 <cache>/stores/<id>/memory/                             vectors, heat, the folded log, anchor hashes: rebuilt at will
-<cache>/stores/<id>/memory/sessions.slots               per-session and per-seat state, one slot each
+<cache>/stores/<id>/memory/sessions.slots               per-session and per-seat state, one slot each: the slot directory
+<cache>/stores/<id>/memory/sessions-{2k,8k,32k,128k}.slots  the class files holding the values past the directory's twin
 ```
 
 `agentic-helpers dump <file>` prints any of the binary files above (the log's tail and segments, a
@@ -66,29 +67,47 @@ flush of the drive, paid inside hook calls.
 
 Store format 6 keeps what changes often in binary formats agentic-tools and shell-guard share:
 
-- **Slot file** (`internal/slots`): what a session or seat keeps between hook calls, in one
-  preallocated file per store, `sessions.slots`, rather than a file per session and purpose. A
-  20-byte header (`AGSLOT\0`, format 1, the slot width, the slot count, its crc32c) heads fixed-width
-  slots in A/B twin pairs. Each twin opens with a 32-byte head: a crc32c over the head and key, a
-  crc32c of the value, a generation counter, the write time, the key's and value's lengths; then the
-  key and value. A write goes with `pwrite` to the older twin of its key's pair at the next
-  generation, so a torn write leaves the other twin whole; a read takes, with `pread`, the newer twin
-  whose checksums hold, the older one where they do not. A write of the value a key already holds
-  writes nothing while the held copy is under a day old: most hook calls put back an unchanged
-  value, and on APFS each write of a sparse file spends about a slot's span on disk. A day bounds the
-  skip because readers drop a key by its write time, a week on at the shortest, so a key still in
-  use is written again once a day. Clearing a key frees its pair for the next
-  key, so the file holds its header's count of slots of its width and nothing more. A SessionEnd
+- **Slot file** (`internal/slots`): what a session or seat keeps between hook calls, in a handful
+  of preallocated files per store rather than a file per session and purpose. Every file opens with
+  a 20-byte header (`AGSLOT\0`, its format, the slot width, the slot count, its crc32c), then slots
+  in A/B twin pairs. Each twin opens with a 32-byte head: a crc32c over the head and key, a crc32c of
+  the value, a generation counter, the write time, the key's and value's lengths; then the key and
+  value. A write goes with `pwrite` to the older twin of its key's pair at the next generation, so a
+  torn write leaves the other twin whole; a read takes, with `pread`, the newer twin whose checksums
+  hold, the older one where they do not. The store's `sessions.slots` is a directory (format 2) of
+  512-byte twins: it places a key by the FNV-1a hash of the key with linear probing, at most 64
+  pairs on from its home pair, so a lookup of a missing key reads that probe run alone up to its
+  first blank pair, never every used pair. A write placing a new key more than 16 pairs from its
+  home writes the directory anew instead, at twice the pairs it has keys or half as large again,
+  whichever is more, so runs stay short. A value up to about 430 bytes lives in the directory's
+  twin, after a tag byte; a larger one
+  in the smallest class file that holds it, `sessions-2k.slots`, `-8k`, `-32k` or `-128k` (format 3,
+  twins of 2, 8, 32 and 128 KiB, the header's count zero and its pairs counted from its size), and
+  the directory's twin names the class, the pair and the generation of the twin holding it. The
+  class twin is written before the directory twin naming it, and a value staying in its class goes
+  to the class twin the directory does not name, so a torn write at any point leaves the older value
+  readable; a reader following a pointer to a twin a writer has moved on reads the directory again,
+  three times at most. A value moving between the directory and a class, or between classes, frees
+  its old class pair once the directory names the new one. A class file takes a new key at its first
+  free pair and grows by appending one. A write of the value a key already holds writes nothing
+  while the held copy is under a day old: most hook calls put back an unchanged value. A day bounds
+  the skip because readers drop a key by its write time, a week on at the shortest, so a key still
+  in use is written again once a day. Clearing a key frees its pair for the next key. A SessionEnd
   clears the session's `shown`, `instructions`, `ladder`, `waiter`, `graph-seen` and `fork` keys; the
   SessionStart pass clears every session key older than `staleAfter` (a session that never reached
   its end), and every seat key whose seat the registry no longer holds or holds expired, as the
   purge of a temporary shelf leaves it: a store running a temporary seat per job would otherwise keep
   every job's keys. The same SessionStart clears every prompt vector of
 `<cache>/prompt-vectors/sessions.slots` no write touched for a week, at most once a day, as
-agentic-tools' SessionStart does for its own slot files ([tools architecture](../tools/architecture.md)). A file out of free pairs is written anew with twice the pairs it needs and
-  renamed over the old one; a pass leaving a quarter of the pairs or fewer in use writes it anew at
-  that size, since slots are wide (128 KiB) and a file would otherwise only grow. Writers hold
-  `sessions.slots.lock`; readers take no lock. Keys are `<purpose>/<session or seat id>`: `shown`,
+agentic-tools' SessionStart does for its own slot files ([tools architecture](../tools/architecture.md)). A directory is written anew at twice the pairs it
+  has keys (half full, not rounded to a power of two, since a pair costs 1 KiB), half as large
+  again while a key finds no pair within its run, and renamed over the old one; a pass leaving a
+  quarter of the pairs or fewer in use writes it anew at that size, clears every class twin
+  no directory value names (a crash between a class write and its directory write leaves one), and
+  cuts each class file after its last pair holding a value. On APFS a sparse file costs its whole
+  span up to its highest write, so the layout keeps every file dense: the directory pays 1 KiB a
+  pair, a class file only for the pairs it holds. Writers hold `sessions.slots.lock`; readers take no
+  lock. Keys are `<purpose>/<session or seat id>`: `shown`,
   `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`,
   `do-now`, `skipped`, `brief`, `seen`, `ledger-ended` per seat; `graph-names/<yyyy>/<mm>` per month. A
   value is the JSON the per-session file held. A hook takes its payload's `session_id` only in the
@@ -155,6 +174,16 @@ database (a dependency, and a server or a CGO build for what a fixed-width file 
 session in a binary codec (the file count and the directory walks stay); keeping JSON-lines files
 (a torn line reads as garbage with no checksum to tell).
 
+The slot directory and its classes replace one file of 128 KiB twins, which on APFS spent the whole
+span up to its highest written twin, 2.3 GiB for one store holding about 45 MB of values. Rejected
+for it: `go.etcd.io/bbolt` (its file lock couples readers and writers across processes, each commit
+needs an `fsync`, and the file never shrinks without compaction); `modernc.org/sqlite` (megabytes
+in every hook binary, a slower open in hooks living milliseconds, `-wal` and `-shm` side files); a
+fixed width per kind of value (every key pays its kind's worst case, and every cap change is a
+migration); one file per session or seat (the thousands of small files return); punching holes into
+the fixed-width file (macOS only, and it bounds nothing); an append log (a lookup needs an index or
+a full scan).
+
 ## Seat ids
 
 A seat has an id, `s-` and 6 random characters from `0-9a-z`, minted the first time its name is
@@ -203,11 +232,12 @@ the next.
 
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 9}`; a store without one is format 1, where
+`format.json` holds the store's format, `{"format": 10}`; a store without one is format 1, where
 events and seat files name the seat, format 2 keeps seats by id without shelves, format 3 files
 entries with a retention level and no kind, format 4 holds no `item` rows, format 5 keeps its tail as
 `tail.jsonl` and a JSON file per session in the cache, format 6 holds no `due` rows, format 7
-holds no state ledger, and format 8 names no entry. The first call that meets an older store moves it through the store's step
+holds no state ledger, format 8 names no entry, and format 9 keeps the cache's session state in one
+fixed-width slot file. The first call that meets an older store moves it through the store's step
 table (`formatSteps` in `internal/memory/migrate.go`), run by the shared runner
 ([format steps](../plugin/architecture.md#format-steps)): one step per format, each doing one job
 as an ordered list of operations, the store lock held from the first step to the last, so another
@@ -265,6 +295,15 @@ entry the log holds from its title as it stands, in filing order, so of two entr
 name the older keeps it bare and the younger is numbered apart. The index is replaced whole, so a cut
 run leaves it whole or absent, and the run carrying the step on names only what it lacks. No backup: the step adds a file and changes none. The format keeps a
 format-8 binary off the store, which would file entries the index never names.
+
+From format 9, the slot layout, the log untouched: one operation lays `sessions.slots` out as a
+slot directory with its class files (`slots.File.Relayout`), every key at the generation and time it
+held, a value within its kind's ceiling as it was, one past it fitted (`refit` in
+`internal/memory/slotkinds.go`) and one that no longer decodes as its kind left out; a table of
+names keeps the names of its first part. The class files are written first and the directory renamed
+over the fixed-width file last, so a cut run finds the fixed-width file and lays it out again,
+clearing the class files it left. The format keeps a format-9 binary off the store, which refuses a
+slot directory as no slot file.
 
 From format 5, the binary formats, the log's rows untouched:
 

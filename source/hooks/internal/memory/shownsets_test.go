@@ -233,7 +233,7 @@ func TestANestedReadOfASubagentIsRefused(t *testing.T) {
 func (h *harness) sessionSlots() []string {
 	h.t.Helper()
 
-	held, err := slots.Open(h.roots().Cache, filepath.Join(h.cacheDir(), "sessions.slots"), 128<<10).All(context.Background())
+	held, err := slots.Open(h.roots().Cache, filepath.Join(h.cacheDir(), "sessions.slots")).All(context.Background())
 	if err != nil {
 		h.t.Fatalf("the session slots should read: %v", err)
 	}

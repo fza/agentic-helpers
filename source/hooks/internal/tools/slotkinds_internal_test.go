@@ -63,7 +63,7 @@ func worstSession() *sessionState {
 func TestEveryKindStoresItsWorstCase(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
-	file := slots.Open(root, filepath.Join(root, "sessions.slots"), 128<<10)
+	file := slots.Open(root, filepath.Join(root, "sessions.slots"))
 
 	cases := []struct {
 		kind    string

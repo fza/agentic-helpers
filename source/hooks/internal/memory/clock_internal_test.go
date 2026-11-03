@@ -99,7 +99,7 @@ func TestTheMarkIsWrittenOnlyWhereMemoryWrites(t *testing.T) {
 			mem.unreadable = "newer"
 		}},
 		{name: "outside git", setup: func(t *testing.T, mem *memory) {
-			test.WriteFile(t, filepath.Join(mem.store(), "format.json"), `{"format":9}`)
+			test.WriteFile(t, filepath.Join(mem.store(), "format.json"), `{"format":10}`)
 			mem.outsideGit = true
 		}},
 	}

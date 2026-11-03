@@ -53,7 +53,7 @@ func event(entry string, payload string) memorylog.Event {
 func TestEveryFileKindDumpsToJSONLines(t *testing.T) {
 	dir := t.TempDir()
 
-	slotFile := slots.Open(dir, filepath.Join(dir, "sessions.slots"), 4096)
+	slotFile := slots.Open(dir, filepath.Join(dir, "sessions.slots"))
 	slotFile.Now = func() time.Time { return filed }
 
 	for _, pair := range [][2]string{{"shown/s1", `{"ids":["m-1@ab"]}`}, {"fork/s2", "plain bytes"}} {

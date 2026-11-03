@@ -58,7 +58,7 @@ func TestASaveNeverWritesThroughAPlantedLink(t *testing.T) {
 	dir := t.TempDir()
 	victim := filepath.Join(t.TempDir(), "victim")
 	_ = os.WriteFile(victim, []byte("untouched"), 0o600)
-	_ = os.WriteFile(filepath.Join(dir, "format.json"), []byte(`{"format":2}`), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "format.json"), []byte(`{"format":3}`), 0o600)
 	_ = os.Symlink(victim, filepath.Join(dir, "sessions.slots"))
 
 	err := promptvector.Save(context.Background(), dir, "s1", "p", "f", []float32{1})

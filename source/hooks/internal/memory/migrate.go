@@ -35,8 +35,18 @@ func (mem *memory) formatSteps() []formatsteps.Step {
 		{From: itemsFormat, To: slotsFormat, Ops: mem.slotSteps},
 		{From: slotsFormat, To: dueFormat, Ops: fenceOnly},
 		{From: dueFormat, To: ledgerFormat, Ops: fenceOnly},
-		{From: ledgerFormat, To: storeFormat, Ops: mem.nameSteps},
+		{From: ledgerFormat, To: namesFormat, Ops: mem.nameSteps},
+		{From: namesFormat, To: storeFormat, Ops: mem.layoutSteps},
 	}
+}
+
+// layoutSteps lay the session slot file out as a directory with its
+// classes, every value an earlier release wrote past its kind's ceiling
+// fitted to it (refit).
+func (mem *memory) layoutSteps(context.Context) ([]formatsteps.Operation, error) {
+	return []formatsteps.Operation{{Name: "laying the session slots out in classes", Apply: func(ctx context.Context) error {
+		return mem.slotFile().Relayout(ctx, refit)
+	}}}, nil
 }
 
 func fenceOnly(context.Context) ([]formatsteps.Operation, error) { return nil, nil }

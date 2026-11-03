@@ -32,7 +32,7 @@ func TestAStoreMovedPastTheNewestFormatIsNeverWrittenBack(t *testing.T) {
 	mem := migrateMemory(t)
 
 	formatPath := filepath.Join(mem.store(), "format.json")
-	test.WriteFile(t, formatPath, `{"format":10}`+"\n")
+	test.WriteFile(t, formatPath, `{"format":11}`+"\n")
 
 	err := mem.migrate(context.Background())
 	if !errors.Is(err, ErrNewerStore) {
@@ -40,7 +40,7 @@ func TestAStoreMovedPastTheNewestFormatIsNeverWrittenBack(t *testing.T) {
 	}
 
 	written, _ := os.ReadFile(formatPath)
-	if string(written) != `{"format":10}`+"\n" {
+	if string(written) != `{"format":11}`+"\n" {
 		t.Errorf("a store of a newer format should never be written back, got %s", written)
 	}
 }
@@ -49,7 +49,7 @@ func TestAStoreMovedPastTheNewestFormatIsNeverWrittenBack(t *testing.T) {
 // and left as it is, its size ledger and clock mark untouched.
 func TestACurrentStoreIsLeftAsItIs(t *testing.T) {
 	mem := migrateMemory(t)
-	test.WriteFile(t, filepath.Join(mem.store(), "format.json"), `{"format":9}`+"\n")
+	test.WriteFile(t, filepath.Join(mem.store(), "format.json"), `{"format":10}`+"\n")
 	mem.clock.latest = mem.now().Add(time.Hour)
 
 	before := test.Tree(t, mem.store())

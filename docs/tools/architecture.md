@@ -22,7 +22,7 @@ so every worktree and every agent of the project shares it.
 | `index.json` | per tool its current version and fields, the hash of its description, takers, roles, the file hashes and sizes of every stored version, when each was written, and the hashes of every pruned one; the merged names |
 | `.lock` | the write lock |
 | `.ledger` | the store's size ledger: every file below it, its length and crc32c, and the bytes it counts |
-| `format.json` | the library's format, 2 |
+| `format.json` | the library's format, 3 |
 | `copies/` | copies taken where the checkout has no `.tmp/` |
 
 What a session holds and has been told lives outside the store, in the slot `session/<session>` of
@@ -38,8 +38,11 @@ Library format 2 is moved to under the store's lock, by the first call of a rele
 through the library's step table ([format steps](../plugin/architecture.md#format-steps)): every
 tool folder's `.jsonl` files become journals, a journal already there kept, the session files of
 `sessions/` move into the slot file, the `.jsonl` files and `sessions/` go, and `format.json` is
-written. A run stopped anywhere runs the step again from its first operation. A store of a format
-past 2 is skipped by every read, and refused by a write.
+written. Library format 3 lays the cache's `sessions.slots`, one fixed-width file at format 2, out as
+a slot directory with its class files ([memory architecture](../memory/architecture.md#file-formats)),
+each session at the generation and time it held, one past the session ceiling fitted to it
+(`refitSession`). A run stopped anywhere runs the step again from its first operation. A store of a
+format past 3 is skipped by every read, and refused by a write.
 
 Every read (find, list, take, the duplicate checks, the offer, the notices) uses `index.json` and
 never lists tool folders; a term search reads the current version's files by the names the index
@@ -196,8 +199,9 @@ embeds the prompt first leaves its vector for the other. The hooks of one event 
 the slot mostly saves an embed where recall finished first.
 
 What the context already holds lives in a seen set, the slot `seen/<pid>-<start>` of
-`<cache>/tools/sessions.slots` (format 2 of that cache, which takes in the `seen/<pid>-<start>.json`
-files an earlier release kept there): `lines`, each tool version find
+`<cache>/tools/sessions.slots` (format 2 of that cache took in the `seen/<pid>-<start>.json` files
+an earlier release kept there; format 3 lays the slot file out as a slot directory with its class
+files, as format 3 of `<cache>/prompt-vectors/` does for the prompt vectors): `lines`, each tool version find
 or list printed as `<name> v<n>`, and `offered`, the own tools the offer named. It is keyed on the
 owning `claude` process (its pid and start time, found as agentic-memory finds a seat's owner)
 rather than the session id: the MCP server keeps the `CLAUDE_CODE_SESSION_ID` it started with across

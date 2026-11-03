@@ -34,19 +34,17 @@ type presented struct {
 	changed bool
 }
 
-const (
-	// seenFormat is the layout of the library's shared cache: seen sets in
-	// one slot file; 1 kept a JSON file per owning process.
-	seenFormat    = 2
-	seenSlotWidth = 128 << 10
-)
+// seenFormat is the layout of the library's shared cache: seen sets in a
+// slot directory with its classes; 2 kept them in one fixed-width slot file,
+// 1 a JSON file per owning process.
+const seenFormat = 3
 
 // seenSlots is the slot file of every owning process's seen set, in the
 // library's cache shared by every store, once the seen files an earlier
 // release kept there are taken in.
 func (lib *library) seenSlots(ctx context.Context) (*slots.File, error) {
 	dir := lib.env.Roots.SharedCache(home.Tools)
-	file := slots.Open(lib.env.Roots.Cache, filepath.Join(dir, "sessions.slots"), seenSlotWidth)
+	file := slots.Open(lib.env.Roots.Cache, filepath.Join(dir, "sessions.slots"))
 	file.Now = lib.now
 
 	err := file.Adopt(ctx, dir, seenFormat, func() []slots.Legacy {

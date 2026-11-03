@@ -379,7 +379,7 @@ func TestAFormatFourStoreMovesUpChangingOnlyTheFormat(t *testing.T) {
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
 	written, _ := os.ReadFile(formatPath)
-	if !strings.Contains(string(written), `"format":9`) {
+	if !strings.Contains(string(written), `"format":10`) {
 		t.Errorf("a format-4 store should move through format 5 to the current one: %s", written)
 	}
 
@@ -387,10 +387,10 @@ func TestAFormatFourStoreMovesUpChangingOnlyTheFormat(t *testing.T) {
 		t.Error("a step fencing older binaries off should change nothing but the format")
 	}
 
-	test.WriteFile(t, formatPath, `{"format":10}`+"\n")
+	test.WriteFile(t, formatPath, `{"format":11}`+"\n")
 
 	failed := h.run("", "search", "--term", "Gate", "--no-heat")
-	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 9") {
+	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 10") {
 		t.Errorf("a store of a later format should be refused, got %d %s%s", failed.code, failed.out, failed.err)
 	}
 }

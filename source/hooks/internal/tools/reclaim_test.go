@@ -51,7 +51,7 @@ func TestSessionStartReclaimsTheKeysOfSessionsGoneAWeek(t *testing.T) {
 			h.tool("word-count", "Count the words of a file")
 
 			path := tc.path(h)
-			file := slots.Open(h.roots().Cache, path, slots.MinWidth)
+			file := slots.Open(h.roots().Cache, path)
 			now := tc.now(h)
 
 			file.Now = func() time.Time { return now.Add(-slots.StaleAge - time.Hour) }

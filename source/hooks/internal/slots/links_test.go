@@ -1,6 +1,7 @@
 package slots_test
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestAPutNeverWritesAtAPlantedLink(t *testing.T) {
-	for _, name := range []string{"sessions.slots", "sessions.slots.lock"} {
+	for _, name := range []string{"sessions.slots", "sessions.slots.lock", "sessions-2k.slots"} {
 		for _, planting := range test.Plantings() {
 			t.Run(name+", "+planting.Name, func(t *testing.T) {
 				root := t.TempDir()
@@ -18,7 +19,8 @@ func TestAPutNeverWritesAtAPlantedLink(t *testing.T) {
 				outside := test.Outside(t)
 				planting.Plant(t, filepath.Join(dir, name), outside)
 
-				err := slots.Open(root, filepath.Join(dir, "sessions.slots"), width).Put(context.Background(), "s1", []byte("x"))
+				// A value past the directory's twin goes to the 2 KiB class.
+				err := slots.Open(root, filepath.Join(dir, "sessions.slots")).Put(context.Background(), "s1", bytes.Repeat([]byte("x"), 1_000))
 
 				if !test.Untouched(t, outside) {
 					t.Error("a put should never write outside the cache")

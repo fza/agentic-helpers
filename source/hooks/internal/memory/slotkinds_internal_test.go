@@ -410,7 +410,7 @@ func checkItems(t *testing.T, items []doNowItem) {
 func TestEveryKindStoresItsWorstCase(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
-	file := slots.Open(root, filepath.Join(root, "sessions.slots"), 128<<10)
+	file := slots.Open(root, filepath.Join(root, "sessions.slots"))
 
 	for _, tc := range worstCases {
 		t.Run(tc.kind, func(t *testing.T) {
@@ -450,7 +450,7 @@ func TestEveryKindStoresItsWorstCase(t *testing.T) {
 func TestAFullPartOfNamesIsStored(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
-	file := slots.Open(root, filepath.Join(root, "sessions.slots"), 128<<10)
+	file := slots.Open(root, filepath.Join(root, "sessions.slots"))
 
 	var part []byte
 	for index := range namesPerPart {

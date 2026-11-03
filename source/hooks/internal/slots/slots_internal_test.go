@@ -60,7 +60,7 @@ func TestATornWriteLeavesTheTwinReadable(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			file := Open(dir, filepath.Join(dir, "sessions.slots"), 4096)
+			file := OpenFixed(dir, filepath.Join(dir, "sessions.slots"), 4096)
 			older := bytes.Repeat([]byte("older;"), 30)
 
 			err := file.Put(context.Background(), "ladder/s1", []byte("oldest"))

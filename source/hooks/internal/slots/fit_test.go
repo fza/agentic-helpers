@@ -53,7 +53,7 @@ func TestCutJSONKeepsTheLongestStartWithinItsBytes(t *testing.T) {
 
 func TestAValuePastMaxValueIsRefused(t *testing.T) {
 	root := t.TempDir()
-	file := slots.Open(root, filepath.Join(root, "sessions.slots"), 256<<10)
+	file := slots.Open(root, filepath.Join(root, "sessions.slots"))
 
 	err := file.Put(context.Background(), "k", []byte(strings.Repeat("v", slots.MaxValue+1)))
 	if !errors.Is(err, slots.ErrTooLarge) {

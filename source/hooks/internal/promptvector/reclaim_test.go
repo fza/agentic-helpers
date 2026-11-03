@@ -18,7 +18,7 @@ func TestAReclaimDropsTheVectorsOfSessionsGoneAWeek(t *testing.T) {
 		t.Fatalf("saving should succeed: %v", err)
 	}
 
-	file := slots.Open(filepath.Dir(dir), filepath.Join(dir, "sessions.slots"), slots.MinWidth)
+	file := slots.Open(filepath.Dir(dir), filepath.Join(dir, "sessions.slots"))
 	file.Now = func() time.Time { return time.Now().Add(-slots.StaleAge - time.Hour) }
 
 	err = file.Put(context.Background(), "crashed", []byte(`{}`))
