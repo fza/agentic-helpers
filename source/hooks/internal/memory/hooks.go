@@ -188,6 +188,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	name, held := mem.ownSeat(ctx)
 	if name != "" {
 		held = mem.track(ctx, name, held, payload)
+		mem.say(mem.owedLine(held.SessionID))
 		mem.say(mem.moved(ctx, name, held))
 
 		// A resumed session's transcript already carries what it was told.
@@ -452,6 +453,9 @@ type ladder struct {
 	// lines.
 	Wrote      []string `json:"wrote,omitempty"`
 	LastPrompt string   `json:"last_prompt,omitempty"`
+	// Owed is the line the last Stop owed the agent, for the next hook
+	// answering with additionalContext.
+	Owed string `json:"owed,omitempty"`
 }
 
 const replayNudgeText = "Turns since your newest entry or state line no longer fit the post-compaction replay. " +
@@ -695,8 +699,13 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	}
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
-	// Past the second unanswered nudge the Stop backstop holds the turn; a
-	// third nudge would only repeat it on every prompt.
+	if steps.Owed != "" {
+		out = append(out, steps.Owed)
+		steps.Owed = ""
+	}
+
+	// Past the second unanswered nudge Stop owes the backstop; a third nudge
+	// would only repeat it on every prompt.
 	nudged := steps.Nudges < nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps)
 	if nudged {
 		steps.Nudges++
@@ -762,20 +771,28 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 
 	seated := mem.seatFork(ctx, payload, name != "")
 	if seated != "" {
-		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", strings.Join(append(reread, seated), "\n"))
+		mem.say(strings.Join(append(reread, seated), "\n"))
 
 		return 0
 	}
 
 	if name == "" {
-		if len(reread) > 0 {
-			_ = hookio.AddContext(mem.streams.Out, "PostToolUse", strings.Join(reread, "\n"))
-		}
+		mem.say(strings.Join(reread, "\n"))
 
 		return 0
 	}
 
+	session := cmp.Or(payload.SessionID, held.SessionID)
+
 	notes := reread
+
+	// What a Stop owed is the seat's, so its main thread hears it.
+	if payload.AgentID == "" {
+		owed := mem.owedLine(session)
+		if owed != "" {
+			notes = append(notes, owed)
+		}
+	}
 
 	movedHere := mem.moved(ctx, name, held)
 	if movedHere != "" {
@@ -785,8 +802,6 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	if adopted {
 		notes = append(notes, mem.tookOver(ctx, name))
 	}
-
-	session := cmp.Or(payload.SessionID, held.SessionID)
 
 	captured, gained := mem.captureNotice(ctx, name, session)
 	if captured != "" {
@@ -844,10 +859,7 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 	}
 
 	mem.proveDoNow(ctx, name, session, callNow)
-
-	if len(notes) > 0 {
-		_ = hookio.AddContext(mem.streams.Out, "PostToolUse", strings.Join(notes, "\n"))
-	}
+	mem.say(strings.Join(notes, "\n"))
 
 	return 0
 }
@@ -979,28 +991,35 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 
 	mem.hookLines(ctx, name, held.Commit, session, true)
 
-	pending := mem.holdForDoNow(name, session)
-	if pending != "" {
-		return mem.hold(pending)
-	}
+	pending := mem.owedDoNow(name, session)
 
 	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
-	_ = mem.writeSlot(mem.ladderKey(session), steps)
 
-	if steps.Nudges >= nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps) {
-		return mem.hold(backstopText)
+	switch {
+	case pending != "":
+		steps.Owed = pending
+	case steps.Nudges >= nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps):
+		steps.Owed = backstopText
 	}
+
+	_ = mem.writeSlot(mem.ladderKey(session), steps)
 
 	return 0
 }
 
-// hold keeps the turn going for the agent to act on text. Stop context does
-// that through the same loop guards as exit 2, without the hook error exit 2
-// shows the user.
-func (mem *memory) hold(text string) int {
-	_ = hookio.AddContext(mem.streams.Out, "Stop", text)
+// owedLine takes the line the session's last Stop owed the agent, once: Stop
+// has no channel hidden from the user, so the next hook with one carries it.
+func (mem *memory) owedLine(session string) string {
+	held := mem.loadLadder(session)
+	if held.Owed == "" {
+		return ""
+	}
 
-	return 0
+	owed := held.Owed
+	held.Owed = ""
+	_ = mem.writeSlot(mem.ladderKey(session), held)
+
+	return owed
 }
 
 func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {

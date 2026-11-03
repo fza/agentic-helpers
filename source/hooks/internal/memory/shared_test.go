@@ -103,11 +103,11 @@ func TestAReceivedEntryStandsWithTheSeatsOwn(t *testing.T) {
 
 func TestTheFilerHearsNothingOfItsOwnEntry(t *testing.T) {
 	h, _ := twoSeats(t)
-	h.must(hookPayload("", "", ""), "prompt")
+	h.said(hookPayload("", "", ""), "prompt")
 	h.clock.Advance(time.Minute)
 	h.file("Staging DB moved to db2", "a changed fact for every seat", "--for", "all")
 
-	if out := h.must(hookPayload("", "", "next"), "prompt"); strings.Contains(out, "new for main") {
+	if out := h.said(hookPayload("", "", "next"), "prompt"); strings.Contains(out, "new for main") {
 		t.Errorf("the filing seat should never be told its own entry arrived, got:\n%s", out)
 	}
 }

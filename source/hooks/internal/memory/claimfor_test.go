@@ -41,7 +41,7 @@ func TestAClaimForASessionIsAReservationItTakesOver(t *testing.T) {
 	}
 
 	board.must("", "claim", "rev", "--session", "f00dbabe-0000-4000-8000-000000000000", "--shelf", "row-0", "--lifetime", "0")
-	board.must(hookPayload("startup", "", ""), "session-start")
+	board.said(hookPayload("startup", "", ""), "session-start")
 
 	if _, found := mustShelf(board, "row-0"); !found {
 		t.Error("a reservation should keep its temporary shelf in use")
@@ -51,7 +51,7 @@ func TestAClaimForASessionIsAReservationItTakesOver(t *testing.T) {
 		t.Errorf("a reserved seat should refuse a claim from another session, got %d %q", got.code, got.err)
 	}
 
-	job.must(job.promptHook("start"), "prompt")
+	job.said(job.promptHook("start"), "prompt")
 
 	view, code = job.holderJSON("--session", job.session, "--json")
 	if code != 0 || view["alive"] != true || view["reserved"] != nil {
@@ -122,13 +122,13 @@ func TestAClaimForASeatedSessionHandsItOver(t *testing.T) {
 		t.Errorf("the session's next call should act as the new seat, got:\n%s", out)
 	}
 
-	prompt := job.must(job.promptHook("next"), "prompt")
+	prompt := job.said(job.promptHook("next"), "prompt")
 	if !strings.Contains(prompt, "agentic-memory: seat moved from impl-7ah to impl-8bq (shelf row-8bq)") ||
 		!strings.Contains(prompt, "agentic-memory: seat impl-8bq on shelf row-8bq") {
 		t.Errorf("the session's next hook should say it moved and give the new seat's brief, got:\n%s", prompt)
 	}
 
-	if again := job.must(job.promptHook("after"), "prompt"); strings.Contains(again, "seat moved") {
+	if again := job.said(job.promptHook("after"), "prompt"); strings.Contains(again, "seat moved") {
 		t.Errorf("the move should be told once, got:\n%s", again)
 	}
 
@@ -163,7 +163,7 @@ func TestASessionTakingOverAReservationGetsItsScratchAndBrief(t *testing.T) {
 				t.Errorf("the session taking the reservation over should get the seat's brief, got:\n%s", out)
 			}
 
-			again := job.must(job.promptHook("next"), "prompt")
+			again := job.said(job.promptHook("next"), "prompt")
 			if strings.Contains(again, "scratch:") || strings.Contains(again, "agentic-memory: seat impl") {
 				t.Errorf("the seat's scratch and brief should come once, at the take-over, got:\n%s", again)
 			}
@@ -178,7 +178,7 @@ func TestAResumedSessionTakingOverAReservationPrintsNothing(t *testing.T) {
 
 	resumed, _ := json.Marshal(map[string]string{"session_id": job.session, "source": "resume"})
 
-	out := job.must(string(resumed), "session-start")
+	out := job.said(string(resumed), "session-start")
 	if strings.Contains(out, "scratch:") || strings.Contains(out, "agentic-memory: seat impl") {
 		t.Errorf("a resumed session's transcript carries what it saw, so the take-over should print nothing, got:\n%s", out)
 	}

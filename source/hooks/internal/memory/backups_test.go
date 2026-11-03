@@ -38,7 +38,7 @@ func TestASessionStartRemovesTheStoresExpiredBackups(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h.must(unrelatedStart(), "session-start")
+	h.said(unrelatedStart(), "session-start")
 
 	for _, gone := range []string{expiredFormat, expiredScratch} {
 		if test.Exists(t, gone) {

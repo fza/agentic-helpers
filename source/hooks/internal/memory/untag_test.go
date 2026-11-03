@@ -93,11 +93,11 @@ func TestUntagIsAShelfEdit(t *testing.T) {
 	h, other := rowShelf(t)
 	id := h.file("Gate finding on the row", "the row's finding", "--topic", "mcp", "--topic", "wire")
 
-	h.must(h.promptHook(""), "prompt")
+	h.said(h.promptHook(""), "prompt")
 	h.clock.Advance(time.Minute)
 	other.must("", "untag", id, "mcp")
 
-	out := h.must(h.promptHook("again"), "prompt")
+	out := h.said(h.promptHook("again"), "prompt")
 	if !strings.Contains(out, "agentic-memory: changed on shelf row-7ah (1):") ||
 		!strings.Contains(out, h.label(id)+" Gate finding on the row: untagged mcp by rev") {
 		t.Errorf("a shelf mate's untag should reach the other seats on the shelf, got:\n%s", out)

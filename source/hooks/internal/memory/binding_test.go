@@ -48,7 +48,7 @@ func TestASecondCheckoutIsAskedAboutUntilBound(t *testing.T) {
 		"then run `agentic-memory bind <store>` or `agentic-memory bind --new` from this checkout.\n" +
 		"  " + store + ": " + repoID + "; checkouts " + h.repo
 
-	if got := other.run(unrelatedStart(), "session-start"); got.code != 0 || !strings.Contains(got.out, question) {
+	if got := other.run(unrelatedStart(), "session-start"); got.code != 0 || !strings.Contains(toolContext(got.out), question) {
 		t.Errorf("SessionStart should tell the agent to ask the user, naming the store, got %d %q", got.code, got.out)
 	}
 
@@ -324,7 +324,7 @@ func TestSessionStartDeletesUnclaimedStoresPastTheirGrace(t *testing.T) {
 				t.Fatalf("leaving an unclaimed store: %v", err)
 			}
 
-			h.must(unrelatedStart(), "session-start")
+			h.said(unrelatedStart(), "session-start")
 
 			if test.Exists(t, h.roots().UnclaimedStore(id, "")) != tc.kept {
 				t.Error("SessionStart should delete an unclaimed store once orphan_store_grace has passed, and only then")
@@ -335,10 +335,10 @@ func TestSessionStartDeletesUnclaimedStoresPastTheirGrace(t *testing.T) {
 
 func TestNothingLandsUnderTheClaudeHome(t *testing.T) {
 	h := newHarness(t)
-	h.must(unrelatedStart(), "session-start")
+	h.said(unrelatedStart(), "session-start")
 	h.must("", "claim", "main")
 	h.file("Gate reads Bash only today", "finding")
-	h.must(hookPayload("", "", "gate"), "prompt")
+	h.said(hookPayload("", "", "gate"), "prompt")
 
 	if test.Exists(t, filepath.Join(h.home, ".claude")) || test.Exists(t, filepath.Join(h.home, ".cache")) {
 		t.Error("memory should keep nothing under ~/.claude or ~/.cache")

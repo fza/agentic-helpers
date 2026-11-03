@@ -86,11 +86,11 @@ func TestAnEarlierStoreMovesToTheBinaryFormats(t *testing.T) {
 	h := newHarness(t)
 	seatKey, library := format5Store(t, h)
 
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 	// The daily agentic-helpers prune, which the session start starts
 	// detached, brings the tool library to the current format.
 	tools.Prune(context.Background(), h.roots(), pluginconfig.DefaultToolsTotalMB, pluginconfig.DefaultToolsVersionLifetime, h.clock.Now())
-	h.must(hookPayload("", "", "what does the gate read"), "prompt")
+	h.said(hookPayload("", "", "what does the gate read"), "prompt")
 
 	format, _ := os.ReadFile(filepath.Join(h.store(), "format.json"))
 	if !strings.Contains(string(format), `"format":9`) {
@@ -178,7 +178,7 @@ func TestTheLedgersMatchTheFilesAfterEveryWriteAndPurge(t *testing.T) {
 			other.must("", "release")
 			h.must("", "drop", "row-7ah")
 		}},
-		{name: "the SessionStart pass", run: func() { h.must(hookPayload("startup", "", ""), "session-start") }},
+		{name: "the SessionStart pass", run: func() { h.said(hookPayload("startup", "", ""), "session-start") }},
 	}
 
 	for _, step := range steps {

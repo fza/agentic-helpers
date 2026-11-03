@@ -25,7 +25,7 @@ func cleared(h *harness) *harness {
 
 	after := *h
 	after.session = clearedSession
-	after.must(after.sessionStart("clear"), "session-start")
+	after.said(after.sessionStart("clear"), "session-start")
 
 	return &after
 }

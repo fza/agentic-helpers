@@ -70,7 +70,7 @@ func TestSessionStartSweepsStaleReadingsInEveryProject(t *testing.T) {
 		}
 	}
 
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 
 	if exists(stale) {
 		t.Error("a reading too old to be read should be swept, even where this project has no store")

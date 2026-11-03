@@ -3,8 +3,6 @@ package memory_test
 import (
 	"strings"
 	"testing"
-
-	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func TestTheNudgeFiresAtMostTwicePerRung(t *testing.T) {
@@ -19,7 +17,7 @@ func TestTheNudgeFiresAtMostTwicePerRung(t *testing.T) {
 	nudges := 0
 
 	for range 4 {
-		if strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
+		if strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
 			nudges++
 		}
 	}
@@ -28,16 +26,15 @@ func TestTheNudgeFiresAtMostTwicePerRung(t *testing.T) {
 		t.Errorf("an unanswered nudge should fire on two prompts of a rung and then leave it to the backstop, fired %d times", nudges)
 	}
 
-	got := h.run(payload, "stop")
-	if !strings.Contains(test.AddedContext(got.out, "Stop"), "two nudges unanswered") {
-		t.Errorf("past the capped nudges the Stop backstop should still hold, got %q %q", got.out, got.err)
+	if owed := h.owedAfterStop(payload); !strings.Contains(owed, "two nudges unanswered") {
+		t.Errorf("past the capped nudges Stop should still owe the backstop, got %q", owed)
 	}
 
 	h.file("Answer to the nudges here", "where work stands")
-	h.must(payload, "prompt")
+	h.said(payload, "prompt")
 	h.sensor(80)
 
-	if !strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
+	if !strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
 		t.Error("an answer should re-arm the nudge for the next rung")
 	}
 }

@@ -371,7 +371,7 @@ func TestRecallNamesTheNewerEntriesCitingAHit(t *testing.T) {
 		h.file("Unrelated finding about "+word, word+" "+word+" "+word)
 	}
 
-	out := h.must(hookPayload("", "", "zebra quokka narwhal"), "prompt")
+	out := h.said(hookPayload("", "", "zebra quokka narwhal"), "prompt")
 	if !strings.Contains(out, hub) || !strings.Contains(out, "    ← "+h.label(cited)+" Follow-up on the sighting [idea, ") {
 		t.Errorf("a recalled hit should name the newer entry citing it, got:\n%s", out)
 	}

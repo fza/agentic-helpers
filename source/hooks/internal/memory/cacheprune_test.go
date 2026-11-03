@@ -27,8 +27,8 @@ func TestSessionStartStartsTheDailyCachePruneOnce(t *testing.T) {
 	h := newHarness(t)
 	h.starter = &test.Starter{}
 
-	h.must(unrelatedStart(), "session-start")
-	h.must(unrelatedStart(), "session-start")
+	h.said(unrelatedStart(), "session-start")
+	h.said(unrelatedStart(), "session-start")
 
 	if pruneStarts(h.starter) != 1 {
 		t.Error("SessionStart should start the cache prune once a day, detached")
@@ -54,8 +54,8 @@ func TestSessionStartTellsAFailedCachePruneOnce(t *testing.T) {
 		t.Fatalf("writing the status: %v", err)
 	}
 
-	first := h.must(unrelatedStart(), "session-start")
-	second := h.must(unrelatedStart(), "session-start")
+	first := h.said(unrelatedStart(), "session-start")
+	second := h.said(unrelatedStart(), "session-start")
 
 	if !strings.Contains(first, "cache prune failed") || !strings.Contains(first, "permission denied") {
 		t.Error("the first SessionStart after a failed prune should name its error")

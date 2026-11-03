@@ -163,7 +163,7 @@ func TestAStateLineMovesTheReplayAnchorAndAHookLineDoesNot(t *testing.T) {
 	h.git.Log = map[string]string{"15af1a8c..HEAD": "9c0ffee1 fix: the gate reads MCP calls\n"}
 	h.must(h.stop(), "stop")
 
-	out := h.must(hookPayload("compact", path, ""), "session-log", "1")
+	out := h.said(hookPayload("compact", path, ""), "session-log", "1")
 	if !strings.Contains(out, "turn 1 ") || strings.Contains(out, "turn 5 ") {
 		t.Errorf("the replay should start at the agent's state line, never at a hook line:\n%s", out)
 	}
@@ -177,7 +177,7 @@ func TestAStateWriteAnswersTheCompactionNudge(t *testing.T) {
 	payload := hookPayload("", "", "")
 	h.sensor(70)
 
-	if !strings.Contains(h.must(payload, "prompt"), "Context near compaction. Add or tick state lines where work moved: "+
+	if !strings.Contains(h.said(payload, "prompt"), "Context near compaction. Add or tick state lines where work moved: "+
 		"agentic-memory ack state --add '<line>' | ack state#<item> --done. "+
 		"File an entry only for a finding, an open question or a judgment call") {
 		t.Fatal("the nudge should ask for state lines first")
@@ -185,7 +185,7 @@ func TestAStateWriteAnswersTheCompactionNudge(t *testing.T) {
 
 	h.addLine("where the gate work stands")
 
-	if strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
+	if strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
 		t.Error("a state line after the nudge should answer it")
 	}
 }
@@ -200,13 +200,13 @@ func TestAStateWriteRearmsTheReplayNudge(t *testing.T) {
 
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Hour), 60, 1000)
 
-	if !strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if !strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Fatal("turns outgrowing the replay should nudge")
 	}
 
 	test.AppendTurns(t, path, h.clock.Now().Add(2*time.Hour), 20, 1000)
 
-	if strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Fatal("the replay nudge should fire once until the seat writes")
 	}
 
@@ -214,7 +214,7 @@ func TestAStateWriteRearmsTheReplayNudge(t *testing.T) {
 	h.addLine("where the gate work stands")
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Minute), 60, 1000)
 
-	if !strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if !strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Error("a state write should re-arm the replay nudge")
 	}
 }
@@ -269,7 +269,7 @@ func TestRecallNeverOffersTheStateSlot(t *testing.T) {
 	h.addLine("halfway through the tail seal manifest rename")
 	h.clock.Advance(time.Hour)
 
-	out := h.must(prompt, "prompt")
+	out := h.said(prompt, "prompt")
 	if !strings.Contains(out, target) {
 		t.Fatalf("the prompt should recall the entry it touches:\n%s", out)
 	}

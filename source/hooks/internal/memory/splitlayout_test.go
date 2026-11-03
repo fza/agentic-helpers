@@ -54,7 +54,7 @@ func TestACodeRepositoryIsAskedBeforeJoiningAGraphStoreThatDoesNotAdmitIt(t *tes
 		"then run `agentic-memory bind <store>` or `agentic-memory bind --new` from this checkout.\n" +
 		"  " + store + ": gitlab.com/example/mika-sdd; checkouts " + graph.repo
 
-	if got := h.run(unrelatedStart(), "session-start"); !strings.Contains(got.out, question) {
+	if got := h.run(unrelatedStart(), "session-start"); !strings.Contains(toolContext(got.out), question) {
 		t.Errorf("SessionStart should tell the agent to ask the user, naming the graph store, got %q", got.out)
 	}
 

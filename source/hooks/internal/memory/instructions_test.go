@@ -94,7 +94,7 @@ func TestTheSessionsOwnEditIsTakenInSilently(t *testing.T) {
 				t.Errorf("the session's own edit should not be announced to it, got %q", got)
 			}
 
-			if got := other.must(other.promptOf("next"), "prompt"); strings.Contains(got, "changed since loaded") {
+			if got := other.said(other.promptOf("next"), "prompt"); strings.Contains(got, "changed since loaded") {
 				t.Errorf("the own edit should leave nothing to tell later, got %q", got)
 			}
 		})
@@ -141,11 +141,11 @@ func TestANestedFileIsWatchedOnlyByTheSessionThatLoadedIt(t *testing.T) {
 
 	test.WriteFile(t, nested, "# internal rules, changed\n")
 
-	if got := h.must(h.promptOf("go on"), "prompt"); !strings.Contains(got, rereadLine(filepath.Join("internal", "CLAUDE.md"))) {
+	if got := h.said(h.promptOf("go on"), "prompt"); !strings.Contains(got, rereadLine(filepath.Join("internal", "CLAUDE.md"))) {
 		t.Errorf("the session that loaded the nested file should be told it changed, got %q", got)
 	}
 
-	if got := other.must(other.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
+	if got := other.said(other.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
 		t.Errorf("a session that never loaded the nested file should not hear of it, got %q", got)
 	}
 }
@@ -161,11 +161,11 @@ func TestARemovedInstructionFileIsToldOnce(t *testing.T) {
 		t.Fatalf("removing the instruction file: %v", err)
 	}
 
-	if got := other.must(other.promptOf("go on"), "prompt"); !strings.Contains(got, rereadLine("CLAUDE.md")) {
+	if got := other.said(other.promptOf("go on"), "prompt"); !strings.Contains(got, rereadLine("CLAUDE.md")) {
 		t.Errorf("a removed instruction file should count as changed, got %q", got)
 	}
 
-	if got := other.must(other.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
+	if got := other.said(other.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
 		t.Errorf("a removal should be told once, got %q", got)
 	}
 }
@@ -189,7 +189,7 @@ func TestWithoutTheEventTheFixedSetIsWatched(t *testing.T) {
 	test.WriteFile(t, user, "# user\n")
 	test.WriteFile(t, nested, "# nested\n")
 
-	if got := h.must(h.promptOf("start"), "prompt"); strings.Contains(got, "changed since loaded") {
+	if got := h.said(h.promptOf("start"), "prompt"); strings.Contains(got, "changed since loaded") {
 		t.Errorf("the first prompt should only take in the fixed set, got %q", got)
 	}
 
@@ -197,7 +197,7 @@ func TestWithoutTheEventTheFixedSetIsWatched(t *testing.T) {
 		test.WriteFile(t, path, "# changed\n")
 	}
 
-	got := h.must(h.promptOf("go on"), "prompt")
+	got := h.said(h.promptOf("go on"), "prompt")
 
 	for _, told := range []string{"AGENTS.md", "CLAUDE.local.md", "~/.claude/CLAUDE.md"} {
 		if !strings.Contains(got, rereadLine(told)) {
@@ -221,7 +221,7 @@ func TestASessionEndDropsTheSessionsRecord(t *testing.T) {
 	other.must(other.promptOf(""), "session-end")
 	test.WriteFile(t, path, "# rules, changed\n")
 
-	if got := other.must(other.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
+	if got := other.said(other.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
 		t.Errorf("an ended session's record should be gone, the next prompt taking in the files afresh, got %q", got)
 	}
 }
@@ -229,11 +229,11 @@ func TestASessionEndDropsTheSessionsRecord(t *testing.T) {
 func TestTheFixedSetHoldsOnlyFilesThere(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	h.must(h.promptOf("start"), "prompt")
+	h.said(h.promptOf("start"), "prompt")
 
 	test.WriteFile(t, filepath.Join(h.repo, "CLAUDE.local.md"), "# local\n")
 
-	if got := h.must(h.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
+	if got := h.said(h.promptOf("go on"), "prompt"); strings.Contains(got, "changed since loaded") {
 		t.Errorf("a file created after the set was taken in was never loaded and should go untold, got %q", got)
 	}
 }

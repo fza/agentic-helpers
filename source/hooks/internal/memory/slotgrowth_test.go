@@ -10,7 +10,7 @@ import (
 func TestASessionEndClearsTheStateNothingReadsAfterIt(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	h.must(h.promptOf("start"), "prompt")
+	h.said(h.promptOf("start"), "prompt")
 	h.putSlot("waiter/"+test.Session, "1 2")
 	h.putSlot("graph-seen/"+test.Session, "{}")
 	h.putSlot("fork/"+test.Session, "{}")
@@ -60,7 +60,7 @@ func TestTheStateOfASeatGoneFromTheRegistryIsReclaimed(t *testing.T) {
 	h.putSlot("seen/agent/a-subagent", "{}")
 	h.putSlot("brief/not-an-id", "{}")
 
-	h.must(h.sessionStart("startup"), "session-start")
+	h.said(h.sessionStart("startup"), "session-start")
 
 	for _, purpose := range []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/"} {
 		if h.slot(purpose+main) == "" {

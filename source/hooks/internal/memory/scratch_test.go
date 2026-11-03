@@ -169,7 +169,7 @@ func TestTheSessionStartReapsAWeekIdleSeatFolder(t *testing.T) {
 	probe := filepath.Join(h.seatScratch("main"), "probe.py")
 	test.WriteFile(t, probe, "print(1)\n")
 
-	h.must(unrelatedStart(), "session-start")
+	h.said(unrelatedStart(), "session-start")
 
 	if !test.Exists(t, probe) {
 		t.Error("a folder used within the week should stay")
@@ -179,7 +179,7 @@ func TestTheSessionStartReapsAWeekIdleSeatFolder(t *testing.T) {
 		test.Age(t, path, 8*24*time.Hour)
 	}
 
-	h.must(unrelatedStart(), "session-start")
+	h.said(unrelatedStart(), "session-start")
 
 	if test.Exists(t, h.seatScratch("main")) {
 		t.Error("a seat folder idle a week should be reaped at session start")
@@ -195,7 +195,7 @@ func TestAnOldSessionFolderMovesIntoItsSeatsFolder(t *testing.T) {
 			held := filepath.Join(h.repo, ".tmp", parent, test.Session, "probe.py")
 			test.WriteFile(t, held, "print(1)\n")
 
-			h.must(unrelatedStart(), "session-start")
+			h.said(unrelatedStart(), "session-start")
 
 			if test.Exists(t, filepath.Dir(held)) || !test.Exists(t, filepath.Join(h.seatScratch("main"), "probe.py")) {
 				t.Error("the session folder of a seat's claim should move into the seat's folder")
@@ -214,7 +214,7 @@ func TestTheSessionStartMovesTheStoresLegacySeatFolders(t *testing.T) {
 	test.WriteFile(t, filepath.Join(legacy, "main", "probe.py"), "print(1)\n")
 	test.WriteFile(t, filepath.Join(legacy, "lead", scratch.Marker), "s-zzz999\n")
 
-	out := h.must(unrelatedStart(), "session-start")
+	out := h.said(unrelatedStart(), "session-start")
 
 	if test.ReadFile(t, filepath.Join(h.seatScratch("main"), "probe.py")) != "print(1)\n" {
 		t.Error("a seat folder of the store should move under .tmp/seats/ with its contents")
@@ -250,7 +250,7 @@ func TestATranscriptNamesTheSeatOfAnOlderSessionFolder(t *testing.T) {
 			held := filepath.Join(h.repo, ".tmp", "seats", session, "notes.md")
 			test.WriteFile(t, held, "notes\n")
 
-			h.must(startPayload(older, filepath.Join(transcripts, older+".jsonl")), "session-start")
+			h.said(startPayload(older, filepath.Join(transcripts, older+".jsonl")), "session-start")
 
 			moved := test.Exists(t, filepath.Join(h.seatScratch("main"), "notes.md"))
 			if moved != (name != "no seat in it at all") || moved == test.Exists(t, held) {
@@ -264,7 +264,7 @@ func TestTheCompactBriefNamesTheSeatsFolder(t *testing.T) {
 	h := scratchProject(t)
 	h.must("", "claim", "main")
 
-	if !strings.Contains(h.must(hookPayload("compact", "", ""), "session-start"), "scratch: .tmp/seats/main/") {
+	if !strings.Contains(h.said(hookPayload("compact", "", ""), "session-start"), "scratch: .tmp/seats/main/") {
 		t.Error("the brief after a compaction should name the seat's scratch folder")
 	}
 }
@@ -312,7 +312,7 @@ func TestScratchTurnedOffLeavesEveryFolderAlone(t *testing.T) {
 
 	test.WriteFile(t, h.settings, `{"pluginConfigs":{"agentic-helpers@agentic-helpers":{"options":{"scratch_enabled":false}}}}`)
 
-	h.must(unrelatedStart(), "session-start")
+	h.said(unrelatedStart(), "session-start")
 	h.must("", "release")
 
 	if !test.Exists(t, probe) || !test.Exists(t, held) {

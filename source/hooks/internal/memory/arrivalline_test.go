@@ -21,11 +21,11 @@ func TestAnArrivalPrintsTheShortLineNamingOnlyAKindAndSourceNotTheDefaults(t *te
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h, other := twoSeats(t)
-			other.must(hookPayload("", "", ""), "prompt")
+			other.said(hookPayload("", "", ""), "prompt")
 			h.clock.Advance(time.Minute)
 			id := h.file(tc.title, "a handover", append([]string{"--for", "idea"}, tc.extra...)...)
 
-			out := other.must(hookPayload("", "", "next"), "prompt")
+			out := other.said(hookPayload("", "", "next"), "prompt")
 
 			arrived := linesHolding(out, id)
 			if len(arrived) != 1 || arrived[0] != "  "+h.label(id)+" "+tc.title+tc.suffix {

@@ -25,7 +25,7 @@ func TestANoteIsToldAtTheFileItIsAbout(t *testing.T) {
 		t.Errorf("a todo should be told at the path it declares as a note is:\n%s", out)
 	}
 
-	h.must(hookPayload("compact", "", ""), "session-start")
+	h.said(hookPayload("compact", "", ""), "session-start")
 
 	if after := h.callTool("Read", map[string]string{"file_path": filepath.Join(h.repo, "internal", "gate", "gate.go")}); !strings.Contains(after, "about internal/gate/gate.go: "+note) {
 		t.Errorf("a compaction should let the note be told again:\n%s", after)

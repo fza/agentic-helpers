@@ -37,7 +37,7 @@ func TestAPromptHoldingACredentialIsRecalledByTermsWithoutAnEmbed(t *testing.T) 
 
 			calls := h.embedder.Calls()
 
-			out := h.must(hookPayload("", "", tc.prompt), "prompt")
+			out := h.said(hookPayload("", "", tc.prompt), "prompt")
 
 			notices := withheldNotice.FindAllStringSubmatch(out, -1)
 			if !tc.withheld {

@@ -836,12 +836,15 @@ this session refuses the whole call, `agentic-memory: nothing acked:` then
 `show` lists `done by proof <trigger>`, `done by ack` or `declined: <why>`, with the seat.
 `ack --done` warms each rule it settles by 0.5; a decline warms nothing.
 
-Every `Stop` hold (do-now items, the filing backstop) reaches the agent as Stop
-context, `hookSpecificOutput.additionalContext` with exit 0: the turn goes on as it would after exit 2,
-under the same loop guards, and the user sees no hook error. The text shows only in Claude Code's
-transcript view.
+`Stop` holds no turn and prints nothing: its `additionalContext` always shows the user `Stop hook
+feedback`, and memory speaks to the agent alone. A line `Stop` owes the agent (do-now items, the
+filing backstop) is marked in the `ladder/<session>` slot and goes out once, as
+`additionalContext`, with the next `PreToolUse`, `PostToolUse`, `UserPromptSubmit` or `SessionStart`
+of the main thread, whichever comes first. A `PreToolUse` whose subagent checks rewrite or refuse the
+call leaves the line to that call's `PostToolUse`. An agent that ends its turn without settling is
+not held: the line waits for the next prompt or tool call.
 
-While items are pending, `Stop` holds the turn ahead of the filing backstop:
+While items are pending, each `Stop` owes the agent, ahead of the filing backstop:
 
     agentic-memory: do-now items pending:
     1. m-d4e5f6 Read the board  ack when done
@@ -1464,10 +1467,14 @@ Near compaction a nudge asks for state lines first:
     Context near compaction. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
 Any change the agent makes to its state ledger, or any entry, answers it; a hook line does not. It
-fires on at most two prompts until answered; past that, `Stop` holds the turn with the backstop:
-`Memory overdue, two nudges unanswered. Add or tick state lines where work moved: agentic-memory ack
-state --add '<line>' | ack state#<item> --done. File findings with agentic-memory new before ending
-the turn.`
+fires on at most two prompts until answered; past that, `Stop` owes the backstop, which the next
+prompt or tool call carries ([Do-now rules](#do-now-rules) says how): `Memory overdue, two nudges
+unanswered. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack
+state#<item> --done. File findings with agentic-memory new before ending the turn.`
+
+Every line memory gives the agent from a hook, these nudges, the brief and the replay included, is
+`additionalContext`, which Claude Code hands the agent without showing the user; no hook prints
+plain stdout, and `Stop` prints nothing.
 
 The turns since the seat's newest entry or change to its state ledger come back after a compaction
 in at most five pieces of 9,000 characters, the newest kept. Once they would no longer fit, the next

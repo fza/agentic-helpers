@@ -606,7 +606,7 @@ func TestAResumedSessionNeverTakesItsSubagentsSeat(t *testing.T) {
 	h.subagentStops("afull000000000005")
 	h.must("", "release")
 
-	out := h.must(h.startHook("resume", h.sessionTranscript()), "session-start")
+	out := h.said(h.startHook("resume", h.sessionTranscript()), "session-start")
 	if strings.Contains(out, "main-2") || !strings.Contains(out, "seat main") {
 		t.Errorf("a resumed session should take its own seat back, never its subagent's, got:\n%s", out)
 	}

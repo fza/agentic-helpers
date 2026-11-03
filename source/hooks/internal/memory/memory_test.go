@@ -227,6 +227,14 @@ func (h *harness) must(stdin string, args ...string) string {
 	return got.out
 }
 
+// said runs a hook that must succeed and answers what it told the agent: the
+// additionalContext of its one JSON answer.
+func (h *harness) said(stdin string, args ...string) string {
+	h.t.Helper()
+
+	return toolContext(h.must(stdin, args...))
+}
+
 var idPattern = regexp.MustCompile(`m-[a-z0-9]{4,16}`)
 
 func (h *harness) file(title string, body string, extra ...string) string {
@@ -1016,18 +1024,18 @@ func TestRecall(t *testing.T) {
 		h.file("Unrelated finding about "+word, word+" "+word+" "+word)
 	}
 
-	if strings.Contains(h.must(prompt, "prompt"), "related") {
+	if strings.Contains(h.said(prompt, "prompt"), "related") {
 		t.Error("recall should stay silent below 20 live entries, even with a clear hit")
 	}
 
 	h.file("Unrelated finding about "+unrelated[18], unrelated[18])
 
-	first := h.must(prompt, "prompt")
+	first := h.said(prompt, "prompt")
 	if !strings.Contains(first, "agentic-memory: related") || !strings.Contains(first, target) {
 		t.Errorf("a prompt touching an entry should recall it:\n%s", first)
 	}
 
-	if strings.Contains(h.must(prompt, "prompt"), target) {
+	if strings.Contains(h.said(prompt, "prompt"), target) {
 		t.Error("an entry shown since the last compaction should not be recalled again")
 	}
 }
@@ -1047,20 +1055,20 @@ func TestRecallTellsOfEachEmbedderOutageOnce(t *testing.T) {
 
 	h.embedder.Err = errors.New("connection refused")
 
-	if !strings.Contains(h.must(prompt, "prompt"), failed) {
+	if !strings.Contains(h.said(prompt, "prompt"), failed) {
 		t.Fatal("a failed recall should say so")
 	}
 
-	if strings.Contains(h.must(prompt, "prompt"), failed) {
+	if strings.Contains(h.said(prompt, "prompt"), failed) {
 		t.Error("a recall failing again in the same outage should stay silent")
 	}
 
 	h.embedder.Err = nil
-	h.must(prompt, "prompt")
+	h.said(prompt, "prompt")
 	h.embedder.Err = errors.New("connection refused")
 
 	// A new prompt, since the working recall cached the first one's vector.
-	if !strings.Contains(h.must(hookPayload("", "", "where does the ledger keep its offsets"), "prompt"), failed) {
+	if !strings.Contains(h.said(hookPayload("", "", "where does the ledger keep its offsets"), "prompt"), failed) {
 		t.Error("a failure after a working recall starts a new outage and should say so")
 	}
 }
@@ -1097,7 +1105,7 @@ func TestRecallBarIsHigherForOtherSeats(t *testing.T) {
 				h.file("Unrelated finding about "+word, word+" "+word+" "+word)
 			}
 
-			got := strings.Contains(h.must(hookPayload("", "", "zebra quokka narwhal"), "prompt"), "Zebra quokka")
+			got := strings.Contains(h.said(hookPayload("", "", "zebra quokka narwhal"), "prompt"), "Zebra quokka")
 			if got != tc.recalled {
 				t.Error("recall should hold another seat's entries to a higher bar than the own seat's")
 			}
@@ -1199,7 +1207,7 @@ func TestSessionStart(t *testing.T) {
 
 	other := newHarnessSharing(h)
 
-	out := other.must(other.startHook("startup", ""), "session-start")
+	out := other.said(other.startHook("startup", ""), "session-start")
 	if !strings.Contains(out, "agentic-memory: this session holds no seat. Seats: main ("+test.Session[:8]+", 1 live)") {
 		t.Errorf("a seatless session should hear the seats where memory exists:\n%s", out)
 	}
@@ -1208,7 +1216,7 @@ func TestSessionStart(t *testing.T) {
 		t.Errorf("a seatless session should hear that a seat named loosely is a claim request:\n%s", out)
 	}
 
-	if !strings.Contains(h.must(hookPayload("compact", "", ""), "session-start"), "agentic-memory: seat main") {
+	if !strings.Contains(h.said(hookPayload("compact", "", ""), "session-start"), "agentic-memory: seat main") {
 		t.Error("a compaction should bring back the brief")
 	}
 }
@@ -1229,11 +1237,11 @@ func TestCompactionReinjectsRecentTurns(t *testing.T) {
 
 	path := h.transcript()
 
-	if h.must(hookPayload("startup", path, ""), "session-log", "1") != "" {
+	if h.said(hookPayload("startup", path, ""), "session-log", "1") != "" {
 		t.Error("the recent turns should come back only after a compaction")
 	}
 
-	out := h.must(hookPayload("compact", path, ""), "session-log", "1")
+	out := h.said(hookPayload("compact", path, ""), "session-log", "1")
 	if !strings.Contains(out, "Wire the seal into the tail writer") {
 		t.Errorf("the turns after the newest entry should come back:\n%s", out)
 	}
@@ -1242,7 +1250,7 @@ func TestCompactionReinjectsRecentTurns(t *testing.T) {
 		t.Error("turns before the newest entry should stay out")
 	}
 
-	if h.must(hookPayload("compact", path, ""), "session-log", "2") != "" {
+	if h.said(hookPayload("compact", path, ""), "session-log", "2") != "" {
 		t.Error("a piece past the last should print nothing")
 	}
 }
@@ -1271,7 +1279,7 @@ func TestKilledSessionTurnsReadFromTranscript(t *testing.T) {
 	h.file("Gate reads Bash only today", "finding")
 
 	path := h.transcript()
-	h.must(hookPayload("", path, "a prompt"), "prompt")
+	h.said(hookPayload("", path, "a prompt"), "prompt")
 	test.WriteFile(t, h.seatFile("main", ".slice"), "session an-older-session\nstale turns of another session")
 
 	h.processes.Kill(test.OwnerPID)
@@ -1303,29 +1311,28 @@ func TestNudgeLadder(t *testing.T) {
 
 	h.sensor(40)
 
-	if strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
+	if strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
 		t.Error("no nudge should fire below the threshold")
 	}
 
 	h.sensor(70)
 
-	if !strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
+	if !strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
 		t.Error("a nudge should fire past 65% of the window")
 	}
 
 	h.file("Answer to the nudge here", "where work stands")
 
-	if strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
+	if strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
 		t.Error("an entry filed after the nudge should answer it")
 	}
 
 	h.sensor(90)
-	h.must(payload, "prompt")
-	h.must(payload, "prompt")
+	h.said(payload, "prompt")
+	h.said(payload, "prompt")
 
-	got := h.run(payload, "stop")
-	if got.code != 0 || !strings.Contains(test.AddedContext(got.out, "Stop"), "two nudges unanswered") {
-		t.Errorf("two unanswered nudges should hold Stop with the backstop, got %d %q %q", got.code, got.out, got.err)
+	if owed := h.owedAfterStop(payload); !strings.Contains(owed, "two nudges unanswered") {
+		t.Errorf("two unanswered nudges should leave Stop owing the backstop, got %q", owed)
 	}
 }
 
@@ -1772,7 +1779,7 @@ func TestTheBriefNamesTheEntryLanguage(t *testing.T) {
 				t.Errorf("the brief at claim should name the resolved entry language, got %v", claimed)
 			}
 
-			compacted := header.FindStringSubmatch(h.must(hookPayload("compact", h.transcript(), ""), "session-start"))
+			compacted := header.FindStringSubmatch(h.said(hookPayload("compact", h.transcript(), ""), "session-start"))
 			if compacted == nil || compacted[1] != tc.want {
 				t.Errorf("the brief after a compaction should name it too, got %v", compacted)
 			}
@@ -1824,7 +1831,7 @@ func TestStoredTimesAreUTC(t *testing.T) {
 	id := h.file("Gate reads Bash only today", "finding")
 	h.must("", "show", id)
 	h.sensor(70)
-	h.must(hookPayload("", "", ""), "prompt")
+	h.said(hookPayload("", "", ""), "prompt")
 
 	offset := regexp.MustCompile(`\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}:\d{2}`)
 
@@ -1857,7 +1864,7 @@ func TestAContextReadingIsReadInEitherForm(t *testing.T) {
 			test.WriteFile(t, h.sensorPath(h.session),
 				`{"used_percentage":70,"size":200000,"at":`+at+`}`)
 
-			if !strings.Contains(h.must(hookPayload("", "", ""), "prompt"), "Context near compaction") {
+			if !strings.Contains(h.said(hookPayload("", "", ""), "prompt"), "Context near compaction") {
 				t.Error("a reading written as RFC 3339 or as Unix seconds should count")
 			}
 		})
@@ -1886,7 +1893,7 @@ func TestTheReadingIsMeasuredAgainstTheWindowClaudeCodeCompactsAt(t *testing.T) 
 			test.WriteFile(t, h.sensorPath(h.session),
 				`{"used_percentage":30,"size":1000000`+tc.reading+`,"at":"2026-10-25T09:00:00Z"}`)
 
-			nudged := strings.Contains(h.must(hookPayload("", "", ""), "prompt"), "Context near compaction")
+			nudged := strings.Contains(h.said(hookPayload("", "", ""), "prompt"), "Context near compaction")
 			if nudged != tc.nudged {
 				t.Errorf("a nudge should fire only once the reading passes the threshold of the window compacted at")
 			}
@@ -1940,7 +1947,7 @@ func TestRecallLeavesThePromptVectorForAgenticTools(t *testing.T) {
 	h.file("Tail seal manifest rename", "the tail seal writes the manifest by rename")
 
 	question := "how does the tail seal manifest rename work"
-	h.must(hookPayload("", "", question), "prompt")
+	h.said(hookPayload("", "", question), "prompt")
 
 	_, held := promptvector.Load(context.Background(), promptvector.Dir(h.roots().Cache), h.session, question, promptvector.Key(h.embedder.Space(), embed.FallbackRunes))
 	if !held {
@@ -1969,7 +1976,7 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 
 	prompt := hookPayload("", path, "")
 
-	if strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Error("turns that fit the replay should never be nudged")
 	}
 
@@ -1987,7 +1994,7 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 
 	test.AppendTurns(t, path, h.clock.Now().Add(2*time.Hour), 40, 1000)
 
-	first := h.must(prompt, "prompt")
+	first := h.said(prompt, "prompt")
 	if !strings.Contains(first, "Turns since your newest entry or state line no longer fit the post-compaction replay. "+
 		"Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. "+
 		"File an entry only for a finding, an open question or a judgment call: "+
@@ -1997,7 +2004,7 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 
 	test.AppendTurns(t, path, h.clock.Now().Add(3*time.Hour), 20, 1000)
 
-	if strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Error("the replay nudge should fire once until the seat files")
 	}
 
@@ -2012,16 +2019,15 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 		t.Error("the replay nudge should leave the compaction nudge's count untouched")
 	}
 
-	got := h.run(prompt, "stop")
-	if got.code != 0 || got.out != "" {
-		t.Errorf("the replay nudge should never arm the Stop backstop, got %d %q", got.code, got.err)
+	if owed := h.owedAfterStop(prompt); strings.Contains(owed, "Memory overdue") {
+		t.Errorf("the replay nudge should never arm the Stop backstop, got %q", owed)
 	}
 
 	h.clock.Advance(4 * time.Hour)
 	h.file("Where the gate work stands now", "filed")
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Minute), 60, 1000)
 
-	if !strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if !strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Error("filing an entry should re-arm the replay nudge")
 	}
 }
@@ -2039,13 +2045,13 @@ func TestTheReplayCheckWaitsForThePieceOfGrowth(t *testing.T) {
 
 	prompt := hookPayload("", path, "")
 
-	if strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Error("below a piece of growth since the last check the hook should not read the transcript")
 	}
 
 	test.AppendTurns(t, path, h.clock.Now().Add(3*time.Hour), 5, 1000)
 
-	if !strings.Contains(h.must(prompt, "prompt"), "no longer fit the post-compaction replay") {
+	if !strings.Contains(h.said(prompt, "prompt"), "no longer fit the post-compaction replay") {
 		t.Error("a piece of growth should let the check run")
 	}
 }
@@ -2058,19 +2064,19 @@ func TestACutReplaySaysWhatItDropped(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "transcript.jsonl")
 	test.AppendTurns(t, path, h.clock.Now().Add(time.Hour), 60, 1000)
 
-	out := h.must(hookPayload("compact", path, ""), "session-log", "1")
+	out := h.said(hookPayload("compact", path, ""), "session-log", "1")
 	if !regexp.MustCompile(`^agentic-memory: the turns since seat main's newest entry, in 5 pieces, newest last; \d+ older pieces cut, the full transcript at ` +
 		regexp.QuoteMeta(path) + ":\n").MatchString(out) {
 		t.Errorf("a cut replay should name the count and the transcript in its first piece:\n%.300s", out)
 	}
 
-	if strings.Contains(h.must(hookPayload("compact", path, ""), "session-log", "2"), "cut") {
+	if strings.Contains(h.said(hookPayload("compact", path, ""), "session-log", "2"), "cut") {
 		t.Error("only the first piece should carry the header")
 	}
 
 	short := h.transcript()
 
-	whole := h.must(hookPayload("compact", short, ""), "session-log", "1")
+	whole := h.said(hookPayload("compact", short, ""), "session-log", "1")
 	if !strings.HasPrefix(whole, "agentic-memory: the turns since seat main's newest entry, in 1 pieces, newest last:\n") {
 		t.Errorf("a replay cutting nothing should keep its header:\n%.200s", whole)
 	}

@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func (h *harness) callTool(tool string, input map[string]string) string {
@@ -65,7 +63,7 @@ func TestATrapIsToldOncePerSession(t *testing.T) {
 		t.Errorf("a trap should be told once per session:\n%s", again)
 	}
 
-	h.must(hookPayload("compact", "", ""), "session-start")
+	h.said(hookPayload("compact", "", ""), "session-start")
 
 	if after := h.callTool("Bash", map[string]string{"command": "cat internal/gate/gate.go"}); !strings.Contains(after, "trap for internal/gate/gate.go") {
 		t.Errorf("a compaction should let the trap be told again:\n%s", after)
@@ -163,11 +161,10 @@ func TestDoNowAtClaim(t *testing.T) {
 		t.Errorf("a proving tool call should settle the item, as an event on the rule:\n%s", shown)
 	}
 
-	got := h.run(hookPayload("", "", ""), "stop")
-	held := test.AddedContext(got.out, "Stop")
-	if got.code != 0 || !strings.Contains(held, "agentic-memory: do-now items pending:\n1. "+board+" Read the board on claim  ack when done") ||
-		strings.Contains(held, monitor) {
-		t.Errorf("Stop should hold the turn for the items still pending, got %d %q", got.code, held)
+	owed := h.owedAfterStop(hookPayload("", "", ""))
+	if !strings.Contains(owed, "agentic-memory: do-now items pending:\n1. "+board+" Read the board on claim  ack when done") ||
+		strings.Contains(owed, monitor) {
+		t.Errorf("Stop should owe the agent the items still pending, got %q", owed)
 	}
 }
 
@@ -179,25 +176,25 @@ func TestAProofBeforeTheMomentProvesNothing(t *testing.T) {
 
 	h.callTool("Bash", map[string]string{"command": "make test"})
 
-	compacted := h.must(hookPayload("compact", "", ""), "session-start")
+	compacted := h.said(hookPayload("compact", "", ""), "session-start")
 	if !strings.Contains(compacted, "do now (compact):\n1. "+tests) {
 		t.Fatalf("the brief after a compaction should open with its do-now list:\n%s", compacted)
 	}
 
-	if got := h.run(hookPayload("", "", ""), "stop"); test.AddedContext(got.out, "Stop") == "" {
-		t.Errorf("a proving call before the moment should leave the item pending, got %d %q", got.code, got.out)
+	if owed := h.owedAfterStop(hookPayload("", "", "")); !strings.Contains(owed, "do-now items pending") {
+		t.Errorf("a proving call before the moment should leave the item pending, got %q", owed)
 	}
 
 	h.callTool("Bash", map[string]string{"command": "ls"})
 
-	if got := h.run(hookPayload("", "", ""), "stop"); test.AddedContext(got.out, "Stop") == "" {
-		t.Errorf("a call proving nothing should leave the item pending, got %d %q", got.code, got.out)
+	if owed := h.owedAfterStop(hookPayload("", "", "")); !strings.Contains(owed, "do-now items pending") {
+		t.Errorf("a call proving nothing should leave the item pending, got %q", owed)
 	}
 
 	h.callTool("Bash", map[string]string{"command": "make test"})
 
-	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 0 || got.out != "" {
-		t.Errorf("a proving call after the moment should settle the item, got %d %q", got.code, got.out)
+	if owed := h.owedAfterStop(hookPayload("", "", "")); strings.Contains(owed, "do-now items pending") {
+		t.Errorf("a proving call after the moment should settle the item, got %q", owed)
 	}
 }
 
@@ -235,8 +232,8 @@ func TestAckSettlesPendingItems(t *testing.T) {
 		t.Errorf("a decline should be an event on the rule with its reason:\n%s", shown)
 	}
 
-	if got := h.run(hookPayload("", "", ""), "stop"); got.code != 0 || got.out != "" {
-		t.Errorf("settled items should no longer hold Stop, got %d %q", got.code, got.out)
+	if owed := h.owedAfterStop(hookPayload("", "", "")); strings.Contains(owed, "do-now items pending") {
+		t.Errorf("settled items should no longer be owed at Stop, got %q", owed)
 	}
 }
 
@@ -261,20 +258,19 @@ func TestStopHoldsTwiceThenSkips(t *testing.T) {
 	h.sensor(90)
 
 	for range 2 {
-		h.must(hookPayload("", "", ""), "prompt")
+		h.said(hookPayload("", "", ""), "prompt")
 	}
 
 	for round := range 2 {
-		got := h.run(hookPayload("", "", ""), "stop")
-		if held := test.AddedContext(got.out, "Stop"); got.code != 0 || !strings.Contains(held, "do-now items pending") ||
-			strings.Contains(held, "Memory overdue") {
-			t.Errorf("Stop %d should hold for the do-now items ahead of the backstop, got %d %q", round+1, got.code, held)
+		owed := h.owedAfterStop(hookPayload("", "", ""))
+		if !strings.Contains(owed, "do-now items pending") || strings.Contains(owed, "Memory overdue") {
+			t.Errorf("Stop %d should owe the do-now items ahead of the backstop, got %q", round+1, owed)
 		}
 	}
 
-	if got := h.run(hookPayload("", "", ""), "stop"); strings.Contains(test.AddedContext(got.out, "Stop"), "do-now items pending") ||
-		!strings.Contains(test.AddedContext(got.out, "Stop"), "Memory overdue") {
-		t.Errorf("a third Stop should no longer hold for the items, and the backstop should follow, got %d %q", got.code, got.out)
+	if owed := h.owedAfterStop(hookPayload("", "", "")); strings.Contains(owed, "do-now items pending") ||
+		!strings.Contains(owed, "Memory overdue") {
+		t.Errorf("a third Stop should no longer owe the items, and the backstop should follow, got %q", owed)
 	}
 
 	h.must(h.sessionEnd("other"), "session-end")

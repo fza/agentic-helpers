@@ -75,7 +75,7 @@ func TestANudgeAnsweredAfterTheClockWasSetBackDoesNotRepeat(t *testing.T) {
 
 	h.sensor(70)
 
-	if !strings.Contains(h.must(payload, "prompt"), "Context near compaction") {
+	if !strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
 		t.Fatal("a nudge should fire past 65% of the window")
 	}
 
@@ -83,7 +83,7 @@ func TestANudgeAnsweredAfterTheClockWasSetBackDoesNotRepeat(t *testing.T) {
 	h.sensor(70)
 	h.file("Answer to the nudge here", "where work stands")
 
-	if out := h.must(payload, "prompt"); strings.Contains(out, "Context near compaction") {
+	if out := h.said(payload, "prompt"); strings.Contains(out, "Context near compaction") {
 		t.Errorf("an entry filed after the rollback should answer the nudge before it, got:\n%s", out)
 	}
 }

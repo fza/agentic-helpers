@@ -20,8 +20,8 @@ const (
 
 var doNowMoments = []string{onClaim, onCompact}
 
-// stopsPerTrigger is how often Stop holds a turn for one trigger's pending
-// items, so a list nobody can settle never holds a session for good.
+// stopsPerTrigger is how many Stops owe the agent one trigger's pending items,
+// so a list nobody can settle is never owed for good.
 const stopsPerTrigger = 2
 
 // settlePayload is how a do-now item was settled: done by a proving tool call
@@ -60,7 +60,7 @@ type doNowItem struct {
 }
 
 // doNowState is a seat's pending do-now items: the session they are owed in,
-// and how often Stop held a turn for each trigger. It sits beside the nudge
+// and how many Stops owed each trigger's items. It sits beside the nudge
 // ladder, keyed by the seat, since a claim run from a shell may not know its
 // session yet.
 type doNowState struct {
@@ -312,9 +312,10 @@ func (mem *memory) ack(ctx context.Context, req request) result {
 	return done("done")
 }
 
-// holdForDoNow is what Stop says while do-now items are pending, at most
-// stopsPerTrigger times per trigger; past that, the items left are skipped.
-func (mem *memory) holdForDoNow(seatName string, session string) string {
+// owedDoNow is the line Stop owes the agent while do-now items are pending,
+// at most stopsPerTrigger times per trigger; past that, the items left are
+// skipped.
+func (mem *memory) owedDoNow(seatName string, session string) string {
 	pending := mem.pendingDoNow(seatName)
 	if len(pending.Items) == 0 || (pending.Session != "" && session != "" && pending.Session != session) {
 		return ""

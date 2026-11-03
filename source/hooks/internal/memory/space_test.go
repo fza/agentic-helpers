@@ -123,7 +123,7 @@ func TestANegativeLoggedSizeCannotDefeatTheLimit(t *testing.T) {
 			got.code, got.err)
 	}
 
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 
 	got = h.run("", "attach", held, h.sizedFile("second.bin", 'b', 600<<10))
 	if got.code != 1 || !strings.Contains(got.err, "past the 1 MB limit (attachments_total_mb)") {
@@ -211,7 +211,7 @@ func TestTheAttachmentSpaceComesFromRecordedSizes(t *testing.T) {
 		test.WriteFile(t, filepath.Join(h.roots().Shared("attachments"), legacy), "{}")
 	}
 
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 
 	for _, legacy := range []string{".space.json", ".space.json.lock"} {
 		if _, err := os.Lstat(filepath.Join(h.roots().Shared("attachments"), legacy)); !errors.Is(err, fs.ErrNotExist) {
@@ -277,7 +277,7 @@ func TestSessionStartLeavesToolVersionsToTheDailyRun(t *testing.T) {
 			test.WriteFile(t, filepath.Join(store, "word-count", "v1", "data.txt"), strings.Repeat("a", 700<<10))
 			test.WriteFile(t, filepath.Join(store, "word-count", "v2", "data.txt"), strings.Repeat("b", 700<<10))
 
-			h.must(hookPayload("startup", "", ""), "session-start")
+			h.said(hookPayload("startup", "", ""), "session-start")
 
 			for _, version := range []string{"v1", "v2"} {
 				_, err := os.Stat(filepath.Join(store, "word-count", version))

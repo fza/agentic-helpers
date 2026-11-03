@@ -145,7 +145,7 @@ func TestAFreshContextPrintsEverythingInFull(t *testing.T) {
 
 			// A compaction's and a /clear's brief reprints the entry; a resume
 			// prints none, so the next read does.
-			out := h.must(hookPayload(source, "", ""), "session-start") + test.Unscored(h.must("", "search", "--term", "Gate reads", "--no-heat"))
+			out := h.said(hookPayload(source, "", ""), "session-start") + test.Unscored(h.must("", "search", "--term", "Gate reads", "--no-heat"))
 			if !strings.Contains(out, h.label(id)+" Gate reads Bash only  [") {
 				t.Errorf("a context started afresh should get the entry in full first, got:\n%s", out)
 			}
@@ -169,7 +169,7 @@ func TestRecallSkipsAnEntryAReadPrinted(t *testing.T) {
 				h.must("", "search", "--term", "Tail seal", "--no-heat")
 			}
 
-			out := h.must(hookPayload("", "", "how does the tail seal manifest rename work"), "prompt")
+			out := h.said(hookPayload("", "", "how does the tail seal manifest rename work"), "prompt")
 			if strings.Contains(out, target) == read {
 				t.Errorf("recall should name the entry only where no read printed it before:\n%s", out)
 			}

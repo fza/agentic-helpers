@@ -42,7 +42,7 @@ func TestRecallWarmsNothing(t *testing.T) {
 
 	before := h.heat()
 
-	if out := h.must(prompt, "prompt"); !strings.Contains(out, target) {
+	if out := h.said(prompt, "prompt"); !strings.Contains(out, target) {
 		t.Fatalf("the prompt should recall the entry it touches:\n%s", out)
 	}
 

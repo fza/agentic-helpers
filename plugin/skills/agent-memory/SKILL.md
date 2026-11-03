@@ -262,8 +262,8 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
 - **`Context near compaction. Add or tick state lines where work moved: agentic-memory ack state
   --add '<line>' | ack state#<item> --done. ...`** → add or tick state lines, file what outlives the
   moment. Measured against Claude Code's compaction window. Fires at most twice until answered;
-  ignored twice → `Stop` holds with `Memory overdue, two nudges unanswered. Add or tick state lines
-  where work moved: ...`. Only your own ledger change or an entry answers; a hook line does not.
+  ignored twice → the next prompt or tool call after `Stop` brings `Memory overdue, two nudges
+  unanswered. ...`. Only your own ledger change or an entry answers; a hook line does not.
 - **`Turns since your newest entry or state line no longer fit the post-compaction replay. ...`**
   → add or tick state lines now.
 - Replay cut → its first piece names `<k> older pieces cut, the full transcript at <path>`; read it

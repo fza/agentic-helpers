@@ -63,7 +63,7 @@ func (h *harness) land(commits ...test.Commit) {
 func (h *harness) runPrompt() string {
 	h.t.Helper()
 
-	return h.must(h.promptOf("go on"), "prompt")
+	return h.said(h.promptOf("go on"), "prompt")
 }
 
 func (h *harness) bashHook(command string) string {

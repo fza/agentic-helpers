@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -883,8 +884,32 @@ func (mem *memory) preTool(ctx context.Context, usable bool) int {
 	return 0
 }
 
+// preToolEvent runs the subagent checks, then hands the main thread the line
+// its last Stop owed where the checks gave the call no answer: a rewrite or a
+// refusal is the call's one answer, and the call's PostToolUse carries the
+// line instead.
 func (mem *memory) preToolEvent(ctx context.Context, _ []string) int {
-	return mem.preTool(ctx, true)
+	out := mem.streams.Out
+
+	var answer bytes.Buffer
+
+	mem.streams.Out = &answer
+	code := mem.preTool(ctx, true)
+	mem.streams.Out = out
+
+	payload := mem.payload()
+	if answer.Len() > 0 || payload.AgentID != "" {
+		_, _ = out.Write(answer.Bytes())
+
+		return code
+	}
+
+	owed := mem.owedLine(payload.SessionID)
+	if owed != "" {
+		_ = hookio.AddContext(out, "PreToolUse", owed)
+	}
+
+	return code
 }
 
 // agentArgs takes a leading `--agent <id>` off the arguments, answering the id.

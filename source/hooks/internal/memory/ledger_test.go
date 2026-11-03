@@ -438,7 +438,7 @@ func TestAHookLineStaysUntilItsHookTicksIt(t *testing.T) {
 func TestStopAddsOneDirtyAndOneAskedLine(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	h.must(h.promptSaying("fix the gate for MCP reads"), "prompt")
+	h.said(h.promptSaying("fix the gate for MCP reads"), "prompt")
 	h.callTool("Edit", map[string]string{"file_path": filepath.Join(h.repo, "internal", "gate", "gate.go")})
 	h.callTool("Write", map[string]string{"file_path": filepath.Join(h.repo, "README.md")})
 	h.git.SetDirty("internal/gate/gate.go", "README.md")
@@ -450,7 +450,7 @@ func TestStopAddsOneDirtyAndOneAskedLine(t *testing.T) {
 		t.Fatalf("Stop should add the dirty files and the last prompt, got:\n%s", brief)
 	}
 
-	h.must(h.promptSaying("now the docs"), "prompt")
+	h.said(h.promptSaying("now the docs"), "prompt")
 	h.git.SetDirty("README.md")
 	h.must(h.stop(), "stop")
 	agent := h.addLine("added after the hook lines")
@@ -476,7 +476,7 @@ func TestStopAddsOneDirtyAndOneAskedLine(t *testing.T) {
 func TestAnUnchangedStopWritesNothing(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	h.must(h.promptSaying("fix the gate"), "prompt")
+	h.said(h.promptSaying("fix the gate"), "prompt")
 	h.callTool("Write", map[string]string{"file_path": filepath.Join(h.repo, "README.md")})
 	h.git.SetDirty("README.md")
 	h.must(h.stop(), "stop")
@@ -493,8 +493,8 @@ func TestTheAskedLineNeverCarriesACredential(t *testing.T) {
 	credential := test.SecretFixture(t, "positive/github-pat.txt")
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	h.must(h.promptSaying("fix the gate for MCP reads"), "prompt")
-	h.must(h.promptSaying("deploy with this\n"+credential), "prompt")
+	h.said(h.promptSaying("fix the gate for MCP reads"), "prompt")
+	h.said(h.promptSaying("deploy with this\n"+credential), "prompt")
 	h.must(h.stop(), "stop")
 
 	brief := h.must("", "brief")
@@ -506,10 +506,10 @@ func TestTheAskedLineNeverCarriesACredential(t *testing.T) {
 func TestTheAskedLineSkipsClaudeCodesOwnTurns(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	h.must(h.promptSaying("fix the gate for MCP reads"), "prompt")
-	h.must(h.promptSaying("<task-notification>\n<summary>done</summary>\n</task-notification>"), "prompt")
-	h.must(h.promptSaying("<agent-message from=\"a1b2c3\">\n[Subagent hand-back] all done\n</agent-message>"), "prompt")
-	h.must(h.promptSaying("<cross-session-message from=\"uds:/tmp/s.sock\">\nthe field names\n</cross-session-message>"), "prompt")
+	h.said(h.promptSaying("fix the gate for MCP reads"), "prompt")
+	h.said(h.promptSaying("<task-notification>\n<summary>done</summary>\n</task-notification>"), "prompt")
+	h.said(h.promptSaying("<agent-message from=\"a1b2c3\">\n[Subagent hand-back] all done\n</agent-message>"), "prompt")
+	h.said(h.promptSaying("<cross-session-message from=\"uds:/tmp/s.sock\">\nthe field names\n</cross-session-message>"), "prompt")
 	h.must(h.stop(), "stop")
 
 	if brief := h.must("", "brief"); !strings.Contains(brief, "hook: asked fix the gate for MCP reads") {
@@ -658,7 +658,7 @@ func nudged(t *testing.T, h *harness) {
 
 	h.sensor(70)
 
-	if !strings.Contains(h.must(h.promptSaying("go on"), "prompt"), "Context near compaction. Add or tick state lines where work moved: "+
+	if !strings.Contains(h.said(h.promptSaying("go on"), "prompt"), "Context near compaction. Add or tick state lines where work moved: "+
 		"agentic-memory ack state --add '<line>' | ack state#<item> --done") {
 		t.Fatal("the nudge should fire past 65% of the window, worded for the ledger")
 	}
@@ -690,7 +690,7 @@ func TestOnlyTheAgentsLedgerChangeAnswersTheNudge(t *testing.T) {
 			h.clock.Advance(time.Minute)
 			tc.change(h)
 
-			again := strings.Contains(h.must(h.promptSaying("go on"), "prompt"), "Context near compaction")
+			again := strings.Contains(h.said(h.promptSaying("go on"), "prompt"), "Context near compaction")
 			if again == tc.answered {
 				t.Errorf("the change should answer the nudge exactly where the agent made it, nudged again: %v", again)
 			}
@@ -702,13 +702,12 @@ func TestTheBackstopIsWordedForTheLedger(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.sensor(90)
-	h.must(h.promptSaying("go on"), "prompt")
-	h.must(h.promptSaying("go on"), "prompt")
+	h.said(h.promptSaying("go on"), "prompt")
+	h.said(h.promptSaying("go on"), "prompt")
 
-	got := h.run(h.stop(), "stop")
-	if test.AddedContext(got.out, "Stop") != "Memory overdue, two nudges unanswered. Add or tick state lines where work moved: "+
+	if owed := h.owedAfterStop(h.stop()); owed != "Memory overdue, two nudges unanswered. Add or tick state lines where work moved: "+
 		"agentic-memory ack state --add '<line>' | ack state#<item> --done. File findings with agentic-memory new before ending the turn." {
-		t.Errorf("the backstop should ask for ledger lines, got %q", got.out)
+		t.Errorf("the backstop should ask for ledger lines, got %q", owed)
 	}
 }
 
@@ -720,7 +719,7 @@ func TestShippedWorkAsksNothing(t *testing.T) {
 	}
 
 	got := h.run(h.stop(), "stop")
-	prompt := h.must(h.promptSaying("go on"), "prompt")
+	prompt := h.said(h.promptSaying("go on"), "prompt")
 
 	if strings.Contains(got.out+prompt, "Work shipped") || got.out != "" {
 		t.Errorf("shipped work should ask for nothing, the hook lines record it, got %q %q", got.out, prompt)
@@ -740,8 +739,8 @@ func TestAnAgentWrittenSlotWaitsAsStateOld(t *testing.T) {
 		run  func() string
 	}{
 		{name: "at claim", run: func() string { return h.must("", "claim", "main") }},
-		{name: "at compaction", run: func() string { return h.must(h.startHook("compact", ""), "session-start") }},
-		{name: "at resume", run: func() string { return h.must(h.startHook("resume", ""), "session-start") }},
+		{name: "at compaction", run: func() string { return h.said(h.startHook("compact", ""), "session-start") }},
+		{name: "at resume", run: func() string { return h.said(h.startHook("resume", ""), "session-start") }},
 	}
 
 	for _, moment := range moments {
@@ -761,7 +760,7 @@ func TestAnAgentWrittenSlotWaitsAsStateOld(t *testing.T) {
 	for _, settle := range []string{"--done", "--remove"} {
 		h.must("", "ack", "state#old", settle)
 
-		if out := h.must("", "claim", "main") + h.must(h.startHook("resume", ""), "session-start"); strings.Contains(out, "#old") {
+		if out := h.said("", "claim", "main") + h.must(h.startHook("resume", ""), "session-start"); strings.Contains(out, "#old") {
 			t.Errorf("state#old settled with %s should no longer show, got:\n%s", settle, out)
 		}
 

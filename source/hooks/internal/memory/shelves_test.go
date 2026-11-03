@@ -39,7 +39,7 @@ func TestSeatsOnOneShelfShareItsMemory(t *testing.T) {
 		t.Fatal("two seats claimed onto one shelf should file onto the same shelf")
 	}
 
-	other.must(other.promptHook(""), "prompt")
+	other.said(other.promptHook(""), "prompt")
 	other.clock.Advance(time.Minute)
 
 	id := h.file("Gate finding on the row", "the row's finding")
@@ -56,22 +56,22 @@ func TestSeatsOnOneShelfShareItsMemory(t *testing.T) {
 		t.Errorf("a seat's brief should name its shared shelf and hold its shelf mates' entries, got:\n%s", out)
 	}
 
-	if out := other.must(other.promptHook("next"), "prompt"); !strings.Contains(out, "agentic-memory: new for rev (1):") ||
+	if out := other.said(other.promptHook("next"), "prompt"); !strings.Contains(out, "agentic-memory: new for rev (1):") ||
 		!strings.Contains(out, id) {
 		t.Errorf("a shelf mate's new entry should reach the other seats on the shelf as an arrival, got:\n%s", out)
 	}
 
-	h.must(h.promptHook(""), "prompt")
+	h.said(h.promptHook(""), "prompt")
 	h.clock.Advance(time.Minute)
 	other.must("", "retire", id, "--because", "fixed on the row")
 
-	out := h.must(h.promptHook("again"), "prompt")
+	out := h.said(h.promptHook("again"), "prompt")
 	if !strings.Contains(out, "agentic-memory: changed on shelf row-7ah (1):") ||
 		!strings.Contains(out, h.label(id)+" Gate finding on the row: retired: fixed on the row by rev") {
 		t.Errorf("a shelf mate's change should reach the other seats on the shelf, naming the verb and the seat, got:\n%s", out)
 	}
 
-	if out := h.must(h.promptHook("once more"), "prompt"); strings.Contains(out, "changed on shelf") {
+	if out := h.said(h.promptHook("once more"), "prompt"); strings.Contains(out, "changed on shelf") {
 		t.Errorf("a change should be told once, got:\n%s", out)
 	}
 
@@ -81,7 +81,7 @@ func TestSeatsOnOneShelfShareItsMemory(t *testing.T) {
 	other.must("", "confirm", own)
 	other.must("", "supersede", own, "--because", "covered elsewhere")
 
-	if out := h.must(h.promptHook("last"), "prompt"); strings.Contains(out, "changed on shelf") {
+	if out := h.said(h.promptHook("last"), "prompt"); strings.Contains(out, "changed on shelf") {
 		t.Errorf("a seat should hear neither of its own changes nor of a supersede or confirm, got:\n%s", out)
 	}
 }

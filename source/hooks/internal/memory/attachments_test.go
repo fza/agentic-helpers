@@ -264,7 +264,7 @@ func TestNoAttachmentReachesTheBriefRecallOrTheIndex(t *testing.T) {
 	}
 
 	h.must("", "search", "--query", "gate finding planted")
-	recalled := h.must(hookPayload("", "", "the gate finding with a planted file"), "prompt")
+	recalled := h.said(hookPayload("", "", "the gate finding with a planted file"), "prompt")
 	brief := h.must("", "brief")
 
 	for _, text := range append([]string{recalled, brief}, h.embedder.Texts()...) {
@@ -284,7 +284,7 @@ func TestAnAttachmentEndsWithItsBody(t *testing.T) {
 
 	h.must("", "retire", id)
 	h.clock.Advance(10 * 24 * time.Hour)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 
 	if len(h.attachmentFiles()) != 1 {
 		t.Fatal("a retired entry still holding its body should keep its attachment")
@@ -298,7 +298,7 @@ func TestAnAttachmentEndsWithItsBody(t *testing.T) {
 
 	h.must("", "retire", id)
 	h.clock.Advance(91 * 24 * time.Hour)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 
 	if files := h.attachmentFiles(); len(files) != 0 {
 		t.Errorf("an attachment should go once no entry holding its body names it, got %v", files)
@@ -320,7 +320,7 @@ func TestAFileStaysWhileAnyProjectNamesIt(t *testing.T) {
 
 	h.must("", "retire", mine)
 	h.clock.Advance(91 * 24 * time.Hour)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 
 	if len(h.attachmentFiles()) != 1 {
 		t.Fatal("a file another project's refs still name should stay")
@@ -333,7 +333,7 @@ func TestAFileStaysWhileAnyProjectNamesIt(t *testing.T) {
 
 	other.must("", "retire", theirs)
 	h.clock.Advance(91 * 24 * time.Hour)
-	h.must(hookPayload("startup", "", ""), "session-start")
+	h.said(hookPayload("startup", "", ""), "session-start")
 
 	if files := h.attachmentFiles(); len(files) != 0 {
 		t.Errorf("a file no project names should be removed by the sweep, got %v", files)

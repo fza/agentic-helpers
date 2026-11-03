@@ -26,7 +26,7 @@ func TestADeliveredMappingSurvivesAFreshContextAndAClaim(t *testing.T) {
 
 			// A compaction's and a /clear's brief names the mapping again; a
 			// resume prints none, so the next prompt does.
-			started := h.must(hookPayload(source, "", ""), "session-start")
+			started := h.said(hookPayload(source, "", ""), "session-start")
 			prompted := landedLine(h.runPrompt())
 
 			told := strings.Contains(started, "retire? landed: c4c4c4c4 Rework waiter")

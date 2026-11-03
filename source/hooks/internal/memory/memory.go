@@ -132,6 +132,8 @@ type memory struct {
 	// says a hook runs, whose embedding calls keep a short deadline.
 	embedding *embed.Config
 	inHook    bool
+	// said is what a hook said, answered at its end as one additionalContext.
+	said []string
 	// seen is what the calling session's context already holds of each entry,
 	// for the read running now; nil where no seated session calls.
 	seen *presented
@@ -303,10 +305,39 @@ func (mem *memory) outsideGitRefusal() string {
 	return fmt.Sprintf("%s is not inside a git work tree; memory works only in one", mem.env.Base)
 }
 
+// say prints text for the caller. Inside a hook it is held for sayHidden:
+// Claude Code shows a hook's plain stdout in the transcript, and memory
+// speaks to the agent alone.
 func (mem *memory) say(text string) {
-	if text != "" {
+	switch {
+	case text == "":
+	case mem.inHook:
+		mem.said = append(mem.said, strings.TrimRight(text, "\n"))
+	default:
 		_, _ = fmt.Fprintln(mem.streams.Out, strings.TrimRight(text, "\n"))
 	}
+}
+
+// hiddenEvents is the event each hook answers with additionalContext, which
+// Claude Code hands the agent without showing it. Stop is none of them: its
+// additionalContext always shows as Stop hook feedback.
+var hiddenEvents = map[string]string{
+	"session-start": "SessionStart",
+	"session-log":   "SessionStart",
+	"prompt":        "UserPromptSubmit",
+	"tool":          "PostToolUse",
+}
+
+// sayHidden answers the hook with everything it said, as one
+// additionalContext; a hook with no hidden channel says nothing.
+func (mem *memory) sayHidden(hook string) {
+	event, hidden := hiddenEvents[hook]
+	if !hidden || len(mem.said) == 0 {
+		return
+	}
+
+	_ = hookio.AddContext(mem.streams.Out, event, strings.Join(mem.said, "\n"))
+	mem.said = nil
 }
 
 func (mem *memory) refuse(err error) int {
@@ -561,7 +592,10 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 			return 0
 		}
 
-		return hookEvent(mem, ctx, rest)
+		code := hookEvent(mem, ctx, rest)
+		mem.sayHidden(name)
+
+		return code
 	}
 
 	if name == "mcp" {
