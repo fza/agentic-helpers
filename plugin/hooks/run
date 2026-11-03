@@ -46,16 +46,16 @@ fi
 binary=$1
 shift
 
-# agentic-memory, agentic-tools and agentic-capture are links to
-# agentic-helpers, which runs the command its name picks. A release carries the
-# links; `go install` builds agentic-helpers alone, so the launcher links a
+# agentic-memory, agentic-tools, agentic-capture and agentic-scratch are links
+# to agentic-helpers, which runs the command its name picks. A release carries
+# the links; `go install` builds agentic-helpers alone, so the launcher links a
 # missing name beside it, and replaces a program an earlier build left under
 # that name once agentic-helpers is newer. The link is made under a name of
 # its own and renamed into place, so a hook starting beside it never finds the
 # name missing.
 link_command() {
 	case $binary in
-	agentic-memory | agentic-tools | agentic-capture) ;;
+	agentic-memory | agentic-tools | agentic-capture | agentic-scratch) ;;
 	*) return 0 ;;
 	esac
 

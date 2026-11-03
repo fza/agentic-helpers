@@ -25,19 +25,15 @@ builds:
     main: ./cmd/agentic-grounding-gate
     binary: agentic-grounding-gate
   - <<: *binary
-    id: agentic-scratch
-    main: ./cmd/agentic-scratch
-    binary: agentic-scratch
-  - <<: *binary
     id: agentic-shell-guard
     main: ./cmd/agentic-shell-guard
     binary: agentic-shell-guard
 
 # hooks/run fetches agentic-helpers_<version>_<os>_<arch>.tar.gz and checks it
 # against checksums.txt; both names are part of its contract. agentic-memory,
-# agentic-tools and agentic-capture are links to agentic-helpers, which runs
-# the command its name picks; the archive keeps them as links, so no name
-# costs a copy of the program.
+# agentic-tools, agentic-capture and agentic-scratch are links to
+# agentic-helpers, which runs the command its name picks; the archive keeps
+# them as links, so no name costs a copy of the program.
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

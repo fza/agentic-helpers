@@ -1,6 +1,3 @@
-// Command agentic-scratch is the Claude Code hook sweeping a project's
-// `.tmp/seats/` directories: `end` removes the ending session's own, and
-// `start` reaps abandoned ones and moves strays to `.tmp/keep/`.
 package main
 
 import (
@@ -16,14 +13,14 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/scratch"
 )
 
-func main() {
+func scratchMain() int {
 	ctx := context.Background()
 
 	base := os.Getenv("CLAUDE_PROJECT_DIR")
 	if base == "" {
 		working, err := os.Getwd()
 		if err != nil {
-			os.Exit(0)
+			return 0
 		}
 
 		base = working
@@ -45,5 +42,5 @@ func main() {
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 
-	os.Exit(scratch.Main(ctx, os.Args[1:], env, streams))
+	return scratch.Main(ctx, os.Args[1:], env, streams)
 }

@@ -4,15 +4,15 @@ Go rules, loaded when a session touches code under `source/`.
 
 ## Layout
 
-- **One module, `source/hooks`.** Every hook program is a binary under `cmd/agentic-<hook>/`,
+- **One module, `source/hooks`.** Every program is a binary under `cmd/agentic-<name>/`,
   published by each release and built for development as the root [`AGENTS.md`](../AGENTS.md) sets
   out. The `agentic-` prefix is not optional: a bare name on a PATH can shadow a system tool.
 - **The commands are one program.** `cmd/agentic-helpers` answers as `agentic-memory`,
-  `agentic-tools` and `agentic-capture` to the name it runs under, and as itself to any other name;
-  each command's environment is resolved in a file of its own there. A new command is a name in its
-  `commands` table and a link in its `links/`, which the release archive packs. A hook that refuses
-  a call when it fails, shell-guard or the grounding gate, stays a program of its own, so no other
-  package's startup can fail it.
+  `agentic-tools`, `agentic-capture` and the hook `agentic-scratch` to the name it runs under, and
+  as itself to any other name; each command's environment is resolved in a file of its own there.
+  A new command is a name in its `commands` table and a link in its `links/`, which the release
+  archive packs. A hook that refuses a call when it fails, shell-guard or the grounding gate, stays
+  a program of its own, so no other package's startup can fail it.
 - **`.goreleaser.yaml` lists every binary the release builds.** A new `cmd/` directory is added
   there, or the plugin's launcher finds no binary for it.
 - **`main.go` resolves the environment and calls the hook's `Main`, nothing else.** Every decision

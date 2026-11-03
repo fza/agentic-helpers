@@ -18,7 +18,7 @@ how to install it; [`docs/`](docs/index.md) says how each piece is used and how 
 
 | Path | Holds |
 |---|---|
-| `source/hooks/` | one Go module: under `cmd/`, a binary per hook program (`agentic-shell-guard`, `agentic-grounding-gate`, `agentic-scratch`) and `agentic-helpers`, one program answering as `agentic-memory`, `agentic-tools` and `agentic-capture` to the name it runs under and keeping its own `check`, and `bound` standing in for a missing `timeout`, its `links/` the names the release links to it; everything else under `internal/`, the pieces and their ties in `internal/pieces` |
+| `source/hooks/` | one Go module: under `cmd/`, a binary per guarding hook program (`agentic-shell-guard`, `agentic-grounding-gate`) and `agentic-helpers`, one program answering as `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` to the name it runs under and keeping its own `check`, and `bound` standing in for a missing `timeout`, its `links/` the names the release links to it; everything else under `internal/`, the pieces and their ties in `internal/pieces` |
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
 | `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` and `tools` MCP servers), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds), `skills/`, one per hook, shipped as `agentic-helpers:<skill>`, and `README.md`, saying what the plugin runs, sends, writes and decides |
 | `docs/` | one folder per piece, each with `usage.md` and `architecture.md` |

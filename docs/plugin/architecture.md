@@ -13,7 +13,7 @@
 | `plugin/bin/` | the commands the Bash tool finds, each handing its call to the launcher |
 | `plugin/skills/` | one skill per hook |
 | `plugin/README.md` | what the plugin is, and everything it runs, sends, writes and decides, for a user reading the installed plugin |
-| `source/hooks/` | one Go module: under `cmd/`, a binary per hook program and `agentic-helpers`, which runs as `agentic-memory`, `agentic-tools` and `agentic-capture` under those names (its `links/` holds them as links for the release archive); everything else under `internal/` |
+| `source/hooks/` | one Go module: under `cmd/`, a binary per guarding hook program and `agentic-helpers`, which runs as `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` under those names (its `links/` holds them as links for the release archive); everything else under `internal/` |
 
 Claude Code loads every component it finds at a plugin's root, so nothing but the plugin's own
 files goes into `plugin/`.
@@ -275,11 +275,11 @@ the release named by the plugin's own `version`, kept under the plugin's data di
 (`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
 
 1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched. For
-   `agentic-memory`, `agentic-tools` and `agentic-capture` the launcher first links the name to
-   `agentic-helpers` beside it where the name is missing, or is a program an earlier build left
-   that `agentic-helpers` is newer than, since `go install` builds `agentic-helpers` alone. The
-   link is made under a name of its own and renamed into place, so a hook starting at the same
-   moment never finds the name missing.
+   `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` the launcher first
+   links the name to `agentic-helpers` beside it where the name is missing, or is a program an
+   earlier build left that `agentic-helpers` is newer than, since `go install` builds
+   `agentic-helpers` alone. The link is made under a name of its own and renamed into place, so a
+   hook starting at the same moment never finds the name missing.
 2. The plugin's version is there: it runs.
 3. At SessionStart, or for a command an agent runs (a `bin/` shim, the `memory` or `tools` MCP server), the
    release archive for this machine and the release's `checksums.txt` are downloaded; the archive
@@ -294,19 +294,22 @@ the release named by the plugin's own `version`, kept under the plugin's data di
 The archive is unpacked in the fetch's work directory and renamed into place, so a version
 directory is complete or absent.
 
-The archive holds `agentic-shell-guard`, `agentic-grounding-gate`, `agentic-scratch` and
-`agentic-helpers` as programs, and `agentic-memory`, `agentic-tools` and `agentic-capture` as links
-to `agentic-helpers`, which `tar` keeps as links. `agentic-helpers` picks
-its command by the base of the path it runs under, so the launcher runs `<version>/agentic-memory`
-as it runs any other name, and an earlier release whose archive holds a program under each name
-runs unchanged. Each program carries its own copy of the Go runtime and of the packages it shares,
-so one program for the three commands and `agentic-helpers` keeps one copy: a darwin arm64
-release unpacks to about 30 MB, where a program per name took 50 MB. The hook programs that refuse
-a call when they fail stay apart: a fault in the startup code of a memory or tool-library package
-(a Go panic exits 2, which Claude Code reads as a refusal) breaks every name of `agentic-helpers`,
-never a Bash or graph call, and shell-guard's start loads only its own packages. agentic-memory starts a
-landed-commit round from its own name beside the program, since Linux names a running program by
-the file its links point to. Building every program and the links is `.goreleaser.yaml`'s.
+The archive holds `agentic-shell-guard`, `agentic-grounding-gate` and `agentic-helpers` as
+programs, and `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` as links
+to `agentic-helpers`, which `tar` keeps as links. `agentic-helpers` picks its command by the base
+of the path it runs under, so the launcher runs `<version>/agentic-memory` as it runs any other
+name, and an earlier release whose archive holds a program under each name runs unchanged. Each
+program carries its own copy of the Go runtime and of the packages it shares, so one program for
+the four commands and `agentic-helpers` keeps one copy: a release unpacks to 25 to 28 MB across
+darwin and linux, amd64 and arm64, where a program per name took 50 MB. The hook programs that
+refuse a call when they fail stay apart: a fault in the startup code of a memory, tool-library or
+scratch package (a Go panic exits 2, which Claude Code reads as a refusal) breaks every name of
+`agentic-helpers`, never a Bash or graph call, and shell-guard's start loads only its own packages.
+agentic-scratch refuses nothing: it runs only at SessionStart and SessionEnd, so such a fault
+leaves a session's scratch folder unprepared and unswept, and its start pays the other commands'
+package setup, under a millisecond. agentic-memory starts a landed-commit round from its own name
+beside the program, since Linux names a running program by the file its links point to. Building
+every program and the links is `.goreleaser.yaml`'s.
 
 A SessionStart hook that runs a binary from a version directory first writes
 `<data>/<version>/used` with the shell's own `echo`, so no process is spawned for it; a directory

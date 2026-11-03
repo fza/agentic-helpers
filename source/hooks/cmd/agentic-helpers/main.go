@@ -1,4 +1,4 @@
-// Command agentic-helpers is one program answering to four names, the base of
+// Command agentic-helpers is one program answering to five names, the base of
 // the path it runs under picking the command:
 //
 //   - agentic-memory, the agent memory store: the subcommands a session runs
@@ -8,14 +8,17 @@
 //   - agentic-tools, the library of agents' helper tools: find, take, add and
 //     update, its MCP server, and the hooks offering tools;
 //   - agentic-capture, turning a draft file into a captured sdd graph entry;
+//   - agentic-scratch, the hook sweeping a project's `.tmp/seats/`: `end`
+//     removes the ending session's own folder, and `start` reaps abandoned
+//     ones and moves strays to `.tmp/keep/`;
 //   - any other name, agentic-helpers itself: `check` names the features off
 //     because a piece they rest on is off, and `bound` runs a command for at
 //     most a duration, standing in for a missing `timeout`.
 //
-// The release archive and the launcher link each of the three names to this
-// program. The hook programs agentic-shell-guard, agentic-grounding-gate and
-// agentic-scratch stay programs of their own, so a fault in this one's
-// packages never refuses a Bash or graph call.
+// The release archive and the launcher link each of the four names to this
+// program. The hook programs agentic-shell-guard and agentic-grounding-gate
+// stay programs of their own, so a fault in this one's packages never refuses
+// a Bash or graph call.
 package main
 
 import (
@@ -31,6 +34,7 @@ var commands = map[string]func() int{
 	pieces.Memory.Binary:  memoryMain,
 	pieces.Tools.Binary:   toolsMain,
 	pieces.Capture.Binary: captureMain,
+	pieces.Scratch.Binary: scratchMain,
 }
 
 func main() {

@@ -1,8 +1,11 @@
 # The scratch sweep: architecture
 
-`agentic-scratch` runs on two hook events, and does nothing in a project without `.tmp/`. A seat's
-folder is agentic-memory's to keep, since only it knows seats; both work in the main checkout, the
-parent of the git common directory, so a worktree's session writes where the main checkout's does.
+`agentic-scratch` runs on two hook events, and does nothing in a project without `.tmp/`. It is the
+program `source/hooks/cmd/agentic-helpers` run under the name `agentic-scratch`
+(`cmd/agentic-helpers/scratch.go` resolves its environment); every decision lives in
+`source/hooks/internal/scratch`. A seat's folder is agentic-memory's to keep, since only it knows
+seats; both work in the main checkout, the parent of the git common directory, so a worktree's
+session writes where the main checkout's does.
 
 | Event | What it removes |
 |---|---|

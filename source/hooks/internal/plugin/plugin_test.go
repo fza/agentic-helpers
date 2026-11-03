@@ -915,7 +915,7 @@ func TestTheReleaseCarriesTheCommandNamesAsLinksToAgenticHelpers(t *testing.T) {
 	}
 
 	links := releaseLinks(t)
-	if !slices.Equal(links, []string{"agentic-capture", "agentic-memory", "agentic-tools"}) {
+	if !slices.Equal(links, []string{"agentic-capture", "agentic-memory", "agentic-scratch", "agentic-tools"}) {
 		t.Errorf("the release should carry each folded command's name and no other, got: %v", links)
 	}
 
@@ -933,7 +933,7 @@ func TestTheReleaseCarriesTheCommandNamesAsLinksToAgenticHelpers(t *testing.T) {
 }
 
 func TestTheOverrideLinksEachCommandNameToAgenticHelpers(t *testing.T) {
-	for _, name := range []string{"agentic-memory", "agentic-tools", "agentic-capture"} {
+	for _, name := range []string{"agentic-memory", "agentic-tools", "agentic-capture", "agentic-scratch"} {
 		t.Run(name, func(t *testing.T) {
 			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 			built := filepath.Join(t.TempDir(), "bin")
@@ -998,23 +998,25 @@ func TestTheOverrideLinksNoOtherName(t *testing.T) {
 	built := filepath.Join(t.TempDir(), "bin")
 	plugin.Binaries(t, built, "agentic-helpers")
 
-	plugin.Run(t, "hooks/run", []string{"AGENTIC_HELPERS_BIN_DIR=" + built}, "agentic-scratch", "start")
+	for _, name := range []string{"agentic-shell-guard", "agentic-grounding-gate"} {
+		plugin.Run(t, "hooks/run", []string{"AGENTIC_HELPERS_BIN_DIR=" + built}, name)
 
-	if test.Exists(t, filepath.Join(built, "agentic-scratch")) {
-		t.Error("a hook program of its own should never be linked to agentic-helpers")
+		if test.Exists(t, filepath.Join(built, name)) {
+			t.Errorf("a hook program of its own should never be linked to agentic-helpers, got a link for %s", name)
+		}
 	}
 }
 
 func TestAReleaseCarryingTheNamesAsLinksRunsEachUnderItsName(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
-	plugin.FoldedRelease(t, "1.4.0", "agentic-memory", "agentic-tools", "agentic-capture")
+	plugin.FoldedRelease(t, "1.4.0", "agentic-memory", "agentic-tools", "agentic-capture", "agentic-scratch")
 
 	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-memory", "session-start")
 	if got.Code != 0 || !strings.Contains(got.Stdout, "ran "+filepath.Join(plugin.Data, "1.4.0", "agentic-memory")+" session-start") {
 		t.Fatalf("the fetched release should run agentic-helpers under the hook's name, got: %+v", got)
 	}
 
-	for _, name := range []string{"agentic-tools", "agentic-capture"} {
+	for _, name := range []string{"agentic-tools", "agentic-capture", "agentic-scratch"} {
 		target, err := os.Readlink(filepath.Join(plugin.Data, "1.4.0", name))
 		if err != nil || target != "agentic-helpers" {
 			t.Errorf("unpacking should keep every name a link, got %s: %q %v", name, target, err)

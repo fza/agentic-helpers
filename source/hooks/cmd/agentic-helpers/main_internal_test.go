@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
@@ -35,12 +36,19 @@ type ran struct {
 func runAs(t *testing.T, name string, extra []string, args ...string) ran {
 	t.Helper()
 
+	return runIn(t, t.TempDir(), "", name, extra, args...)
+}
+
+// runIn is runAs in base, whose project folder a test may have filled, with
+// stdin as the program's input.
+func runIn(t *testing.T, base string, stdin string, name string, extra []string, args ...string) ran {
+	t.Helper()
+
 	self, err := os.Executable()
 	if err != nil {
 		t.Fatalf("finding the test program: %v", err)
 	}
 
-	base := t.TempDir()
 	bin := filepath.Join(base, "bin")
 	tools := filepath.Join(base, "tools")
 	project := filepath.Join(base, "project")
@@ -66,6 +74,10 @@ func runAs(t *testing.T, name string, extra []string, args ...string) ran {
 
 	command := exec.Command(filepath.Join(bin, name), args...)
 	command.Dir = project
+	if stdin != "" {
+		command.Stdin = strings.NewReader(stdin)
+	}
+
 	command.Env = append([]string{
 		programRole + "=1",
 		"PATH=" + tools + ":/usr/bin:/bin",
@@ -118,6 +130,8 @@ func TestEachNameRunsItsOwnCommand(t *testing.T) {
 		{about: "capture reads its own switch", name: "agentic-capture", args: []string{"draft.md"},
 			extra: []string{"CLAUDE_PLUGIN_OPTION_CAPTURE_ENABLED=false"}, code: 1,
 			stderr: "agentic-capture: off on this machine (plugin option capture_enabled)"},
+		{about: "scratch names its modes", name: "agentic-scratch", args: []string{"now"},
+			code: 1, stderr: "usage: agentic-scratch end|start"},
 		{about: "agentic-helpers checks the pieces", name: "agentic-helpers", args: []string{"check"},
 			stdout: "memory          on\n"},
 		{about: "agentic-helpers bounds a command", name: "agentic-helpers", args: []string{"bound", "5s", "/bin/echo", "bounded"},
@@ -132,6 +146,57 @@ func TestEachNameRunsItsOwnCommand(t *testing.T) {
 
 			if got.code != tc.code || !strings.Contains(got.stdout, tc.stdout) || !strings.Contains(got.stderr, tc.stderr) {
 				t.Errorf("the name should run its own command as that command runs alone, got: %+v", got)
+			}
+		})
+	}
+}
+
+func TestScratchSweepsTheProjectUnderItsName(t *testing.T) {
+	cases := []struct {
+		about  string
+		mode   string
+		extra  []string
+		stdin  string
+		age    time.Duration
+		swept  bool
+		stdout string
+	}{
+		{about: "end removes the ending session's folder", mode: "end",
+			stdin: `{"session_id": "` + test.Session + `"}`, swept: true, stdout: "swept "},
+		{about: "start reaps a session folder a week idle", mode: "start",
+			age: 8 * 24 * time.Hour, swept: true, stdout: "Scratch: reaped 1 session directory(s) nobody came back to."},
+		{about: "start keeps a session folder in use", mode: "start"},
+		{about: "the sweep reads its own switch", mode: "end", extra: []string{"CLAUDE_PLUGIN_OPTION_SCRATCH_ENABLED=false"},
+			stdin: `{"session_id": "` + test.Session + `"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.about, func(t *testing.T) {
+			base := t.TempDir()
+			project := filepath.Join(base, "project")
+			held := filepath.Join(project, ".tmp", "seats", test.Session)
+			theirs := filepath.Join(project, ".tmp", "seats", test.OtherSession)
+
+			for _, folder := range []string{held, theirs} {
+				test.WriteFile(t, filepath.Join(folder, "probe.txt"), "scratch")
+			}
+
+			if tc.age > 0 {
+				test.Age(t, held, tc.age)
+			}
+
+			got := runIn(t, base, tc.stdin, "agentic-scratch", tc.extra, tc.mode)
+
+			if got.code != 0 || !strings.Contains(got.stdout, tc.stdout) {
+				t.Errorf("the sweep should run as agentic-scratch runs alone, got: %+v", got)
+			}
+
+			if test.Exists(t, held) == tc.swept {
+				t.Errorf("the session's folder should go exactly where the sweep owes it, got: %+v", got)
+			}
+
+			if !test.Exists(t, theirs) {
+				t.Error("another session's folder in use should stay")
 			}
 		})
 	}

@@ -49,10 +49,10 @@ The hooks and both MCP servers run `hooks/run`, a shell script that starts the G
 release named in `.claude-plugin/plugin.json`. On the first run of a release it downloads them from
 `https://github.com/fza/agentic-helpers/releases`, checks each archive against the release's
 `checksums.txt`, and keeps them under Claude Code's plugin data folder. The binaries are built
-from the repository's `source/hooks` by its release workflow. `agentic-memory`, `agentic-tools`
-and `agentic-capture` are one program, `agentic-helpers`, run under each of those names: the
-release carries them as links to it. The hooks `agentic-shell-guard`, `agentic-grounding-gate` and
-`agentic-scratch` are programs of their own.
+from the repository's `source/hooks` by its release workflow. `agentic-memory`, `agentic-tools`,
+`agentic-capture` and `agentic-scratch` are one program, `agentic-helpers`, run under each of those
+names: the release carries them as links to it. The hooks `agentic-shell-guard` and
+`agentic-grounding-gate` are programs of their own.
 
 A session end starts one detached `agentic-helpers sweep` process that tidies the plugin's own
 data. `agentic-memory wait` may wake an idle session when another session files an entry for it.

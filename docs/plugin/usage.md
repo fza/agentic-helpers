@@ -388,8 +388,9 @@ checkout's gitignored `.claude/bin` in the `env` block of the checkout's own
 
 A change to a binary then reaches the hooks on the next event after
 `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...` from the checkout root. The
-install builds `agentic-helpers`, not `agentic-memory`, `agentic-tools` or `agentic-capture`: the
-launcher links each of those names to `agentic-helpers` in `.claude/bin` the first time it runs one,
+install builds `agentic-helpers`, not `agentic-memory`, `agentic-tools`, `agentic-capture` or
+`agentic-scratch`: the launcher links each of those names to `agentic-helpers` in `.claude/bin` the
+first time it runs one,
 and replaces a program an earlier build left under the name once `agentic-helpers` is newer. Never
 install into `~/go/bin` or another directory on the PATH: every project's Bash calls would find the
 build there ahead of the plugin, and an unreleased build can migrate another project's memory store

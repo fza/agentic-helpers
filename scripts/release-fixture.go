@@ -225,8 +225,8 @@ func unpack(packed []byte, bin string) error {
 			continue
 		}
 
-		// A release may carry agentic-memory, agentic-tools and
-		// agentic-capture as links to agentic-helpers beside them.
+		// A release may carry agentic-memory, agentic-tools, agentic-capture
+		// and agentic-scratch as links to agentic-helpers beside them.
 		if header.Typeflag == tar.TypeSymlink && header.Linkname == "agentic-helpers" {
 			err = os.Symlink(header.Linkname, filepath.Join(bin, name))
 			if err != nil {
