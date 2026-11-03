@@ -32,7 +32,7 @@ func TestTheBriefCapsItsNotes(t *testing.T) {
 	for index := range 5 {
 		h.file(fmt.Sprintf("Gate note number %d here", index), "note")
 		h.file(fmt.Sprintf("Gate trap number %d here", index), "trap", "--kind", "trap")
-		h.file(fmt.Sprintf("Gate todo number %d here", index), "todo", "--kind", "todo")
+		h.file(fmt.Sprintf("Gate todo number %d here", index), "todo", "--kind", "todo", "--item", "settle it")
 	}
 
 	brief := h.must("", "brief")

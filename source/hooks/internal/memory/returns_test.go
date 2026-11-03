@@ -66,7 +66,7 @@ func TestReturnsReportsEachReason(t *testing.T) {
 	ended := h.file("Note that ended its run", "done")
 	h.file("Finding citing an ended one", "see "+ended)
 	h.file("Finding citing a vanished decision", "see the decision", "--link", activeDecision)
-	h.file("Todo ending at half past nine", "a deadline", "--kind", "todo", "--until", "at:2026-10-25T09:30:00Z")
+	h.file("Todo ending at half past nine", "a deadline", "--kind", "todo", "--item", "settle it", "--until", "at:2026-10-25T09:30:00Z")
 	h.git.SwitchBranch("feature")
 	h.file("Finding filed on the feature branch", "only there")
 	h.git.SwitchBranch("main")
@@ -163,8 +163,8 @@ func TestReturnsShowsWhatCannotBeCheckedAsUnchecked(t *testing.T) {
 	h.must("", "claim", "main")
 
 	h.file("Finding citing a decision", "see the decision", "--link", activeDecision)
-	h.file("Plan names its steps", "the secret/plan.txt holds them", "--kind", "todo", "--until", "changed:secret/plan.txt")
-	h.file("Todo ending when the decision closes", "wait for it", "--kind", "todo", "--until", "closed:"+activeDecision)
+	h.file("Plan names its steps", "the secret/plan.txt holds them", "--kind", "todo", "--item", "settle it", "--until", "changed:secret/plan.txt")
+	h.file("Todo ending when the decision closes", "wait for it", "--kind", "todo", "--item", "settle it", "--until", "closed:"+activeDecision)
 
 	locked := filepath.Join(h.repo, "secret", "plan.txt")
 

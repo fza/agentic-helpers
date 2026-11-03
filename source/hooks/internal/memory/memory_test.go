@@ -292,7 +292,7 @@ func TestNewStampsAndAnchors(t *testing.T) {
 		t.Errorf("filing should answer the new id and name alone, never echoing the caller's input: %s", out)
 	}
 
-	due := h.must("", "new", "--title", "Port the waiter to Linux", "--topic", "gate", "--kind", "todo",
+	due := h.must("", "new", "--title", "Port the waiter to Linux", "--topic", "gate", "--kind", "todo", "--item", "settle it",
 		"--until", "claim", "--due", "2027-01-01")
 	if !regexp.MustCompile(`^filed m-[a-z0-9]{6} \(port-waiter\)  due: 2027-01-01 00:00 \S+(\n|$)`).MatchString(due) || strings.Contains(due, "until:") {
 		t.Errorf("filing should name the due time it normalized beside the id, and no end declared in its normal form: %s", due)

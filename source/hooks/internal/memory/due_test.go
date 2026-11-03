@@ -55,7 +55,7 @@ func TestFilingADueTime(t *testing.T) {
 		args    []string
 		refused string
 	}{
-		{name: "an RFC 3339 time on a todo", args: []string{"--kind", "todo", "--due", "2026-10-27T15:00:00Z"}},
+		{name: "an RFC 3339 time on a todo", args: []string{"--kind", "todo", "--item", "settle it", "--due", "2026-10-27T15:00:00Z"}},
 		{name: "a date on a note", args: []string{"--due", "2026-10-28"}},
 		{name: "a malformed time names the forms", args: []string{"--due", "tomorrow"}, refused: "--due takes RFC 3339 or a date"},
 		{name: "a rule takes none", args: []string{"--kind", "rule", "--from", "user", "--due", "2026-10-28"}, refused: "--due takes a todo or a note"},
@@ -105,7 +105,7 @@ func TestMovingAndClearingADueTime(t *testing.T) {
 	h, other := twoSeats(t)
 	h.clock.Hold()
 
-	id := h.file("Rerun the gate measurement", "body", "--kind", "todo")
+	id := h.file("Rerun the gate measurement", "body", "--kind", "todo", "--item", "settle it")
 	trap := h.file("Gate trips on heredocs", "body", "--kind", "trap")
 
 	if out := h.must("", "due", id, "2026-11-02"); !strings.HasPrefix(out, "due 2026-11-0") {
@@ -150,7 +150,7 @@ func TestMovingAndClearingADueTime(t *testing.T) {
 
 func TestAnyShelfMateMovesADueTime(t *testing.T) {
 	h := heldHarness(t)
-	id := h.file("Rerun the gate measurement", "body", "--kind", "todo")
+	id := h.file("Rerun the gate measurement", "body", "--kind", "todo", "--item", "settle it")
 
 	mate := newHarnessSharing(h)
 	mate.must("", "claim", "main-2", "--shelf", "main")
@@ -164,9 +164,9 @@ func TestTheBriefsDueSection(t *testing.T) {
 	h := heldHarness(t)
 
 	plain := h.file("Gate reads Bash only", "body")
-	past := h.file("Check the migration ran", "body", "--kind", "todo", "--due", dueAt(h, -50*time.Hour))
+	past := h.file("Check the migration ran", "body", "--kind", "todo", "--item", "settle it", "--due", dueAt(h, -50*time.Hour))
 	soon := h.file("Rerun the gate measurement", "body", "--due", dueAt(h, 5*time.Hour))
-	later := h.file("Review the release notes", "body", "--kind", "todo", "--due", dueAt(h, 72*time.Hour))
+	later := h.file("Review the release notes", "body", "--kind", "todo", "--item", "settle it", "--due", dueAt(h, 72*time.Hour))
 	latest := h.file("Prune the old seats", "body", "--due", dueAt(h, 96*time.Hour))
 
 	brief := h.must("", "brief")
@@ -378,7 +378,7 @@ func TestAFormatSixStoreMovesThroughSevenChangingOnlyTheFormat(t *testing.T) {
 
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
-	if written, _ := os.ReadFile(formatPath); !strings.Contains(string(written), `"format":10`) {
+	if written, _ := os.ReadFile(formatPath); !strings.Contains(string(written), `"format":11`) {
 		t.Errorf("a format-6 store should move through format 7 to the current one: %s", written)
 	}
 

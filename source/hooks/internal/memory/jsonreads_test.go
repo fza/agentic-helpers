@@ -84,7 +84,7 @@ func jsonReadsHarness(t *testing.T) (*harness, string, string) {
 	h.must("", "claim", "main")
 
 	hub := h.file("Gate hub about internal/gate/gate.go", "hub body", "--link", closedDecision, "--kind", "trap")
-	cite := h.file("Gate finding citing the hub", "cites "+hub, "--kind", "todo", "--until", "claim", "--for", "all")
+	cite := h.file("Gate finding citing the hub", "cites "+hub, "--kind", "todo", "--item", "settle it", "--until", "claim", "--for", "all")
 	h.addLine("where the gate work stands")
 
 	return h, hub, cite

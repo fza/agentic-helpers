@@ -20,7 +20,7 @@ func TestNewFilesEachKind(t *testing.T) {
 	}{
 		{kind: "", shows: "[main, note, from agent, "},
 		{kind: "note", shows: "[main, note, from agent, "},
-		{kind: "todo", shows: "[main, todo, from agent, "},
+		{kind: "todo", extra: []string{"--item", "settle it"}, shows: "[main, todo, from agent, "},
 		{kind: "trap", shows: "[main, trap, from agent, "},
 		{kind: "rule", extra: []string{"--from", "user"}, shows: "[main, rule, from user, "},
 	} {
@@ -224,7 +224,7 @@ func TestTheBriefOrdersItsSections(t *testing.T) {
 	h.must("", "claim", "main")
 
 	note := h.file("Gate note of the seat", "note")
-	h.file("Gate todo of the seat", "todo", "--kind", "todo")
+	h.file("Gate todo of the seat", "todo", "--kind", "todo", "--item", "settle it")
 	h.file("Gate trap of the seat", "trap", "--kind", "trap")
 	h.file("Gate rule of the user", "rule", "--kind", "rule", "--from", "user")
 	h.addLine("where the gate work stands")

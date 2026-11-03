@@ -618,7 +618,15 @@ func (held *entry) apply(row memorylog.Row, payload []byte) error {
 
 		held.kind = rekinded.Kind
 		held.retention = cmp.Or(held.override, levelOf(held.kind))
-		note("rekinded to " + rekinded.Kind)
+
+		if rekinded.Line == "" {
+			note("rekinded to " + rekinded.Kind)
+
+			break
+		}
+
+		held.until, held.untilHashes, held.untilHold, held.due = nil, nil, nil, time.Time{}
+		note("rekinded to " + rekinded.Kind + ", its ends and due time moved to " + rekinded.Line)
 	case memorylog.KindDue:
 		var moved duePayload
 
@@ -889,7 +897,8 @@ func (run *horizonRun) recordLink(kind memorylog.Kind, target string, index int)
 }
 
 // filedAtMerge is the payload a merge keeps for an entry's new row: the title,
-// topics, kind, retain override and due time its folded run left, and no body
+// topics, kind, retain override, declared ends and due time its folded run
+// left (a rekind moving a todo's to its state line clears them), and no body
 // once that is due to go.
 func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, retiredKeep time.Duration) ([]byte, error) {
 	drop := bodyDue(final, now, retiredKeep)
@@ -909,7 +918,7 @@ func filedAtMerge(raw []byte, run *horizonRun, final *entry, now time.Time, reti
 		filed.Topics = run.held.topics
 		filed.Kind = run.held.kind
 		filed.Retention = run.held.override
-		filed.UntilHold = run.held.untilHold
+		filed.Until, filed.UntilHashes, filed.UntilHold = run.held.until, run.held.untilHashes, run.held.untilHold
 		filed.Due = run.held.due
 	}
 

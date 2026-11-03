@@ -38,7 +38,7 @@ func richStore(t *testing.T) (*harness, string, string) {
 		"--proof", "command:go vet", "--forbids", `(?i)pilot v\d+`, "--topic", "gate")
 	rule := idPattern.FindString(out)
 
-	h.file("Gate todo ending at a claim", "a todo body", "--kind", "todo", "--until", "claim")
+	h.file("Gate todo ending at a claim", "a todo body", "--kind", "todo", "--item", "settle it", "--until", "claim")
 	old := h.file("Gate note replaced later", "an older body")
 	newer := h.file("Gate note replacing the old", "a newer body")
 	h.must("", "supersede", old, "--by", newer)

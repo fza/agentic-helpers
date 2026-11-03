@@ -232,12 +232,12 @@ the next.
 
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 10}`; a store without one is format 1, where
+`format.json` holds the store's format, `{"format": 11}`; a store without one is format 1, where
 events and seat files name the seat, format 2 keeps seats by id without shelves, format 3 files
 entries with a retention level and no kind, format 4 holds no `item` rows, format 5 keeps its tail as
 `tail.jsonl` and a JSON file per session in the cache, format 6 holds no `due` rows, format 7
-holds no state ledger, format 8 names no entry, and format 9 keeps the cache's session state in one
-fixed-width slot file. The first call that meets an older store moves it through the store's step
+holds no state ledger, format 8 names no entry, format 9 keeps the cache's session state in one
+fixed-width slot file, and format 10 may hold todos without items. The first call that meets an older store moves it through the store's step
 table (`formatSteps` in `internal/memory/migrate.go`), run by the shared runner
 ([format steps](../plugin/architecture.md#format-steps)): one step per format, each doing one job
 as an ordered list of operations, the store lock held from the first step to the last, so another
@@ -305,6 +305,19 @@ it; a table of names keeps the names of its first part. The class files are writ
 over the fixed-width file last, so a cut run finds the fixed-width file and lays it out again,
 clearing the class files it left. The format keeps a format-9 binary off the store, which refuses a
 slot directory as no slot file.
+
+From format 10, todos without items, the log only appended to: one operation (`todosToLines` in
+`internal/memory/todolines.go`) folds the store and, for every live todo whose items are none or all
+removed, appends an `item` row adding a line `<title> (<id>)` to the ledger of the seat that filed
+it, carrying the todo's `until`, `until_hashes`, `until_hold`, session and due time, then a `rekind`
+row to `note` whose `line` names that line, which clears the entry's ends and due time in the fold
+and in a merge folding the row into the `new` row. The rows are appended in one write. A run cut
+between the two finds the line already on the ledger by its text and appends the rekind alone; a run
+after the rekind finds no todo left, so the step adds nothing twice. No backup: no row is rewritten,
+and a rekind back restores the kind, the line keeping the ends. The format keeps a format-10 binary off the store, which would
+file todos without items again and drop a line's `due` unread. Rejected: rebuilding the log with the
+todo's `new` row rewritten, which would lose the entry's history of being a todo and needs a
+backup; leaving the ends on the note as well, which would end the note and the line separately.
 
 From format 5, the binary formats, the log's rows untouched:
 
@@ -948,6 +961,15 @@ mapping once per context, and a brief prints a held mapping on the entry's point
 whole line. The set empties at a compaction, `/clear` and resume, as for every read.
 
 ## Todolists
+
+A todo is a todolist. `new` (CLI and MCP alike, the one door every filing passes) works out the
+items first, its own and those `--items carry` moves; a todo with none is written as a `new` row of
+kind `note` without `until`, `until_hashes`, `until_hold` or `due`, followed in the same append by
+an `item` row on the filing seat's ledger, `<title> (<id>)`, carrying them (`todoLine` in
+`internal/memory/todolines.go`). The line cites the note, so it ends once the note is retired or
+superseded, as well as at its own ends. Rejected: refusing a todo without items, which costs the
+filer a retry for a choice the tool can make; keeping it a todo, which leaves a single task in the
+todos section while the ledger is where the seat's work stands.
 
 An item is an `item` event on its todo, payload `{op, id, text, link, state, reason, from, order}`,
 `op` one of add, check, uncheck, drop, remove and order. The fold keeps the todo's items in order,

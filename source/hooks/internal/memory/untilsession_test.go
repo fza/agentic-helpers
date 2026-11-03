@@ -81,7 +81,7 @@ func TestASessionEndIsReachedWhenTheFilingClaimEnds(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
 			h.must("", "claim", "main")
-			id := h.file("Gate scratch for this session", "body", "--kind", "todo", "--until", "session")
+			id := h.file("Gate scratch for this session", "body", "--kind", "todo", "--item", "settle it", "--until", "session")
 
 			checker := tc.reach(h)
 

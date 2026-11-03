@@ -12,7 +12,7 @@ func TestADeliveredMappingSurvivesAFreshContextAndAClaim(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			h := newLandedHarness(t)
 			h.must("", "claim", "main")
-			id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+			id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 
 			h.land(test.Commit{SHA: "c4c4c4c4c4c4c4c4", Message: "Rework waiter", Paths: []string{"internal/gate/gate.go"}})
 
@@ -29,7 +29,7 @@ func TestADeliveredMappingSurvivesAFreshContextAndAClaim(t *testing.T) {
 			started := h.said(hookPayload(source, "", ""), "session-start")
 			prompted := landedLine(h.runPrompt())
 
-			told := strings.Contains(started, "retire? landed: c4c4c4c4 Rework waiter")
+			told := strings.Contains(started, "retire? landed: c4c4c4c4 Rework waiter; 0/1")
 			if source == "resume" {
 				told = strings.Contains(prompted, id+" by c4c4c4c4 ")
 			}
@@ -42,7 +42,7 @@ func TestADeliveredMappingSurvivesAFreshContextAndAClaim(t *testing.T) {
 				t.Errorf("a mapping the fresh context's brief named should reach no hook:\n%s", prompted)
 			}
 
-			if line := briefLine(h.must("", "brief"), id); !strings.HasSuffix(line, "retire? landed: c4c4c4c4 Rework waiter") {
+			if line := briefLine(h.must("", "brief"), id); !strings.HasSuffix(strings.TrimSuffix(line, "; 0/1"), "retire? landed: c4c4c4c4 Rework waiter") {
 				t.Errorf("the brief after a fresh context should still flag the entry:\n%s", line)
 			}
 
@@ -58,7 +58,7 @@ func TestANarrowedBriefCarriesTheLandedFlag(t *testing.T) {
 		t.Run(narrowed[0], func(t *testing.T) {
 			h := newLandedHarness(t)
 			h.must("", "claim", "main")
-			id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--topic", "gate", "--due", "2099-01-01",
+			id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--topic", "gate", "--due", "2099-01-01",
 				"--about", "internal/gate/gate.go")
 
 			h.land(test.Commit{SHA: "c4c4c4c4c4c4c4c4", Message: "Rework waiter", Paths: []string{"internal/gate/gate.go"}})
@@ -135,8 +135,8 @@ func TestDismissForgetsAMatchUntilALaterCommit(t *testing.T) {
 func TestDismissRefusesAnIDWithoutAMatch(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	matched := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
-	unmatched := h.file("Refresh the readme", "body", "--kind", "todo", "--about", "README.md")
+	matched := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
+	unmatched := h.file("Refresh the readme", "body", "--kind", "todo", "--item", "settle it", "--about", "README.md")
 
 	h.land(test.Commit{SHA: "e7e7e7e7e7e7e7e7", Message: "Rework waiter", Paths: []string{"internal/gate/gate.go"}})
 	h.subagentHook("git pull")

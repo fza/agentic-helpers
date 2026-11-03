@@ -176,7 +176,7 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 
 	first := filed(`{"title":"Gate finding filed first","topic":["gate"],"body":"one"}`)
 	second := filed(`{"title":"Gate finding filed second","topic":["gate"],"body":"two"}`)
-	todo := filed(`{"title":"Gate work filed as todo","topic":["gate"],"body":"three","kind":"todo"}`)
+	todo := filed(`{"title":"Gate work filed as todo","topic":["gate"],"body":"three","kind":"todo","item":["settle it"]}`)
 	h.putSlot("landed", `{"mappings":[{"target":"`+todo+`","commit":"c1c1c1c1c1c1c1c1","subject":"Gate","test":"path","score":0.5}]}`)
 
 	calls := []struct{ tool, arguments string }{

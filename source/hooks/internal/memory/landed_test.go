@@ -114,7 +114,7 @@ func TestALandedCommitMatchesByEachTest(t *testing.T) {
 		{
 			name: "a merged: end's branch merged",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--until", "merged:waiter-loop")
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--until", "merged:waiter-loop")
 			},
 			commit:  test.Commit{SHA: "c1c1c1c1c1c1c1c1", Message: "Merge pull request #7 from acme/waiter-loop"},
 			matched: true, test: "branch",
@@ -122,7 +122,7 @@ func TestALandedCommitMatchesByEachTest(t *testing.T) {
 		{
 			name: "a branch the entry's text names",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "built on autopilot/waiter-loop", "--kind", "todo")
+				return h.file("Rework the waiter loop", "built on autopilot/waiter-loop", "--kind", "todo", "--item", "settle it")
 			},
 			commit:  test.Commit{SHA: "c2c2c2c2c2c2c2c2", Message: "Merge branch 'autopilot/waiter-loop' into main"},
 			matched: true, test: "branch",
@@ -130,7 +130,7 @@ func TestALandedCommitMatchesByEachTest(t *testing.T) {
 		{
 			name: "a path the entry is about",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 			},
 			commit:  test.Commit{SHA: "c3c3c3c3c3c3c3c3", Message: "Tidy", Paths: []string{"internal/gate/gate.go"}},
 			matched: true, test: "path",
@@ -146,7 +146,7 @@ func TestALandedCommitMatchesByEachTest(t *testing.T) {
 		{
 			name: "a similar subject",
 			file: func(h *harness) string {
-				return h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo")
+				return h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "settle it")
 			},
 			commit:  test.Commit{SHA: "c5c5c5c5c5c5c5c5", Message: "Rework waiter polling loop deadline"},
 			matched: true, test: "subject",
@@ -154,14 +154,14 @@ func TestALandedCommitMatchesByEachTest(t *testing.T) {
 		{
 			name: "an unrelated commit",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 			},
 			commit: test.Commit{SHA: "c6c6c6c6c6c6c6c6", Message: "Bump the release notes", Paths: []string{"README.md"}},
 		},
 		{
 			name: "a trunk merged into the work's branch",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "rebased on main daily", "--kind", "todo")
+				return h.file("Rework the waiter loop", "rebased on main daily", "--kind", "todo", "--item", "settle it")
 			},
 			commit: test.Commit{SHA: "c7c7c7c7c7c7c7c7", Message: "Merge branch 'main' into waiter-loop"},
 		},
@@ -201,14 +201,14 @@ func TestALandedCommitMatchesByALinkedEntryID(t *testing.T) {
 		{
 			name: "the full id of a linked entry",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--link", activeDecision)
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--link", activeDecision)
 			},
 			message: "Tidy\n\nRefs " + activeDecision, matched: true,
 		},
 		{
 			name: "a unique short id of a linked entry",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--link", activeDecision)
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--link", activeDecision)
 			},
 			message: "Tidy\n\nSettles d-tac-act.", matched: true,
 		},
@@ -216,7 +216,7 @@ func TestALandedCommitMatchesByALinkedEntryID(t *testing.T) {
 			name:    "the qualified id of a connected repo's entry",
 			connect: true,
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--link", fdbox+":"+foreignActive)
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--link", fdbox+":"+foreignActive)
 			},
 			message: "Tidy\n\nRefs " + fdbox + ":" + foreignActive, matched: true,
 		},
@@ -230,7 +230,7 @@ func TestALandedCommitMatchesByALinkedEntryID(t *testing.T) {
 		{
 			name: "an entry no live todo links",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--link", activeDecision)
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--link", activeDecision)
 			},
 			message: "Tidy\n\nRefs " + closedDecision,
 		},
@@ -238,9 +238,9 @@ func TestALandedCommitMatchesByALinkedEntryID(t *testing.T) {
 			name: "a short id two linked entries share",
 			file: func(h *harness) string {
 				test.WriteFile(h.t, h.repo+"/.sdd/graph/2026/10/24-100000-d-tac-act.md", "---\ntype: decision\n---\n")
-				h.file("Older waiter work", "body", "--kind", "todo", "--link", "20261024-100000-d-tac-act")
+				h.file("Older waiter work", "body", "--kind", "todo", "--item", "settle it", "--link", "20261024-100000-d-tac-act")
 
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--link", activeDecision)
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--link", activeDecision)
 			},
 			message: "Tidy\n\nSettles d-tac-act.",
 		},
@@ -284,7 +284,7 @@ func TestALandedCommitMatchesByALinkedEntryID(t *testing.T) {
 func TestALandedMappingWaitsForTheBrief(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 
 	h.land(test.Commit{SHA: "e1e1e1e1e1e1e1e1", Message: "Rework waiter", Paths: []string{"internal/gate/gate.go"}})
 
@@ -304,7 +304,7 @@ func TestALandedMappingWaitsForTheBrief(t *testing.T) {
 	other := newHarnessSharing(h)
 	brief := other.must("", "claim", "main")
 
-	if !strings.HasSuffix(briefLine(brief, id), "retire? landed: e1e1e1e1 Rework waiter") {
+	if !strings.HasSuffix(briefLine(brief, id), "retire? landed: e1e1e1e1 Rework waiter; 0/1") {
 		t.Fatalf("the claim brief should end the entry's line with the landed commit:\n%s", brief)
 	}
 
@@ -313,7 +313,7 @@ func TestALandedMappingWaitsForTheBrief(t *testing.T) {
 	}
 
 	if line := briefLine(other.must("", "brief", "--again"), id); !strings.HasPrefix(line, h.label(id)+" Rework the waiter loop  [") ||
-		!strings.HasSuffix(line, "retire? landed: e1e1e1e1 Rework waiter") {
+		!strings.HasSuffix(line, "retire? landed: e1e1e1e1 Rework waiter; 0/1") {
 		t.Errorf("a brief asked again should print the flagged entry's line whole:\n%s", line)
 	}
 
@@ -329,8 +329,8 @@ func TestALandedMappingWaitsForTheBrief(t *testing.T) {
 func TestLandedMappingsArriveTogetherOnce(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	first := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
-	second := h.file("Refresh the readme", "body", "--kind", "todo", "--about", "README.md")
+	first := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
+	second := h.file("Refresh the readme", "body", "--kind", "todo", "--item", "settle it", "--about", "README.md")
 
 	h.land(
 		test.Commit{SHA: "f3f3f3f3f3f3f3f3", Message: "Readme", Paths: []string{"README.md"}},
@@ -358,7 +358,7 @@ func TestLandedMappingsArriveTogetherOnce(t *testing.T) {
 func TestALandedMappingReachesTheToolHookOfTheMainThread(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 	h.runPrompt()
 
 	h.land(test.Commit{SHA: "a7a7a7a7a7a7a7a7", Message: "Gate", Paths: []string{"internal/gate/gate.go"}})
@@ -447,7 +447,7 @@ func (h *harness) subagentHook(command string) string {
 func TestARoundReadsOnlyWhatIsNew(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+	h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 
 	h.land(test.Commit{SHA: "a1a1a1a1a1a1a1a1", Message: "One"})
 	h.runPrompt()
@@ -497,7 +497,7 @@ func TestAnEntryNeverMapsToAnOlderCommit(t *testing.T) {
 	h.land(test.Commit{SHA: "a4a4a4a4a4a4a4a4", Message: "Gate", At: landedAt.Add(-5 * time.Hour), Paths: []string{"internal/gate/gate.go"}})
 	h.runPrompt()
 
-	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 	h.land(test.Commit{SHA: "a5a5a5a5a5a5a5a5", Message: "Readme", Paths: []string{"README.md"}})
 	h.clock.Advance(time.Hour)
 
@@ -514,7 +514,7 @@ func TestAnEntryNeverMapsToAnOlderCommit(t *testing.T) {
 func TestARoundRecoversFromARebase(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 	h.land(test.Commit{SHA: "b1b1b1b1b1b1b1b1", Message: "One", At: landedAt})
 	h.runPrompt()
 
@@ -541,7 +541,7 @@ func TestTheHookOnlyStartsARound(t *testing.T) {
 	h := newLandedHarness(t)
 	h.starter.Run = nil
 	h.must("", "claim", "main")
-	h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+	h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 	h.land(test.Commit{SHA: "c8c8c8c8c8c8c8c8", Message: "Gate", Paths: []string{"internal/gate/gate.go"}})
 
 	h.runPrompt()
@@ -563,7 +563,7 @@ func TestTheHookOnlyStartsARound(t *testing.T) {
 func TestALargeRangeTakesSeveralRounds(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "internal/gate/gate.go")
+	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "internal/gate/gate.go")
 
 	var commits []test.Commit
 
@@ -629,28 +629,28 @@ func TestAMergeCarriesTheEvidenceOfItsCommits(t *testing.T) {
 		{
 			name: "a merged commit naming a linked entry",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--link", activeDecision)
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--link", activeDecision)
 			},
 			side: []test.Commit{{SHA: "1a1a1a1a1a1a1a1a", Message: "Tidy\n\nRefs " + activeDecision}},
 		},
 		{
 			name: "a merged commit touching an anchored path",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "README.md")
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "README.md")
 			},
 			side: []test.Commit{{SHA: "1b1b1b1b1b1b1b1b", Message: "Tidy", Paths: []string{"README.md"}}},
 		},
 		{
 			name: "a merged commit with a similar subject",
 			file: func(h *harness) string {
-				return h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo")
+				return h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "settle it")
 			},
 			side: []test.Commit{{SHA: "1c1c1c1c1c1c1c1c", Message: "Rework waiter polling loop deadline"}},
 		},
 		{
 			name: "several merged commits matching",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "README.md")
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "README.md")
 			},
 			side: []test.Commit{
 				{SHA: "1d1d1d1d1d1d1d1d", Message: "Tidy two", Paths: []string{"README.md"}},
@@ -660,7 +660,7 @@ func TestAMergeCarriesTheEvidenceOfItsCommits(t *testing.T) {
 		{
 			name: "a merged commit older than the todo",
 			file: func(h *harness) string {
-				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "README.md")
+				return h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "README.md")
 			},
 			side: []test.Commit{{SHA: "1f1f1f1f1f1f1f1f", Message: "Tidy", At: landedAt.Add(-5 * time.Hour), Paths: []string{"README.md"}}},
 		},
@@ -740,7 +740,7 @@ func TestTheHighestScoringCommitIsReported(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newLandedHarness(t)
 			h.must("", "claim", "main")
-			id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "README.md", "--link", activeDecision)
+			id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "README.md", "--link", activeDecision)
 			h.release()
 
 			for _, round := range tc.rounds {
@@ -797,7 +797,7 @@ func TestAMergedBranchEndsAfterItsDeletion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newLandedHarness(t)
 			h.must("", "claim", "main")
-			h.file("Ship the feature", "body", "--kind", "todo", "--until", "merged:feature")
+			h.file("Ship the feature", "body", "--kind", "todo", "--item", "settle it", "--until", "merged:feature")
 
 			tc.prepare(h)
 			h.must("", "brief")
@@ -805,34 +805,6 @@ func TestAMergedBranchEndsAfterItsDeletion(t *testing.T) {
 			out := h.must("", "search", "--term", "Ship the feature", "--status", "retired", "--status", "live")
 			if strings.Contains(out, "end reached: merged:feature") != tc.retired {
 				t.Errorf("a deleted branch should end the todo exactly where its recorded tip reached the target:\n%s", out)
-			}
-		})
-	}
-}
-
-func TestATodoWithoutAnEndGetsTheFilingHint(t *testing.T) {
-	const hint = "no end declared: --until merged:<branch> ends it at its merge; " +
-		"or split the work into items, such as --item build --item capture"
-
-	cases := []struct {
-		name  string
-		extra []string
-		hint  bool
-	}{
-		{name: "a todo with neither", extra: []string{"--kind", "todo"}, hint: true},
-		{name: "a todo with --until", extra: []string{"--kind", "todo", "--until", "merged:feature"}},
-		{name: "a todo with --item", extra: []string{"--kind", "todo", "--item", "build"}},
-		{name: "a note", extra: nil},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newHarness(t)
-			h.must("", "claim", "main")
-
-			out := h.must("body", append([]string{"new", "--title", "Rework the waiter loop", "--topic", "gate"}, tc.extra...)...)
-			if strings.Contains(out, hint) != tc.hint {
-				t.Errorf("the filing hint should print exactly for a todo declaring no end:\n%s", out)
 			}
 		})
 	}

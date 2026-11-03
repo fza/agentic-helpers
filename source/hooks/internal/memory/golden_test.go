@@ -19,13 +19,13 @@ var updateGolden = flag.Bool("update-golden", false, "rewrite the golden reads u
 // holds the placeholder in its place.
 var localStamp = regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2} [A-Z0-9+-]+`)
 
-// lineID is a state line's id in the text and in JSON, drawn at random as a todo
-// item's is.
+// lineID is a state line's id and the golden todo's item's in the text and in
+// JSON, each drawn at random.
 // localClock is the brief's first line's local time, which the machine's zone
 // decides as localStamp's does.
 var localClock = regexp.MustCompile(`time \d{2}:\d{2} [A-Z0-9+-]+ \([+-]\d{2}:\d{2}\)`)
 
-var lineID = regexp.MustCompile(`(  #|"id":")[a-z0-9]{3}(: ten words|","text":"ten words)`)
+var lineID = regexp.MustCompile(`(  #|\. #|"id":")[a-z0-9]{3}(: ten words|","text":"ten words|: settle it|","position":1,"text":"settle it)`)
 
 // goldenStore files a store touching every section the brief prints and every
 // status a search lists: a rule, a trap whose anchor drifted, a todo with a
@@ -64,7 +64,7 @@ func goldenStore(t *testing.T) *harness {
 	run(h, "commit when asked", "new", "--title", "Owner allows commits on main", "--topic", "grants",
 		"--kind", "rule", "--from", "user")
 	file(h, "Gate ignores MCP reads always", "the gate reads internal/gate/gate.go only for Bash", "--kind", "trap")
-	file(h, "Port the waiter to Linux", "the waiter polls darwin only", "--kind", "todo",
+	file(h, "Port the waiter to Linux", "the waiter polls darwin only", "--kind", "todo", "--item", "settle it",
 		"--until", "at:2027-01-01T00:00:00Z")
 
 	var notes []string

@@ -137,7 +137,7 @@ func TestOnlyAStepListGetsTheTodoHint(t *testing.T) {
 		{"two list lines", "- read the timer\n- swap the clock\n", nil},
 		{"three list lines apart", "- read the timer\n\n- swap the clock\n\n- run CI\n", nil},
 		{"no list", "The waiter reads the timer.\n", nil},
-		{"a todo", planBody, []string{"--kind", "todo"}},
+		{"a todo", planBody, []string{"--kind", "todo", "--item", "settle it"}},
 	}
 
 	for _, tc := range cases {

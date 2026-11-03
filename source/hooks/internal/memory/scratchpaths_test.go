@@ -176,7 +176,7 @@ func TestTheScratchPassRewritesEveryPathTheStoreQuotes(t *testing.T) {
 		t.Errorf("the backup should hold the log byte for byte as it was, got:\n%s\nfrom:\n%s", backed, logBefore)
 	}
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); strings.TrimSpace(string(format)) != `{"format":10}` {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); strings.TrimSpace(string(format)) != `{"format":11}` {
 		t.Errorf("the store should stay at its format, got %s", format)
 	}
 

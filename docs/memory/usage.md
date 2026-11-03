@@ -20,8 +20,8 @@ different things, and an entry belongs in exactly one:
 
 A memory entry about a decision points at the graph entry by its id and never restates it: two
 copies drift, and a reader acts on whichever it opened. A project without a graph files its
-decisions and its defects in memory, decisions as notes and defects as todos, since nothing else
-would keep them.
+decisions and its defects in memory, decisions as notes and defects as todolists, or as state lines
+where a fix has no steps to tick, since nothing else would keep them.
 
 ## Where it works
 
@@ -461,9 +461,19 @@ filing time:
 |---|---|---|---|
 | `rule` | a standing grant or instruction from the user | never | `rules`, capped at a third of the brief |
 | `trap` | something that already cost time and will again | half-life 90 days | `traps` |
-| `todo` | work owed later, an owner decision waiting for its capture | half-life 3 days | `todos` |
+| `todo` | a todolist: the steps of one piece of work, each an `--item` ([Todolists](#todolists)) | half-life 3 days | `todos` |
 | `note` | everything else, and the kind of an entry filed without `--kind` | half-life 14 days | `notes` |
 
+- **A todo without items is a state line.** A single open task is where the seat's work stands, so
+  `new --kind todo` with no `--item` (MCP `new` with `kind` `todo` and no `item`), and no item
+  `--items carry` moves onto it, files a `note`, keeping its title, body, topics, links and anchors,
+  and adds a line `<title> (<id>)` to the filing seat's [state ledger](#the-state-ledger) carrying
+  its `--until` ends and `--due` time, which the note no longer holds. The line cites the note, so it
+  also ends once the note is retired or superseded. The reply says so in its one opening line,
+  naming the line and the normal form of its ends and due time as a filing names its own:
+  `filed m-1oqsjs (rescan-transcripts) as a note and added state#k3x: a todo without items is a
+  state line  due: 2026-11-07 00:00 CET`. A store moved to format 11 turned its live todos without
+  items the same way ([architecture](architecture.md#the-format-and-its-migration)).
 - **A system clock set back changes no order.** Memory's time never falls behind the newest time the
   store holds, so an entry filed after the rollback still sorts last and arrives as new; decay
   pauses, and due times fire late, until the clock catches up
@@ -1160,6 +1170,9 @@ them once:
 
     agentic-memory: graph gained <id>, ...; open todos waiting for a capture: <id> <title>, ...; link the one it settles: agentic-memory link <todo> <graph id>
 
+A todo without items filed `--until captured` is a note and a state line, the line carrying the end:
+a line's `captured` is reached at the first capture after it, with no link to make.
+
 `session` is for a finding that matters only while this session works. It watches the claim, not
 the session id: a `/clear` starts a new session id in the same process, which keeps its seat and its
 claim. A fork taking over a gone parent's seat starts a new claim, so the parent's `session` entries
@@ -1203,11 +1216,6 @@ A todo or trap whose work landed in git would otherwise stay live until someone 
 memory hooks look for commits that may settle a live todo, open todo item or trap of the store, and
 tell the seat holding it. Nothing is retired: a match is evidence, and the agent checks it against
 the repository, then answers it.
-
-A todo filed with neither `--until` nor `--item` gets one reply line, since nothing ties it to the
-work landing:
-
-    no end declared: --until merged:<branch> ends it at its merge; or split the work into items, such as --item build --item capture
 
 **When a round runs.** At `UserPromptSubmit` and `PostToolUse`, once `landed_scan_interval` (10
 minutes unless set) passed since the checkout's last round, and at the `PostToolUse` of a Bash call
@@ -1673,7 +1681,7 @@ Each line in both forms:
 | possible credential | `supersede it: agentic-memory supersede <id> --because 'credential'` | `supersede it: memory supersede {"ids":["<id>"],"because":"credential"}` |
 | brief folds | `agentic-memory brief --due`, `brief --kind note`, `brief --topic <name>`, `search --all-seats --status live`, `search --topic <name> --term .` | `memory brief {"due":true}`, `{"kind":"note"}`, `{"topic":["<name>"]}`, `memory search {"all_seats":true,"status":["live"]}`, `{"topic":["<name>"],"term":["."]}` |
 | filing notes | `agentic-memory retitle <id> '<title>'`, `agentic-memory tag <id> <topic>...`, `agentic-memory search --query '<title>'` | `memory retitle {"id":"<id>","title":"<title>"}`, `memory tag {"id":"<id>","topic":["<topic>"]}`, `memory search {"query":"<title>"}` |
-| todo filing | `steps go into --item`, `--until merged:<branch>`, `--item build --item capture`, `--kind todo --item …` | `steps go into "item"`, `"until":["merged:<branch>"]`, `"item":["build","capture"]`, `"kind":"todo","item":["…"]` |
+| todo filing | `steps go into --item`, `--kind todo --item …` | `steps go into "item"`, `"kind":"todo","item":["…"]` |
 | a todo's folds | `agentic-memory show <todo> --all-items` | `memory show {"ids":["<todo>"],"all_items":true}` |
 | a search's next page | `--skip 10` | `"skip":10` |
 | `who` folds | `agentic-memory who --unused`, `who --all`, `who --all --unused`; `--for` refusal `agentic-memory who lists them` | `memory who {"unused":true}`, `{"all":true}`, `{"all":true,"unused":true}`; `memory who {} lists them` |

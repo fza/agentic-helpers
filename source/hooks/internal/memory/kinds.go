@@ -45,8 +45,11 @@ func (held *entry) retainedOverride() string {
 	return held.override
 }
 
+// rekindPayload gives an entry another kind. Line, where set, is the state
+// line a todo without items became, which took its ends and due time.
 type rekindPayload struct {
 	Kind string `json:"kind"`
+	Line string `json:"line,omitempty"`
 }
 
 // statePayload is the free-text slot a `state` row carried before the ledger:

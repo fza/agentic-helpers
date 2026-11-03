@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestEveryStoreKeepsItsSessionSlotsThroughTheLayoutStep(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if version >= formatsteps.Newest(laid.formatSteps()) {
+		if version >= layoutFormat {
 			continue
 		}
 
@@ -41,7 +42,7 @@ func TestEveryStoreKeepsItsSessionSlotsThroughTheLayoutStep(t *testing.T) {
 
 			mem := cutMemory(root)
 			component := mem.storeComponent()
-			component.Steps = mem.formatSteps()[:len(component.Steps)-1]
+			component.Steps = slices.DeleteFunc(mem.formatSteps(), func(step formatsteps.Step) bool { return step.To > namesFormat })
 
 			err := formatsteps.Run(ctx, component)
 			if err != nil {

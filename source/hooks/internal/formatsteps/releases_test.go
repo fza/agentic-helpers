@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	currentMemoryFormat = 10
+	currentMemoryFormat = 11
 	currentToolsFormat  = 3
 	claimOwnerPID       = test.OwnerPID
 )

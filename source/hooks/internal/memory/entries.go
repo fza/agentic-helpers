@@ -177,35 +177,6 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
-	filed := newPayload{
-		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
-		Kind: kind, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
-		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
-		TextLinks: textLinks, Links: links, Until: until, UntilHashes: untilHashes, UntilHold: untilHold,
-		When: declaredLife.when, On: declaredLife.on, Proof: declaredLife.proof, Forbids: forbids,
-		About: declaredPaths(here.root, req.About), Due: due,
-	}
-
-	raw, err := json.Marshal(filed)
-	if err != nil {
-		return refused("encoding the entry: %v", err)
-	}
-
-	at := mem.now()
-
-	events := []memorylog.Event{{Kind: memorylog.KindNew, Entry: id, Time: at, Seat: name, Payload: raw}}
-
-	absorbing, err := json.Marshal(supersedePayload{By: id})
-	if err != nil {
-		return refused("encoding the supersede: %v", err)
-	}
-
-	for _, absorbed := range slices.Compact(slices.Clone(req.Absorbs)) {
-		events = append(events, memorylog.Event{
-			Kind: memorylog.KindSupersede, Entry: absorbed, Time: at, Seat: name, Target: id, Payload: absorbing,
-		})
-	}
-
 	var moved []itemPayload
 
 	renamed := []string{}
@@ -228,6 +199,65 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	ownItems, err := addItems(&entry{items: itemsOf(moved)}, req.Items)
 	if err != nil {
 		return refused("%v", err)
+	}
+
+	listedItems := len(moved) + len(ownItems)
+	asLine := kind == kindTodo && listedItems == 0
+
+	filedKind := kind
+	if asLine {
+		filedKind = kindNote
+	}
+
+	filed := newPayload{
+		Title: strings.TrimSpace(req.Title), Body: strings.TrimRight(req.Body, "\n"), Topics: topics,
+		Kind: filedKind, From: from, Session: mem.env.SessionID, Commit: here.commit, Branch: here.branch,
+		Anchors: anchorsFor(here.root, req.Title+"\n"+req.Body, req.About), For: shared,
+		TextLinks: textLinks, Links: links,
+		When: declaredLife.when, On: declaredLife.on, Proof: declaredLife.proof, Forbids: forbids,
+		About: declaredPaths(here.root, req.About),
+	}
+
+	if !asLine {
+		filed.Until, filed.UntilHashes, filed.UntilHold, filed.Due = until, untilHashes, untilHold, due
+	}
+
+	raw, err := json.Marshal(filed)
+	if err != nil {
+		return refused("encoding the entry: %v", err)
+	}
+
+	at := mem.now()
+
+	events := []memorylog.Event{{Kind: memorylog.KindNew, Entry: id, Time: at, Seat: name, Payload: raw}}
+
+	absorbing, err := json.Marshal(supersedePayload{By: id})
+	if err != nil {
+		return refused("encoding the supersede: %v", err)
+	}
+
+	for _, absorbed := range slices.Compact(slices.Clone(req.Absorbs)) {
+		events = append(events, memorylog.Event{
+			Kind: memorylog.KindSupersede, Entry: absorbed, Time: at, Seat: name, Target: id, Payload: absorbing,
+		})
+	}
+
+	var line itemPayload
+
+	if asLine {
+		line, err = todoLine(folded.ledgerFor(name), nil, todoLineText(filed.Title, id), lineEnds{
+			until: until, hashes: untilHashes, hold: untilHold, session: mem.env.SessionID, due: due,
+		})
+		if err != nil {
+			return refused("%v", err)
+		}
+
+		added, err := itemEvents(ledgerID, name, at, []itemPayload{line})
+		if err != nil {
+			return refused("%v", err)
+		}
+
+		events = append(events, added...)
 	}
 
 	listed, err := itemEvents(id, name, at, append(moved, ownItems...))
@@ -278,7 +308,15 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	held := folded.entries[id]
 	mem.warm(folded, 0, id)
 
-	lines := []string{filedLine(here, held, req)}
+	opening := filedLine(here, held, held, req, "")
+	if asLine {
+		declaredBy := *held
+		declaredBy.until, declaredBy.due = until, due
+		opening = filedLine(here, held, &declaredBy, req,
+			fmt.Sprintf(" as a %s and added %s#%s: %s", kindNote, ledgerID, line.ID, todoLineReason))
+	}
+
+	lines := []string{opening}
 	for _, file := range prepared {
 		lines = append(lines, attachedLine(id, file.attachPayload))
 	}
@@ -291,7 +329,6 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 		lines = append(lines, "not linked (no such entry): "+strings.Join(unlinked, ", "))
 	}
 
-	listedItems := len(moved) + len(ownItems)
 	if listedItems > 0 {
 		ids := make([]string, 0, listedItems)
 		for _, one := range append(slices.Clone(moved), ownItems...) {
@@ -304,21 +341,16 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 	lines = append(lines, renamed...)
 
 	counted := listLines(req.Body)
-	if kind == kindTodo && counted > 0 {
+	if filedKind == kindTodo && counted > 0 {
 		lines = append(lines, fmt.Sprintf("%d list lines in the text; steps go into %s", counted,
 			hintKey(mem.hintChannel(ctx), "item")))
 	}
 
-	if kind != kindTodo {
+	if filedKind != kindTodo {
 		listsSteps, steps := bodySteps(req.Body)
 		if listsSteps {
 			lines = append(lines, stepsHint(mem.hintChannel(ctx), held, steps)...)
 		}
-	}
-
-	// A todo with no end tied to its work stays live after the work lands.
-	if kind == kindTodo && len(req.Until) == 0 && listedItems == 0 {
-		lines = append(lines, todoEndHint(mem.hintChannel(ctx)))
 	}
 
 	lines = append(lines, mem.filingNotes(ctx, folded, held, existing, req.Absorbs)...)
@@ -336,8 +368,10 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 // caller just sent or cannot act on, while a flag carries the computed form of
 // an input or a link target already closed. A declared flag (until, when, on,
 // proof, forbids, due) prints only where its normalized form differs from what
-// req sent.
-func filedLine(here tree, held *entry, req request) string {
+// req sent; declaredBy carries them, the entry itself or, for a todo filed as
+// a note and a state line, the ends and due time the line took. What names
+// what else the filing did, after the id.
+func filedLine(here tree, held *entry, declaredBy *entry, req request, what string) string {
 	sent := map[string][]string{
 		"until": req.Until, "when": req.When, "on": req.On, "proof": req.Proof, "forbids": req.Forbids,
 		"due": {req.Due.text},
@@ -345,7 +379,7 @@ func filedLine(here tree, held *entry, req request) string {
 
 	flags := flagsOf(here, held, held.flags(), time.Local)
 
-	for _, flag := range declared(held, time.Local) {
+	for _, flag := range declared(declaredBy, time.Local) {
 		name, value, _ := strings.Cut(flag, ": ")
 
 		given := make([]string, 0, len(sent[name]))
@@ -358,7 +392,7 @@ func filedLine(here tree, held *entry, req request) string {
 		}
 	}
 
-	return withFlags("filed "+held.label(), flags)
+	return withFlags("filed "+held.label()+what, flags)
 }
 
 // absorbed are the entries the filing superseded, which no hint offers again.

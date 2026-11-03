@@ -13,7 +13,7 @@ func TestAFilingKeepsTheDotOfADotFolder(t *testing.T) {
 	h.must("", "claim", "main")
 	test.WriteFile(t, filepath.Join(h.repo, ".tmp", "x"), "scratch\n")
 
-	id := h.file("Gate config lives in the graph folder", "see .sdd/config.yaml.", "--kind", "todo",
+	id := h.file("Gate config lives in the graph folder", "see .sdd/config.yaml.", "--kind", "todo", "--item", "settle it",
 		"--about", ".tmp/x", "--until", "gone:.tmp/x", "--until", "changed:.tmp/x")
 
 	joined := strings.Join(storePayloads(t, h), "\n")

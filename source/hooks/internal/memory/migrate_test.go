@@ -44,7 +44,7 @@ func TestAClaimMintsASeatID(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":10`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":11`) {
 		t.Errorf("the claim creating a store should write it at the current format, got %s", format)
 	}
 
@@ -65,7 +65,7 @@ func TestAClaimMintsASeatID(t *testing.T) {
 		}
 	}
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":10`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":11`) {
 		t.Errorf("a fresh store should be written at the current format, got %s", format)
 	}
 }
@@ -135,7 +135,7 @@ func TestAFormat1StoreMigrates(t *testing.T) {
 
 	h.must("", "topics")
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":10`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":11`) {
 		t.Fatalf("the store should be at the current format after one call, got %s", format)
 	}
 
@@ -263,7 +263,7 @@ func TestASetAsideLogNeverBlocksTheNextRun(t *testing.T) {
 				t.Errorf("a set-aside log left by a killed run should not block the next one, got %d %q", got.code, got.err)
 			}
 
-			if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":10`) {
+			if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":11`) {
 				t.Errorf("the next run should bring the store to the current format, got %s", format)
 			}
 
@@ -310,7 +310,7 @@ func TestADevelopmentBuildFromAnotherProjectsPathIsRefusedAnOlderStore(t *testin
 	h.version = "dev"
 
 	got := h.run("", "search", "--term", "Gate")
-	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this build writes store format 10, which a release may not read") {
+	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this build writes store format 11, which a release may not read") {
 		t.Errorf("the build should be refused saying what it would write, got %d %q", got.code, got.err)
 	}
 
@@ -327,12 +327,12 @@ func TestANewerStoreIsRefused(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	h.file("Gate reads Bash only today", "finding")
-	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format": 11}`)
+	test.WriteFile(t, filepath.Join(h.store(), "format.json"), `{"format": 12}`)
 
 	before := test.Tree(t, h.store())
 
 	got := h.run("", "search", "--term", "Gate")
-	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this store has format 11; this release reads up to 10") {
+	if got.code != 1 || !strings.Contains(got.err, "agentic-memory: this store has format 12; this release reads up to 11") {
 		t.Errorf("a store of a newer format should be refused naming both, got %d %q", got.code, got.err)
 	}
 
@@ -426,7 +426,7 @@ func TestAFormat3StoreMigratesToKinds(t *testing.T) {
 
 	out := test.Unscored(h.must("", "search", "--term", "Owner|Gate finding"))
 
-	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":10`) {
+	if format, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(format), `"format":11`) {
 		t.Fatalf("the store should be at the current format after one call, got %s", format)
 	}
 

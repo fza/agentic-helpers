@@ -219,7 +219,7 @@ func TestAFormat2StoreGetsAShelfPerSeat(t *testing.T) {
 	h.must("", "topics")
 
 	format, _ := os.ReadFile(filepath.Join(h.store(), "format.json"))
-	if !strings.Contains(string(format), `"format":10`) {
+	if !strings.Contains(string(format), `"format":11`) {
 		t.Fatalf("a format-2 store should migrate to the current format, got %s", format)
 	}
 

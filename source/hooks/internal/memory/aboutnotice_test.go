@@ -10,7 +10,7 @@ func TestANoteIsToldAtTheFileItIsAbout(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 	note := h.file("Gate reads only Bash today", "the gate skips MCP calls", "--about", "internal/gate/gate.go")
-	todo := h.file("Readme owes the install line", "add the go install line", "--kind", "todo", "--about", "README.md")
+	todo := h.file("Readme owes the install line", "add the go install line", "--kind", "todo", "--item", "settle it", "--about", "README.md")
 
 	first := h.callTool("Edit", map[string]string{"file_path": filepath.Join(h.repo, "internal", "gate", "gate.go")})
 	if !strings.Contains(first, "agentic-memory: about internal/gate/gate.go: "+h.label(note)+" Gate reads only Bash today  [") {

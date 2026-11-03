@@ -52,7 +52,7 @@ func TestWritesRefuseACredential(t *testing.T) {
 		{name: "an anchor", stdin: "clean", where: "an anchor",
 			args: []string{"new", "--title", "Finding about a token file", "--about", token + ".txt"}},
 		{name: "an end condition", stdin: "clean", where: "--until",
-			args: []string{"new", "--title", "Todo ending on a path", "--kind", "todo", "--until", "gone:" + token}},
+			args: []string{"new", "--title", "Todo ending on a path", "--kind", "todo", "--item", "settle it", "--until", "gone:" + token}},
 	}
 
 	for _, tc := range cases {

@@ -426,7 +426,7 @@ func allCommands() []command {
 				`"title":{"type":"string","description":"3-10 words"},` +
 				`"body":{"type":"string","description":"entry text: the outcome, never the user's prompt played back"},` +
 				topicKey + `,` +
-				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"rule needs from user; note unless given"},` +
+				`"kind":{"type":"string","enum":["rule","trap","todo","note"],"description":"rule needs from user; todo without item files a note and a state line; note unless given"},` +
 				`"from":{"type":"string","enum":["user","agent","tool"],"description":"finding's source; agent unless given"},` +
 				`"about":{"type":"array","items":{"type":"string"},"description":"paths it is about, hash-anchored"},` +
 				`"for":{"type":"array","items":{"type":"string"},"description":"other seats it is for, or all"},` +

@@ -15,7 +15,7 @@ func TestAnEndedEntryPrintsNoEndDueOrStaleness(t *testing.T) {
 	}{
 		{"retired", func(h *harness, id string) { h.must("", "retire", id, "--because", "done") }},
 		{"superseded", func(h *harness, id string) {
-			h.must("", "supersede", id, "--by", h.file("A later take on the README", "a newer body"))
+			h.must("", "supersede", id, "--items", "leave", "--by", h.file("A later take on the README", "a newer body"))
 		}},
 	}
 
@@ -24,7 +24,7 @@ func TestAnEndedEntryPrintsNoEndDueOrStaleness(t *testing.T) {
 			h := newHarness(t)
 			h.must("", "claim", "main")
 
-			id := h.file("Port the waiter per README", "see README.md", "--kind", "todo", "--until", "claim",
+			id := h.file("Port the waiter per README", "see README.md", "--kind", "todo", "--item", "settle it", "--until", "claim",
 				"--due", "2027-01-01")
 			test.WriteFile(t, filepath.Join(h.repo, "README.md"), "# app, changed\n")
 

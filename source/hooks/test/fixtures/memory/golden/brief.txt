@@ -8,7 +8,8 @@ rules (from the user, verify before relying):
 traps:
   m-0ztvbn (gate-ignores) Gate ignores MCP reads always  [5h]  drifted: internal/gate/gate.go
 todos:
-  m-wmwufs (port-waiter) Port the waiter to Linux  [5h]
+  m-wmwufs (port-waiter) Port the waiter to Linux  [5h]  0/1
+    1. #<line>: settle it
 notes:
   m-qja513 (note-hotel) Note about the hotel finding  [4h]
   m-z5jz1j (note-golf) Note about the golf finding  [4h]

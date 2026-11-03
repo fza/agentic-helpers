@@ -358,7 +358,7 @@ func TestATodoBodyWithListLinesNamesItem(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
 
-	out := h.must("steps:\n- read the timer\n- swap the clock\n1. run CI\n", "new", "--title", "Port the waiter", "--topic", "gate", "--kind", "todo")
+	out := h.must("steps:\n- read the timer\n- swap the clock\n1. run CI\n", "new", "--title", "Port the waiter", "--topic", "gate", "--kind", "todo", "--item", "settle it")
 	if !strings.Contains(out, "3 list lines in the text; steps go into --item") {
 		t.Errorf("a todo filed with list lines should name --item:\n%s", out)
 	}
@@ -379,7 +379,7 @@ func TestAFormatFourStoreMovesUpChangingOnlyTheFormat(t *testing.T) {
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
 	written, _ := os.ReadFile(formatPath)
-	if !strings.Contains(string(written), `"format":10`) {
+	if !strings.Contains(string(written), `"format":11`) {
 		t.Errorf("a format-4 store should move through format 5 to the current one: %s", written)
 	}
 
@@ -387,10 +387,10 @@ func TestAFormatFourStoreMovesUpChangingOnlyTheFormat(t *testing.T) {
 		t.Error("a step fencing older binaries off should change nothing but the format")
 	}
 
-	test.WriteFile(t, formatPath, `{"format":11}`+"\n")
+	test.WriteFile(t, formatPath, `{"format":12}`+"\n")
 
 	failed := h.run("", "search", "--term", "Gate", "--no-heat")
-	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 10") {
+	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 11") {
 		t.Errorf("a store of a later format should be refused, got %d %s%s", failed.code, failed.out, failed.err)
 	}
 }

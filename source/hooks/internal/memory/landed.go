@@ -51,13 +51,6 @@ const (
 	landedBySubject = "subject"
 )
 
-// todoEndHint answers a todo filed with nothing tying it to its work.
-func todoEndHint(at channel) string {
-	return "no end declared: " + hintArgs(at, hintFlag("until", []string{"merged:<branch>"})) +
-		" ends it at its merge; or split the work into items, such as " +
-		hintArgs(at, hintFlag("item", []string{"build", "capture"}))
-}
-
 // landingCall is a Bash command that may land commits in the checkout.
 var landingCall = regexp.MustCompile(`\bgit\b[^;&|\n]*?\s(?:merge|commit|pull|rebase|cherry-pick)\b`)
 

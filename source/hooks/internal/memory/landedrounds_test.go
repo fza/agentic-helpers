@@ -14,13 +14,13 @@ import (
 func TestASeenEntryStillCarriesItsLandedFlag(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--about", "README.md")
+	id := h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it", "--about", "README.md")
 	h.must("", "brief")
 
 	h.land(test.Commit{SHA: "4a4a4a4a4a4a4a4a", Message: "Readme", Paths: []string{"README.md"}})
 	h.subagentHook("git pull")
 
-	if line := briefLine(h.must("", "brief"), id); !strings.HasSuffix(line, "retire? landed: 4a4a4a4a Readme") {
+	if line := briefLine(h.must("", "brief"), id); !strings.HasSuffix(line, "retire? landed: 4a4a4a4a Readme; 0/1") {
 		t.Errorf("an entry whose line the context already holds should still print with its landed flag:\n%s", line)
 	}
 }
@@ -31,7 +31,7 @@ func TestACredentialSubjectNeverReachesTheEmbedder(t *testing.T) {
 
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	h.file("Rework the waiter loop", "body", "--kind", "todo")
+	h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it")
 
 	h.land(test.Commit{SHA: "4b4b4b4b4b4b4b4b", Message: "Rotate " + token})
 	h.runPrompt()
@@ -51,7 +51,7 @@ func TestADeadRoundsLockIsTakenOver(t *testing.T) {
 	h := newLandedHarness(t)
 	h.starter.Run = nil
 	h.must("", "claim", "main")
-	h.file("Rework the waiter loop", "body", "--kind", "todo")
+	h.file("Rework the waiter loop", "body", "--kind", "todo", "--item", "settle it")
 
 	h.runPrompt()
 
@@ -83,7 +83,7 @@ func TestADeadRoundsLockIsTakenOver(t *testing.T) {
 func TestASubjectTheEmbedderFailedToJudgeIsJudgedByTheNextRound(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	id := h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "build")
+	id := h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "settle it")
 
 	h.embedder.Err = errors.New("connection refused")
 	h.land(test.Commit{SHA: "c5c5c5c5c5c5c5c5", Message: "Rework waiter polling loop deadline"})
@@ -103,7 +103,7 @@ func TestASubjectTheEmbedderFailedToJudgeIsJudgedByTheNextRound(t *testing.T) {
 func TestARoundWithoutAnEmbedderMovesItsMarkPastEveryCommit(t *testing.T) {
 	h := newLandedHarness(t)
 	h.must("", "claim", "main")
-	h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "build")
+	h.file("Rework waiter polling loop deadline", "waiter polling loop deadline", "--kind", "todo", "--item", "settle it")
 
 	h.embedding = false
 	h.land(test.Commit{SHA: "c5c5c5c5c5c5c5c5", Message: "Rework waiter polling loop deadline"})

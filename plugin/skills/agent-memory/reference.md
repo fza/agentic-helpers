@@ -67,9 +67,9 @@ agentic-memory holder --session <id> --json
   it (over MCP, `  → memory new {...}`: that call), which files the todo in place of the
   entry. No such line → a list line was nested, ticked or continued: file the todo by hand. A list
   the entry only quotes → leave it.
-- `no end declared: --until merged:<branch> ...` after filing a todo → nothing ties it to its work
-  landing: supersede it with `--until merged:<branch>` where the branch is known, or with items
-  splitting the work (`--item build --item capture`), so the landed part ends without the rest.
+- `filed <id> (<name>) as a note and added state#<item>: a todo without items is a state line` →
+  done: the note keeps the text, the line its `--until` and `--due`. Tick or remove the line when the
+  work lands; retiring the note ends it too.
 
 ## Landed work
 

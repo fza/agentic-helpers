@@ -25,7 +25,7 @@ func TestUntilTakesEachForm(t *testing.T) {
 		"gone:internal/gate/gate.go", "claim", "session", "at:2026-11-01", "at:2026-11-01T10:00:00Z", "captured",
 	} {
 		t.Run(until, func(t *testing.T) {
-			out := h.must("body", "new", "--title", "Gate todo ending on a condition", "--kind", "todo", "--until", until)
+			out := h.must("body", "new", "--title", "Gate todo ending on a condition", "--kind", "todo", "--item", "settle it", "--until", until)
 			if strings.Contains(out, "until: ") {
 				t.Errorf("the filed line should not echo an end declared in its normal form:\n%s", out)
 			}
@@ -58,7 +58,7 @@ func TestUntilTakesEachForm(t *testing.T) {
 		t.Errorf("--until on a rule should be refused, got %d %q", got.code, got.err)
 	}
 
-	answer := h.mcp(`{"name":"new","arguments":{"title":"Gate todo over MCP","body":"b","kind":"todo","until":["claim","captured"]}}`)
+	answer := h.mcp(`{"name":"new","arguments":{"title":"Gate todo over MCP","body":"b","kind":"todo","item":["settle it"],"until":["claim","captured"]}}`)
 	if strings.Contains(answer, `"isError":true`) || !strings.Contains(h.must("", "show", idPattern.FindString(answer), "--again"),
 		"until: claim, captured") {
 		t.Errorf("the MCP key until should declare the ends: %s", answer)
@@ -193,7 +193,7 @@ func TestTheEndCheck(t *testing.T) {
 			}
 
 			h.must("", "claim", "main")
-			id := h.file("Gate todo ending on a condition", "body", "--kind", "todo", "--until", tc.until)
+			id := h.file("Gate todo ending on a condition", "body", "--kind", "todo", "--item", "settle it", "--until", tc.until)
 
 			checker := tc.reach(h, id)
 			checker.must("", "claim", "main")
@@ -224,7 +224,7 @@ func TestClosedReadsAConnectedRepo(t *testing.T) {
 			withConnectedRepos(t, h)
 			h.must("", "claim", "main")
 
-			out := h.must("body", "new", "--title", "Gate todo ending on fdbox", "--kind", "todo", "--until", tc.until)
+			out := h.must("body", "new", "--title", "Gate todo ending on fdbox", "--kind", "todo", "--item", "settle it", "--until", tc.until)
 			if strings.Contains(out, "until: closed:"+tc.watched) != (tc.until != "closed:"+tc.watched) {
 				t.Errorf("the filed line should echo the end only where it qualified the id sent:\n%s", out)
 			}
@@ -246,7 +246,7 @@ func TestClosedReadsAConnectedRepo(t *testing.T) {
 func TestAReachedEndIsListedOnce(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
-	id := h.file("Gate todo ending at noon", "body", "--kind", "todo", "--until", "at:2026-10-25T12:00:00Z")
+	id := h.file("Gate todo ending at noon", "body", "--kind", "todo", "--item", "settle it", "--until", "at:2026-10-25T12:00:00Z")
 	h.must("", "brief")
 
 	h.clock.Advance(4 * time.Hour)
@@ -304,7 +304,7 @@ func TestAReviveRefusesAnEndThatStillHolds(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
 			h.must("", "claim", "main")
-			id := h.file("Gate todo ending on a condition", "body", "--kind", "todo", "--until", tc.until)
+			id := h.file("Gate todo ending on a condition", "body", "--kind", "todo", "--item", "settle it", "--until", tc.until)
 
 			tc.reach(h)
 			tc.retire(h, id)
@@ -344,7 +344,7 @@ func TestARuleNeverEndsByACondition(t *testing.T) {
 	h := newHarness(t)
 	withGraph(t, h)
 	h.must("", "claim", "main")
-	id := h.file("Owner instruction until noon", "body", "--kind", "todo", "--from", "user", "--until", "at:2026-10-25T12:00:00Z")
+	id := h.file("Owner instruction until noon", "body", "--kind", "todo", "--item", "settle it", "--from", "user", "--until", "at:2026-10-25T12:00:00Z")
 	h.must("", "rekind", id, "rule")
 	h.file("Owner instruction citing a closed decision", "body", "--kind", "rule", "--from", "user", "--link", closedDecision)
 
@@ -358,7 +358,7 @@ func TestARuleNeverEndsByACondition(t *testing.T) {
 func TestOnlyTheCheckingSeatsShelfIsRetired(t *testing.T) {
 	h, other := twoSeats(t)
 
-	theirs := other.file("Idea todo ending at noon", "body", "--kind", "todo", "--until", "at:2026-10-25T12:00:00Z",
+	theirs := other.file("Idea todo ending at noon", "body", "--kind", "todo", "--item", "settle it", "--until", "at:2026-10-25T12:00:00Z",
 		"--for", "main")
 
 	h.clock.Advance(4 * time.Hour)
@@ -383,7 +383,7 @@ func TestRetireQuestionListsInferredEnds(t *testing.T) {
 	linked := h.file("Gate finding citing a closed decision", "body", "--link", closedDecision)
 	test.WriteFile(t, filepath.Join(h.repo, "notes.txt"), "notes\n")
 	anchored := h.file("Gate finding about notes.txt", "body")
-	branch := h.file("Gate todo for a branch", "body", "--kind", "todo", "--until", "merged:feature")
+	branch := h.file("Gate todo for a branch", "body", "--kind", "todo", "--item", "settle it", "--until", "merged:feature")
 	kept := h.file("Gate finding citing an active decision", "body", "--link", activeDecision)
 
 	err := os.Remove(filepath.Join(h.repo, "notes.txt"))
@@ -393,7 +393,7 @@ func TestRetireQuestionListsInferredEnds(t *testing.T) {
 
 	brief := h.must("", "brief")
 
-	for id, why := range map[string]string{linked: "every link ended", anchored: "every anchor gone", branch: "branch feature is gone"} {
+	for id, why := range map[string]string{linked: "every link ended", anchored: "every anchor gone", branch: "branch feature is gone; 0/1"} {
 		if !strings.HasSuffix(briefLine(brief, id), "retire? "+why) {
 			t.Errorf("an entry whose end is inferred should carry retire? with why on its own line:\n%s", brief)
 		}
@@ -417,13 +417,13 @@ func TestLinkingTheCaptureEndsTheTodo(t *testing.T) {
 	withGraph(t, h)
 	h.must("", "claim", "main")
 
-	captured := h.file("Owner decision waiting for capture", "body", "--kind", "todo", "--until", "captured")
+	captured := h.file("Owner decision waiting for capture", "body", "--kind", "todo", "--item", "settle it", "--until", "captured")
 
 	if out := h.must("", "link", captured, closedDecision); !strings.Contains(out, "retired "+captured+": end reached: captured") {
 		t.Errorf("linking a graph entry filed after the todo should retire it:\n%s", out)
 	}
 
-	waiting := h.file("Owner decision still waiting", "body", "--kind", "todo", "--until", "captured")
+	waiting := h.file("Owner decision still waiting", "body", "--kind", "todo", "--item", "settle it", "--until", "captured")
 	test.WriteFile(t, filepath.Join(h.repo, ".sdd", "graph", "2026", "10", "24-100000-d-tac-old.md"), "---\n---\n")
 
 	if out := h.must("", "link", waiting, olderDecision); strings.Contains(out, "retired") {
@@ -467,7 +467,7 @@ func TestTheCaptureNotice(t *testing.T) {
 		t.Errorf("a seat holding no entry waiting for a capture should hear nothing:\n%s", out)
 	}
 
-	waiting := h.file("Owner decision waiting for capture", "body", "--kind", "todo", "--until", "captured")
+	waiting := h.file("Owner decision waiting for capture", "body", "--kind", "todo", "--item", "settle it", "--until", "captured")
 	h.must(h.toolCall(), "tool")
 
 	test.WriteFile(t, filepath.Join(h.repo, ".sdd", "graph", "2026", "10", "25-130000-d-tac-two.md"), "---\n---\n")
@@ -502,7 +502,7 @@ func TestRetireQuestionReadsAConnectedRepo(t *testing.T) {
 	h.must("", "claim", "main")
 
 	ended := h.file("Gate finding citing a closed fdbox decision", "body", "--link", fdbox+":"+foreignClosed)
-	endedTodo := h.file("Gate todo waiting on a closed fdbox decision", "body", "--kind", "todo", "--link", fdbox+":"+foreignClosed)
+	endedTodo := h.file("Gate todo waiting on a closed fdbox decision", "body", "--kind", "todo", "--item", "settle it", "--link", fdbox+":"+foreignClosed)
 	kept := h.file("Gate finding citing an active fdbox decision", "body", "--link", fdbox+":"+foreignActive)
 
 	brief := h.must("", "brief")
@@ -511,7 +511,7 @@ func TestRetireQuestionReadsAConnectedRepo(t *testing.T) {
 		t.Errorf("an entry whose only link is a closed entry of a connected repo should be flagged retire?:\n%s", brief)
 	}
 
-	if !strings.HasSuffix(briefLine(brief, endedTodo), "retire? every link ended") {
+	if !strings.HasSuffix(briefLine(brief, endedTodo), "retire? every link ended; 0/1") {
 		t.Errorf("a todo whose only link is a closed entry of a connected repo should be flagged retire?:\n%s", brief)
 	}
 
@@ -564,33 +564,33 @@ func TestEveryLinkEndedSkipsOwnPredecessorsAndATodosMemoryLinks(t *testing.T) {
 			finding := h.file("Finding the todo acts on", "body")
 			h.must("", "retire", finding)
 
-			return h.file("Todo acting on the finding", "body", "--kind", "todo", "--link", finding)
+			return h.file("Todo acting on the finding", "body", "--kind", "todo", "--item", "settle it", "--link", finding)
 		}},
 		{name: "a todo linking the predecessor it superseded", quiet: true, file: func(h *harness) string {
-			request := h.file("First take on the request", "body", "--kind", "todo")
-			todo := h.file("Second take on the request", "body", "--kind", "todo", "--link", request)
-			h.must("", "supersede", request, "--by", todo)
+			request := h.file("First take on the request", "body", "--kind", "todo", "--item", "settle it")
+			todo := h.file("Second take on the request", "body", "--kind", "todo", "--item", "settle it", "--link", request)
+			h.must("", "supersede", request, "--items", "leave", "--by", todo)
 
 			return todo
 		}},
 		{name: "a todo with a closed graph link", candidate: true, file: func(h *harness) string {
-			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--link", closedDecision)
+			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--item", "settle it", "--link", closedDecision)
 		}},
 		{name: "a todo with a closed graph link and a live memory link", candidate: true, file: func(h *harness) string {
 			finding := h.file("Finding still in force", "body")
 
-			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--link", closedDecision,
+			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--item", "settle it", "--link", closedDecision,
 				"--link", finding)
 		}},
 		{name: "a todo with a closed graph link and a retired memory link", candidate: true, file: func(h *harness) string {
 			finding := h.file("Finding the todo acts on", "body")
 			h.must("", "retire", finding)
 
-			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--link", closedDecision,
+			return h.file("Todo waiting on a closed decision", "body", "--kind", "todo", "--item", "settle it", "--link", closedDecision,
 				"--link", finding)
 		}},
 		{name: "a trap linking its retired fix todo", candidate: true, file: func(h *harness) string {
-			fix := h.file("Todo fixing the gate", "body", "--kind", "todo")
+			fix := h.file("Todo fixing the gate", "body", "--kind", "todo", "--item", "settle it")
 			h.must("", "retire", fix)
 
 			return h.file("Gate trap until the fix lands", "body", "--kind", "trap", "--link", fix)
@@ -632,7 +632,7 @@ func TestEveryLinkEndedSkipsOwnPredecessorsAndATodosMemoryLinks(t *testing.T) {
 
 			id := tc.file(h)
 
-			flagged := strings.HasSuffix(briefLine(h.must("", "brief", "--again"), id), "retire? every link ended")
+			flagged := strings.HasSuffix(strings.TrimSuffix(briefLine(h.must("", "brief", "--again"), id), "; 0/1"), "retire? every link ended")
 			if flagged != tc.candidate {
 				t.Errorf("the brief should flag retire? only where every link that can end the entry ended, flagged: %t", flagged)
 			}
