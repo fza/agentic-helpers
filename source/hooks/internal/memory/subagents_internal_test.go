@@ -24,6 +24,12 @@ func TestRewritePrompt(t *testing.T) {
 			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\nTask."},
 		{"a marker naming no level stays", "agentic-helpers: maximal\nTask.",
 			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\n\nagentic-helpers: maximal\nTask."},
+		{"a prompt the hook already rewrote stays", "agentic-helpers level: silent\nscratch: .tmp/seats/main/\n\nTask.",
+			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\n\nTask."},
+		{"the block where a marker stood stays", "Context.\nagentic-helpers level: silent\nscratch: .tmp/seats/main/\nTask.",
+			"Context.\nagentic-helpers level: silent\nscratch: .tmp/seats/main/\nTask."},
+		{"a part of the block is no block", "scratch: .tmp/seats/main/\nTask.",
+			"agentic-helpers level: silent\nscratch: .tmp/seats/main/\n\nscratch: .tmp/seats/main/\nTask."},
 	}
 
 	for _, each := range cases {

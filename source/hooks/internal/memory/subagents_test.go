@@ -186,6 +186,21 @@ func TestAPromptWithoutMarkerGainsTheScratchFolderAlone(t *testing.T) {
 	}
 }
 
+func TestAPromptTheHookRewroteIsHandedOnUnchanged(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	child := h.spawn("", "Find where the gate reads its config.")
+
+	input := map[string]any{"description": "a task", "prompt": child, "subagent_type": "general-purpose"}
+	answer := h.preTool("", "Agent", input, "toolu_respawn")
+
+	if answer.HookSpecificOutput.UpdatedInput != nil {
+		t.Errorf("an Agent call re-issued with the rewritten prompt should pass without a rewrite, got:\n%s",
+			answer.HookSpecificOutput.UpdatedInput)
+	}
+}
+
 func TestAPromptOutsideAnyScratchFolderGainsTheMachineLineAlone(t *testing.T) {
 	h := newHarness(t)
 

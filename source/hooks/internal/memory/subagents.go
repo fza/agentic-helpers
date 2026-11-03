@@ -104,13 +104,24 @@ func levelIn(prompt string) (level, string, bool) {
 // a spawner can hand a level on for a nested Agent call, which the cap at
 // the subagent's own level still bounds. Any line in the shape of a level
 // line goes: only the hook names a level the subagent's hooks read back.
+// The block a prompt already carries, line for line, stands where it is: an
+// Agent call re-issued with the input the hook produced must reach the
+// permission review unchanged, or auto mode never judges it.
 func rewritePrompt(prompt string, block []string) string {
 	var kept []string
 
 	placed := false
 
-	for _, line := range strings.Split(prompt, "\n") {
+	lines := strings.Split(prompt, "\n")
+
+	for index := 0; index < len(lines); index++ {
+		line := lines[index]
+
 		switch {
+		case !placed && len(block) > 0 && slices.Equal(lines[index:min(index+len(block), len(lines))], block):
+			kept = append(kept, block...)
+			placed = true
+			index += len(block) - 1
 		case !placed && markerLine.MatchString(line):
 			kept = append(kept, block...)
 			placed = true
@@ -401,7 +412,12 @@ func (mem *memory) spawn(ctx context.Context, payload hookio.Payload, usable boo
 		return 0
 	}
 
-	updated, err := payload.ToolInput.WithField("prompt", rewritePrompt(prompt, block))
+	rewritten := rewritePrompt(prompt, block)
+	if rewritten == prompt {
+		return 0
+	}
+
+	updated, err := payload.ToolInput.WithField("prompt", rewritten)
 	if err != nil {
 		return 0
 	}
