@@ -55,7 +55,8 @@ type SddValues interface {
 const TokenSavingLine = "sdd's sessions.token_saving is on, so the grounding gate's per-agent collapse of " +
 	"repeated sdd output is off; `sdd config set sessions.token_saving off` turns it on"
 
-const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | prune | dump <file> | bound <duration> <command>"
+const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | prune | dump <file> | " +
+	"bound <duration> <command> | record | sessions --json"
 
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into

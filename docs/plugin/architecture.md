@@ -22,18 +22,47 @@ files goes into `plugin/`.
 
 | Event | Binaries |
 |---|---|
-| SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-grounding-gate start` |
+| SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-grounding-gate start`, `agentic-helpers record` |
 | InstructionsLoaded | `agentic-memory instructions` |
-| UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt` |
+| UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt`, `agentic-helpers record` |
 | PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `Monitor`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `agentic-grounding-gate gate` |
 | PreToolUse on `Bash`, `Monitor` | `agentic-shell-guard` |
 | PreToolUse on `Agent`, `Task`, `Bash`, `mcp__plugin_agentic-helpers_memory__*` | `agentic-memory pre-tool` |
 | PermissionRequest on `Bash`, `Monitor` | `agentic-shell-guard permission`, with a timeout past the longest countdown `shell_guard_ask_timeout` allows |
+| PreToolUse and PermissionRequest on every tool | `agentic-helpers record` |
 | PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next`, `Write`, `Edit` | `agentic-grounding-gate record` |
-| PostToolUse on every tool | `agentic-shell-guard output`, `agentic-memory tool`, `agentic-tools notice` |
+| PostToolUse on every tool | `agentic-shell-guard output`, `agentic-memory tool`, `agentic-tools notice`, `agentic-helpers record` |
 | SubagentStop | `agentic-memory subagent-stop` |
-| Stop | `agentic-memory stop`, `agentic-tools stop`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
-| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end`, `agentic-helpers end` |
+| Stop | `agentic-memory stop`, `agentic-tools stop`, `agentic-helpers record`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
+| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end`, `agentic-helpers end`, `agentic-helpers record` |
+
+### Session records
+
+`internal/sessionrecord` keeps a session's record ([usage](usage.md#session-records)) under its
+session id in `<cache>/session-records/sessions.slots`, a slot store as every per-session state is
+(`internal/slots`): a write rewrites only that key's twin, readers take no lock, and SessionStart's
+`ReclaimStale` drops a key unwritten for a week at most once a day. Each event is one `Update`
+under the writer lock, so parallel hooks of one session never lose each other's write. The record
+is JSON carrying its `schema`; one of another schema reads as no record, and the next event writes
+a fresh one.
+
+The Claude Code process is the nearest ancestor named `claude` (`AGENTIC_MEMORY_PROCESS_NAME`
+renames it, as for memory's seats), its start read in whole seconds from the kernel as a claim's
+is (`process.Table.StartTime`). Its controlling terminal comes from the kernel too: on darwin the
+`e_tdev` of `kern.proc.pid`, a pseudo-terminal device named `/dev/ttysNNN` by its minor; on Linux
+field 7 of `/proc/<pid>/stat`, named `/dev/pts/N` or `/dev/ttyN`. The name is kept only where the
+device file at it is that device, so a reused name never passes for another terminal. The git
+common dir is one `git rev-parse` bounded at two seconds, run before the writer lock is taken, and
+only at SessionStart or the first event of a session without a record.
+
+`record` and `sessions` read no settings and skip the migration every other `agentic-helpers`
+command settles first: the record hook runs on every tool call, and the records live in a cache no
+earlier release laid out. The hook decodes only the four payload fields it reads, and its session
+id check is a byte loop rather than a pattern compiled at every start, so the program's package
+initialisation stays as it was.
+
+Rejected: a record per session as a file of its own, which brings back the thousands of small files
+the slot store removed; cutting a long path or terminal id to fit, which names another one.
 
 ## The home
 

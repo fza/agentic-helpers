@@ -315,7 +315,7 @@ func Names(held map[string]Claim) []string {
 // Owner is the nearest ancestor running the owner process, or the immediate
 // parent where none does.
 func Owner(ctx context.Context, processes Processes, ownerName string) int {
-	owner := ownerAncestor(ctx, processes, ownerName)
+	owner := OwnerAncestor(ctx, processes, ownerName)
 	if owner == 0 {
 		return processes.Parent()
 	}
@@ -326,12 +326,12 @@ func Owner(ctx context.Context, processes Processes, ownerName string) int {
 // UnderOwner says whether the owner process is among the caller's ancestors,
 // as it is for every call an agent's tool makes.
 func UnderOwner(ctx context.Context, processes Processes, ownerName string) bool {
-	return ownerAncestor(ctx, processes, ownerName) != 0
+	return OwnerAncestor(ctx, processes, ownerName) != 0
 }
 
-// ownerAncestor is the nearest ancestor running the owner process, zero where
+// OwnerAncestor is the nearest ancestor running the owner process, zero where
 // none does.
-func ownerAncestor(ctx context.Context, processes Processes, ownerName string) int {
+func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) int {
 	parent, _ := processes.ParentAndName(ctx, processes.Self())
 	for range ancestorDepth {
 		if parent <= 1 {

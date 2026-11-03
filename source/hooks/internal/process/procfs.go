@@ -53,6 +53,23 @@ func (procfs Procfs) StartTime(pid int) (time.Time, bool) {
 	return time.Unix(booted+ticks/clockTicks, 0), true
 }
 
+// TerminalDevice is the major and minor number of pid's controlling terminal,
+// field 7 of its stat, which packs the minor's low byte, then 12 bits of
+// major, then the minor's upper bits; a process without one holds zero.
+func (procfs Procfs) TerminalDevice(pid int) (uint32, uint32, bool) {
+	fields, _, readable := procfs.stat(pid)
+	if !readable {
+		return 0, 0, false
+	}
+
+	packed, err := strconv.ParseUint(fields[4], 10, 32)
+	if err != nil || packed == 0 {
+		return 0, 0, false
+	}
+
+	return uint32(packed>>8) & 0xfff, uint32(packed&0xff) | uint32(packed>>12)&0xfff00, true
+}
+
 // stat splits /proc/<pid>/stat into the name, field 2, and every field after
 // it, the state (field 3) first, through the start time (field 22) at least.
 // The name sits in parentheses and may hold spaces and parentheses of its own,

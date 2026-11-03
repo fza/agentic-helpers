@@ -76,8 +76,11 @@ Nothing leaves the machine unless one of these applies:
 
 - Its data and cache under `~/.local/share/agentic-helpers` and `~/.cache/agentic-helpers` (or
   their XDG locations): memory stores, the tool library, the tail of each session's transcript
-  for the next claim, and recent prompts with their vectors. On macOS the cache folder carries
-  Time Machine's exclusion mark, since everything in it rebuilds itself.
+  for the next claim, recent prompts with their vectors, and a record of each running session:
+  its Claude Code process, terminal (the tty, `TERM_PROGRAM`, `ITERM_SESSION_ID`,
+  `TERMINAL_EMULATOR`, `TMUX_PANE`, `__CFBundleIdentifier`), folder, last hook event and when it
+  began waiting, which `agentic-helpers sessions --json` prints and a session end clears. On macOS
+  the cache folder carries Time Machine's exclusion mark, since everything in it rebuilds itself.
 - The release binaries, one folder per version in the plugin's data directory, and in each a
   `used` file a session start touches. A daily background run deletes every version no running
   session uses, keeping the one the plugin names and any a session started within two weeks.

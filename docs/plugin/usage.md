@@ -2,8 +2,9 @@
 
 ## How a project opts in
 
-**No hook but shell-guard does anything until the project carries what it operates on.** Nothing is created,
-nothing is asked, and a project carrying none of it never hears from any hook.
+**No hook but shell-guard and the session record does anything until the project carries what it
+operates on.** Nothing is created, nothing is asked, and a project carrying none of it never hears
+from any hook.
 
 | Hook | Runs when the project carries | Otherwise |
 |---|---|---|
@@ -12,6 +13,7 @@ nothing is asked, and a project carrying none of it never hears from any hook.
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
 | Tool library | a git work tree, on a machine where the first `agentic-tools add` created a library in some store of the home | exits 0, silently |
 | Shell-guard | nothing: it judges every Bash call of every project | its `shell_guard_*` options turn each guard off |
+| Session record | nothing: it keeps a record of every session in the cache, telling the project nothing ([session records](#session-records)) | always on |
 
 So opting a project in is one command, `mkdir .tmp`, `agentic-memory claim <seat>` or a first
 `agentic-tools add`, and opting out is removing the directory or releasing the seat. A project using none needs no configuration, no
@@ -44,6 +46,7 @@ every agent and every worktree of the project shares:
 | `<data>/unclaimed/<id>/` | data whose checkout cannot be found, kept under the key an earlier release used |
 | `<data>/sessions/claude/<session>/` | what one session leaves, as its context reading |
 | `<data>/update-check.json` | the latest release GitHub named, when it was asked, and the day the update notice showed ([updates](#updates)) |
+| `<cache>/session-records/sessions.slots` | one record per Claude Code session: where it runs and its last hook event ([session records](#session-records)) |
 | `<git common dir>/agentic-store` | the id of the checkout's store |
 
 On macOS the cache root stays out of Time Machine backups: it carries the sticky exclusion mark
@@ -220,6 +223,66 @@ standing in for `timeout` where the machine has none, as shell-guard's rewrite o
 no settings and migrates nothing, so the output is the command's alone. The command runs in a
 process group of its own, which gets `SIGTERM` when the duration runs out and `SIGKILL` 5 seconds
 later; the exit is then 124, else the command's own.
+
+## Session records
+
+The hook `agentic-helpers record` keeps one record per Claude Code session, for any reader that
+needs to find a session's terminal and how long it has waited. `claude agents
+--json` names every live session and whether it waits, but neither the terminal it runs in nor
+when the wait began; only a hook sees both.
+
+- **Where it runs**, written at SessionStart: the Claude Code process's pid and start time, its
+  controlling terminal (`/dev/ttys004`, `/dev/pts/3`), `TERM_PROGRAM`, `ITERM_SESSION_ID`,
+  `TERMINAL_EMULATOR`, `TMUX_PANE` and `__CFBundleIdentifier` as the session sees them, its folder
+  and that folder's git common dir. A session whose first event is no SessionStart, as one started
+  before the plugin, records them at that event.
+- **Its last event**, written at every `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
+  `PermissionRequest` and `Stop`: the event's name and time, and when the session began waiting
+  for the user. A `Stop` begins a wait for the next prompt; a permission dialog begins a wait for
+  its answer where none runs. The next prompt ends any wait; a tool call ends a wait only when it
+  comes from the agent whose dialog began it, so a subagent working in the background never ends
+  the wait for the user's prompt.
+- **SessionEnd** clears the record, and every SessionStart drops a record no event touched for a
+  week, as a session killed without its SessionEnd leaves.
+
+`agentic-helpers sessions --json` prints every record as one JSON array, ordered by session id:
+
+```json
+[
+  {
+    "schema": 1,
+    "session_id": "c3fb65eb-dbdf-47a8-9e04-e0477053b2b6",
+    "pid": 32270,
+    "started": "2026-11-02T10:28:02Z",
+    "tty": "/dev/ttys001",
+    "term_program": "",
+    "iterm_session_id": "",
+    "terminal_emulator": "JetBrains-JediTerm",
+    "tmux_pane": "",
+    "bundle_id": "com.jetbrains.goland",
+    "cwd": "/Users/felix/project",
+    "git_common_dir": "/Users/felix/project/.git",
+    "event": "Stop",
+    "event_at": "2026-11-03T03:22:24.874Z",
+    "waiting_since": "2026-11-03T03:22:24.874Z",
+    "waiting_for": "prompt",
+    "gone": false
+  }
+]
+```
+
+Every key is always present: an unknown text is `""`, an unknown time `null`. `waiting_for` is
+`prompt`, `permission` or `""` while the session works. `gone` is true where the pid no longer
+runs, or runs a process started at another time than the one recorded, as a reused pid does; a
+gone record stays listed until its week runs out. `schema` names the version of the fields; a
+reader refuses a version it does not know, and a change to what a field means takes a new one.
+Where no cache root can be found, it prints `[]`.
+
+A session id outside `^[A-Za-z0-9_-]{1,128}$` records nothing. A record past its 1,700 bytes drops
+whole fields, never cutting one: any text field past its own cap first, then the git common dir,
+the folder, the iTerm session, the bundle id, the terminal variables and the terminal, until it
+fits; the event and the wait stay. A write that fails says so on stderr, `agentic-helpers: writing
+the session record: <cause>`, and the hook still exits 0.
 
 ## Options
 

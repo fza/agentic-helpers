@@ -21,9 +21,10 @@ const (
 )
 
 type Process struct {
-	Parent  int
-	Name    string
-	Started time.Time
+	Parent   int
+	Name     string
+	Started  time.Time
+	Terminal string
 }
 
 type Processes struct {
@@ -104,4 +105,21 @@ func (fake *Processes) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	}
 
 	return held.Started, true
+}
+
+func (fake *Processes) Terminal(_ context.Context, pid int) string {
+	fake.guard.RLock()
+	defer fake.guard.RUnlock()
+
+	return fake.Table[pid].Terminal
+}
+
+// Restart gives pid a new start time, as a pid reused by another process has.
+func (fake *Processes) Restart(pid int, started time.Time) {
+	fake.guard.Lock()
+	defer fake.guard.Unlock()
+
+	held := fake.Table[pid]
+	held.Started = started
+	fake.Table[pid] = held
 }

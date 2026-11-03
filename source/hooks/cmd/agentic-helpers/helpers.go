@@ -35,6 +35,10 @@ func helpersMain() int {
 		return bound.Main(ctx, os.Args[2:], hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr})
 	}
 
+	if len(os.Args) > 1 && (os.Args[1] == "record" || os.Args[1] == "sessions") {
+		return sessionsMain(ctx, userHome)
+	}
+
 	machine := migration.Machine(userHome, os.Getenv)
 	migration.Prepare(ctx, machine, os.Stderr)
 

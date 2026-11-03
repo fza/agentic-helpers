@@ -264,6 +264,46 @@ func TestMemoryRecordsEveryLoadedInstructionFile(t *testing.T) {
 	}
 }
 
+func TestTheSessionRecordFollowsEveryEventItTellsApart(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
+	if err != nil {
+		t.Fatalf("reading hooks.json: %v", err)
+	}
+
+	var wiring struct {
+		Hooks map[string][]struct {
+			Matcher *string `json:"matcher"`
+			Hooks   []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+
+	err = json.Unmarshal(content, &wiring)
+	if err != nil {
+		t.Fatalf("parsing hooks.json: %v", err)
+	}
+
+	events := []string{"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest", "Stop",
+		"SessionEnd"}
+
+	for _, event := range events {
+		everyCall := false
+
+		for _, group := range wiring.Hooks[event] {
+			for _, hook := range group.Hooks {
+				if strings.HasSuffix(hook.Command, "agentic-helpers record") {
+					everyCall = everyCall || group.Matcher == nil || *group.Matcher == "" || *group.Matcher == "*"
+				}
+			}
+		}
+
+		if !everyCall {
+			t.Errorf("agentic-helpers record should run on every %s, its group matching every tool", event)
+		}
+	}
+}
+
 func TestMemoryJudgesEverySubagentSpawnAndMemoryCall(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
 	if err != nil {

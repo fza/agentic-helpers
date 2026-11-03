@@ -13,12 +13,13 @@ and `agentic-capture` exist for [sdd](https://github.com/networkteam/sdd): sdd's
 `.sdd/` motivates them and drives what they check. They install once for every project on the
 machine and stay silent where a hook has nothing to work on: a project without the directory it
 needs, a session holding no memory seat. Shell-guard always has something to work on, every Bash
-call, so it judges every project. [`README.md`](README.md) says what the repository is and
+call, so it judges every project, and so does the session record, every session's hook events.
+[`README.md`](README.md) says what the repository is and
 how to install it; [`docs/`](docs/index.md) says how each piece is used and how it works.
 
 | Path | Holds |
 |---|---|
-| `source/hooks/` | one Go module: under `cmd/`, a binary per guarding hook program (`agentic-shell-guard`, `agentic-grounding-gate`) and `agentic-helpers`, one program answering as `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` to the name it runs under and keeping its own `check`, and `bound` standing in for a missing `timeout`, its `links/` the names the release links to it; everything else under `internal/`, the pieces and their ties in `internal/pieces` |
+| `source/hooks/` | one Go module: under `cmd/`, a binary per guarding hook program (`agentic-shell-guard`, `agentic-grounding-gate`) and `agentic-helpers`, one program answering as `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` to the name it runs under and keeping its own `check`, `bound` standing in for a missing `timeout`, and the session record hook `record` with `sessions --json`, its `links/` the names the release links to it; everything else under `internal/`, the pieces and their ties in `internal/pieces` |
 | `.claude-plugin/marketplace.json` | the marketplace, naming the plugin in `plugin/` |
 | `plugin/` | the plugin and nothing else: its manifest, `.mcp.json` (the `memory` and `tools` MCP servers), `hooks/` (wiring, launcher, and `register.ts`, the hooks module writing agentic-memory's context reading), `bin/` (the commands the Bash tool finds), `skills/`, one per hook, shipped as `agentic-helpers:<skill>`, and `README.md`, saying what the plugin runs, sends, writes and decides |
 | `docs/` | one folder per piece, each with `usage.md` and `architecture.md` |

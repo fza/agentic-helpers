@@ -36,7 +36,8 @@ Go rules, loaded when a session touches code under `source/`.
 
 - **A hook stays silent in a project without its directory.** It reads nothing, creates nothing and
   exits 0 before it touches stdin. Shell-guard has no directory to wait for: its work is every Bash
-  call.
+  call. Nor has the session record, `agentic-helpers record`: its work is every session's hook
+  events, kept in the cache and never told to the project.
 
 ## Code
 

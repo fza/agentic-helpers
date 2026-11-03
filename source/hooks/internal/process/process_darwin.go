@@ -35,6 +35,35 @@ func (Table) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	return time.Unix(seconds, 0), true
 }
 
+// darwinNoDevice is NODEV, the terminal device of a process with none.
+const darwinNoDevice = -1
+
+// Terminal is the device file of pid's controlling terminal, empty where it
+// has none, is gone, or the file at the name its device takes is another
+// device.
+func (Table) Terminal(_ context.Context, pid int) string {
+	info, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil || Exiting(info.Proc.P_stat, info.Proc.P_flag) || info.Eproc.Tdev == darwinNoDevice {
+		return ""
+	}
+
+	device := uint32(info.Eproc.Tdev)
+
+	path := DarwinTerminal(device)
+	if path == "" {
+		return ""
+	}
+
+	var held unix.Stat_t
+
+	err = unix.Stat(path, &held)
+	if err != nil || uint32(held.Rdev) != device {
+		return ""
+	}
+
+	return path
+}
+
 // Executables is the executable path of every process of this user whose
 // name starts with prefix. kern.procargs2 opens with the argument count, then
 // the path the process was started from.

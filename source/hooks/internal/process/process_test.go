@@ -128,6 +128,79 @@ func TestProcfsReadsTheProcTree(t *testing.T) {
 	}
 }
 
+func TestProcfsReadsTheControllingTerminal(t *testing.T) {
+	root := t.TempDir()
+	test.FixtureTree(t, "process/proc", root)
+
+	procfs := process.Procfs{Root: os.DirFS(root)}
+
+	cases := []struct {
+		name  string
+		pid   int
+		major uint32
+		minor uint32
+		found bool
+	}{
+		{name: "a pseudo-terminal", pid: 4242, major: 136, found: true},
+		{name: "no terminal", pid: 4343},
+		{name: "a stat cut before the terminal", pid: 4444},
+		{name: "a dead process", pid: 5050},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			major, minor, found := procfs.TerminalDevice(tc.pid)
+			if found != tc.found || major != tc.major || minor != tc.minor {
+				t.Errorf("the terminal should unpack from the stat's seventh field, or be none, got %d %d %v", major, minor,
+					found)
+			}
+		})
+	}
+}
+
+func TestATerminalDeviceTakesItsPlatformsName(t *testing.T) {
+	darwin := []struct {
+		device uint32
+		want   string
+	}{
+		{device: 16<<24 | 1, want: "/dev/ttys001"},
+		{device: 16<<24 | 42, want: "/dev/ttys042"},
+		{device: 16<<24 | 1234, want: "/dev/ttys1234"},
+		{device: 4<<24 | 1, want: ""},
+	}
+
+	for _, tc := range darwin {
+		if got := process.DarwinTerminal(tc.device); got != tc.want {
+			t.Errorf("a darwin device should name its pseudo-terminal, or nothing, got %q", got)
+		}
+	}
+
+	linux := []struct {
+		major uint32
+		minor uint32
+		want  string
+	}{
+		{major: 136, minor: 3, want: "/dev/pts/3"},
+		{major: 136, minor: 4096, want: "/dev/pts/4096"},
+		{major: 137, minor: 2, want: "/dev/pts/258"},
+		{major: 4, minor: 2, want: "/dev/tty2"},
+		{major: 4, minor: 64, want: ""},
+		{major: 5, minor: 0, want: ""},
+	}
+
+	for _, tc := range linux {
+		if got := process.LinuxTerminal(tc.major, tc.minor); got != tc.want {
+			t.Errorf("a linux device should name its pseudo-terminal or console, or nothing, got %q", got)
+		}
+	}
+}
+
+func TestTheTableNamesNoTerminalForAProcessGone(t *testing.T) {
+	if got := (process.Table{}).Terminal(context.Background(), test.DeadPID); got != "" {
+		t.Errorf("a pid nothing runs should have no terminal, got %q", got)
+	}
+}
+
 func TestADarwinProcessOnItsWayOutIsGone(t *testing.T) {
 	cases := []struct {
 		name    string

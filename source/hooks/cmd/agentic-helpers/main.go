@@ -12,8 +12,10 @@
 //     removes the ending session's own folder, and `start` reaps abandoned
 //     ones and moves strays to `.tmp/keep/`;
 //   - any other name, agentic-helpers itself: `check` names the features off
-//     because a piece they rest on is off, and `bound` runs a command for at
-//     most a duration, standing in for a missing `timeout`.
+//     because a piece they rest on is off, `bound` runs a command for at
+//     most a duration, standing in for a missing `timeout`, the hook `record`
+//     keeps each session's record of where it runs and its last event, and
+//     `sessions --json` prints those records.
 //
 // The release archive and the launcher link each of the four names to this
 // program. The hook programs agentic-shell-guard and agentic-grounding-gate
