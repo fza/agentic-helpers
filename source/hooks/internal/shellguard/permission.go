@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -118,7 +119,7 @@ func Permission(ctx context.Context, env Env, streams Streams) (code int) {
 		return 0
 	}
 
-	held := stateOf(ctx, env, call.SessionID)
+	held := stateOf(ctx, env, streams.Err, call.SessionID)
 	if held.unanswered(lastPrompt(ctx, call.TranscriptPath)) >= unansweredLimit {
 		return deny(streams, fmt.Sprintf("%s: %d countdowns ran out unanswered since the last prompt; %s",
 			self, unansweredLimit, verdict.Reason))
@@ -149,9 +150,11 @@ func deny(streams Streams, message string) int {
 // sessionState is what shell-guard keeps for a session: its countdowns that
 // ran out, and how often each rewritable ask was refused. It lives in the
 // session's slot of `<cache>/shell-guard/sessions.slots`, keyed by the session
-// id. A session without a usable slot reads as fresh and keeps nothing.
+// id. A session without a usable slot reads as fresh and keeps nothing; a
+// write the slot file refuses is reported on report.
 type sessionState struct {
 	ctx      context.Context
+	report   io.Writer
 	file     *slots.File
 	key      string
 	RanOut   []time.Time    `json:"ran_out"`
@@ -173,8 +176,8 @@ func StateSlots(cache string) *slots.File {
 	return slots.OpenFixed(cache, filepath.Join(cache, stateDir, slotsName), slotWidth)
 }
 
-func stateOf(ctx context.Context, env Env, session string) *sessionState {
-	held := &sessionState{ctx: ctx}
+func stateOf(ctx context.Context, env Env, report io.Writer, session string) *sessionState {
+	held := &sessionState{ctx: ctx, report: report}
 
 	if env.StateDir == "" || !sessionName.MatchString(session) {
 		return held
@@ -249,16 +252,27 @@ func (held *sessionState) save() {
 	}
 
 	cutoff := time.Now().Add(-staleState)
-	_ = held.file.Reclaim(held.ctx, func(slot slots.Slot) bool {
+	err := held.file.Reclaim(held.ctx, func(slot slots.Slot) bool {
 		return slot.Key != held.key && slot.Written.Before(cutoff)
 	})
+	held.reportSlot("reclaiming", slotsName, err)
 
 	for {
-		err := held.file.PutJSON(held.ctx, held.key, held)
+		err = held.file.PutJSON(held.ctx, held.key, held)
 		if !errors.Is(err, slots.ErrTooLarge) || len(held.RanOut) == 0 {
+			held.reportSlot("keeping", held.key, err)
+
 			return
 		}
 
 		held.RanOut = held.RanOut[len(held.RanOut)/2+len(held.RanOut)%2:]
+	}
+}
+
+// reportSlot says on stderr that a slot write failed. The call's answer stays
+// as it was: a lost write costs the session's count, never the call.
+func (held *sessionState) reportSlot(action string, key string, err error) {
+	if err != nil {
+		_, _ = fmt.Fprintf(held.report, "%s: %s %s: %v\n", self, action, key, err)
 	}
 }

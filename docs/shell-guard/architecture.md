@@ -481,7 +481,10 @@ format past 2 is neither read nor written. The session's last prompt is the newe
 with three countdowns run out since it, the hook denies at once, message
 `agentic-shell-guard: 3 countdowns ran out unanswered since the last prompt; <reason>`, until the
 person prompts again. A note it cannot read or write counts nothing, which costs only the
-deny-at-once.
+deny-at-once. A slot write that fails is reported on stderr, `agentic-shell-guard: keeping
+<session>: <error>` (`reclaiming sessions.slots` for the clearing of week-old sessions before it),
+the wording agentic-memory and agentic-tools use; the hook's answer on stdout and its exit code stay
+what they would have been had the write landed.
 
 ## Asks a rewrite fixes
 
@@ -506,6 +509,6 @@ A call without a usable session id (missing, or not a file name) or without a st
 no count and is on its first attempt every time, so it is refused every time. Claude Code sends a
 session id with every call, and a refusal of one of these reasons always leaves the agent a rewrite;
 asking at once instead would put in front of the person the very prompt the rule spares them. A
-slot it cannot write leaves the count where it was; a state too large for its slot gives up its
+slot it cannot write leaves the count where it was, reported on stderr as a countdown note's is; a state too large for its slot gives up its
 oldest countdowns. A hook reads the slot and writes it back whole, so two calls of one session
 landing at once may lose one attempt or countdown note; the slot file itself never tears.

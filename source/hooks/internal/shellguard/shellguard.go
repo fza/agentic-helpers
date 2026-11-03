@@ -213,7 +213,7 @@ func Main(ctx context.Context, env Env, streams Streams) (code int) {
 	}
 
 	if verdict.Decision == Ask && verdict.Rewrite != "" {
-		verdict = refuseFirst(ctx, env, call.SessionID, verdict)
+		verdict = refuseFirst(ctx, env, streams.Err, call.SessionID, verdict)
 	}
 
 	var reply answer

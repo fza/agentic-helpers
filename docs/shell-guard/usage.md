@@ -393,6 +393,11 @@ command; refusing` on stderr. With no `agentic-shell-guard` binary installed, th
 refuses every Bash call the same way:
 `agentic-helpers: no agentic-shell-guard binary is installed, so shell-guard refuses every Bash call; start a session with network so release v<version> can be fetched, or set AGENTIC_HELPERS_BIN_DIR`.
 
+A session's attempt count or countdown note the cache refuses to keep (a read-only or damaged
+`sessions.slots`) is reported on stderr, `agentic-shell-guard: keeping <session>: <error>` or
+`agentic-shell-guard: reclaiming sessions.slots: <error>`, and decides nothing: the call is
+allowed, asked about or denied as it would have been.
+
 ## Credentials in tool output
 
 An agent reading a file outside the project, such as `~/.config/sdd/config.yaml` with provider keys
