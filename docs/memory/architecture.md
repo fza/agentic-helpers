@@ -299,8 +299,9 @@ format-8 binary off the store, which would file entries the index never names.
 From format 9, the slot layout, the log untouched: one operation lays `sessions.slots` out as a
 slot directory with its class files (`slots.File.Relayout`), every key at the generation and time it
 held, a value within its kind's ceiling as it was, one past it fitted (`refit` in
-`internal/memory/slotkinds.go`) and one that no longer decodes as its kind left out; a table of
-names keeps the names of its first part. The class files are written first and the directory renamed
+`internal/memory/slotkinds.go`) and one that no longer decodes as its kind left out; a key of no
+kind `slotKinds` names is kept as it was up to `slots.MaxValue` (130,785 bytes) and left out past
+it; a table of names keeps the names of its first part. The class files are written first and the directory renamed
 over the fixed-width file last, so a cut run finds the fixed-width file and lays it out again,
 clearing the class files it left. The format keeps a format-9 binary off the store, which refuses a
 slot directory as no slot file.

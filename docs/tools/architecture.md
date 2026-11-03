@@ -41,7 +41,7 @@ tool folder's `.jsonl` files become journals, a journal already there kept, the 
 written. Library format 3 lays the cache's `sessions.slots`, one fixed-width file at format 2, out as
 a slot directory with its class files ([memory architecture](../memory/architecture.md#file-formats)),
 each session at the generation and time it held, one past the session ceiling fitted to it
-(`refitSession`). A run stopped anywhere runs the step again from its first operation. A store of a
+(`refitSession`) and one past it that no longer decodes as a session left out. A run stopped anywhere runs the step again from its first operation. A store of a
 format past 3 is skipped by every read, and refused by a write.
 
 Every read (find, list, take, the duplicate checks, the offer, the notices) uses `index.json` and
