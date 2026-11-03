@@ -179,9 +179,10 @@ func sweep(ctx context.Context, name string, env Env, streams hookio.Streams) in
 	return 0
 }
 
-// prune deletes the vector stores no binary used within cache_retention,
-// as the detached daily run starts it; run by hand it names each store it
-// deleted and fails on an error the run recorded.
+// prune deletes the vector stores no binary used within cache_retention and
+// the plugin's release folders no session may still run, as the detached
+// daily run starts it; run by hand it names each folder it deleted and fails
+// on an error the run recorded.
 func prune(ctx context.Context, env Env, streams hookio.Streams) int {
 	options := pluginconfig.Defaults()
 
@@ -198,7 +199,8 @@ func prune(ctx context.Context, env Env, streams hookio.Streams) int {
 	ctx, cancel := context.WithTimeout(ctx, cacheprune.RunLimit)
 	defer cancel()
 
-	result := cacheprune.Run(ctx, env.Migration.Roots, options.CacheRetention, now())
+	releases := cacheprune.PluginReleases(env.Getenv, env.Migration.Processes)
+	result := cacheprune.Run(ctx, env.Migration.Roots, options.CacheRetention, releases, now())
 
 	if env.ToolPrune != nil && Tools.On(options) {
 		env.ToolPrune(ctx, env.Migration.Roots, options.ToolsTotalMB, options.ToolsVersionLifetime, now())

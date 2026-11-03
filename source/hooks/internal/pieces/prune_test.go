@@ -88,6 +88,46 @@ func TestPruneDeletesStoresPastTheConfiguredRetention(t *testing.T) {
 	}
 }
 
+func TestPruneDeletesTheReleasesOfThePluginItRunsUnder(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	plugin := filepath.Join(root, "plugin")
+	data := filepath.Join(root, "plugin-data")
+
+	test.WriteFile(t, filepath.Join(plugin, ".claude-plugin", "plugin.json"), "{\"version\": \"2.25.2\"}\n")
+
+	for _, version := range []string{"2.25.2", "2.24.0", "2.23.0"} {
+		test.WriteFile(t, filepath.Join(data, version, "agentic-memory"), "#!/bin/sh\n")
+	}
+
+	variables := map[string]string{"CLAUDE_PLUGIN_ROOT": plugin, "CLAUDE_PLUGIN_DATA": data}
+
+	env := pieces.Env{
+		Settings: []string{filepath.Join(root, "config.yaml"), filepath.Join(root, "settings.json")},
+		Getenv:   func(key string) string { return variables[key] },
+		Migration: migration.Env{
+			Roots: test.Roots(root), Now: func() time.Time { return now },
+			Processes: test.Executables{Paths: []string{filepath.Join(data, "2.24.0", "agentic-memory")}},
+		},
+	}
+
+	var captured test.Captured
+
+	code := pieces.Main(context.Background(), []string{"prune"}, env, captured.Streams(""))
+	if code != 0 {
+		t.Fatalf("prune should succeed: %s", captured.Err.String())
+	}
+
+	if !test.Exists(t, filepath.Join(data, "2.25.2")) || !test.Exists(t, filepath.Join(data, "2.24.0")) ||
+		test.Exists(t, filepath.Join(data, "2.23.0")) {
+		t.Error("prune should keep the named and the running release and delete the one no session runs")
+	}
+
+	if captured.Out.String() != "deleted "+filepath.Join(data, "2.23.0")+"\n" {
+		t.Errorf("prune should name each release it deleted, printed %q", captured.Out.String())
+	}
+}
+
 func TestPruneRunsTheToolLibrarysVersionPruning(t *testing.T) {
 	cases := []struct {
 		name   string

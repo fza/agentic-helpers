@@ -124,7 +124,7 @@ func TestARunDeletesTheStoresUnusedPastTheRetention(t *testing.T) {
 		placeStore(t, roots, tc.dir, tc.written, tc.stamps)
 	}
 
-	result := cacheprune.Run(context.Background(), roots, retention, now)
+	result := cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 	if result.Error != "" {
 		t.Fatalf("the run should succeed: %s", result.Error)
 	}
@@ -159,7 +159,7 @@ func TestARunSkipsAStoreAnotherProcessHolds(t *testing.T) {
 
 	defer release()
 
-	result := cacheprune.Run(context.Background(), roots, retention, now)
+	result := cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 	if result.Error != "" || len(result.Deleted) > 0 || !exists(store.Dir()) {
 		t.Error("a run should pass over a store being written, quietly")
 	}
@@ -187,7 +187,7 @@ func TestARunExitsWhileAnotherRuns(t *testing.T) {
 		t.Fatalf("taking the run lock: %v", err)
 	}
 
-	result := cacheprune.Run(context.Background(), roots, retention, now)
+	result := cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 	if result.Error != "" || len(result.Deleted) > 0 || !exists(store.Dir()) {
 		t.Error("a run should exit at once while another holds the run lock")
 	}
@@ -198,7 +198,7 @@ func TestARunRecordsItsOutcome(t *testing.T) {
 	stale := now.Add(-retention - 24*time.Hour)
 	placeStore(t, roots, toolStore(roots, "aaa"), stale, map[string]time.Time{vectorseg.Format: stale})
 
-	cacheprune.Run(context.Background(), roots, retention, now)
+	cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 
 	data, err := os.ReadFile(filepath.Join(roots.Data, cacheprune.StatusName))
 	if err != nil {
@@ -275,7 +275,7 @@ func TestAFailedRunIsWarnedOnce(t *testing.T) {
 		t.Fatalf("linking the parent: %v", err)
 	}
 
-	result := cacheprune.Run(context.Background(), roots, retention, now)
+	result := cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 	if result.Error == "" {
 		t.Fatal("a store that cannot be removed should fail the run")
 	}
@@ -289,7 +289,7 @@ func TestAFailedRunIsWarnedOnce(t *testing.T) {
 		t.Error("a failure should be warned once")
 	}
 
-	cacheprune.Run(context.Background(), roots, retention, now.Add(48*time.Hour))
+	cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now.Add(48*time.Hour))
 
 	if cacheprune.Warning(roots) == "" {
 		t.Error("a new failure should be warned again")
@@ -299,7 +299,7 @@ func TestAFailedRunIsWarnedOnce(t *testing.T) {
 func TestASucceedingRunIsNeverWarned(t *testing.T) {
 	roots := newRoots(t)
 
-	cacheprune.Run(context.Background(), roots, retention, now)
+	cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 
 	if cacheprune.Warning(roots) != "" {
 		t.Error("a run without an error should warn nothing")
@@ -369,7 +369,7 @@ func BenchmarkASnapshotWhileARunDeletes(b *testing.B) {
 						}
 					}
 
-					cacheprune.Run(context.Background(), roots, retention, now.Add(time.Duration(round)*25*time.Hour))
+					cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now.Add(time.Duration(round)*25*time.Hour))
 				}
 			}()
 
@@ -441,7 +441,7 @@ func TestARunDeniedTheCacheIsSkippedAndRetried(t *testing.T) {
 
 	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
 
-	result := cacheprune.Run(context.Background(), roots, retention, now)
+	result := cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 	if result.Error != "" || result.Denied != 1 || !exists(store.Dir()) {
 		t.Fatal("a store the run may not touch should be skipped, not failed")
 	}
@@ -469,7 +469,7 @@ func TestARunRemovesAStoreMovedAsideAndOneACrashLeft(t *testing.T) {
 	left := filepath.Join(filepath.Dir(toolStore(roots, "aaa")), ".pruned-bbb")
 	test.WriteFile(t, filepath.Join(left, "seg.seg"), "x")
 
-	result := cacheprune.Run(context.Background(), roots, retention, now)
+	result := cacheprune.Run(context.Background(), roots, retention, cacheprune.Releases{}, now)
 	if result.Error != "" {
 		t.Fatalf("the run should succeed: %s", result.Error)
 	}

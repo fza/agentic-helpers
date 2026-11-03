@@ -1,7 +1,9 @@
 // Package cacheprune deletes the vector stores no binary has used within the
 // retention period, after sdd's automatic cache pruning: an embedding-model
 // change starts a new store per fingerprint, and the old one would otherwise
-// stay for good. A run starts at most once a day, detached, so no hook, call
+// stay for good. The same run deletes the release folders of the plugin's
+// data directory no session may still run, which the launcher would
+// otherwise keep for every release. A run starts at most once a day, detached, so no hook, call
 // or command waits for it; each run records its outcome, and a failed one is
 // told once.
 package cacheprune
@@ -284,9 +286,10 @@ func folders(at string) []string {
 }
 
 // Run deletes every vector store no binary used within retention before
-// now, skipping a store another process holds, then records the run. A store
-// goes in a lock session of its own, so a write never waits behind the run.
-func Run(ctx context.Context, roots home.Roots, retention time.Duration, now time.Time) Status {
+// now, skipping a store another process holds, and every release folder no
+// session may still run (pruneReleases), then records the run. A store goes
+// in a lock session of its own, so a write never waits behind the run.
+func Run(ctx context.Context, roots home.Roots, retention time.Duration, releases Releases, now time.Time) Status {
 	result := Status{Started: now.UTC().Format(time.RFC3339)}
 
 	// One run at a time on the machine: a run started by hand beside the
@@ -344,6 +347,16 @@ func Run(ctx context.Context, roots home.Roots, retention time.Duration, now tim
 		if deleted {
 			result.Deleted = append(result.Deleted, filepath.Join(candidate.parent, candidate.name))
 		}
+	}
+
+	deleted, err := pruneReleases(ctx, releases, now)
+	result.Deleted = append(result.Deleted, deleted...)
+
+	switch {
+	case errors.Is(err, fs.ErrPermission):
+		result.Denied++
+	case err != nil:
+		errs = append(errs, err)
 	}
 
 	result.Finished = now.UTC().Format(time.RFC3339)

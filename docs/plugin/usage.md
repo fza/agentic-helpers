@@ -166,8 +166,24 @@ open pipes in a session of its own, so nothing a hook or job waits for holds it.
 `<data>/cache-prune.json`, and after a failed run the next SessionStart says once:
 `agentic-memory: cache prune failed at <time>: <error>; see <path>`. While agentic-tools is on, the
 same run prunes the tool library's versions past `tools_version_lifetime` or over `tools_total_mb`
-across every store ([tools usage](../tools/usage.md)). `agentic-helpers prune` can be run by hand;
-it prints each vector store it deletes.
+across every store ([tools usage](../tools/usage.md)).
+
+The same run deletes the release folders the launcher unpacked into the plugin's data directory
+(`<plugin data>/<version>/`, [where the binaries come from](architecture.md#where-the-binaries-come-from)),
+except those a session may still run: the version `plugin/.claude-plugin/plugin.json` names, every
+version a running `agentic-*` process executes from (the process table, as the sweep reads it), and
+every version whose `used` mark a SessionStart touched within 14 days. The launcher touches
+`<plugin data>/<version>/used` each time a SessionStart hook runs a binary of that version. Only a
+folder named as a version (`^[0-9]+\.[0-9]+\.[0-9]+$`) is ever removed, through `internal/safefs`:
+renamed to `.pruned-<version>` first, so the launcher never finds half a version under its name,
+then removed; a folder of that name a crash left goes with the next run. A fetch's lock and work
+folder, and any other file beside the version folders, stay. A run that cannot tell which versions
+are safe deletes none: one started by hand from a shell, which gets neither `CLAUDE_PLUGIN_ROOT` nor
+`CLAUDE_PLUGIN_DATA`, or one that cannot read the process table. Up to two weeks of releases stay,
+about 50 MB each.
+
+`agentic-helpers prune` can be run by hand; it prints each vector store and release folder it
+deletes.
 
 ## sdd
 

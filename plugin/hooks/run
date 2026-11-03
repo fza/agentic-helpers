@@ -57,7 +57,19 @@ root=${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}
 data=${CLAUDE_PLUGIN_DATA:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/data/agentic-helpers-agentic-helpers}
 version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$root/.claude-plugin/plugin.json" | head -n 1)
 
+# mark_used writes the version's `used` mark before a SessionStart runs one
+# of its binaries: the daily `agentic-helpers prune` keeps a version a
+# session started within two weeks. The builtin echo spawns no process, and
+# a folder that cannot be written (a sandboxed job) leaves the mark as it was.
+mark_used() {
+	if $session_start; then
+		{ echo >"$data/$1/used"; } 2>/dev/null
+	fi
+	return 0
+}
+
 if [ -n "$data" ] && [ -n "$version" ] && [ -x "$data/$version/$binary" ]; then
+	mark_used "$version"
 	exec "$data/$version/$binary" "$@"
 fi
 
@@ -231,6 +243,7 @@ tried=false
 if { $session_start || $command; } && [ -n "$data" ] && [ -n "$version" ]; then
 	tried=true
 	if fetch && [ -x "$data/$version/$binary" ]; then
+		mark_used "$version"
 		exec "$data/$version/$binary" "$@"
 	fi
 fi
@@ -238,6 +251,7 @@ fi
 if [ -n "$data" ] && [ -d "$data" ]; then
 	newest=$(ls -1 "$data" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
 	if [ -n "$newest" ] && [ -x "$data/$newest/$binary" ]; then
+		mark_used "$newest"
 		exec "$data/$newest/$binary" "$@"
 	fi
 fi

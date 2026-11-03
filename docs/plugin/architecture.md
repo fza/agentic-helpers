@@ -287,6 +287,20 @@ the release named by the plugin's own `version`, kept under the plugin's data di
 The archive is unpacked in the fetch's work directory and renamed into place, so a version
 directory is complete or absent.
 
+A SessionStart hook that runs a binary from a version directory first writes
+`<data>/<version>/used` with the shell's own `echo`, so no process is spawned for it; a directory
+it cannot write leaves the mark as it was and changes nothing else. The daily `agentic-helpers
+prune` (`cacheprune.Run`, [usage](usage.md#cache-pruning)) reads that mark: it keeps the version
+the plugin's `plugin.json` names (read from `CLAUDE_PLUGIN_ROOT`), every version a process of the
+user named `agentic-*` executes from (darwin: `kern.proc.uid` and the path in `kern.procargs2`;
+linux: `/proc/<pid>/exe`), compared against the data directory as given and with its links
+resolved, and every version whose mark is under 14 days old, and deletes every other folder named
+as a version. A session still running an older plugin version runs that version's programs, and
+without them its grounding gate and shell-guard refuse every call, so a folder goes only once no
+session can need it. Rejected: keeping the newest three, a fixed bound of about 150 MB, which
+leaves a session running an older version without its programs; leaving every release, about
+50 MB more per release without end.
+
 ## The fetch lock
 
 Claude Code starts the MCP server alongside the SessionStart hooks, and the SessionStart hooks run
