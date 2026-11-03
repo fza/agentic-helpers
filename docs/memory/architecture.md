@@ -82,7 +82,9 @@ Store format 6 keeps what changes often in binary formats agentic-tools and shel
   SessionStart pass clears every session key older than `staleAfter` (a session that never reached
   its end), and every seat key whose seat the registry no longer holds or holds expired, as the
   purge of a temporary shelf leaves it: a store running a temporary seat per job would otherwise keep
-  every job's keys. A file out of free pairs is written anew with twice the pairs it needs and
+  every job's keys. The same SessionStart clears every prompt vector of
+`<cache>/prompt-vectors/sessions.slots` no write touched for a week, at most once a day, as
+agentic-tools' SessionStart does for its own slot files ([tools architecture](../tools/architecture.md)). A file out of free pairs is written anew with twice the pairs it needs and
   renamed over the old one; a pass leaving a quarter of the pairs or fewer in use writes it anew at
   that size, since slots are wide (128 KiB) and a file would otherwise only grow. Writers hold
   `sessions.slots.lock`; readers take no lock. Keys are `<purpose>/<session or seat id>`: `shown`,

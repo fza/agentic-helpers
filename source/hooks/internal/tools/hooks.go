@@ -609,13 +609,35 @@ func (lib *library) end(ctx context.Context) int {
 	return 0
 }
 
-// start empties what the context held where it starts afresh: a compaction,
-// a `/clear` or a resume.
+// start clears the keys a session that never ended cleanly left in the slot
+// files, then empties what the context held where it starts afresh: a
+// compaction, a `/clear` or a resume.
 func (lib *library) start(ctx context.Context) int {
 	payload, usable := lib.hookPayload(ctx)
-	if usable && slices.Contains([]string{"compact", "clear", "resume"}, payload.Source) {
+	if !usable {
+		return 0
+	}
+
+	lib.reclaimStale(ctx)
+
+	if slices.Contains([]string{"compact", "clear", "resume"}, payload.Source) {
 		lib.forgetSeen(ctx)
 	}
 
 	return 0
+}
+
+// reclaimStale clears, at most once a day, every key no write touched for a
+// week from the own store's session file, the seen sets and the prompt
+// vectors (slots.File.ReclaimStale): each is cleared otherwise only by its
+// session ending cleanly.
+func (lib *library) reclaimStale(ctx context.Context) {
+	_ = lib.sessionSlots().ReclaimStale(ctx)
+
+	seen, err := lib.seenSlots(ctx)
+	if err == nil {
+		_ = seen.ReclaimStale(ctx)
+	}
+
+	_ = promptvector.Reclaim(ctx, lib.promptVectors())
 }

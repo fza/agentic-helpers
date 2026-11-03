@@ -330,13 +330,14 @@ func (mem *memory) seatless(ctx context.Context) string {
 		"to claim it: claim it, then answer with where work stands (agentic-helpers:agent-memory)", self, seats, self)
 }
 
-// housekeep clears the per-session slots nobody came back to and the store's
-// expired migration backups.
+// housekeep clears the per-session slots nobody came back to, in the store's
+// slot file and the prompt vectors', and the store's expired migration
+// backups.
 func (mem *memory) housekeep(ctx context.Context) {
 	cutoff := mem.now().Add(-staleAfter)
 
 	mem.reclaimSessions(ctx, func(slot slots.Slot) bool { return slot.Written.Before(cutoff) })
-	_ = promptvector.Adopt(ctx, promptvector.Dir(mem.env.Roots.Cache))
+	_ = promptvector.Reclaim(ctx, promptvector.Dir(mem.env.Roots.Cache))
 
 	if !mem.outsideGit && mem.storeExists() && mem.unreadable == "" {
 		version, err := formatsteps.Read(mem.store())

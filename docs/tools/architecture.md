@@ -184,7 +184,7 @@ store's name, grown by a leading segment while two names share one.
 | `UserPromptSubmit` | `prompt` | delivers the nudges `stop` recorded, then offers up to three own tools whose vector lies at or above `tools_query_floor` (0.45 unless set) to the prompt's, not yet named or printed in this context, same-role first; a prompt holding a credential is never embedded and gets no offer |
 | `PostToolUse` | `notice` | for each holding older than its tool's current version, and each held fork whose origin moved on, adds a line once; it compares the stats of the indexes involved with what it saw last, and reads nothing more when none moved |
 | `Stop` | `stop` | records, without blocking or printing, scripts (`.py .sh .go .awk`) in the session's scratch whose content and name no version of any tool in reach holds, and taken copies whose files changed |
-| `SessionStart` | `start` | on a compaction, `/clear` or resume, clears the seen set |
+| `SessionStart` | `start` | at most once a day, clears every key no write touched for a week from the own store's session file, the seen sets and the prompt vectors; on a compaction, `/clear` or resume, clears the seen set |
 | `SessionEnd` | `end` | clears the session's slot, its prompt vector slot and the seen set |
 
 The offer's embed is bounded at five seconds, as agentic-memory's recall is; a timeout adds
@@ -202,6 +202,18 @@ rather than the session id: the MCP server keeps the `CLAUDE_CODE_SESSION_ID` it
 a `/clear`, so a key on it would outlive the context it describes. The start time keeps a reused pid
 from reading a dead process's set. The offer prints names only, so it marks nothing printed: a
 find after it still prints the tool in full.
+
+A SessionEnd clears the session's slot, its prompt vector and its seen set, but a session that
+crashes or is killed never reaches it, and its keys would stay for good. So the SessionStart hook
+runs `slots.File.ReclaimStale` on `<cache>/stores/<id>/tools/sessions.slots`, `<cache>/tools/sessions.slots`
+and `<cache>/prompt-vectors/sessions.slots`: under the writers' lock it clears every key whose newest
+twin was written a week ago or more (`slots.StaleAge`), and writes the file anew at the size its
+kept keys need once a quarter of its pairs or fewer stay in use, as memory's pass does. Each file
+runs it at most once a day: the modification time of `sessions.slots.reclaimed` beside it records
+the last run, so a SessionStart within a day of it pays one lstat. A session idle for over a week
+loses its seen set and cached prompt vector, both rebuilt at its next call. Rejected: a day for the
+prompt vectors and a week for the rest, which frees the largest slots sooner but adds a second
+constant and has a resumed session embed its last prompt again.
 
 ## MCP answers
 

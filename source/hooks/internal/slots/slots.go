@@ -69,6 +69,14 @@ const (
 	maxPairs = 1 << 20
 
 	unchangedRefresh = 24 * time.Hour
+
+	// StaleAge is how long ReclaimStale keeps a key no write touched.
+	StaleAge = 7 * 24 * time.Hour
+	// reclaimEvery spaces ReclaimStale's runs on one file.
+	reclaimEvery = 24 * time.Hour
+	// reclaimedSuffix names the file beside a slot file whose modification
+	// time is ReclaimStale's last run.
+	reclaimedSuffix = ".reclaimed"
 )
 
 var (
@@ -320,6 +328,40 @@ func (f *File) Reclaim(ctx context.Context, drop func(Slot) bool) error {
 
 		return replace(f.Root, f.Path, Header{Width: header.Width, Count: 1 + 2*pairsFor(len(held))}, held)
 	})
+}
+
+// ReclaimStale clears every key no write touched for StaleAge, then shrinks
+// the file as Reclaim does, at most once a day: `<path>.reclaimed` records
+// the last run, so a call within a day of it costs one lstat. A key is
+// otherwise cleared only by its session ending cleanly, so a crashed
+// session's would stay for good. A record dated after now, as after a clock
+// change, counts as no run.
+func (f *File) ReclaimStale(ctx context.Context) error {
+	if !exists(f.Path) {
+		return nil
+	}
+
+	now := f.now()
+	mark := f.Path + reclaimedSuffix
+
+	info, err := os.Lstat(mark)
+	if err == nil && now.Sub(info.ModTime()) < reclaimEvery && !info.ModTime().After(now) {
+		return nil
+	}
+
+	cutoff := now.Add(-StaleAge)
+
+	err = f.Reclaim(ctx, func(slot Slot) bool { return !slot.Written.After(cutoff) })
+	if err != nil {
+		return err
+	}
+
+	err = safefs.WriteFile(f.Root, mark, nil, 0o600)
+	if err != nil {
+		return fmt.Errorf("recording the reclaim of %s: %w", f.Path, err)
+	}
+
+	return nil
 }
 
 // All is every key the file holds with its value, in pair order.

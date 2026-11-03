@@ -121,12 +121,18 @@ func Remove(ctx context.Context, dir string, session string) {
 	}
 }
 
-// Adopt takes the per-session files an earlier release kept in dir into the
-// slot file, for a machine where no hook has read a prompt vector since.
-func Adopt(ctx context.Context, dir string) error {
-	_, err := open(ctx, dir)
+// Reclaim takes the per-session files an earlier release kept in dir into
+// the slot file, for a machine where no hook has read a prompt vector since,
+// then clears every session's slot no write touched for a week, at most once
+// a day (slots.File.ReclaimStale), as SessionStart runs it: a session that
+// never ended cleanly would keep its vector for good.
+func Reclaim(ctx context.Context, dir string) error {
+	file, err := open(ctx, dir)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return file.ReclaimStale(ctx)
 }
 
 // open is the slot file of dir, once the per-session files an earlier
