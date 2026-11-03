@@ -99,7 +99,7 @@ func TestUntagIsAShelfEdit(t *testing.T) {
 
 	out := h.must(h.promptHook("again"), "prompt")
 	if !strings.Contains(out, "agentic-memory: changed on shelf row-7ah (1):") ||
-		!strings.Contains(out, id+" Gate finding on the row: untagged mcp by rev") {
+		!strings.Contains(out, h.label(id)+" Gate finding on the row: untagged mcp by rev") {
 		t.Errorf("a shelf mate's untag should reach the other seats on the shelf, got:\n%s", out)
 	}
 

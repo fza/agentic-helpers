@@ -19,7 +19,7 @@ func stampIn(at time.Time, zone *time.Location) string {
 	return at.In(zone).Format(timeLayout)
 }
 
-// line is how an entry shows in every list: id, title, the bracket naming seat,
+// line is how an entry shows in every list: id and name, title, the bracket naming seat,
 // kind, a retain override that differs from the kind's decay, source, filing
 // time and commit, then its flags with the ended links folded as the short
 // line folds them; show's links section names each.
@@ -34,7 +34,7 @@ func lineIn(here tree, held *entry, zone *time.Location) string {
 	return withFlags(lineHead(held, zone), append(flags, declared(held, zone)...))
 }
 
-// lineHead is a full line before its flags: id, title and the bracket.
+// lineHead is a full line before its flags: id and name, title and the bracket.
 func lineHead(held *entry, zone *time.Location) string {
 	filer := held.seat
 	if held.recipients != "" {
@@ -51,11 +51,11 @@ func lineHead(held *entry, zone *time.Location) string {
 		parts = append(parts, held.commit)
 	}
 
-	return fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", "))
+	return fmt.Sprintf("%s %s  [%s]", held.label(), held.title, strings.Join(parts, ", "))
 }
 
 // shortLine is how an entry shows in the brief and in recall, read every
-// claim and compaction: id, title, its age, the filing seat where it is not
+// claim and compaction: id and name, title, its age, the filing seat where it is not
 // the reader, a retain override that differs from the kind's decay, then its
 // flags with the ended links folded, then any extra flag the caller adds.
 func shortLine(here tree, held *entry, reader string, now time.Time, extra ...string) string {
@@ -70,7 +70,7 @@ func shortLine(here tree, held *entry, reader string, now time.Time, extra ...st
 
 	flags := append(flagsOf(here, held, foldedLinks(held.flags()), time.Local), extra...)
 
-	return withFlags(fmt.Sprintf("%s %s  [%s]", held.id, held.title, strings.Join(parts, ", ")), flags)
+	return withFlags(fmt.Sprintf("%s %s  [%s]", held.label(), held.title, strings.Join(parts, ", ")), flags)
 }
 
 // foldedLinks is a short line's link flags: a settled target in full, since a

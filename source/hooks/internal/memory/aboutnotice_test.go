@@ -13,7 +13,7 @@ func TestANoteIsToldAtTheFileItIsAbout(t *testing.T) {
 	todo := h.file("Readme owes the install line", "add the go install line", "--kind", "todo", "--about", "README.md")
 
 	first := h.callTool("Edit", map[string]string{"file_path": filepath.Join(h.repo, "internal", "gate", "gate.go")})
-	if !strings.Contains(first, "agentic-memory: about internal/gate/gate.go: "+note+" Gate reads only Bash today  [") {
+	if !strings.Contains(first, "agentic-memory: about internal/gate/gate.go: "+h.label(note)+" Gate reads only Bash today  [") {
 		t.Errorf("a call touching a path a note declares should tell the note:\n%s", first)
 	}
 

@@ -164,14 +164,15 @@ func (mem *memory) objectOf(held *entry, object jsonEntry) jsonEntry {
 }
 
 func pointer(held *entry) string {
-	return held.id + " " + held.title + " (seen)"
+	return held.label() + " " + held.title + " (seen)"
 }
 
 // jsonSeenEntry is an entry the calling session's context already holds: its
-// id and title alone, and a search hit's score, as the text answers with its
-// pointer.
+// id, name and title alone, and a search hit's score, as the text answers
+// with its pointer.
 type jsonSeenEntry struct {
 	ID    string `json:"id"`
+	Name  string `json:"name,omitempty"`
 	Score *int   `json:"score,omitempty"`
 	Title string `json:"title,omitempty"`
 	Seen  bool   `json:"seen"`
@@ -179,7 +180,7 @@ type jsonSeenEntry struct {
 
 func (object jsonEntry) MarshalJSON() ([]byte, error) {
 	if object.Seen {
-		return json.Marshal(jsonSeenEntry{ID: object.ID, Score: object.Score, Title: object.Title, Seen: true})
+		return json.Marshal(jsonSeenEntry{ID: object.ID, Name: object.Name, Score: object.Score, Title: object.Title, Seen: true})
 	}
 
 	type plain jsonEntry

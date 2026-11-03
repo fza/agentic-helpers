@@ -225,7 +225,7 @@ func TestTheBriefShowsTheCountAndTheNextOpenItems(t *testing.T) {
 	h.must("", "ack", id+"#"+items[4], "--remove")
 
 	brief := h.must("", "brief", "--again")
-	want := "  " + id + " Port the waiter  [0m]  1/5\n    2. #" + items[1] + ": two\n    3. #" + items[2] + ": three\n    4. #" + items[3] + ": four\n"
+	want := "  " + h.label(id) + " Port the waiter  [0m]  1/5\n    2. #" + items[1] + ": two\n    3. #" + items[2] + ": three\n    4. #" + items[3] + ": four\n"
 
 	if !strings.Contains(brief, want) || strings.Contains(brief, ": six") {
 		t.Errorf("the brief should give the count and up to three open items in order:\n%s", brief)
@@ -266,7 +266,7 @@ func TestAFinishedTodolistEndsItsTodo(t *testing.T) {
 	}
 
 	brief := h.must("", "brief", "--again")
-	if !strings.Contains(brief, id+" Port the waiter") || !strings.Contains(brief, "ended since last brief") {
+	if !strings.Contains(brief, h.label(id)+" Port the waiter") || !strings.Contains(brief, "ended since last brief") {
 		t.Errorf("the ended todo should be listed once under ended since last brief:\n%s", brief)
 	}
 
@@ -379,7 +379,7 @@ func TestAFormatFourStoreMovesUpChangingOnlyTheFormat(t *testing.T) {
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
 	written, _ := os.ReadFile(formatPath)
-	if !strings.Contains(string(written), "8") {
+	if !strings.Contains(string(written), `"format":9`) {
 		t.Errorf("a format-4 store should move through format 5 to the current one: %s", written)
 	}
 
@@ -387,10 +387,10 @@ func TestAFormatFourStoreMovesUpChangingOnlyTheFormat(t *testing.T) {
 		t.Error("a step fencing older binaries off should change nothing but the format")
 	}
 
-	test.WriteFile(t, formatPath, `{"format":9}`+"\n")
+	test.WriteFile(t, formatPath, `{"format":10}`+"\n")
 
 	failed := h.run("", "search", "--term", "Gate", "--no-heat")
-	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 8") {
+	if failed.code == 0 || !strings.Contains(failed.out+failed.err, "this release reads up to 9") {
 		t.Errorf("a store of a later format should be refused, got %d %s%s", failed.code, failed.out, failed.err)
 	}
 }

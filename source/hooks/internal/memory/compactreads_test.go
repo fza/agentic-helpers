@@ -111,10 +111,10 @@ func TestARichEntryKeepsEveryKeyHoldingAValue(t *testing.T) {
 	}{
 		{"a retired trap filed on another branch", trap, []string{
 			"anchors", "attachments", "body", "branch", "commit", "filed", "for", "from", "id", "kind", "linked_from", "links",
-			"other_branch", "retention", "seat", "shelf", "status", "status_change", "title", "topics", "when",
+			"name", "other_branch", "retention", "seat", "shelf", "status", "status_change", "title", "topics", "when",
 		}},
 		{"a rule with a moment, a proof and a forbidden pattern", rule, []string{
-			"body", "branch", "commit", "filed", "forbids", "from", "id", "kind", "on", "proof", "retention", "seat", "shelf",
+			"body", "branch", "commit", "filed", "forbids", "from", "id", "kind", "name", "on", "proof", "retention", "seat", "shelf",
 			"status", "title", "topics",
 		}},
 	}
@@ -255,7 +255,7 @@ func TestAnEmptyBodyLeavesTheAnswer(t *testing.T) {
 	}
 }
 
-var scoredLine = regexp.MustCompile(`^(m-[a-z0-9]+) (\d+)% (\S.*)$`)
+var scoredLine = regexp.MustCompile(`^(m-[a-z0-9]+) \([a-z0-9-]+\) (\d+)% (\S.*)$`)
 
 func TestSearchLinesPrintTheScoreAfterTheID(t *testing.T) {
 	h := newHarness(t)
@@ -272,10 +272,10 @@ func TestSearchLinesPrintTheScoreAfterTheID(t *testing.T) {
 	first, second := scoredLine.FindStringSubmatch(lines[0]), scoredLine.FindStringSubmatch(lines[1])
 
 	if first == nil || first[1] != twice || first[2] != "100" || !strings.HasPrefix(first[3], "Waiter waits twice, waiter again  [") {
-		t.Errorf("a hit's line should print its id, its score and then its line: %q", lines[0])
+		t.Errorf("a hit's line should print its id and name, its score and then its line: %q", lines[0])
 	}
 
 	if second == nil || second[1] != once || second[2] != "50" || second[3] != "Waiter waits once (seen)" {
-		t.Errorf("a seen hit's pointer should print its score after the id too: %q", lines[1])
+		t.Errorf("a seen hit's pointer should print its score after the id and name too: %q", lines[1])
 	}
 }

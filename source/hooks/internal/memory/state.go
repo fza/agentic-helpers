@@ -127,7 +127,10 @@ type change struct {
 }
 
 type entry struct {
-	id   string
+	id string
+	// name is the entry's alias from the name index, filled in once the log
+	// is folded; empty where the index holds none.
+	name string
 	seat string
 	// seatKey is the filing seat's key in the store, which a shelf is found by.
 	seatKey string

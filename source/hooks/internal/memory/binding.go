@@ -172,8 +172,8 @@ func (mem *memory) mergeStores(ctx context.Context, from string, into string) re
 
 // joinMemory joins one store's memory into another's, both brought to the
 // current format first: the log's events appended, seats and shelves added
-// under their own ids, a name both stores use numbered apart, claims and
-// attachment refs carried over. An entry id both logs hold refuses the join
+// under their own ids, a name both stores use numbered apart, claims,
+// attachment refs and entry names carried over. An entry id both logs hold refuses the join
 // before anything changes.
 func (mem *memory) joinMemory(ctx context.Context, _ string, fromDir string, intoDir string) error {
 	source, target := mem.sibling(storeIDOf(fromDir)), mem.sibling(storeIDOf(intoDir))
@@ -225,6 +225,11 @@ func (mem *memory) joinMemory(ctx context.Context, _ string, fromDir string, int
 	}
 
 	err = joinRefs(target.env.Roots.Data, source.refsPath(), target.refsPath())
+	if err != nil {
+		return err
+	}
+
+	err = joinNames(source, target)
 	if err != nil {
 		return err
 	}

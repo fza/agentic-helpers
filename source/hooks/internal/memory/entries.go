@@ -244,8 +244,23 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	events = append(events, attached...)
 
+	// The scan runs before the name is minted as well as in appendEvents: a
+	// name is made of the title's words, which the index must never hold
+	// where the title holds a credential.
+	err = credentialInEvents(ctx, events)
+	if err != nil {
+		return refused("%v", err)
+	}
+
+	forgetName, err := mem.mintName(ctx, id, filed.Title)
+	if err != nil {
+		return refused("%v", err)
+	}
+
 	err = mem.appendEvents(ctx, events...)
 	if err != nil {
+		forgetName()
+
 		return refused("%v", err)
 	}
 
@@ -258,6 +273,7 @@ func (mem *memory) newEntry(ctx context.Context, req request) result {
 
 	mem.annotate(folded)
 	mem.annotateLinks(ctx, folded)
+	mem.nameEntries(folded)
 
 	held := folded.entries[id]
 	mem.warm(folded, 0, id)
@@ -334,7 +350,7 @@ func filedLine(here tree, held *entry, req request) string {
 		}
 	}
 
-	return withFlags("filed "+held.id, flags)
+	return withFlags("filed "+held.label(), flags)
 }
 
 // absorbed are the entries the filing superseded, which no hint offers again.
@@ -400,7 +416,7 @@ func similarLines(offered []scored, title string) []string {
 	}
 
 	best := offered[0]
-	lines := []string{fmt.Sprintf("similar: %s %s (%.2f)", best.id, best.title, best.score)}
+	lines := []string{fmt.Sprintf("similar: %s %s (%.2f)", best.label, best.title, best.score)}
 
 	if len(offered) > 1 {
 		quotedTitle := "'" + strings.ReplaceAll(title, "'", `'\''`) + "'"
@@ -413,6 +429,7 @@ func similarLines(offered []scored, title string) []string {
 
 type scored struct {
 	id    string
+	label string
 	title string
 	score float64
 }
@@ -446,7 +463,7 @@ func (mem *memory) similar(ctx context.Context, folded *state, held *entry) []sc
 		for _, other := range peers {
 			score := jaccard(mine, wordSet(other.title+" "+other.body))
 			if score >= 0.4 {
-				found = append(found, scored{id: other.id, title: other.title, score: score})
+				found = append(found, scored{id: other.id, label: other.label(), title: other.title, score: score})
 			}
 		}
 	}
@@ -476,7 +493,7 @@ func standouts(peers []*entry, scores map[string]float32) []scored {
 	for _, other := range peers {
 		score := float64(scores[other.id])
 		if score >= floor {
-			found = append(found, scored{id: other.id, title: other.title, score: score})
+			found = append(found, scored{id: other.id, label: other.label(), title: other.title, score: score})
 		}
 	}
 
@@ -669,7 +686,7 @@ func linkLine(folded *state, held *entry, target string) string {
 	}
 
 	if linked, found := folded.entries[target]; found {
-		return "→ " + target + " " + linked.title
+		return "→ " + linked.label() + " " + linked.title
 	}
 
 	return "→ " + target
@@ -783,7 +800,7 @@ func showBlock(here tree, folded *state, held *entry, retiredBodyLifetime time.D
 	if inbound := held.linkedFrom(withSuperseded); len(inbound) > 0 {
 		lines = append(lines, "linked from:")
 		for _, citer := range inbound {
-			lines = append(lines, fmt.Sprintf("  %s %s (%s)", citer.id, citer.title, citer.status))
+			lines = append(lines, fmt.Sprintf("  %s %s (%s)", citer.label(), citer.title, citer.status))
 		}
 	}
 
@@ -1084,7 +1101,8 @@ func (mem *memory) search(ctx context.Context, req request) result {
 	for index, id := range page {
 		text := mem.lineOf(folded.entries[id], line(here, folded.entries[id]))
 		if scores != nil {
-			text = fmt.Sprintf("%s %d%%%s", id, scores[index], strings.TrimPrefix(text, id))
+			label := folded.entries[id].label()
+			text = fmt.Sprintf("%s %d%%%s", label, scores[index], strings.TrimPrefix(text, label))
 		}
 
 		lines = append(lines, text)

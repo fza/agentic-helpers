@@ -131,7 +131,7 @@ func TestTheBriefFoldsARunOfSeenEntries(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(brief, "  "+trap+" Gate trap of the seat (seen)") {
+	if !strings.Contains(brief, "  "+h.label(trap)+" Gate trap of the seat (seen)") {
 		t.Errorf("a lone seen entry should keep its pointer:\n%s", brief)
 	}
 
@@ -155,7 +155,7 @@ func TestASeenEntryACiterFollowsKeepsItsPointerAndCiter(t *testing.T) {
 	h.must("", "brief")
 
 	brief := h.must("", "brief")
-	if !strings.Contains(brief, "  "+cited+" Gate note others cite (seen)\n    ← "+citer) {
+	if !strings.Contains(brief, "  "+h.label(cited)+" Gate note others cite (seen)\n    ← "+h.label(citer)) {
 		t.Errorf("a seen entry followed by a citer should keep its pointer above the citer:\n%s", brief)
 	}
 }

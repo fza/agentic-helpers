@@ -1,1 +1,1 @@
-m-0ztvbn Gate ignores MCP reads always  [5h]  drifted: internal/gate/gate.go
+m-0ztvbn (gate-ignores) Gate ignores MCP reads always  [5h]  drifted: internal/gate/gate.go

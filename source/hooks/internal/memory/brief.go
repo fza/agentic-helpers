@@ -533,7 +533,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add("retire?")
 
 		for _, id := range unprinted {
-			if out.add(fmt.Sprintf("  %s %s  %s", id, folded.entries[id].title, strings.Join(flagged[id], "; "))) {
+			if out.add(fmt.Sprintf("  %s %s  %s", folded.entries[id].label(), folded.entries[id].title, strings.Join(flagged[id], "; "))) {
 				unprintedIDs[id] = true
 			}
 		}

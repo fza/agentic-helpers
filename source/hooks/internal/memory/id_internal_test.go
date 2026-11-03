@@ -49,12 +49,14 @@ func TestIDSchemaTakesEveryLengthAStoreHolds(t *testing.T) {
 		{name: "an id longer than any length mints", id: "m-" + strings.Repeat("a", 17)},
 		{name: "an id shorter than any length minted", id: "m-r3t"},
 		{name: "an id with an uppercase character", id: "m-R3T1ab"},
+		{name: "a name", id: "apfs-span", valid: true},
+		{name: "a name numbered apart", id: "apfs-span-2", valid: true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if pattern.MatchString(tc.id) != tc.valid {
-				t.Error("the MCP id schema should accept exactly the lengths a store can hold")
+				t.Error("the MCP id schema should accept exactly the ids a store can hold and the names it gives")
 			}
 		})
 	}

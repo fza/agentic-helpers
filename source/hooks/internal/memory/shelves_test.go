@@ -67,7 +67,7 @@ func TestSeatsOnOneShelfShareItsMemory(t *testing.T) {
 
 	out := h.must(h.promptHook("again"), "prompt")
 	if !strings.Contains(out, "agentic-memory: changed on shelf row-7ah (1):") ||
-		!strings.Contains(out, id+" Gate finding on the row: retired: fixed on the row by rev") {
+		!strings.Contains(out, h.label(id)+" Gate finding on the row: retired: fixed on the row by rev") {
 		t.Errorf("a shelf mate's change should reach the other seats on the shelf, naming the verb and the seat, got:\n%s", out)
 	}
 
@@ -219,7 +219,7 @@ func TestAFormat2StoreGetsAShelfPerSeat(t *testing.T) {
 	h.must("", "topics")
 
 	format, _ := os.ReadFile(filepath.Join(h.store(), "format.json"))
-	if !strings.Contains(string(format), `"format":8`) {
+	if !strings.Contains(string(format), `"format":9`) {
 		t.Fatalf("a format-2 store should migrate to the current format, got %s", format)
 	}
 

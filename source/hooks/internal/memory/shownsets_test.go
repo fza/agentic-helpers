@@ -94,7 +94,7 @@ func TestAFreshSubagentReadsAnEntryInFullOnceWithoutAgain(t *testing.T) {
 	}
 
 	second := h.shellAs("afresh000000001", "agentic-memory show "+id)
-	if !strings.Contains(second.out, seenPointer(id, "Gate reads Bash only")) {
+	if !strings.Contains(second.out, h.seenLine(id, "Gate reads Bash only")) {
 		t.Errorf("a fresh subagent's second show should print a pointer, got %q %q", second.out, second.err)
 	}
 }
@@ -109,7 +109,7 @@ func TestAForkStartsWithItsSpawnersShownSetAtTheSpawn(t *testing.T) {
 	h.must("", "show", after)
 
 	if out := h.shellAs("afork0000000001", "agentic-memory show "+before).out; !strings.Contains(out,
-		seenPointer(before, "Gate reads Bash only")) {
+		h.seenLine(before, "Gate reads Bash only")) {
 		t.Errorf("a fork should get a pointer for an entry its spawner read before the spawn, got %q", out)
 	}
 

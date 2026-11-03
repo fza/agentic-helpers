@@ -251,7 +251,9 @@ gzipped as `<name>.fixture-gz`. The network is reached in the script and never i
 every committed release into a temporary folder, lets each component's runner move it, replays the
 reads through the current `Main`s and compares them with `dump.json`, or with its successor where a
 format changed an answer: `successors` holds one function per such format, format 8 turning a
-seat's state slot into the ledger's `state#old`. `TestTheNamedReleaseHasAFixture` fails while no
+seat's state slot into the ledger's `state#old`; format 9, which names every entry, adds to each
+entry object the name the migrated store's index holds, after checking the index names every entry
+the fixture filed, no two alike. `TestTheNamedReleaseHasAFixture` fails while no
 fixture exists for the release `plugin/.claude-plugin/plugin.json` names.
 
 Rejected: hand-built fixtures per format, which show what format N was thought to be, not what a

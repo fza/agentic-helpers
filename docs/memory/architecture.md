@@ -7,6 +7,7 @@
 ├── format.json                                         the store's one format version
 ├── seats.json                                          seat id → its current name, its shelf, its private mark
 ├── shelves.json                                        shelf id → its name, follows and lifetime
+├── names.json                                          entry id → its name (The name index)
 ├── log/tail.jnl, log/<hash>.seg, log/manifest.json    the append-only log: the truth
 ├── seats/<id>.json                                     who holds the seat, which process, which transcript
 ├── seats/<id>.last.json                                the claim of the seat's last holder
@@ -52,7 +53,7 @@ leaves a stub holding only `{"format":999}`, which every release before the home
 store.
 
 Every file above that is replaced rather than appended to (`format.json`, `seats.json`,
-`shelves.json`, a claim, `.ledger`, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
+`shelves.json`, `names.json`, a claim, `.ledger`, `fold.gob`, `heat.json` and the cache's other JSON files) is written to
 a temporary file named for that one writer, `.<name>.<random>.tmp` beside it, then renamed over it
 (`internal/atomicfile`), each folder from the data or cache home down walked through `internal/safefs`,
 which refuses a planted link or a file with a second name
@@ -153,13 +154,30 @@ seat to its shelf. A `--for` stores shelf ids; one an earlier release stored as 
 that seat's shelf. Both files are written under the store lock, through a temporary file renamed
 into place, and a seat and a shelf minted together are minted under one hold of it.
 
+## The name index
+
+`names.json` maps every entry id to its name ([usage](usage.md#names)); the id stays the entry's
+identity in the log, and the name is an alias the index alone holds. A filing mints the name under
+the store lock, reading the index afresh, and writes it before the entry reaches the log, so two
+filings never take one name and a kill between the two leaves a name no entry holds, never an entry
+without one. A filing the log then refuses takes its name back. The title is scanned for a
+credential before the name is minted, since a name is made of its words. A name is never given again
+once taken, purged entry or not. Every command resolves the names a request carries to ids after
+reading its arguments, from the command line and the MCP server alike, before the command runs, so
+no command reads a name; the fold carries each entry's name for the lines and JSON objects that
+print it. `merge` of two stores carries the source's names over, a name the target gives numbered
+apart. Rejected: the name in the `new` row's payload, which a format step cannot add to entries
+already filed without rewriting the log; a random two-word name such as `amber-otter`, which says
+nothing about the entry and is easy to mix up; list numbers alone, which change from one listing to
+the next.
+
 ## The format and its migration
 
-`format.json` holds the store's format, `{"format": 8}`; a store without one is format 1, where
+`format.json` holds the store's format, `{"format": 9}`; a store without one is format 1, where
 events and seat files name the seat, format 2 keeps seats by id without shelves, format 3 files
 entries with a retention level and no kind, format 4 holds no `item` rows, format 5 keeps its tail as
-`tail.jsonl` and a JSON file per session in the cache, format 6 holds no `due` rows, and format 7
-holds no state ledger. The first call that meets an older store moves it through the store's step
+`tail.jsonl` and a JSON file per session in the cache, format 6 holds no `due` rows, format 7
+holds no state ledger, and format 8 names no entry. The first call that meets an older store moves it through the store's step
 table (`formatSteps` in `internal/memory/migrate.go`), run by the shared runner
 ([format steps](../plugin/architecture.md#format-steps)): one step per format, each doing one job
 as an ordered list of operations, the store lock held from the first step to the last, so another
@@ -211,6 +229,12 @@ reads as the ledger's `state#old` until the agent ticks or removes it, and a hoo
 again. Rejected: folding the old body into a line at migration, which the agent would never split;
 starting every ledger empty, which loses where every live seat's work stands mid-task; copying the
 log to a backup in a step that changes nothing but the format.
+
+From format 8, entry names, the log untouched: one operation writes `names.json`, naming every
+entry the log holds from its title as it stands, in filing order, so of two entries suggesting one
+name the older keeps it bare and the younger is numbered apart. The index is replaced whole, so a cut
+run leaves it whole or absent, and the run carrying the step on names only what it lacks. No backup: the step adds a file and changes none. The format keeps a
+format-8 binary off the store, which would file entries the index never names.
 
 From format 5, the binary formats, the log's rows untouched:
 

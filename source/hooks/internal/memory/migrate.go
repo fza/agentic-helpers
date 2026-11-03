@@ -34,7 +34,8 @@ func (mem *memory) formatSteps() []formatsteps.Step {
 		{From: 4, To: itemsFormat, Ops: fenceOnly},
 		{From: itemsFormat, To: slotsFormat, Ops: mem.slotSteps},
 		{From: slotsFormat, To: dueFormat, Ops: fenceOnly},
-		{From: dueFormat, To: storeFormat, Ops: fenceOnly},
+		{From: dueFormat, To: ledgerFormat, Ops: fenceOnly},
+		{From: ledgerFormat, To: storeFormat, Ops: mem.nameSteps},
 	}
 }
 

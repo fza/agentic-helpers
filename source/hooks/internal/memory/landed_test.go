@@ -308,11 +308,11 @@ func TestALandedMappingWaitsForTheBrief(t *testing.T) {
 		t.Fatalf("the claim brief should end the entry's line with the landed commit:\n%s", brief)
 	}
 
-	if line := briefLine(other.must("", "brief"), id); line != id+" Rework the waiter loop (seen)  retire? landed: e1e1e1e1 Rework waiter" {
+	if line := briefLine(other.must("", "brief"), id); line != h.label(id)+" Rework the waiter loop (seen)  retire? landed: e1e1e1e1 Rework waiter" {
 		t.Errorf("a delivered mapping should ride the entry's pointer in the next brief:\n%s", line)
 	}
 
-	if line := briefLine(other.must("", "brief", "--again"), id); !strings.HasPrefix(line, id+" Rework the waiter loop  [") ||
+	if line := briefLine(other.must("", "brief", "--again"), id); !strings.HasPrefix(line, h.label(id)+" Rework the waiter loop  [") ||
 		!strings.HasSuffix(line, "retire? landed: e1e1e1e1 Rework waiter") {
 		t.Errorf("a brief asked again should print the flagged entry's line whole:\n%s", line)
 	}

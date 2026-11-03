@@ -23,6 +23,8 @@ Memory works in the background. The user hears of it only when something goes wr
 - **Never narrate it.** No "filing this", "filed m-xxxxxx", "superseded", "retired", "checking
   memory", no ids, titles, recap of brief or claim output. Exceptions: the overview on a claim the
   user requests (Seat), the line a rule superseded by a file owes (File).
+- **To the user: a numbered list, names, never ids.** Every id argument takes the name. A number
+  holds for its list only: map it back first.
 - **Use what it returns silently**, as any other lead, never citing memory as the source.
 - **Upkeep is yours, unasked, unmentioned.** `retire?`, `returns`, drifted anchor, near topic,
   similar entry, stale state → settle now (`retire`, `supersede`, `confirm`, `rekind`, `tag`,
@@ -42,11 +44,11 @@ store's `identity.json`: `bind` and `merge` do.
 ## Seat
 
 ```bash
-agentic-memory claim <seat>        # prints brief, last turns of the previous session, the seat's scratch folder
+agentic-memory claim <seat>  # prints brief, last turns of the previous session, the seat's scratch folder
 agentic-memory release [<seat>]
-agentic-memory who [--all] [--unused] # seats, shelves, state, filed / used over 14d; frees dead holders
-agentic-memory rename '<new name>' # this seat; id and entries stay
-agentic-memory private on|off      # hide this seat from other projects' who --all, or show it
+agentic-memory who [--all] [--unused]  # seats, shelves, state, filed / used over 14d; frees dead holders
+agentic-memory rename '<new name>'  # this seat; id and entries stay
+agentic-memory private on|off  # hide this seat from other projects' who --all, or show it
 ```
 
 - Name: a letter, then up to 23 letters, marks, digits or dashes; NFC, lower-cased. One seat per
@@ -59,7 +61,7 @@ agentic-memory private on|off      # hide this seat from other projects' who --a
   into `+<n> seats in other projects: agentic-memory who --all`: the fold rule holds.
 - **Claimed on the user's request → answer with where work stands**, from the brief just printed:
   state, what is due, open todos with their next items, decisions waiting on the user. User's
-  language, outcomes only, a few lines; an id only for work the user must act on. A claim at
+  language, outcomes only, a few lines; a name only for work the user must act on. A claim at
   resume or by a launcher → nothing.
 - **"shared", "temporary", a span, another shelf** in the user's words → read
   [shelves.md](shelves.md) before claiming.
@@ -189,15 +191,14 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 - **A fold line hides unread data.** A line ending `(run before <what>)` stands for entries, items
   or pages it does not print. Before acting on, answering about, or concluding the absence of what
   it folds → run its command. A seen pointer carries none: its text is in your context.
-- **Each entry prints once per context.** Printed already, unchanged since → `<id> <title> (seen)`
-  (JSON `{"id", "title", "seen": true}`, a search hit's with its score); its text is above. A run
-  in the brief → `<n> seen above, unchanged`. `show` after a search line still prints the body.
-  Compaction, `/clear`, resume → full again. A subagent has its own: a fresh one starts empty, a
-  fork with its spawner's.
+- **Each entry prints once per context.** Printed already, unchanged since → `<id> (<name>) <title>
+  (seen)` (JSON `{"id", "name", "title", "seen": true}`, a search hit's with its score); its text
+  is above. A run in the brief → `<n> seen above, unchanged`. `show` after a search line still
+  prints the body. Compaction, `/clear`, resume → full again.
 - Own shelf by default; `--all-seats` → other seats' work, to take over, never redo.
 - `--term`: case-insensitive RE2, all required. `--query`: by meaning. Both → fused. `--status`
   alone → a listing by time.
-- **`<id> 92% <title>`**: score, whole percent of the best hit (100). A listing prints none.
+- **`<id> (<name>) 92% <title>`**: score, whole percent of the best hit (100). A listing prints none.
 - **JSON (MCP, `--json`): an absent key is empty** (`[]`, `{}`, `null`, `""`, `false` left out; `0`
   and defaults stay).
 - `14 more: --skip 10  (run before concluding none fits)` / `more: --skip 10  (...)` → next page. No
@@ -220,14 +221,14 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
 ## Change
 
 ```bash
-agentic-memory link <id> <target>                  # graph or memory id; full ids only
+agentic-memory link <id> <target>  # graph or memory id; full ids only
 agentic-memory unlink <id> <target>
-agentic-memory retire <id>... --because '<why>'    # done or no longer matters; leaves the brief
-agentic-memory supersede <id>... --by <id>         # replaced; never returns in a search
-agentic-memory supersede <id>... --because '<why>' # wrong
-agentic-memory confirm <id>...                     # verified; re-anchored
-agentic-memory new ... --absorbs <id>...           # a summary superseding its parts
-agentic-memory revive <id>                         # undo the latest retire/supersede; 14 days
+agentic-memory retire <id>... --because '<why>'  # done or no longer matters; leaves the brief
+agentic-memory supersede <id>... --by <id>  # replaced; never returns in a search
+agentic-memory supersede <id>... --because '<why>'  # wrong
+agentic-memory confirm <id>...  # verified; re-anchored
+agentic-memory new ... --absorbs <id>...  # a summary superseding its parts
+agentic-memory revive <id>  # undo the latest retire/supersede; 14 days
 agentic-memory rekind <id> rule|trap|todo|note
 agentic-memory retitle <id> '<title>'
 agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>

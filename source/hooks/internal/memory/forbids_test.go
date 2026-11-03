@@ -50,7 +50,7 @@ func TestAForbiddenEntryLandsWithAWarning(t *testing.T) {
 	out := h.must("upgraded to Pilot v2.3 today", "new", "--title", "Pilot upgrade done today", "--topic", "gate")
 	id := idPattern.FindString(out)
 
-	want := "forbidden by " + rule + " No notes on pilot versions\n" +
+	want := "forbidden by " + h.label(rule) + " No notes on pilot versions\n" +
 		`  matched: "Pilot v2.3"` + "\n" +
 		"  → agentic-memory retire " + id + " --because 'forbidden by " + rule + "'"
 	if !strings.Contains(out, want) {

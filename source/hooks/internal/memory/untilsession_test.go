@@ -131,7 +131,7 @@ func TestASessionEndIsListedAndRevives(t *testing.T) {
 	h.clock.Advance(time.Hour)
 
 	claimed := h.must("", "claim", "main")
-	if !strings.Contains(claimed, "ended since last brief (revive to undo):\n  "+id+" Gate scratch for this session: session") {
+	if !strings.Contains(claimed, "ended since last brief (revive to undo):\n  "+h.label(id)+" Gate scratch for this session: session") {
 		t.Errorf("the next brief should list the entry the session end retired:\n%s", claimed)
 	}
 

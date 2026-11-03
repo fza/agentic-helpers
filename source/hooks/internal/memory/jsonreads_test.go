@@ -14,7 +14,7 @@ import (
 // hubKeys are the keys of the hub jsonReadsHarness files, each holding a
 // value: a live trap anchored to a file, linking a decision, linked to.
 var hubKeys = []string{
-	"anchors", "branch", "commit", "filed", "from", "id", "kind", "linked_from", "links", "retention", "seat", "shelf",
+	"anchors", "branch", "commit", "filed", "from", "id", "kind", "linked_from", "links", "name", "retention", "seat", "shelf",
 	"status", "title", "topics",
 }
 

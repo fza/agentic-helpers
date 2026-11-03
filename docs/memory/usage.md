@@ -441,7 +441,7 @@ tool stamps time, seat, session, branch and commit, and anchors the entry to eve
 content hash: a name of letters, digits and marks of any script holding a dot or a slash, where a
 file exists under it, with a trailing `:<line>` dropped.
 
-A filing answers `filed <id>`, then the entry's flags where it has any (a link target already
+A filing answers `filed <id> (<name>)`, then the entry's flags where it has any (a link target already
 closed, an anchor flag), never the title, seat, kind, source, time or commit the caller sent or
 cannot act on. A declared flag (`until:`, `when:`, `on:`, `proof:`, `forbids:`, `due:`) prints only
 where its normalized form differs from what the caller sent: `--due 2026-11-07` answers
@@ -638,6 +638,35 @@ only topic is a `tag`, then an `untag`.
 
 An entry id is `m-` and `entry_id_length` characters of `a-z0-9`, 6 unless set and never fewer, at
 most 16; an id filed at another length keeps working.
+
+### Names
+
+Ids are random letters nobody can read, say or remember, so every entry also gets a name, built
+from its title when it is filed: its first two content words, lowercased, accents stripped and joined
+by dashes, or three where two make fewer than eight characters, stop words (English and German
+function words such as `the`, `of`, `der`) and single characters left out. `APFS span of clones` is
+`apfs-span`. A name another entry holds is numbered apart, `apfs-span-2`, and a name is never given
+twice, even once its entry is purged, so a name a user once said never comes to mean another entry.
+`state` and anything in an id's shape are never names. A title of stop words alone is named by
+them, one with no ASCII letter or digit `entry`.
+
+The name stays when the title changes: `retitle` leaves it as it is. Every command and MCP key that
+takes an entry id takes the name in its place, on the command line in any case, over MCP in lower
+case as the keys' pattern says: `show apfs-span`, `ack apfs-span#k3x
+--done`, `supersede <id> --by apfs-span`, `link <id> apfs-span`, `--link`, `--absorbs`, an `--item`
+or `ack --add` that is a name alone. A word no entry is named stays as given, so a graph id, a store
+id or an item's text passes through. No `--until` form names a memory entry, so none takes a name.
+
+Every line naming an entry by its id and title gives its name beside the id, `m-6fxex1 (apfs-span)
+APFS span of clones [...]`, a search hit's score after it, a seen pointer as `<id> (<name>) <title>
+(seen)`, and every JSON entry object carries it as `name`. Where a line quoted on this page reads
+`<id> <title>` (`similar:`, `←`, `forbidden by`, `ended since last brief`, `changed on shelf`, `retire?`,
+the capture notice), `<id>` stands for `<id> (<name>)`; the do-now list and `possible credential:`
+keep the id alone.
+
+An agent shows a user names and numbered listings, never ids: a listing shown to a user is numbered,
+and a number refers to that listing alone, so the agent maps it back to the entry before acting on
+it. A number changes from one listing to the next; the name stays.
 
 ### Due times
 
@@ -863,7 +892,7 @@ The brief gives a todo's short line `<done>/<total>`, then up to three open item
 at about 60 characters:
 
     todos:
-      m-1oqsjs Port the waiter  [2h]  1/4
+      m-1oqsjs (port-waiter) Port the waiter  [2h]  1/4
         2. #p9a: swap the clock
         3. #k3x: run CI on Linux
 
@@ -920,8 +949,8 @@ follow brings it.
 
 A seat hears about every entry it receives, once, as the lines `agentic-memory: new for <seat> (<n>):`
 and one short line each (see [What comes back](#what-comes-back)), its bracket naming the kind and
-the source only where they are not a note's and an agent's: `m-4kq2zd Owner wants the diff today
-[3m, main, from user]`. The recipient is the reader, and the filing stamp and commit change nothing
+the source only where they are not a note's and an agent's: `m-4kq2zd (owner-wants) Owner wants the
+diff today [3m, main, from user]`. The recipient is the reader, and the filing stamp and commit change nothing
 it does; `show` prints them. The lines come at the next prompt, at the agent's next tool call, and,
 for a session idle at its prompt, through a waiter that wakes it with a new turn.
 
@@ -1193,9 +1222,9 @@ both reads as no change.
 Every hit of a ranked search carries a score, as sdd prints one: what ranked it in whole percent of
 the best hit of the result, so the best scores 100 and no hit scores more than the one above it. A
 `--term` search ranks by how often its terms match, a `--query` search by the cosine, a hybrid by the
-fused reciprocal rank. The line prints it after the id,
+fused reciprocal rank. The line prints it after the id and name,
 
-    m-wssi 92% macOS has no timeout command  [main, note, from agent, 2026-10-25 10:00 CET, 15af1a8c]
+    m-wssi (macos-timeout) 92% macOS has no timeout command  [main, note, from agent, 2026-10-25 10:00 CET, 15af1a8c]
 
 and `--json` and MCP carry it as `score` on each entry. A later page scores against the same best,
 so its first hit can score below 100. A listing (`--status` without `--term` or `--query`) ranks by
@@ -1299,7 +1328,7 @@ agentic-memory view --explain 'top(5):kind(trap)'   # active:kind(trap):rank(hea
 | `until end met: <condition>`, `until end inferred: <why>` | `retire` (a rule ends only by hand, so it carries no end) |
 | `branch filed on <branch>` | none until that branch merges |
 
-    m-7q2k4f Gate reads only Bash calls  [main, trap, from agent, 2026-10-25 10:00 CET, 15af1a8c]
+    m-7q2k4f (gate-reads) Gate reads only Bash calls  [main, trap, from agent, 2026-10-25 10:00 CET, 15af1a8c]
         anchor drifted: internal/gate/gate.go → confirm where the entry still holds, else supersede
 
 The entry's line leaves out the flags its reasons restate: a drifted or gone anchor, a link that
@@ -1335,14 +1364,14 @@ A brief, recall, search, view or show prints an entry's line, or `show` and a vi
 its body, once per context. A later read of the same entry, unchanged since, prints a pointer in
 its place, keeping its rank:
 
-    m-1oqsjs Gate reads Bash only (seen)
+    m-1oqsjs (gate-reads) Gate reads Bash only (seen)
 
 In the brief, a run of such entries within one section folds into one line, `<n> seen above,
 unchanged`; a lone one keeps its pointer, and so does one a citer line follows. The fold holds only
 inside one context: what the seen set marks empties where the context does.
 
-Over MCP and `--json` such an entry is `{"id", "title", "seen": true}`, a ranked search hit's with
-its `score` too, as its pointer line prints it after the id. A read asking for more than
+Over MCP and `--json` such an entry is `{"id", "name", "title", "seen": true}`, a ranked search
+hit's with its `score` too, as its pointer line prints it after the id and name. A read asking for more than
 was printed prints in full: `show` after a search line prints the body. An entry that changed since
 (a retire, a new link, a drifted anchor) prints in full again, and so does a view section adding
 return reasons, expanded links or sizes. Recall names no entry a read printed. A compaction, `/clear`
@@ -1417,7 +1446,7 @@ kind's decay, then the flags every line carries, the link flags folded: a `settl
 listed in full, being a decision in force, and every other ended target folds into one count, a
 superseded one kept by its successor, the id to read next:
 
-    m-q2rk7d Waiter flaky on CI  [2d]  → 20261024-110000-d-tac-set settled; → 17 ended, 1 superseded by m-xlez8q; ← 1
+    m-q2rk7d (waiter-flaky) Waiter flaky on CI  [2d]  → 20261024-110000-d-tac-set settled; → 17 ended, 1 superseded by m-xlez8q; ← 1
 
 `ended` counts the targets closed, retired, gone, or superseded naming no successor. `search` and
 `view` keep the full line, with seat, kind, source, filing time and commit, their link flags folded
@@ -1581,7 +1610,7 @@ answer carries are the ones below. The command line keeps its text and its `--js
   what the call produced and every hint; fields beside it would only repeat them. A write's text
   never echoes the ids, topics, title or seat the caller sent: `state written`, `retired`,
   `superseded`, `linked`, `tagged`, `untagged`, `retitled`, `done` (or `undone`, `dropped`,
-  `removed`), `reordered`, `due <time>`, `filed <id>`, each followed by any line naming what else
+  `removed`), `reordered`, `due <time>`, `filed <id> (<name>)`, each followed by any line naming what else
   the call did or found. `ack --add` names the new items. `confirm` answers `confirmed`, naming
   only an entry left with anchors it could not re-hash, their files gone and so dropped:
   `<id>: anchors gone from the tree, dropped: <path>, ...`.

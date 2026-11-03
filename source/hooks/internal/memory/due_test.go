@@ -378,7 +378,7 @@ func TestAFormatSixStoreMovesThroughSevenChangingOnlyTheFormat(t *testing.T) {
 
 	h.must("", "search", "--term", "Gate", "--no-heat")
 
-	if written, _ := os.ReadFile(formatPath); !strings.Contains(string(written), `"format":8`) {
+	if written, _ := os.ReadFile(formatPath); !strings.Contains(string(written), `"format":9`) {
 		t.Errorf("a format-6 store should move through format 7 to the current one: %s", written)
 	}
 

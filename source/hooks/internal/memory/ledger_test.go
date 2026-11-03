@@ -818,8 +818,8 @@ func TestAFormatSevenStoreMovesToEightWithItsSlotAsStateOld(t *testing.T) {
 		t.Errorf("a hook's draft should be dropped, got:\n%s", drive)
 	}
 
-	if written, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(written), `"format":8`) {
-		t.Errorf("a format-7 store should move to format 8: %s", written)
+	if written, _ := os.ReadFile(filepath.Join(h.store(), "format.json")); !strings.Contains(string(written), `"format":9`) {
+		t.Errorf("a format-7 store should move through format 8 to the current one: %s", written)
 	}
 
 	if test.Exists(t, filepath.Join(h.store(), "backup")) {

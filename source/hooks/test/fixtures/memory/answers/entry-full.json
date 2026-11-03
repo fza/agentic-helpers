@@ -1,5 +1,6 @@
 {
   "id": "m-full01",
+  "name": "gate-trap",
   "score": 72,
   "title": "Gate trap holding every value",
   "seat": "impl",

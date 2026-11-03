@@ -201,8 +201,8 @@ func TestTheBriefNamesTheNewerEntriesCitingAHit(t *testing.T) {
 	under := brief[strings.Index(brief, hub):]
 	under = under[:strings.Index(under, "\n  m-")+1]
 
-	if !strings.Contains(under, "← "+citing[2]+" Newest note citing the hub [idea, ") ||
-		!strings.Contains(under, "← "+citing[1]+" Middle note citing the hub [idea, ") ||
+	if !strings.Contains(under, "← "+h.label(citing[2])+" Newest note citing the hub [idea, ") ||
+		!strings.Contains(under, "← "+h.label(citing[1])+" Middle note citing the hub [idea, ") ||
 		strings.Contains(under, citing[0]) || strings.Contains(under, "← "+received) {
 		t.Errorf("a hit should show the two newest citing entries not already listed, title only, got:\n%s", under)
 	}
@@ -283,7 +283,7 @@ func TestTheSimilarHintIsOneLine(t *testing.T) {
 
 	out := h.must("the gate reads bash only today", "new", "--title", "Gate reads Bash only still", "--topic", "gate")
 
-	if !strings.Contains(out, "similar: "+old+" Gate reads Bash only today (") {
+	if !strings.Contains(out, "similar: "+h.label(old)+" Gate reads Bash only today (") {
 		t.Errorf("the filing should name the similar entry, got:\n%s", out)
 	}
 
@@ -372,7 +372,7 @@ func TestRecallNamesTheNewerEntriesCitingAHit(t *testing.T) {
 	}
 
 	out := h.must(hookPayload("", "", "zebra quokka narwhal"), "prompt")
-	if !strings.Contains(out, hub) || !strings.Contains(out, "    ← "+cited+" Follow-up on the sighting [idea, ") {
+	if !strings.Contains(out, hub) || !strings.Contains(out, "    ← "+h.label(cited)+" Follow-up on the sighting [idea, ") {
 		t.Errorf("a recalled hit should name the newer entry citing it, got:\n%s", out)
 	}
 }

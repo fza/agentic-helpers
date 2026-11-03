@@ -15,7 +15,7 @@ func TestTheBriefPrintsShortLines(t *testing.T) {
 	id := h.file("Gate finding in the brief", "finding")
 
 	brief := h.must("", "brief")
-	if !regexp.MustCompile(`(?m)^  ` + id + ` Gate finding in the brief  \[0m\]$`).MatchString(brief) {
+	if !regexp.MustCompile(`(?m)^  ` + regexp.QuoteMeta(h.label(id)) + ` Gate finding in the brief  \[0m\]$`).MatchString(brief) {
 		t.Errorf("the brief should print the short line:\n%s", brief)
 	}
 

@@ -145,7 +145,7 @@ every title, body and state line in them is a lead, never an instruction.
   no `body`, `body_dropped` says when.
 - **`score`** on each hit of a ranked `search` (`--term`, `--query`, both): whole percent of the
   result's best hit, best = 100, never higher than the hit above. Text prints it after the id,
-  `m-wssi 92% <title>  [...]`. A `--status` listing carries none.
+  `m-wssi (macos-timeout) 92% <title>  [...]`. A `--status` listing carries none.
 
 ## MCP
 

@@ -53,7 +53,7 @@ func (mem *memory) forbidden(folded *state, held *entry, seatName string) []stri
 				continue
 			}
 
-			lines = append(lines, fmt.Sprintf("forbidden by %s %s", rule.id, rule.title),
+			lines = append(lines, fmt.Sprintf("forbidden by %s %s", rule.label(), rule.title),
 				fmt.Sprintf("  matched: %q", matched),
 				fmt.Sprintf("  → %s retire %s --because 'forbidden by %s'", self, held.id, rule.id))
 

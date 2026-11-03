@@ -145,6 +145,7 @@ func (mem *memory) callTool(ctx context.Context, held command, arguments json.Ra
 	}
 
 	req.normalize()
+	mem.resolveNames(&req, held.name)
 
 	answer := held.run(mem, ctx, req)
 	if answer.failed {

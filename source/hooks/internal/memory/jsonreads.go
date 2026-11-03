@@ -18,6 +18,8 @@ import (
 
 type jsonEntry struct {
 	ID string `json:"id"`
+	// Name is the entry's alias, which every command takes in place of ID.
+	Name string `json:"name,omitempty"`
 	// Score is a ranked search hit's match in percent of the result's best.
 	Score        *int              `json:"score,omitempty"`
 	Title        string            `json:"title,omitempty"`
@@ -63,7 +65,7 @@ type jsonEntry struct {
 	Done  *int       `json:"done,omitempty"`
 	Total *int       `json:"total,omitempty"`
 	// Seen marks an entry the calling session's context already holds; it
-	// then answers with its id and title alone.
+	// then answers with its id, name and title alone.
 	Seen bool `json:"seen,omitempty"`
 }
 
@@ -105,7 +107,7 @@ type jsonAttachment struct {
 // withBody is set.
 func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody bool) jsonEntry {
 	object := jsonEntry{
-		ID: held.id, Title: held.title, Seat: held.seat, Shelf: mem.shelfName(mem.entryShelf(held)),
+		ID: held.id, Name: held.name, Title: held.title, Seat: held.seat, Shelf: mem.shelfName(mem.entryShelf(held)),
 		Topics: folded.topicsOf(held), Kind: held.kind, Until: held.until, Due: held.due.UTC(), When: held.when, On: held.on, Proof: held.proof,
 		Forbids: held.forbids, Retention: held.retention, From: held.from, Filed: held.filed.UTC(), Branch: held.branch,
 		Commit: held.commit, Status: held.status, Links: held.linkStates(), Tools: held.toolsJSON(),

@@ -9,14 +9,18 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-func seenPointer(id string, title string) string {
-	return id + " " + title + " (seen)"
+func (h *harness) seenLine(id string, title string) string {
+	h.t.Helper()
+
+	return h.label(id) + " " + title + " (seen)"
 }
 
-// bestHitPointer is the pointer a search prints for a hit scoring as the
-// best of its result.
-func bestHitPointer(id string, title string) string {
-	return id + " 100% " + title + " (seen)"
+// bestHitLine is the pointer a search prints for a hit scoring as the best
+// of its result.
+func (h *harness) bestHitLine(id string, title string) string {
+	h.t.Helper()
+
+	return h.label(id) + " 100% " + title + " (seen)"
 }
 
 func TestARepeatedSearchHitPrintsAPointerInRankOrder(t *testing.T) {
@@ -37,9 +41,9 @@ func TestARepeatedSearchHitPrintsAPointerInRankOrder(t *testing.T) {
 
 	for index, text := range lines {
 		switch {
-		case text == bestHitPointer(gate, "Gate reads Bash only"):
+		case text == h.bestHitLine(gate, "Gate reads Bash only"):
 			pointed = index
-		case strings.HasPrefix(text, tail+" 100% Tail seal gate rename  ["):
+		case strings.HasPrefix(text, h.label(tail)+" 100% Tail seal gate rename  ["):
 			full = index
 		}
 	}
@@ -60,7 +64,7 @@ func TestShowPrintsABodyOnceThenAPointer(t *testing.T) {
 		t.Errorf("show after a search hit should print the body the search never printed:\n%s", shown)
 	}
 
-	if again := strings.TrimSpace(h.must("", "show", id, "--no-heat")); again != seenPointer(id, "Gate reads Bash only") {
+	if again := strings.TrimSpace(h.must("", "show", id, "--no-heat")); again != h.seenLine(id, "Gate reads Bash only") {
 		t.Errorf("a second show should print the pointer alone, got:\n%s", again)
 	}
 
@@ -81,11 +85,11 @@ func TestTheBriefsEntriesComeBackAsPointers(t *testing.T) {
 	id := h.file("Gate reads Bash only", "finding")
 	h.must("", "brief")
 
-	if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != bestHitPointer(id, "Gate reads Bash only") {
+	if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != h.bestHitLine(id, "Gate reads Bash only") {
 		t.Errorf("an entry the brief printed should come back as its pointer, got:\n%s", out)
 	}
 
-	if out := h.must("", "view", "--layout", "active:as-list"); !strings.Contains(out, "  "+seenPointer(id, "Gate reads Bash only")) {
+	if out := h.must("", "view", "--layout", "active:as-list"); !strings.Contains(out, "  "+h.seenLine(id, "Gate reads Bash only")) {
 		t.Errorf("a view's list should print the pointer too, got:\n%s", out)
 	}
 }
@@ -120,8 +124,9 @@ func TestASeenEntryAnswersWithItsIDAndTitleInJSON(t *testing.T) {
 	}
 
 	seen := answer.Entries[0]
-	if len(seen) != 4 || seen["id"] != id || seen["title"] != "Gate reads Bash only" || seen["seen"] != true || seen["score"] == nil {
-		t.Errorf("a seen search hit should answer with its id, score, title and seen alone, got %v", seen)
+	if len(seen) != 5 || seen["id"] != id || seen["name"] != "gate-reads" || seen["title"] != "Gate reads Bash only" ||
+		seen["seen"] != true || seen["score"] == nil {
+		t.Errorf("a seen search hit should answer with its id, name, score, title and seen alone, got %v", seen)
 	}
 }
 
@@ -134,14 +139,14 @@ func TestAFreshContextPrintsEverythingInFull(t *testing.T) {
 			id := h.file("Gate reads Bash only", "finding")
 			h.must("", "search", "--term", "Gate reads", "--no-heat")
 
-			if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != bestHitPointer(id, "Gate reads Bash only") {
+			if out := strings.TrimSpace(h.must("", "search", "--term", "Gate reads", "--no-heat")); out != h.bestHitLine(id, "Gate reads Bash only") {
 				t.Fatalf("a repeated hit should print its pointer before the context starts afresh, got:\n%s", out)
 			}
 
 			// A compaction's and a /clear's brief reprints the entry; a resume
 			// prints none, so the next read does.
 			out := h.must(hookPayload(source, "", ""), "session-start") + test.Unscored(h.must("", "search", "--term", "Gate reads", "--no-heat"))
-			if !strings.Contains(out, id+" Gate reads Bash only  [") {
+			if !strings.Contains(out, h.label(id)+" Gate reads Bash only  [") {
 				t.Errorf("a context started afresh should get the entry in full first, got:\n%s", out)
 			}
 		})
@@ -182,7 +187,7 @@ func TestAPointerHitWarmsAsAFullHitDid(t *testing.T) {
 	h.clock.Advance(time.Hour)
 
 	before := h.heatOf(id)
-	if out := strings.TrimSpace(h.must("", "show", id)); out != seenPointer(id, "Gate reads Bash only") {
+	if out := strings.TrimSpace(h.must("", "show", id)); out != h.seenLine(id, "Gate reads Bash only") {
 		t.Fatalf("a second show should print the pointer, got:\n%s", out)
 	}
 

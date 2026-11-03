@@ -444,7 +444,7 @@ func (mem *memory) endedSince(folded *state, seatName string, since time.Time) [
 
 		condition, ended := strings.CutPrefix(last.because, endReached)
 		if ended {
-			lines = append(lines, fmt.Sprintf("  %s %s: %s", held.id, held.title, condition))
+			lines = append(lines, fmt.Sprintf("  %s %s: %s", held.label(), held.title, condition))
 		}
 	}
 

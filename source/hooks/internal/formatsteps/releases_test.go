@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	currentMemoryFormat = 8
+	currentMemoryFormat = 9
 	currentToolsFormat  = 2
 	claimOwnerPID       = test.OwnerPID
 )
@@ -42,6 +42,71 @@ var successors = map[int]func(answer map[string]any){
 
 		answer["state"] = map[string]any{"lines": []any{}, "old": held}
 	},
+}
+
+// namesFormat is the store format that names every entry, and named the
+// successor it brings: every entry object an answer holds, the seen form
+// among them, carries the name the migration gave its entry, which no release
+// before it printed.
+const namesFormat = 9
+
+func named(names map[string]string) func(answer map[string]any) {
+	var walk func(value any)
+
+	walk = func(value any) {
+		switch held := value.(type) {
+		case map[string]any:
+			id, _ := held["id"].(string)
+			if _, titled := held["title"]; titled && strings.HasPrefix(id, "m-") {
+				held["name"] = names[id]
+			}
+
+			for _, inner := range held {
+				walk(inner)
+			}
+		case []any:
+			for _, inner := range held {
+				walk(inner)
+			}
+		}
+	}
+
+	return func(answer map[string]any) { walk(answer) }
+}
+
+// names is the migrated store's name index, after checking it names every
+// entry the fixture filed, no two alike.
+func (run releaseRun) names() map[string]string {
+	run.t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join(run.storeOf(home.Memory), "names.json"))
+	if err != nil {
+		run.t.Fatalf("the migrated store should hold a name index: %v", err)
+	}
+
+	var names map[string]string
+
+	err = json.Unmarshal(raw, &names)
+	if err != nil {
+		run.t.Fatalf("the name index should be JSON: %v", err)
+	}
+
+	given := map[string]string{}
+
+	for _, id := range run.dump.Entries {
+		name := names[id]
+
+		switch {
+		case name == "":
+			run.t.Errorf("the migration should name every entry, %s has none", id)
+		case given[name] != "":
+			run.t.Errorf("no two entries should share a name, %s and %s share %s", given[name], id, name)
+		}
+
+		given[name] = id
+	}
+
+	return names
 }
 
 // releaseRun is the migrated fixture of one release in root, the environment
@@ -224,9 +289,16 @@ func TestEveryCommittedReleaseMigratesToWhatItHeld(t *testing.T) {
 			}
 
 			for _, read := range run.dump.Commands {
-				want := canonical(t, read.Out, changes)
+				// The first memory read migrates the store, which names
+				// its entries.
+				got := canonical(t, []byte(run.call(read)), nil)
 
-				if got := canonical(t, []byte(run.call(read)), nil); got != want {
+				applied := changes
+				if written < namesFormat && read.Binary == "agentic-memory" {
+					applied = append(slices.Clone(changes), named(run.names()))
+				}
+
+				if want := canonical(t, read.Out, applied); got != want {
 					t.Errorf("%s %v should answer what the release held, got:\n%s\nwant:\n%s", read.Binary, read.Args[0], got, want)
 				}
 			}

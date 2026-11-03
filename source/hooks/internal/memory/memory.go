@@ -371,6 +371,7 @@ func (mem *memory) load(ctx context.Context) (*state, error) {
 
 	mem.annotate(folded)
 	mem.annotateLinks(ctx, folded)
+	mem.nameEntries(folded)
 
 	return folded, nil
 }
@@ -601,6 +602,7 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 	}
 
 	request.normalize()
+	mem.resolveNames(&request, command.name)
 
 	result := command.run(mem, ctx, request)
 	if result.failed {

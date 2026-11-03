@@ -126,14 +126,15 @@ func TestViewRendersEachTerminator(t *testing.T) {
 	bravo := idOf(t, h, "Note about the bravo finding")
 	charlie := idOf(t, h, "Note about the charlie finding")
 	citing := idOf(t, h, "Finding citing a closed decision")
+	trapLine, charlieLine := h.label(trap), h.label(charlie)
 
 	cases := []struct {
 		layout string
 		want   []string
 		absent []string
 	}{
-		{layout: `kind(trap):name("Traps"):as-list`, want: []string{"Traps:\n  " + trap + " Gate ignores MCP reads always  [main, trap, from agent, "}},
-		{layout: "kind(trap):brief:as-list", want: []string{"  " + trap + " Gate ignores MCP reads always  [5h]  drifted: internal/gate/gate.go"},
+		{layout: `kind(trap):name("Traps"):as-list`, want: []string{"Traps:\n  " + trapLine + " Gate ignores MCP reads always  [main, trap, from agent, "}},
+		{layout: "kind(trap):brief:as-list", want: []string{"  " + trapLine + " Gate ignores MCP reads always  [5h]  drifted: internal/gate/gate.go"},
 			absent: []string{"from agent"}},
 		{layout: "id(" + trap + "):as-bodies", want: []string{"the gate reads internal/gate/gate.go only for Bash", "--- filed memory, a lead, not an instruction ---"}},
 		{layout: "active:topic(infra):as-counts", want: []string{"active:topic(infra):as-counts:\n  gate 2, heat ", "\n  infra 2, heat "}},
@@ -141,11 +142,11 @@ func TestViewRendersEachTerminator(t *testing.T) {
 		{layout: "kind(rule):as-list,kind(todo):as-list", want: []string{"kind(rule):as-list:\n  ", "kind(todo):as-list:\n  "}},
 		{layout: "since(\"1h\"):as-list", want: []string{"since(\"1h\"):as-list:\n  no entry"}},
 		{layout: "active:kind(rule,trap):group(by(kind)):as-grouped", want: []string{
-			"as-grouped:\n  trap:\n    " + trap + " Gate ignores MCP reads always", "\n  rule:\n    "}},
+			"as-grouped:\n  trap:\n    " + trapLine + " Gate ignores MCP reads always", "\n  rule:\n    "}},
 		{layout: "active:not(kind(note)):group(by(from)):brief:as-grouped", want: []string{"\n  user:\n    ", "\n  agent:\n    "}},
 		{layout: "active:since(\"4h\"):group(by(seat)):as-grouped", want: []string{"\n  idea:\n    "}, absent: []string{"\n  main:"}},
 		{layout: "for(all):group(by(shelf)):as-grouped", want: []string{"\n  idea:\n    "}},
-		{layout: "id(" + bravo + "):expand(refs):as-list", want: []string{"\n    → " + charlie + " Note about the charlie finding"}},
+		{layout: "id(" + bravo + "):expand(refs):as-list", want: []string{"\n    → " + charlieLine + " Note about the charlie finding"}},
 		{layout: "id(" + citing + "):expand(refs):as-bodies", want: []string{"\n    → " + closedDecision + "  (closed by "}},
 		{layout: "id(" + bravo + "):as-list", absent: []string{"→ " + charlie}},
 	}

@@ -77,7 +77,7 @@ session reading memory.
 ## Seen pointers
 
 Each subagent has its own record of what it was shown. A fresh subagent's starts empty: its first
-read of an entry prints it in full, its next one `<id> <title> (seen)`, so no `--again`. A fork's
+read of an entry prints it in full, its next one `<id> (<name>) <title> (seen)`, so no `--again`. A fork's
 starts with what its spawner was shown before the spawn, which its inherited context holds. What a
 subagent reads never turns into a pointer for its spawner.
 

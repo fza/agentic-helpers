@@ -280,13 +280,13 @@ func TestNewStampsAndAnchors(t *testing.T) {
 	out := h.must("the gate reads internal/gate/gate.go:12 only for Bash",
 		"new", "--title", "Gate ignores MCP reads", "--topic", "Gate", "--about", "README.md")
 
-	if !regexp.MustCompile(`^filed m-[a-z0-9]{6}$`).MatchString(strings.TrimSpace(out)) {
-		t.Errorf("filing should answer the new id alone, never echoing the caller's input: %s", out)
+	if !regexp.MustCompile(`^filed m-[a-z0-9]{6} \(gate-ignores\)$`).MatchString(strings.TrimSpace(out)) {
+		t.Errorf("filing should answer the new id and name alone, never echoing the caller's input: %s", out)
 	}
 
 	due := h.must("", "new", "--title", "Port the waiter to Linux", "--topic", "gate", "--kind", "todo",
 		"--until", "claim", "--due", "2027-01-01")
-	if !regexp.MustCompile(`^filed m-[a-z0-9]{6}  due: 2027-01-01 00:00 \S+(\n|$)`).MatchString(due) || strings.Contains(due, "until:") {
+	if !regexp.MustCompile(`^filed m-[a-z0-9]{6} \(port-waiter\)  due: 2027-01-01 00:00 \S+(\n|$)`).MatchString(due) || strings.Contains(due, "until:") {
 		t.Errorf("filing should name the due time it normalized beside the id, and no end declared in its normal form: %s", due)
 	}
 

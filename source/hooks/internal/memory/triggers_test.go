@@ -57,7 +57,7 @@ func TestATrapIsToldOncePerSession(t *testing.T) {
 	trap := h.file("Gate edits break the hook", "editing internal/gate/gate.go breaks the hook", "--kind", "trap")
 
 	first := h.callTool("Read", map[string]string{"file_path": filepath.Join(h.repo, "internal", "gate", "gate.go")})
-	if !strings.Contains(first, "agentic-memory: trap for internal/gate/gate.go:\n  "+trap+" Gate edits break the hook  [") {
+	if !strings.Contains(first, "agentic-memory: trap for internal/gate/gate.go:\n  "+h.label(trap)+" Gate edits break the hook  [") {
 		t.Errorf("a call touching a trap's anchor should tell it:\n%s", first)
 	}
 

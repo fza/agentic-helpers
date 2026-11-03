@@ -1,2 +1,2 @@
-m-iy625a Note about the india finding  [4h]
-m-wxggpm Note about the alpha finding  [5h]
+m-iy625a (note-india) Note about the india finding  [4h]
+m-wxggpm (note-alpha) Note about the alpha finding  [5h]

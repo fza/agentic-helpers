@@ -28,7 +28,7 @@ func TestAnArrivalPrintsTheShortLineNamingOnlyAKindAndSourceNotTheDefaults(t *te
 			out := other.must(hookPayload("", "", "next"), "prompt")
 
 			arrived := linesHolding(out, id)
-			if len(arrived) != 1 || arrived[0] != "  "+id+" "+tc.title+tc.suffix {
+			if len(arrived) != 1 || arrived[0] != "  "+h.label(id)+" "+tc.title+tc.suffix {
 				t.Errorf("the arrival should print the short line with only what differs from a note by an agent:\n%s", out)
 			}
 

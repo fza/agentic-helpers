@@ -252,7 +252,7 @@ func TestAReachedEndIsListedOnce(t *testing.T) {
 	h.clock.Advance(4 * time.Hour)
 
 	first := h.must("", "brief")
-	if !strings.Contains(first, "ended since last brief (revive to undo):\n  "+id+" Gate todo ending at noon: at:2026-10-25T12:00:00Z") {
+	if !strings.Contains(first, "ended since last brief (revive to undo):\n  "+h.label(id)+" Gate todo ending at noon: at:2026-10-25T12:00:00Z") {
 		t.Errorf("a brief over a reached end should list the entry it retired with its condition:\n%s", first)
 	}
 
@@ -474,7 +474,7 @@ func TestTheCaptureNotice(t *testing.T) {
 
 	out := toolContext(h.must(h.toolCall(), "tool"))
 	if !strings.Contains(out, "agentic-memory: graph gained 20261025-130000-d-tac-two; open todos waiting for a capture: "+
-		waiting+" Owner decision waiting for capture; link the one it settles: agentic-memory link <todo> <graph id>") {
+		h.label(waiting)+" Owner decision waiting for capture; link the one it settles: agentic-memory link <todo> <graph id>") {
 		t.Errorf("a graph gain while a todo waits for its capture should be named:\n%s", out)
 	}
 
@@ -546,7 +546,7 @@ func TestRetireQuestionFlagsInPlaceAndListsOnlyTheRest(t *testing.T) {
 		t.Errorf("a candidate printed above should not repeat under retire?:\n%s", brief)
 	}
 
-	if !strings.HasPrefix(section, "  "+overCap+" Cold finding citing a closed decision  retire? every link ended\n") {
+	if !strings.HasPrefix(section, "  "+h.label(overCap)+" Cold finding citing a closed decision  retire? every link ended\n") {
 		t.Errorf("a candidate past the note limit should be named under retire? with its title and why alone:\n%s", brief)
 	}
 }
@@ -637,7 +637,7 @@ func TestEveryLinkEndedSkipsOwnPredecessorsAndATodosMemoryLinks(t *testing.T) {
 				t.Errorf("the brief should flag retire? only where every link that can end the entry ended, flagged: %t", flagged)
 			}
 
-			title, _, found := strings.Cut(strings.TrimPrefix(briefLine(h.must("", "brief", "--again"), id), id+" "), "  [")
+			title, _, found := strings.Cut(strings.TrimPrefix(briefLine(h.must("", "brief", "--again"), id), h.label(id)+" "), "  [")
 			if !found {
 				t.Fatalf("the brief should list the entry")
 			}
