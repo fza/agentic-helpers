@@ -515,6 +515,7 @@ first line creates it; a seat with none reads `state: empty` at claim and in the
 | `ack state --add '<line>'...` | adds a line per `--add`, each with a stable three-character id | `added state#k3x, state#p9a` |
 | `ack state --add <memory id>\|<todo>#<item>\|<graph id>` | pins the target: the line shows its title and state | `added state#q1w` |
 | `ack state --add '<line>' --until <condition>...` | adds lines that end once any condition is reached | `added state#r2e` |
+| `ack state --add '<line>' --due <time>` | adds lines that matter only from that time ([Due times](#due-times)) | `added state#u7i  due: 2026-11-07 00:00 CET` |
 | `ack state#<item>... --done` | ticks lines | `done` |
 | `ack state#<item>... --remove` | removes lines that no longer belong | `removed` |
 | `ack state#<item>... --undo` | brings a ticked, removed or ended line back, open until ticked or removed | `undone` |
@@ -525,6 +526,8 @@ MCP `ack` takes the same: `{"ids":["state"],"add":["<line>"],"until":["claim"]}`
 ([Declared ends](#declared-ends)), and is refused anywhere but on `ack state --add`, a todo's items
 and a rule included:
 `--until declares the ends of the lines ack state --add adds; a todo's items and rules take none`.
+`due` (`--due`) takes the forms `new --due` takes and is refused the same way:
+`--due sets when the lines ack state --add adds come due; a todo's items and rules take none`.
 State ids take an `ack` call of their own (`state lines take an ack call of their own: give state or
 state#<item> ids only`), and one of `--add`, `--done`, `--undo` or `--remove` (`ack on state lines
 takes exactly one of --add, --done, --undo or --remove`). `state#<item>` addresses a line of the
@@ -579,7 +582,9 @@ line as evidence, never a tick, and ends with it.
 The brief opens with the ledger, after its first line: the slot waiting to be split
 ([below](#a-slot-written-before-the-ledger)), every open agent line whole, the `dirty` and `asked`
 lines, then the newest 12 open `landed` and `captured` lines, newest first, the other open ones
-folded into a count:
+folded into a count. An agent line due more than a day ahead is held back into one count naming the
+next due time, `(<n> due later, next <time>: agentic-memory show state)`; within a day of it, or
+past it, the line stands whole with `due in 3h` or `due 2h ago`:
 
     state (agentic-memory ack state#<item> --done | ack state#<item> --remove):
       #k3x: gate fix half done: the Bash path records reads, the MCP path not yet
@@ -593,7 +598,8 @@ folded into a count:
 `show state` prints what is live: the slot waiting to be split, every open agent line with the
 commits nested under it, the open `dirty` and `asked` lines, then the newest 12 open `landed` and
 `captured` lines, each run in the order added. Each line carries its state, `[ ]` open, `[x]`
-ticked, `[e]` ended with an `ended:` line naming why, `[r]` removed, and its declared ends. A fold
+ticked, `[e]` ended with an `ended:` line naming why, `[r]` removed, its declared ends, and, while
+open, when it comes due (`due in 2d`). A fold
 line per group held back names the flag that prints it:
 
     state of seat main:
@@ -610,7 +616,7 @@ ones included; `--all-items` (MCP `all_items`) adds every other ticked and ended
 id `state` carry the same lines as `state`: `lines`, `old` while the slot waits, and `folded`, with
 `history` and `settled`, the counts each fold line names, where a group is held back. `brief --json`
 carries the whole ledger as `state`: `lines`, each with `id`, `text`, `link`, `state` (`open`,
-`done`, `ended`), `reason`, `hook`, `at` and `until`, and `old` while the slot waits.
+`done`, `ended`), `reason`, `hook`, `at`, `until` and `due`, and `old` while the slot waits.
 
 An agent change to its ledger moves the start of the post-compaction replay forward as filing does,
 answers the compaction nudge, and re-arms the replay nudge. A hook line holds no
@@ -723,6 +729,14 @@ entry and due time: a moved time is told again, and an entry the brief already l
 The idle waiter looks every poll within its 30 minutes; an entry coming due while no session runs
 shows in the next brief. An entry still live a week past its due time is flagged
 `retire? due <age> ago` (see [Declared ends](#declared-ends)).
+
+A state line may carry one too: `ack state --add '<line>' --due <time>` (MCP `ack` key `due`), the
+same forms. It stays in the ledger rather than the due section: held back in the brief's state
+section until a day before it, then whole with its due flag ([The state ledger](#the-state-ledger)).
+An open line coming due is told once as an entry is, in the same `due for <seat>` notice, as
+`state#<item>: <text>  due <age> ago`, and the brief that names it whole counts it told. A ticked,
+removed or ended line is never told. No command moves a line's due time: remove the line and add
+it again.
 
 ### Attachments
 

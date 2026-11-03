@@ -65,6 +65,7 @@ var (
 	ErrStateMixed  = errors.New("state lines take an ack call of their own: give state or state#<item> ids only")
 	ErrStateChange = errors.New("ack on state lines takes exactly one of --add, --done, --undo or --remove")
 	ErrUntilAdd    = errors.New("--until declares the ends of the lines ack state --add adds; a todo's items and rules take none")
+	ErrDueAdd      = errors.New("--due sets when the lines ack state --add adds come due; a todo's items and rules take none")
 	ErrStateAdd    = errors.New("--add takes the one id state, no item address")
 	// stateAddress is a ledger line's address, `state#<item>`.
 	stateAddress = regexp.MustCompile(`^state#([a-z0-9]+)$`)
@@ -97,7 +98,7 @@ type ledgerLine struct {
 	UntilHashes                                  map[string]string
 	UntilHold                                    *hold
 	Set                                          bool
-	Added                                        time.Time
+	Added, Due                                   time.Time
 }
 
 func (held *ledger) line(id string) *ledgerLine {
@@ -159,7 +160,7 @@ func (held *ledger) apply(at time.Time, change itemPayload) {
 		held.Lines = append(held.Lines, ledgerLine{
 			ID: change.ID, Text: change.Text, Link: change.Link, State: itemOpen, Hook: change.Hook, Commit: change.Commit,
 			Session: change.Session, Paths: change.Paths, Until: change.Until, UntilHashes: change.UntilHashes,
-			UntilHold: change.UntilHold, Added: at,
+			UntilHold: change.UntilHold, Added: at, Due: change.Due,
 		})
 
 		return
@@ -466,6 +467,10 @@ func (mem *memory) ackState(ctx context.Context, req request) result {
 		return refused("%v", ErrUntilAdd)
 	}
 
+	if strings.TrimSpace(req.Due.text) != "" && len(req.Add) == 0 {
+		return refused("%v", ErrDueAdd)
+	}
+
 	folded, err := mem.load(ctx)
 	if err != nil {
 		return refused("%v", err)
@@ -532,6 +537,17 @@ func (mem *memory) addLines(ctx context.Context, held *ledger, name string, req 
 		untilHold = &hold{Seat: mem.seatKey(name), Claimed: claim.Claimed}
 	}
 
+	var due time.Time
+
+	if strings.TrimSpace(req.Due.text) != "" {
+		parsed, err := parseDue(req.Due.text)
+		if err != nil {
+			return nil, "", err
+		}
+
+		due = parsed.UTC()
+	}
+
 	var (
 		changes []itemPayload
 		ids     []string
@@ -553,6 +569,7 @@ func (mem *memory) addLines(ctx context.Context, held *ledger, name string, req 
 
 		one := lineOf(text)
 		one.ID, one.Until, one.UntilHashes, one.UntilHold, one.Session = id, until, hashes, untilHold, mem.env.SessionID
+		one.Due = due
 		changes = append(changes, one)
 		ids = append(ids, ledgerID+"#"+id)
 	}
@@ -566,7 +583,37 @@ func (mem *memory) addLines(ctx context.Context, held *ledger, name string, req 
 		return nil, "", err
 	}
 
-	return events, "added " + strings.Join(ids, ", "), nil
+	return events, withFlags("added "+strings.Join(ids, ", "), dueDeclared(due)), nil
+}
+
+// dueDeclared is the flag naming a line's due time in its normal form, the
+// one a filing names: none where the line carries no due time.
+func dueDeclared(due time.Time) []string {
+	if due.IsZero() {
+		return nil
+	}
+
+	return []string{"due: " + stampIn(due, time.Local)}
+}
+
+// lineDueFlag is how a read says when a line comes due.
+func (mem *memory) lineDueFlag(line ledgerLine) string {
+	if line.Due.IsZero() {
+		return ""
+	}
+
+	now := mem.now()
+	if line.Due.After(now) {
+		return "due in " + age(line.Due.Sub(now))
+	}
+
+	return "due " + age(now.Sub(line.Due)) + " ago"
+}
+
+// dueLater is whether an open agent line comes due more than a day from
+// now: the brief holds it back until it nears, as it does a due entry.
+func (mem *memory) dueLater(line ledgerLine) bool {
+	return !line.Due.IsZero() && line.Due.Sub(mem.now()) > dueNear
 }
 
 // lineOf is a line as --add gives it: a memory id, a todo item's address or
@@ -679,7 +726,7 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 		commits = append(commits, mapping.Commit)
 	}
 
-	var current, history []lineView
+	var current, history, later []lineView
 
 	for _, view := range open {
 		switch {
@@ -691,8 +738,10 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 			history = append(history, view)
 		case view.line.Hook != "":
 			current = append(current, view)
+		case mem.dueLater(view.line):
+			later = append(later, view)
 		default:
-			lines = append(lines, "  "+withFlag(lineMark(view), view.flag))
+			lines = append(lines, "  "+withFlag(withFlag(lineMark(view), view.flag), mem.lineDueFlag(view.line)))
 
 			for _, mapping := range nested {
 				if strings.HasSuffix(mapping.Target, "#"+view.line.ID) {
@@ -700,6 +749,11 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 				}
 			}
 		}
+	}
+
+	if len(later) > 0 {
+		next := slices.MinFunc(later, func(one, other lineView) int { return one.line.Due.Compare(other.line.Due) })
+		lines = append(lines, fmt.Sprintf("  (%d due later, next %s: %s)", len(later), stamp(next.line.Due), showHint(ledgerID).in(at)))
 	}
 
 	for _, view := range current {
@@ -898,6 +952,10 @@ func (mem *memory) showState(ctx context.Context, folded *state, seatName string
 
 		if len(view.line.Until) > 0 {
 			text += "  until " + strings.Join(view.line.Until, ", ")
+		}
+
+		if view.open() {
+			text = withFlag(text, mem.lineDueFlag(view.line))
 		}
 
 		lines = append(lines, text)
@@ -1347,6 +1405,7 @@ type jsonLine struct {
 	Hook   string    `json:"hook,omitempty"`
 	At     time.Time `json:"at"`
 	Until  []string  `json:"until,omitempty"`
+	Due    time.Time `json:"due,omitzero"`
 }
 
 func (mem *memory) ledgerJSON(ctx context.Context, folded *state, seatName string) *jsonLedger {
@@ -1372,7 +1431,7 @@ func (mem *memory) linesJSON(folded *state, seatName string, views []lineView) *
 	for _, view := range views {
 		answer.Lines = append(answer.Lines, jsonLine{
 			ID: view.line.ID, Text: view.text, Link: view.line.Link, State: view.state, Reason: view.reason,
-			Hook: view.line.Hook, At: view.line.Added.UTC(), Until: view.line.Until,
+			Hook: view.line.Hook, At: view.line.Added.UTC(), Until: view.line.Until, Due: view.line.Due.UTC(),
 		})
 	}
 

@@ -942,7 +942,7 @@ func (mem *memory) arrivalsAtTool(ctx context.Context, name string) ([]string, b
 
 	arrived := mem.announce(ctx, folded, name)
 	traps := mem.indexTraps(folded, name)
-	mem.noteLog(name, signature, traps, mem.nextDue(folded, name))
+	mem.noteLog(name, signature, traps, mem.nextDue(ctx, folded, name))
 
 	if arrived == "" {
 		return nil, traps > 0

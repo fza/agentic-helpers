@@ -564,11 +564,11 @@ func allCommands() []command {
 				`"to":{"type":"string","description":"a new path to write the attachment's bytes to"}},"required":["id"]}`,
 		},
 		{
-			name: "ack", usage: "ack <id>... --done | --decline '<why>'  |  ack <todo>#<item>... --done | --undo | --decline '<why>' | --remove  |  ack <todo> --add '<text>'... | --order <item>,<item>...  |  ack state --add '<line>'... [--until <condition>]...  |  ack state#<item>... --done | --undo | --remove",
+			name: "ack", usage: "ack <id>... --done | --decline '<why>'  |  ack <todo>#<item>... --done | --undo | --decline '<why>' | --remove  |  ack <todo> --add '<text>'... | --order <item>,<item>...  |  ack state --add '<line>'... [--until <condition>]... [--due <time>]  |  ack state#<item>... --done | --undo | --remove",
 			description: "settle pending do-now items, change a todo's items for good, or change this seat's state lines (state, state#item); all or none; takes one of done, decline, undo, remove, add or order",
 			flags: []flagSpec{
 				{"done", flagSwitch}, {"decline", flagText}, {"undo", flagSwitch}, {"remove", flagSwitch},
-				{"add", flagList}, {"order", flagText}, {"until", flagList}, {"no-heat", flagSwitch},
+				{"add", flagList}, {"order", flagText}, {"until", flagList}, {"due", flagText}, {"no-heat", flagSwitch},
 			},
 			positional: someIDs, run: (*memory).ack,
 			schema: `{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string","pattern":"^` + entryRef + `(#[a-z0-9]+)?$"},` +
@@ -578,6 +578,7 @@ func allCommands() []command {
 				`"add":{"type":"array","items":{"type":"string"},"description":"items or state lines to add at the end: text, or a memory or graph id"},` +
 				`"order":{"type":"string","description":"item ids, comma-separated, to put first in that order"},` +
 				`"until":{"type":"array","items":{"type":"string"},"description":"for state --add, any one ends a line: ` + untilForms + `"},` +
+				`"due":{"type":"string","description":"for state --add: when the lines come due, ` + dueForms + `"},` +
 				noHeat + `},"required":["ids"]}`,
 		},
 		{

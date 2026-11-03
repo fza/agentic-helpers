@@ -221,38 +221,108 @@ func (mem *memory) comeDue(ctx context.Context, folded *state, seatName string) 
 	var mark seenMark
 	mem.readSlot(mem.seenKey(seatName), &mark)
 
-	var fresh []*entry
+	var (
+		fresh []*entry
+		keys  []string
+	)
 
 	for _, held := range mem.dueEntries(folded, seatName) {
 		if !held.due.After(now) && !slices.Contains(mark.Due, dueKey(held)) {
 			fresh = append(fresh, held)
+			keys = append(keys, dueKey(held))
 		}
 	}
 
-	if len(fresh) == 0 {
+	var freshLines []lineView
+
+	for _, view := range mem.dueLines(ctx, folded, seatName) {
+		if !view.line.Due.After(now) && !slices.Contains(mark.Due, lineDueKey(view.line)) {
+			freshLines = append(freshLines, view)
+			keys = append(keys, lineDueKey(view.line))
+		}
+	}
+
+	if len(keys) == 0 {
 		return ""
 	}
 
-	mem.markDue(folded, seatName, fresh)
+	mem.markDue(ctx, folded, seatName, keys)
 
 	here := mem.checkout(ctx)
-	shown := fresh[:min(len(fresh), dueShown)]
-	lines := []string{fmt.Sprintf("%s: due for %s (%d):", self, seatName, len(fresh))}
+	lines := []string{fmt.Sprintf("%s: due for %s (%d):", self, seatName, len(keys))}
+	shownLines := freshLines[:min(len(freshLines), dueShown)]
+
+	for _, view := range shownLines {
+		lines = append(lines, "  "+ledgerID+withFlag(lineMark(view), mem.lineDueFlag(view.line)))
+	}
+
+	shown := fresh[:min(len(fresh), dueShown-len(shownLines))]
 
 	for _, held := range shown {
 		lines = append(lines, "  "+shortLine(here, held, seatName, now, dueFlag(held, now)))
 	}
 
-	if more := len(fresh) - len(shown); more > 0 {
+	if more := len(keys) - len(shown) - len(shownLines); more > 0 {
 		lines = append(lines, runBefore(fmt.Sprintf("+%d more due: %s", more, briefHint(hintSwitch("due")).in(mem.hintChannel(ctx))), "choosing what to do next"))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-// markDue records the entries as told. Of those told before, only the ones
-// still due stay, so the list never outgrows the seat's due entries.
-func (mem *memory) markDue(folded *state, seatName string, told []*entry) {
+// lineDueKey names a state line at one due time, as dueKey names an entry.
+func lineDueKey(line ledgerLine) string {
+	return ledgerID + "#" + line.ID + "@" + line.Due.UTC().Format(time.RFC3339)
+}
+
+// dueLines is the seat's open agent lines carrying a due time, earliest
+// first. Only those lines have their state worked out, so a seat whose lines
+// carry none costs no end check.
+func (mem *memory) dueLines(ctx context.Context, folded *state, seatName string) []lineView {
+	held := folded.ledgerFor(seatName)
+
+	var (
+		probe *endProbe
+		views []lineView
+	)
+
+	for _, line := range held.Lines {
+		if line.Due.IsZero() || line.Hook != "" || line.State != itemOpen {
+			continue
+		}
+
+		if probe == nil {
+			probe = mem.probe(ctx)
+		}
+
+		view := mem.viewLine(ctx, probe, folded, seatName, held, line)
+		if view.open() {
+			views = append(views, view)
+		}
+	}
+
+	slices.SortStableFunc(views, func(one, other lineView) int { return one.line.Due.Compare(other.line.Due) })
+
+	return views
+}
+
+// dueLineKeys is the keys of the seat's open lines already due, which the
+// brief's state section names in full.
+func (mem *memory) dueLineKeys(ctx context.Context, folded *state, seatName string) []string {
+	var keys []string
+
+	for _, view := range mem.dueLines(ctx, folded, seatName) {
+		if !view.line.Due.After(mem.now()) {
+			keys = append(keys, lineDueKey(view.line))
+		}
+	}
+
+	return keys
+}
+
+// markDue records the entries and lines keyed told as told. Of those told
+// before, only the ones still due stay, so the list never outgrows the seat's
+// due entries and lines.
+func (mem *memory) markDue(ctx context.Context, folded *state, seatName string, told []string) {
 	if len(told) == 0 {
 		return
 	}
@@ -269,6 +339,10 @@ func (mem *memory) markDue(folded *state, seatName string, told []*entry) {
 		}
 	}
 
+	for _, key := range mem.dueLineKeys(ctx, folded, seatName) {
+		still[key] = true
+	}
+
 	kept := make([]string, 0, len(mark.Due)+len(told))
 
 	for _, key := range mark.Due {
@@ -277,8 +351,8 @@ func (mem *memory) markDue(folded *state, seatName string, told []*entry) {
 		}
 	}
 
-	for _, held := range told {
-		if key := dueKey(held); !slices.Contains(kept, key) {
+	for _, key := range told {
+		if !slices.Contains(kept, key) {
 			kept = append(kept, key)
 		}
 	}
@@ -287,17 +361,29 @@ func (mem *memory) markDue(folded *state, seatName string, told []*entry) {
 	mem.writeSlot(mem.seenKey(seatName), &mark)
 }
 
-// nextDue is the earliest due time of the seat's entries not yet come due, or
-// zero: the moment a tool call has a reason to look again though the log did
-// not change.
-func (mem *memory) nextDue(folded *state, seatName string) time.Time {
+// nextDue is the earliest due time of the seat's entries and open lines not
+// yet come due, or zero: the moment a tool call has a reason to look again
+// though the log did not change.
+func (mem *memory) nextDue(ctx context.Context, folded *state, seatName string) time.Time {
 	now := mem.now()
+
+	var next time.Time
 
 	for _, held := range mem.dueEntries(folded, seatName) {
 		if held.due.After(now) {
-			return held.due
+			next = held.due
+
+			break
 		}
 	}
 
-	return time.Time{}
+	for _, view := range mem.dueLines(ctx, folded, seatName) {
+		if view.line.Due.After(now) && (next.IsZero() || view.line.Due.Before(next)) {
+			next = view.line.Due
+
+			break
+		}
+	}
+
+	return next
 }

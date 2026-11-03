@@ -970,7 +970,7 @@ seat they belong to, so the fold keys a ledger by seat name as it does the slot 
 (`folded.ledgers[seatName]`, `internal/memory/ledger.go`) and no seat reaches another's: `ack
 state` and `show state` resolve the calling seat first. No memory id collides, every one starting
 `m-`. A row's payload is the todo item's, `{op, id, text, link}`, with `until`, `until_hashes` and
-`until_hold` for declared ends, `session`, and for a hook's line `hook` (`landed`, `captured`,
+`until_hold` for declared ends, `due` for the time it comes due, `session`, and for a hook's line `hook` (`landed`, `captured`,
 `dirty`, `asked`), `commit` or `paths`. `op` is add, check, uncheck or remove, and `text` for a hook
 replacing its one dirty or asked line. Ids come from the todo items' draw, `old` reserved. The fold
 keeps each line with its state and whether an ack set it, and `changed`, the time of the seat's
@@ -995,6 +995,14 @@ it. `show state` and its JSON read one selection, `stateLines`, which holds back
 captured lines out of the newest 12 open ones and every other settled line, counting each group for
 its fold line. Rejected: storing an end as a row, which would need a write at read and could not
 follow a target that reopens.
+
+A line's due time is read as an entry's is (`dueNear`): the brief's state section holds an open
+agent line due more than a day ahead in one count, and `dueLines` gives the come-due notice, the
+seen mark and the next-due time of the tool call's quick check the seat's open agent lines that
+carry one. Only lines carrying a due time have their state worked out there, so a ledger without
+one costs that path no end check. A line is keyed in the seen mark's `due` list as
+`state#<id>@<RFC 3339 due>`, beside the entries' `<id>@<due>`. The ledger stays out of the brief's
+due section: a line due soon already stands whole in the state section.
 
 Hooks add lines through the same rows: PostToolUse after a Bash `git commit`, `merge` or
 `cherry-pick`, and Stop and SessionEnd, read `git log --oneline -n 20 <claim commit>..HEAD` and add

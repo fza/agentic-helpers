@@ -232,6 +232,8 @@ func (mem *memory) ack(ctx context.Context, req request) result {
 		return mem.ackState(ctx, req)
 	case len(req.Until) > 0:
 		return refused("%v", ErrUntilAdd)
+	case strings.TrimSpace(req.Due.text) != "":
+		return refused("%v", ErrDueAdd)
 	}
 
 	if req.Undo || req.Remove || len(req.Add) > 0 || req.Order != "" ||

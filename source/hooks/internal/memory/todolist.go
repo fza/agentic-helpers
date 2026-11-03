@@ -80,6 +80,8 @@ type itemPayload struct {
 	Until       []string          `json:"until,omitempty"`
 	UntilHashes map[string]string `json:"until_hashes,omitempty"`
 	UntilHold   *hold             `json:"until_hold,omitempty"`
+	// Due is when a state line comes due.
+	Due time.Time `json:"due,omitzero"`
 }
 
 // todoItem is one item as the log left it. Set is whether an ack gave it its

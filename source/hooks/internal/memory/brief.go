@@ -292,7 +292,12 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add(text)
 	}
 
-	mem.markDue(folded, seatName, told)
+	toldKeys := mem.dueLineKeys(ctx, folded, seatName)
+	for _, held := range told {
+		toldKeys = append(toldKeys, dueKey(held))
+	}
+
+	mem.markDue(ctx, folded, seatName, toldKeys)
 
 	for _, text := range mem.credentialLines(ctx, seatName) {
 		out.add(text)

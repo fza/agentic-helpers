@@ -28,7 +28,7 @@ import (
 
 // foldLayout changes whenever the cached shape does, so a cache of another
 // release's shape is folded again rather than misread.
-const foldLayout = 6
+const foldLayout = 7
 
 type foldKey struct {
 	Layout     int

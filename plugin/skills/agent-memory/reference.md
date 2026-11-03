@@ -41,6 +41,10 @@ agentic-memory holder --session <id> --json
 - Coming due mid-run → `agentic-memory: due for <seat> (<n>):`, once. Act on it.
 - Moved: `due <id> <time>`; dropped: `due <id> --clear`.
 - A week past due → `retire? due <age> ago`.
+- A state line: `ack state --add '<line>' --due <time>`. Held in the state section as `(<n> due later,
+  next <time>: agentic-memory show state)` until a day before, then whole with `due in <age>`; told
+  once as `state#<item>: <text>  due <age> ago`. Elsewhere → `--due sets when the lines ack state
+  --add adds come due; ...`.
 
 ## Brief folds
 
