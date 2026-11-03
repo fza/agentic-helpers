@@ -1274,11 +1274,12 @@ func (f *File) importFixed(opened *os.File, header Header, legacy []Legacy) erro
 	return nil
 }
 
-// reopen opens the file a write renamed over path.
+// reopen opens the file a write renamed over path. A refused open comes back
+// as safefs words it, which already names the path.
 func reopen(root string, path string) (*os.File, Header, error) {
 	file, err := safefs.OpenChecked(root, path, os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, Header{}, fmt.Errorf("opening %s: %w", path, err)
+		return nil, Header{}, err
 	}
 
 	header, err := readHeader(file)

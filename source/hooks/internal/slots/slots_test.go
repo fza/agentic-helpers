@@ -468,6 +468,69 @@ func TestAnEmptyFileReclaimedKeepsItsFirstSize(t *testing.T) {
 	}
 }
 
+// TestAWriteOpenRefusedNamesTheFileOnce takes a permission from a file of a
+// store: the refused write names the file it could not open, once.
+func TestAWriteOpenRefusedNamesTheFileOnce(t *testing.T) {
+	putChanged := func(file *slots.File, value string) error {
+		return file.Put(context.Background(), "shown/one", []byte(value+"changed"))
+	}
+
+	cases := []struct {
+		name    string
+		open    func(t *testing.T) *slots.File
+		value   string
+		refused string
+		mode    os.FileMode
+		write   func(file *slots.File, value string) error
+	}{
+		{name: "a fixed-width file", open: openFixed, value: "small", refused: "sessions.slots", mode: 0o400, write: putChanged},
+		{name: "a directory", open: openFile, value: "small", refused: "sessions.slots", mode: 0o400, write: putChanged},
+		{name: "a class file", open: openFile, value: strings.Repeat("x", 1_000), refused: "sessions-*.slots", mode: 0o400, write: putChanged},
+		{name: "a fixed-width file laid out", open: openFixed, value: "small", refused: "sessions.slots", mode: 0o200,
+			write: func(file *slots.File, _ string) error {
+				return slots.Open(filepath.Dir(file.Path), file.Path).Relayout(context.Background(), nil)
+			}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			file := tc.open(t)
+			put(t, file, "shown/one", tc.value)
+
+			paths, err := filepath.Glob(filepath.Join(filepath.Dir(file.Path), tc.refused))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, path := range paths {
+				err = os.Chmod(path, tc.mode)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			err = tc.write(file, tc.value)
+			if err == nil {
+				t.Fatal("a write the store's permissions refuse should fail")
+			}
+
+			named := 0
+
+			for _, path := range paths {
+				if strings.Count(err.Error(), path) > 1 {
+					t.Errorf("a refused write should name the file it could not open once, got %v", err)
+				}
+
+				named += strings.Count(err.Error(), path)
+			}
+
+			if named == 0 {
+				t.Errorf("a refused write should name the file it could not open, got %v", err)
+			}
+		})
+	}
+}
+
 func TestANonSlotFileIsRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sessions.slots")
 

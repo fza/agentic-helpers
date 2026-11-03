@@ -775,7 +775,7 @@ func (f *File) relayoutLocked(fit Fit) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("opening %s: %w", f.Path, err)
+		return err
 	}
 
 	header, held, err := Read(file)
