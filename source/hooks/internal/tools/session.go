@@ -2,7 +2,7 @@ package tools
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -72,33 +72,103 @@ func (lib *library) loadSession(ctx context.Context) *sessionState {
 	return held
 }
 
-// saveSession writes the session's state; one too large for its slot gives
-// up its oldest delivered nudges, then its oldest holdings.
-func (lib *library) saveSession(ctx context.Context, held *sessionState) error {
+// The session state's ceiling and caps, in encoded JSON bytes unless they
+// count items.
+const (
+	sessionCeiling  = 110_000
+	copyPathBytes   = 1_024
+	maxHoldings     = 50
+	maxPending      = 20
+	pendingBytes    = 512
+	pendingKeyBytes = 2_048
+)
+
+// saveSession writes the session's state, fitted to its ceiling; a session id
+// outside the shape keeps none, and a write that fails is reported.
+func (lib *library) saveSession(ctx context.Context, held *sessionState) {
 	if !sessionShape.MatchString(lib.session) || lib.key == "" {
-		return fmt.Errorf("session %q names no session slot", lib.session)
+		return
+	}
+
+	data, err := held.fit()
+	if err == nil {
+		err = lib.sessionSlots().Put(ctx, lib.sessionKey(), data)
+	}
+
+	lib.reportSlot("keeping", lib.sessionKey(), err)
+}
+
+// fit is the state's JSON once its caps hold: a holding whose copy path passes
+// its cap is left out and the oldest past maxHoldings go; a pending nudge
+// whose key passes its cap is left out, the oldest past maxPending go, and
+// each line is cut to its bytes. Past the ceiling it gives up its oldest
+// delivered nudges, then the versions told of that no holding names, its
+// pending nudges, and its oldest holdings, down to none at all.
+func (held *sessionState) fit() ([]byte, error) {
+	held.Holdings = slices.DeleteFunc(held.Holdings, func(holding holding) bool {
+		return slots.EncodedLen(holding.Copy) > copyPathBytes
+	})
+	held.Holdings = held.Holdings[max(0, len(held.Holdings)-maxHoldings):]
+	held.Pending = slices.DeleteFunc(held.Pending, func(pending nudge) bool {
+		return slots.EncodedLen(pending.Key) > pendingKeyBytes
+	})
+	held.Pending = held.Pending[max(0, len(held.Pending)-maxPending):]
+
+	for index, pending := range held.Pending {
+		held.Pending[index].Line = slots.CutJSON(pending.Line, pendingBytes)
 	}
 
 	for {
-		err := lib.sessionSlots().PutJSON(ctx, lib.sessionKey(), held)
-		if !errors.Is(err, slots.ErrTooLarge) {
-			return err
+		data, err := json.Marshal(held)
+		if err != nil {
+			return nil, fmt.Errorf("encoding the session: %w", err)
+		}
+
+		if len(data) <= sessionCeiling {
+			return data, nil
 		}
 
 		switch {
 		case len(held.Nudged) > 0:
-			held.Nudged = held.Nudged[len(held.Nudged)/2+len(held.Nudged)%2:]
+			held.Nudged = slots.NewerHalf(held.Nudged)
+		case held.dropStaleNotified():
+		case len(held.Pending) > 0:
+			held.Pending = nil
 		case len(held.Holdings) > 0:
-			held.Holdings = held.Holdings[len(held.Holdings)/2+len(held.Holdings)%2:]
+			held.Holdings = slots.NewerHalf(held.Holdings)
 		default:
-			return err
+			return nil, fmt.Errorf("%w: %d bytes", slots.ErrOverCeiling, len(data))
 		}
 	}
 }
 
+// dropStaleNotified forgets the versions told of that no holding names,
+// answering whether there were any.
+func (held *sessionState) dropStaleNotified() bool {
+	dropped := false
+
+	for key := range held.Notified {
+		if !slices.ContainsFunc(held.Holdings, func(holding holding) bool { return holdingKey(holding.Project, holding.Tool) == key }) {
+			delete(held.Notified, key)
+
+			dropped = true
+		}
+	}
+
+	return dropped
+}
+
 func (lib *library) forgetSession(ctx context.Context) {
 	if sessionShape.MatchString(lib.session) && lib.key != "" {
-		_ = lib.sessionSlots().Delete(ctx, lib.sessionKey())
+		lib.reportSlot("clearing", lib.sessionKey(), lib.sessionSlots().Delete(ctx, lib.sessionKey()))
+	}
+}
+
+// reportSlot reports a slot write that failed on stderr, which the agent
+// never reads: a lost write costs session state, never the call.
+func (lib *library) reportSlot(action string, key string, err error) {
+	if err != nil {
+		_, _ = fmt.Fprintf(lib.streams.Err, "%s: %s %s: %v\n", self, action, key, err)
 	}
 }
 
@@ -145,7 +215,7 @@ func (lib *library) takeNudges(ctx context.Context) string {
 	}
 
 	held.Pending = nil
-	_ = lib.saveSession(ctx, held)
+	lib.saveSession(ctx, held)
 
 	return strings.Join(lines, "\n")
 }

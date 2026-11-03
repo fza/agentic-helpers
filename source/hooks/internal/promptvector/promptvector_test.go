@@ -69,6 +69,41 @@ func TestASaveNeverWritesThroughAPlantedLink(t *testing.T) {
 	}
 }
 
+// TestAVectorPastTheCeilingIsNotKept saves vectors on each side of the
+// ceiling: the one within it answers, the one past it is not kept, and the
+// save fails neither.
+func TestAVectorPastTheCeilingIsNotKept(t *testing.T) {
+	cases := []struct {
+		name       string
+		dimensions int
+		kept       bool
+	}{
+		{"a vector within the ceiling", 4_096, true},
+		{"a vector past the ceiling", 40_000, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			vector := make([]float32, tc.dimensions)
+			for index := range vector {
+				vector[index] = -1.2345678e-30
+			}
+
+			err := promptvector.Save(context.Background(), dir, "s1", "count the words", "fake/64", vector)
+			if err != nil {
+				t.Fatalf("a save should succeed whether the vector is kept or not: %v", err)
+			}
+
+			_, hit := promptvector.Load(context.Background(), dir, "s1", "count the words", "fake/64")
+			if hit != tc.kept {
+				t.Errorf("a vector should be kept only within the ceiling, kept: %v", hit)
+			}
+		})
+	}
+}
+
 func TestPerSessionFilesOfAnEarlierReleaseAreTakenIn(t *testing.T) {
 	dir := t.TempDir()
 	legacy := filepath.Join(dir, "s1.json")

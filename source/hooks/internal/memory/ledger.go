@@ -756,7 +756,7 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 		if len(kept) == 0 {
 			mem.clearSlot(mem.ledgerEndsKey(seatName))
 		} else {
-			_ = mem.writeSlot(mem.ledgerEndsKey(seatName), ledgerEnds{Shown: kept})
+			mem.writeSlot(mem.ledgerEndsKey(seatName), &ledgerEnds{Shown: kept})
 		}
 	}
 

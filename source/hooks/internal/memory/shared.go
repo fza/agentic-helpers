@@ -305,7 +305,7 @@ func (mem *memory) shelfChanges(folded *state, seatName string, markKey string) 
 	var mark seenMark
 	if !mem.readSlot(markKey, &mark) || mark.Changed.IsZero() {
 		mark.Changed = mem.now()
-		_ = mem.writeSlot(markKey, mark)
+		mem.writeSlot(markKey, &mark)
 
 		return nil
 	}
@@ -333,21 +333,21 @@ func (mem *memory) markSeen(markKey string, at time.Time) {
 	var mark seenMark
 	mem.readSlot(markKey, &mark)
 	mark.At = at
-	_ = mem.writeSlot(markKey, mark)
+	mem.writeSlot(markKey, &mark)
 }
 
 func (mem *memory) markChanged(markKey string, at time.Time) {
 	var mark seenMark
 	mem.readSlot(markKey, &mark)
 	mark.Changed = at
-	_ = mem.writeSlot(markKey, mark)
+	mem.writeSlot(markKey, &mark)
 }
 
 func (mem *memory) noteLog(seatName string, signature string, traps int, nextDue time.Time) {
 	var mark seenMark
 	mem.readSlot(mem.seenKey(seatName), &mark)
 	mark.Log, mark.Traps, mark.NextDue = signature, traps, nextDue
-	_ = mem.writeSlot(mem.seenKey(seatName), mark)
+	mem.writeSlot(mem.seenKey(seatName), &mark)
 }
 
 // arrivalLine is an arrived entry's short line, its bracket naming the kind

@@ -183,7 +183,7 @@ func (linked *Linked) Take(ctx context.Context, links []string, again bool) []Li
 	}
 
 	if writes {
-		_ = lib.saveSession(ctx, state)
+		lib.saveSession(ctx, state)
 	}
 
 	seen.save()

@@ -70,6 +70,25 @@ func TestATrapIsToldOncePerSession(t *testing.T) {
 	}
 }
 
+// TestATrapIndexPastItsCeilingMatchesFromTheLog stands the marker an index
+// past its ceiling leaves in for the index: the tool hook reads the traps from
+// the log and tells the one the call touches.
+func TestATrapIndexPastItsCeilingMatchesFromTheLog(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+	trap := h.file("Gate edits break the hook", "editing internal/gate/gate.go breaks the hook", "--kind", "trap")
+
+	// A first call indexes the traps the log changed, so the index planted
+	// next is the one the call after it reads.
+	h.callTool("Read", map[string]string{"file_path": filepath.Join(h.repo, "README.md")})
+	h.putSlot("traps/"+seatID(t, h.store(), "main"), `{"traps":[],"from_log":true}`)
+
+	told := h.callTool("Read", map[string]string{"file_path": filepath.Join(h.repo, "internal", "gate", "gate.go")})
+	if !strings.Contains(told, "agentic-memory: trap for internal/gate/gate.go:\n  "+h.label(trap)) {
+		t.Errorf("an index standing for the log should match the log's traps:\n%s", told)
+	}
+}
+
 func TestAReceivedTrapTriggers(t *testing.T) {
 	h, other := twoSeats(t)
 	trap := other.file("Spawning a builder loses the plan", "body", "--kind", "trap", "--when", "tool:Agent", "--for", "main")

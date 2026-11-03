@@ -154,8 +154,9 @@ store holds another project's agents' text.
   alone follows a link that stays inside its tree. A file is read only where its lstat is a regular
   file with one name (a hard link could be an outside file linked in), opened with `O_NONBLOCK` and
   held to the lstat. Caps: a tool's files 1 MiB, a version folder
-  1 MiB + 64 KiB, `index.json`, `history.jnl` and `takes.jnl` 4 MiB each, a session's slot 128 KiB,
-  `current` 64 bytes, a walk six folders deep and 2000 files. A malformed line is skipped.
+  1 MiB + 64 KiB, `index.json`, `history.jnl` and `takes.jnl` 4 MiB each, a session's slot 110,000
+  bytes and a seen set 32,768 ([Hooks](#hooks)), `current` 64 bytes, a walk six folders deep and
+  2000 files. A malformed line is skipped.
 - **Writes open no path.** A write holds the descriptor of each folder, made and opened relative to
   its checked parent as a read opens it, and creates, appends and renames relative to that
   descriptor, so a folder swapped for a link after its check is never written through. A new file
@@ -203,6 +204,17 @@ rather than the session id: the MCP server keeps the `CLAUDE_CODE_SESSION_ID` it
 a `/clear`, so a key on it would outlive the context it describes. The start time keeps a reused pid
 from reading a dead process's set. The offer prints names only, so it marks nothing printed: a
 find after it still prints the tool in full.
+
+Each value has a ceiling in encoded JSON bytes, as memory's kinds do
+([memory architecture](../memory/architecture.md#file-formats)), so no write is refused for its
+size. A session's state keeps at most 50 holdings, the newest, each with a copy path of at most
+1,024 bytes, and 20 pending nudges, each line cut to 512 bytes and each key at most 2,048; past
+110,000 bytes it gives up its oldest delivered nudges, then the versions told of that no holding
+names, then its pending nudges, then its oldest holdings. A seen set past 32,768 bytes gives up the
+older half of its lines and offers. A prompt vector past 128,100 bytes is not kept, and the next
+prompt hook embeds the prompt again. A slot write that fails is reported on stderr, `agentic-tools:
+keeping <key>: <error>` (`clearing` for a removal, `reclaiming` for the SessionStart pass), which
+the agent never reads.
 
 A SessionEnd clears the session's slot, its prompt vector and its seen set, but a session that
 crashes or is killed never reaches it, and its keys would stay for good. So the SessionStart hook

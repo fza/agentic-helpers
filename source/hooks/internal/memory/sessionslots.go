@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -46,11 +45,6 @@ func (mem *memory) slotFile() *slots.File {
 	return file
 }
 
-// trimmer is a slot value that can give up its oldest marks to fit its slot.
-type trimmer interface {
-	trim() bool
-}
-
 // readSlot decodes key's value into target, answering whether one was there.
 // Like the files it stands in for, a slot read takes no context: nothing it
 // does waits.
@@ -58,20 +52,24 @@ func (mem *memory) readSlot(key string, target any) bool {
 	return mem.slotFile().GetJSON(context.Background(), key, target)
 }
 
-// writeSlot sets key's value; a value too large for its slot drops its
-// oldest marks until it fits, where it can.
-func (mem *memory) writeSlot(key string, value any) error {
-	for {
-		err := mem.slotFile().PutJSON(context.Background(), key, value)
-		if err == nil {
-			mem.keepMarkOfCache()
-		}
-
-		trimmed, canTrim := value.(trimmer)
-		if !errors.Is(err, slots.ErrTooLarge) || !canTrim || !trimmed.trim() {
-			return err
-		}
+// writeSlot sets key's value, fitted to its kind's ceiling. A hook whose
+// session id was refused keeps no per-session state, so its empty key writes
+// nothing; any other write that fails is reported.
+func (mem *memory) writeSlot(key string, value slots.Fitted) {
+	if key == "" {
+		return
 	}
+
+	data, err := slots.Encode(value)
+	if err == nil {
+		err = mem.slotFile().Put(context.Background(), key, data)
+	}
+
+	if err == nil {
+		mem.keepMarkOfCache()
+	}
+
+	mem.reportSlot("keeping", key, err)
 }
 
 func (mem *memory) hasSlot(key string) bool {
@@ -81,7 +79,28 @@ func (mem *memory) hasSlot(key string) bool {
 }
 
 func (mem *memory) clearSlot(key string) {
-	_ = mem.slotFile().Delete(context.Background(), key)
+	if key != "" {
+		mem.reportSlot("clearing", key, mem.slotFile().Delete(context.Background(), key))
+	}
+}
+
+// updateSlot changes key's value under the slot file's writer lock: change
+// learns the value held and answers the one to keep, fitted to its kind, or
+// slots.ErrUnchanged. A write that fails is reported.
+func (mem *memory) updateSlot(ctx context.Context, key string, change func(value []byte, found bool) (slots.Fitted, error)) {
+	if key == "" {
+		return
+	}
+
+	err := mem.slotFile().Update(ctx, key, func(value []byte, found bool) ([]byte, error) {
+		next, err := change(value, found)
+		if err != nil {
+			return nil, err
+		}
+
+		return slots.Encode(next)
+	})
+	mem.reportSlot("keeping", key, err)
 }
 
 // sessionKey is the key of a session's own state under purpose, empty in a
@@ -133,16 +152,14 @@ func (mem *memory) seenKey(seatName string) string { return "seen/" + mem.seatKe
 func (mem *memory) reclaimSessions(ctx context.Context, stale func(slots.Slot) bool) {
 	now := mem.now().Local()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
-	kept := []string{
-		graphNamesPrefix + now.Format("2006/01"),
-		graphNamesPrefix + monthStart.AddDate(0, 0, -1).Format("2006/01"),
-	}
+	kept := []string{now.Format("2006/01"), monthStart.AddDate(0, 0, -1).Format("2006/01")}
 
 	registry, found := mem.registry()
 
-	_ = mem.slotFile().Reclaim(ctx, func(slot slots.Slot) bool {
-		if strings.HasPrefix(slot.Key, graphNamesPrefix) {
-			return !slices.Contains(kept, slot.Key)
+	err := mem.slotFile().Reclaim(ctx, func(slot slots.Slot) bool {
+		month, isNames := namesMonth(slot.Key)
+		if isNames {
+			return !slices.Contains(kept, month)
 		}
 
 		for _, purpose := range sessionPurposes {
@@ -160,6 +177,7 @@ func (mem *memory) reclaimSessions(ctx context.Context, stale func(slots.Slot) b
 
 		return false
 	})
+	mem.reportSlot("reclaiming", sessionSlotsName, err)
 }
 
 func seatGone(registry seat.Registry, id string) bool {
@@ -173,22 +191,6 @@ func (mem *memory) clearEnded(session string) {
 	for _, purpose := range endedPurposes {
 		mem.clearSlot(mem.sessionKey(purpose, session))
 	}
-}
-
-// trim drops the older half of each mark list, answering whether anything
-// was left to drop.
-func (shown *shownSet) trim() bool {
-	if len(shown.IDs)+len(shown.Bodies)+len(shown.Traps)+len(shown.Notes)+len(shown.Landed) == 0 {
-		return false
-	}
-
-	shown.IDs = shown.IDs[len(shown.IDs)/2+len(shown.IDs)%2:]
-	shown.Bodies = shown.Bodies[len(shown.Bodies)/2+len(shown.Bodies)%2:]
-	shown.Traps = shown.Traps[len(shown.Traps)/2+len(shown.Traps)%2:]
-	shown.Notes = shown.Notes[len(shown.Notes)/2+len(shown.Notes)%2:]
-	shown.Landed = shown.Landed[len(shown.Landed)/2+len(shown.Landed)%2:]
-
-	return true
 }
 
 // recordStore raises the store's clock mark and refreshes its size ledger

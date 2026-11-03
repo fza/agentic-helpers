@@ -300,7 +300,7 @@ func (mem *memory) semanticFor(ctx context.Context, folded *state, phrase string
 		}
 
 		if session != "" {
-			_ = promptvector.Save(ctx, slots, session, phrase, slotKey, query[0])
+			mem.reportSlot("keeping the prompt vector of", session, promptvector.Save(ctx, slots, session, phrase, slotKey, query[0]))
 		}
 	}
 

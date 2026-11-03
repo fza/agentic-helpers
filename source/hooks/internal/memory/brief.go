@@ -610,7 +610,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add(runBefore(fmt.Sprintf("+%d more: %s brief --topic <name>", missing, self), "working on a listed topic"))
 	}
 
-	_ = mem.writeSlot(mem.briefMarkKey(seatName), briefMark{At: mem.now()})
+	mem.writeSlot(mem.briefMarkKey(seatName), fixedMark(briefMark{At: mem.now()}))
 
 	return strings.Join(out.lines, "\n")
 }

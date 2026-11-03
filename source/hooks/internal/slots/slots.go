@@ -63,7 +63,10 @@ const (
 	// small value.
 	headRead = 512
 	// MinWidth is the narrowest slot a file may have.
-	MinWidth     = headRead
+	MinWidth = headRead
+	// MaxValue bounds a value, whatever its key: what a 128 KiB slot holds
+	// beside its head and the longest key.
+	MaxValue     = 128<<10 - slotHead - MaxKey
 	initialPairs = 8
 	// maxPairs bounds the pairs a file read from disk may claim.
 	maxPairs = 1 << 20
@@ -237,7 +240,7 @@ func (f *File) Update(ctx context.Context, key string, change func(value []byte,
 			return err
 		}
 
-		if slotHead+len(key)+len(value) > header.Width {
+		if len(value) > MaxValue || slotHead+len(key)+len(value) > header.Width {
 			return fmt.Errorf("%w: %d bytes for %s", ErrTooLarge, len(value), key)
 		}
 

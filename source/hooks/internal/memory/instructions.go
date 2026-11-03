@@ -40,7 +40,7 @@ func (mem *memory) instructions(ctx context.Context, _ []string) int {
 	path := mem.absolute(payload.FilePath)
 	hash, _ := fileHash(path)
 
-	_ = mem.updateInstructions(ctx, payload.SessionID, func(loaded *loadedInstructions, _ bool) bool {
+	mem.updateInstructions(ctx, payload.SessionID, func(loaded *loadedInstructions, _ bool) bool {
 		held, known := loaded.Files[path]
 		if known && held == hash {
 			return false
@@ -78,7 +78,7 @@ func (mem *memory) instructionsChanged(ctx context.Context, payload hookio.Paylo
 
 	var lines []string
 
-	_ = mem.updateInstructions(ctx, payload.SessionID, func(loaded *loadedInstructions, recorded bool) bool {
+	mem.updateInstructions(ctx, payload.SessionID, func(loaded *loadedInstructions, recorded bool) bool {
 		changed := false
 
 		if !recorded {
@@ -119,8 +119,8 @@ func (mem *memory) instructionsChanged(ctx context.Context, payload hookio.Paylo
 // updateInstructions changes the session's record under the slot file's
 // lock, since Claude Code may report several loaded files at once; change
 // learns whether a record was there and answers whether it changed anything.
-func (mem *memory) updateInstructions(ctx context.Context, session string, change func(*loadedInstructions, bool) bool) error {
-	err := mem.slotFile().Update(ctx, mem.instructionsKey(session), func(value []byte, found bool) ([]byte, error) {
+func (mem *memory) updateInstructions(ctx context.Context, session string, change func(*loadedInstructions, bool) bool) {
+	mem.updateSlot(ctx, mem.instructionsKey(session), func(value []byte, found bool) (slots.Fitted, error) {
 		loaded := loadedInstructions{}
 
 		if found {
@@ -135,18 +135,8 @@ func (mem *memory) updateInstructions(ctx context.Context, session string, chang
 			return nil, slots.ErrUnchanged
 		}
 
-		data, err := json.Marshal(loaded)
-		if err != nil {
-			return nil, fmt.Errorf("encoding the loaded instructions: %w", err)
-		}
-
-		return data, nil
+		return &loaded, nil
 	})
-	if err != nil {
-		return fmt.Errorf("recording the loaded instructions: %w", err)
-	}
-
-	return nil
 }
 
 // seedInstructions is the fixed set a session watches where Claude Code

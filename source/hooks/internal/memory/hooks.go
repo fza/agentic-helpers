@@ -290,7 +290,7 @@ func (mem *memory) sessionStart(ctx context.Context, _ []string) int {
 	// hooks return, so a fork is matched at the first hook finding it written;
 	// told to claim now, the agent would take a seat that hook is about to give.
 	if payload.Source == "fork" && payload.SessionID != "" && !mem.transcriptStarted(ctx, payload) {
-		_ = mem.writeSlot(mem.forkKey(payload.SessionID), true)
+		mem.writeSlot(mem.forkKey(payload.SessionID), fixedMark(true))
 
 		return 0
 	}
@@ -393,7 +393,7 @@ func (mem *memory) housekeep(ctx context.Context) {
 	cutoff := mem.now().Add(-staleAfter)
 
 	mem.reclaimSessions(ctx, func(slot slots.Slot) bool { return slot.Written.Before(cutoff) })
-	_ = promptvector.Reclaim(ctx, promptvector.Dir(mem.env.Roots.Cache))
+	mem.reportSlot("reclaiming", "the prompt vectors", promptvector.Reclaim(ctx, promptvector.Dir(mem.env.Roots.Cache)))
 
 	if !mem.outsideGit && mem.storeExists() && mem.unreadable == "" {
 		version, err := formatsteps.Read(mem.store())
@@ -533,7 +533,7 @@ func (mem *memory) recordWrite(session string, toolName string, path string) {
 	}
 
 	held.Wrote = wrotePaths(held.Wrote, path)
-	_ = mem.writeSlot(mem.ladderKey(session), held)
+	mem.writeSlot(mem.ladderKey(session), &held)
 }
 
 // replayNudge asks the seat to file once its turns since its newest entry
@@ -781,10 +781,11 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 	if withheld != "" {
 		out = append(out, withheld)
 	} else if strings.TrimSpace(payload.Prompt) != "" && !systemTurn(payload.Prompt) {
-		steps.LastPrompt = strings.TrimSpace(payload.Prompt)
+		// The asked line is all the prompt is kept for: its words, never more.
+		steps.LastPrompt = cutWords(strings.Join(strings.Fields(payload.Prompt), " "), mem.options().EntryTargetWords)
 	}
 
-	_ = mem.writeSlot(mem.ladderKey(session), steps)
+	mem.writeSlot(mem.ladderKey(session), &steps)
 
 	recalled := mem.recall(ctx, name, session, payload.Prompt, withheld != "")
 	if recalled != "" {
@@ -993,7 +994,7 @@ func (mem *memory) wait(ctx context.Context, _ []string) int {
 	// older one sees the name change and ends.
 	me := fmt.Sprintf("%d %d", mem.env.Processes.Self(), time.Now().UnixNano())
 	waiter := mem.waiterKey(session)
-	_ = mem.writeSlot(waiter, me)
+	mem.writeSlot(waiter, fixedMark(me))
 
 	for range polls + 1 {
 		claim, found := seat.Read(mem.seatsDir(), key)
@@ -1048,7 +1049,7 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 
 	steps := mem.loadLadder(session)
 	steps.Owed = mem.owedDoNow(name, session)
-	_ = mem.writeSlot(mem.ladderKey(session), steps)
+	mem.writeSlot(mem.ladderKey(session), &steps)
 
 	return 0
 }
@@ -1077,7 +1078,7 @@ func (mem *memory) owedAtTool(ctx context.Context, seatName string, session stri
 		}
 	}
 
-	_ = mem.writeSlot(mem.ladderKey(session), steps)
+	mem.writeSlot(mem.ladderKey(session), &steps)
 
 	return owed
 }
@@ -1092,7 +1093,7 @@ func (mem *memory) owedLine(session string) string {
 
 	owed := held.Owed
 	held.Owed = ""
-	_ = mem.writeSlot(mem.ladderKey(session), held)
+	mem.writeSlot(mem.ladderKey(session), &held)
 
 	return owed
 }
@@ -1125,7 +1126,7 @@ func (mem *memory) sessionEnd(ctx context.Context, _ []string) int {
 	held = mem.track(ctx, name, held, payload)
 	mem.hookLines(ctx, name, held.Commit, cmp.Or(held.SessionID, payload.SessionID), true)
 	mem.clearSlot(mem.shownKey(held.SessionID))
-	promptvector.Remove(ctx, promptvector.Dir(mem.env.Roots.Cache), held.SessionID)
+	mem.reportSlot("clearing the prompt vector of", held.SessionID, promptvector.Remove(ctx, promptvector.Dir(mem.env.Roots.Cache), held.SessionID))
 
 	text := mem.recentTurns(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath))
 	if text == "" {
@@ -1224,14 +1225,14 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 		}
 
 		shown.Notified = true
-		_ = mem.writeSlot(mem.shownKey(session), &shown)
+		mem.writeSlot(mem.shownKey(session), &shown)
 
 		return fmt.Sprintf("%s: prompt recall failed, retried each prompt: %v", self, err)
 	}
 
 	// A recall that works again ends the outage, so the next failure is told.
 	shown.Notified = false
-	_ = mem.writeSlot(mem.shownKey(session), &shown)
+	mem.writeSlot(mem.shownKey(session), &shown)
 
 	values := make([]float64, 0, len(live))
 	for _, held := range live {
@@ -1281,7 +1282,7 @@ func (mem *memory) recall(ctx context.Context, seatName string, session string, 
 	}
 
 	shown.IDs = append(shown.IDs, ids...)
-	_ = mem.writeSlot(mem.shownKey(session), &shown)
+	mem.writeSlot(mem.shownKey(session), &shown)
 
 	return strings.Join(lines, "\n")
 }

@@ -83,7 +83,7 @@ func (mem *memory) savePending(seatName string, pending doNowState) {
 		return
 	}
 
-	_ = mem.writeSlot(mem.doNowKey(seatName), pending)
+	mem.writeSlot(mem.doNowKey(seatName), &pending)
 }
 
 // skip records items left pending, for the seat's next do-now list.
@@ -92,10 +92,11 @@ func (mem *memory) skip(seatName string, items []doNowItem) {
 		return
 	}
 
-	var skipped []doNowItem
+	var skipped skippedItems
 	mem.readSlot(mem.skippedKey(seatName), &skipped)
 
-	_ = mem.writeSlot(mem.skippedKey(seatName), append(skipped, items...))
+	skipped = append(skipped, items...)
+	mem.writeSlot(mem.skippedKey(seatName), &skipped)
 }
 
 func itemLine(number int, item doNowItem) string {

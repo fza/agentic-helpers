@@ -284,7 +284,7 @@ func (mem *memory) markDue(folded *state, seatName string, told []*entry) {
 	}
 
 	mark.Due = kept
-	_ = mem.writeSlot(mem.seenKey(seatName), mark)
+	mem.writeSlot(mem.seenKey(seatName), &mark)
 }
 
 // nextDue is the earliest due time of the seat's entries not yet come due, or

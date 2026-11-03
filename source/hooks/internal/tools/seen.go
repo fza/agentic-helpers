@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 	"path/filepath"
@@ -27,6 +26,7 @@ type seenSet struct {
 
 type presented struct {
 	ctx     context.Context
+	lib     *library
 	file    *slots.File
 	key     string
 	set     seenSet
@@ -98,7 +98,7 @@ func (lib *library) presenting(ctx context.Context, again bool) *presented {
 		return nil
 	}
 
-	seen := &presented{ctx: ctx, file: file, key: key, again: again}
+	seen := &presented{ctx: ctx, lib: lib, file: file, key: key, again: again}
 	file.GetJSON(ctx, key, &seen.set)
 
 	return seen
@@ -139,22 +139,38 @@ func (seen *presented) printedUsage(hit found) bool {
 	return seen.marked(versionKey(hit) + " usage")
 }
 
-// save writes the seen set back; one too large for its slot gives up its
-// oldest lines until it fits.
+// save writes the seen set back, fitted to its ceiling; a write that fails is
+// reported.
 func (seen *presented) save() {
 	if seen == nil || !seen.changed {
 		return
 	}
 
-	for {
-		err := seen.file.PutJSON(seen.ctx, seen.key, seen.set)
-		if !errors.Is(err, slots.ErrTooLarge) || len(seen.set.Lines)+len(seen.set.Offered) == 0 {
-			return
-		}
-
-		seen.set.Lines = seen.set.Lines[len(seen.set.Lines)/2+len(seen.set.Lines)%2:]
-		seen.set.Offered = seen.set.Offered[len(seen.set.Offered)/2+len(seen.set.Offered)%2:]
+	data, err := slots.Encode(&seen.set)
+	if err == nil {
+		err = seen.file.Put(seen.ctx, seen.key, data)
 	}
+
+	seen.lib.reportSlot("keeping", seen.key, err)
+}
+
+const seenCeiling = 32_768
+
+func (set *seenSet) Ceiling() int { return seenCeiling }
+
+func (set *seenSet) Limit() {}
+
+// Shrink gives up the older half of the lines and of the tools offered: those
+// print in full again.
+func (set *seenSet) Shrink() bool {
+	if len(set.Lines)+len(set.Offered) == 0 {
+		return false
+	}
+
+	set.Lines = slots.NewerHalf(set.Lines)
+	set.Offered = slots.NewerHalf(set.Offered)
+
+	return true
 }
 
 func seenPointer(hit found) string {
@@ -196,6 +212,6 @@ func (lib *library) forgetSeen(ctx context.Context) {
 
 	file, err := lib.seenSlots(ctx)
 	if err == nil {
-		_ = file.Delete(ctx, key)
+		lib.reportSlot("clearing", key, file.Delete(ctx, key))
 	}
 }

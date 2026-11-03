@@ -158,7 +158,7 @@ type endProbe struct {
 	// present is each branch a probe found, recorded the tip a probe or a
 	// merge's parents last gave each watched branch.
 	present  map[string]bool
-	recorded map[string]string
+	recorded branchTips
 }
 
 type branchState struct {

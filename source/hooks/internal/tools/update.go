@@ -207,7 +207,7 @@ func (lib *library) moveHolding(ctx context.Context, from string, hit found, nam
 
 		state.Holdings[index].Project, state.Holdings[index].Tool = lib.key, name
 		state.Holdings[index].Version = written
-		_ = lib.saveSession(ctx, state)
+		lib.saveSession(ctx, state)
 
 		return
 	}

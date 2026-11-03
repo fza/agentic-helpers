@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -25,6 +26,8 @@ const (
 	// format is the prompt vectors' layout: one slot per session; 1 was a
 	// JSON file per session.
 	format = 2
+	// Ceiling bounds a session's slot value in bytes.
+	Ceiling = 128_100
 )
 
 var sessionShape = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
@@ -101,7 +104,18 @@ func Save(ctx context.Context, dir string, session string, prompt string, finger
 		return err
 	}
 
-	err = file.PutJSON(ctx, session, slot{Prompt: hash(prompt), Fingerprint: fingerprint, Vector: vector})
+	data, err := json.Marshal(slot{Prompt: hash(prompt), Fingerprint: fingerprint, Vector: vector})
+	if err != nil {
+		return fmt.Errorf("encoding the prompt vector: %w", err)
+	}
+
+	// A vector past the ceiling is not kept: the next prompt hook embeds the
+	// prompt again.
+	if len(data) > Ceiling {
+		return nil
+	}
+
+	err = file.Put(ctx, session, data)
 	if err != nil {
 		return fmt.Errorf("writing the prompt vector: %w", err)
 	}
@@ -110,15 +124,22 @@ func Save(ctx context.Context, dir string, session string, prompt string, finger
 }
 
 // Remove empties a session's slot.
-func Remove(ctx context.Context, dir string, session string) {
+func Remove(ctx context.Context, dir string, session string) error {
 	if !sessionShape.MatchString(session) {
-		return
+		return nil
 	}
 
 	file, err := open(ctx, dir)
-	if err == nil {
-		_ = file.Delete(ctx, session)
+	if err != nil {
+		return err
 	}
+
+	err = file.Delete(ctx, session)
+	if err != nil {
+		return fmt.Errorf("clearing the prompt vector: %w", err)
+	}
+
+	return nil
 }
 
 // Reclaim takes the per-session files an earlier release kept in dir into

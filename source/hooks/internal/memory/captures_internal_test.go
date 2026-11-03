@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -67,7 +68,7 @@ func (mem *memory) captureNoticeNames(ctx context.Context, session string) int {
 		}
 	}
 
-	_ = mem.writeSlot("graph-names-json/"+session, namesMark{Month: monthKey, Dir: month, Stamp: stamp, Names: names})
+	_ = mem.slotFile().PutJSON(ctx, "graph-names-json/"+session, namesMark{Month: monthKey, Dir: month, Stamp: stamp, Names: names})
 
 	if len(gained) > 0 {
 		_, _ = mem.load(ctx)
@@ -234,19 +235,15 @@ func TestSessionsSharingTheNameTableEachCountWhatTheyMissed(t *testing.T) {
 	}
 }
 
-func TestANameTableWithoutRoomLeavesNewEntriesUnnamed(t *testing.T) {
+func TestAFullPartOfTheNameTableGrowsItByAPart(t *testing.T) {
 	mem, month := captureStore(t)
-	key := graphNamesPrefix + "2026/10"
+	key := namesKey("2026/10", 0)
 
 	_, before := mem.captureNotice(context.Background(), "main", test.Session)
 
 	err := mem.slotFile().Update(context.Background(), key, func(table []byte, _ bool) ([]byte, error) {
-		for filler := 0; sessionSlotWidth-(32+len(key)+len(table)) >= len("00-000000-s-tac-filler\n"); filler++ {
-			table = fmt.Appendf(table, "00-%06d-s-tac-filler\n", filler)
-		}
-
-		if room := sessionSlotWidth - (32 + len(key) + len(table)); room > 0 {
-			table = append(table, strings.Repeat("x", room-1)+"\n"...)
+		for filler := 0; bytes.Count(table, []byte("\n")) < namesPerPart; filler++ {
+			table = fmt.Appendf(table, "00-%06d-s-tac-fil\n", filler)
 		}
 
 		return table, nil
@@ -259,15 +256,25 @@ func TestANameTableWithoutRoomLeavesNewEntriesUnnamed(t *testing.T) {
 
 	_, after := mem.captureNotice(context.Background(), "main", test.Session)
 
-	if len(before) != 0 || len(after) != 0 {
-		t.Errorf("an entry the table has no room for should count as nothing gained, got %d", len(after))
+	next, found, err := mem.slotFile().Get(context.Background(), namesKey("2026/10", 1))
+	if len(before) != 0 || len(after) != 1 || !found || err != nil || string(next) != "29-235959-d-tac-zzz\n" {
+		t.Errorf("an entry a full part has no room for should go into the next part and count as gained, "+
+			"got %d gained, next part %q", len(after), next)
+	}
+
+	_, again := mem.captureNotice(context.Background(), "main", test.Session)
+	if len(again) != 0 {
+		t.Errorf("an entry in the next part should be told once, told again: %v", again)
 	}
 }
 
 func TestTheNameTablesOfMonthsBeforeTheLastAreReclaimed(t *testing.T) {
 	mem, _ := captureStore(t)
 
-	for _, key := range []string{"graph-names/2026/10", "graph-names/2026/09", "graph-names/2026/08", "graph-names/2025/10"} {
+	for _, key := range []string{
+		"graph-names/2026/10", "graph-names/2026/10/1", "graph-names/2026/09", "graph-names/2026/08", "graph-names/2026/08/1",
+		"graph-names/2025/10",
+	} {
 		err := mem.slotFile().Put(context.Background(), key, []byte("29-235959-d-tac-zzz\n"))
 		if err != nil {
 			t.Fatalf("writing %s: %v", key, err)
@@ -277,7 +284,8 @@ func TestTheNameTablesOfMonthsBeforeTheLastAreReclaimed(t *testing.T) {
 	mem.reclaimSessions(context.Background(), func(slots.Slot) bool { return false })
 
 	for key, kept := range map[string]bool{
-		"graph-names/2026/10": true, "graph-names/2026/09": true, "graph-names/2026/08": false, "graph-names/2025/10": false,
+		"graph-names/2026/10": true, "graph-names/2026/10/1": true, "graph-names/2026/09": true,
+		"graph-names/2026/08": false, "graph-names/2026/08/1": false, "graph-names/2025/10": false,
 	} {
 		if mem.hasSlot(key) != kept {
 			t.Errorf("only the tables of this month and the last should stay, %s kept: %v", key, mem.hasSlot(key))

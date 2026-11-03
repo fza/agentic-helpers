@@ -300,7 +300,7 @@ func (mem *memory) reportFailedMigration(err error) {
 	}
 
 	_, _ = fmt.Fprintln(mem.streams.Err, self+": "+err.Error())
-	_ = mem.writeSlot(marker, true)
+	mem.writeSlot(marker, fixedMark(true))
 }
 
 func (mem *memory) outsideGitRefusal() string {

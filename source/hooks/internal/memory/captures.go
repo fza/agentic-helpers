@@ -62,7 +62,7 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 	}
 
 	if month == noGraph {
-		_ = mem.writeSlot(mem.graphMarkKey(session), graphMark{Month: monthKey, Dir: noGraph})
+		mem.writeSlot(mem.graphMarkKey(session), &graphMark{Month: monthKey, Dir: noGraph})
 
 		return "", nil
 	}
@@ -114,7 +114,7 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 		}
 	}
 
-	_ = mem.writeSlot(mem.graphMarkKey(session), graphMark{Month: monthKey, Dir: month, Stamp: stamp, Seen: seen})
+	mem.writeSlot(mem.graphMarkKey(session), &graphMark{Month: monthKey, Dir: month, Stamp: stamp, Seen: seen})
 
 	if len(gained) == 0 {
 		return "", nil
@@ -141,48 +141,126 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 		self, strings.Join(gained, ", "), strings.Join(waiting, ", "), self), gained
 }
 
-// captureNames is the position of each of names in the store's table of the
-// month's entry names, the names it lacks appended under the slot file's
-// writer lock, so sessions adding names at once never give two names one
-// position. A name a full table has no room for has no position: it marks no
-// bit, and its capture goes unnamed.
-func (mem *memory) captureNames(monthKey string, names []string) map[string]int {
-	key := graphNamesPrefix + monthKey
-	slotFile := mem.slotFile()
+// namesPerPart is how many names one part of a month's table holds: a busy
+// month's table grows by parts, so no value grows without end. A name is a
+// graph id's 19 bytes and its line break, so a part takes 120,000 bytes.
+const namesPerPart = 6_000
 
-	table, _, _ := slotFile.Get(context.Background(), key)
-
-	positions := namePositions(table)
-	if !slices.ContainsFunc(names, func(name string) bool { _, known := positions[name]; return !known }) {
-		return positions
+// namesKey is the key of a part of the month's table of names; the first
+// part is keyed by the month alone, as a table of one part always was.
+func namesKey(monthKey string, part int) string {
+	if part == 0 {
+		return graphNamesPrefix + monthKey
 	}
 
-	err := slotFile.Update(context.Background(), key, func(held []byte, _ bool) ([]byte, error) {
-		positions = namePositions(held)
-		lines := bytes.Count(held, []byte("\n"))
+	return fmt.Sprintf("%s%s/%d", graphNamesPrefix, monthKey, part)
+}
 
-		grown := held
-		for _, name := range names {
-			_, known := positions[name]
-			if !known {
-				positions[name] = lines
-				lines++
-				grown = append(grown, name+"\n"...)
+// namesMonth is the month a key of a table of names belongs to.
+func namesMonth(key string) (string, bool) {
+	rest, isNames := strings.CutPrefix(key, graphNamesPrefix)
+	if !isNames || len(rest) < len("2006/01") {
+		return "", false
+	}
+
+	return rest[:len("2006/01")], true
+}
+
+// firstNames is the names a part holds of table, its first ones.
+func firstNames(table []byte) []byte {
+	end := 0
+
+	for range namesPerPart {
+		next := bytes.IndexByte(table[end:], '\n')
+		if next < 0 {
+			break
+		}
+
+		end += next + 1
+	}
+
+	return table[:end]
+}
+
+// captureNames is the position of each of names in the store's table of the
+// month's entry names, the names it lacks appended to its last part under the
+// slot file's writer lock, so sessions adding names at once never give two
+// names one position. A part full, the names go to a new one. A name whose
+// write failed has no position: it marks no bit, and its capture goes
+// unnamed.
+func (mem *memory) captureNames(monthKey string, names []string) map[string]int {
+	slotFile := mem.slotFile()
+
+	positions, last := monthNames(slotFile, monthKey)
+
+	missing := slices.DeleteFunc(slices.Clone(names), func(name string) bool { _, known := positions[name]; return known })
+
+	for part := last; len(missing) > 0; part++ {
+		err := slotFile.Update(context.Background(), namesKey(monthKey, part), func(held []byte, _ bool) ([]byte, error) {
+			lines := bytes.Count(held, []byte("\n"))
+
+			for name, line := range namePositions(held) {
+				_, known := positions[name]
+				if !known {
+					positions[name] = part*namesPerPart + line
+				}
 			}
-		}
 
-		if len(grown) == len(held) {
-			return nil, slots.ErrUnchanged
-		}
+			grown := held
 
-		return grown, nil
-	})
-	if err != nil {
-		table, _, _ = slotFile.Get(context.Background(), key)
-		positions = namePositions(table)
+			var left []string
+
+			for _, name := range missing {
+				_, known := positions[name]
+
+				switch {
+				case known:
+				case lines >= namesPerPart:
+					left = append(left, name)
+				default:
+					positions[name] = part*namesPerPart + lines
+					lines++
+					grown = append(grown, name+"\n"...)
+				}
+			}
+
+			missing = left
+
+			if len(grown) == len(held) {
+				return nil, slots.ErrUnchanged
+			}
+
+			return grown, nil
+		})
+		if err != nil {
+			mem.reportSlot("keeping", namesKey(monthKey, part), err)
+			positions, _ = monthNames(slotFile, monthKey)
+
+			break
+		}
 	}
 
 	return positions
+}
+
+// monthNames is the position of every name the month's table holds, and the
+// index of its last part.
+func monthNames(slotFile *slots.File, monthKey string) (map[string]int, int) {
+	positions := map[string]int{}
+
+	for part := 0; ; part++ {
+		table, found, _ := slotFile.Get(context.Background(), namesKey(monthKey, part))
+		if !found {
+			return positions, max(part-1, 0)
+		}
+
+		for name, line := range namePositions(table) {
+			_, known := positions[name]
+			if !known {
+				positions[name] = part*namesPerPart + line
+			}
+		}
+	}
 }
 
 func namePositions(table []byte) map[string]int {

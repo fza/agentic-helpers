@@ -16,6 +16,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
+	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 )
 
 // The landed-commit scan reads the checkout's history for commits that may
@@ -272,7 +273,7 @@ func (mem *memory) runRound(ctx context.Context, key string) {
 
 	finish := func(reached scanMark) {
 		reached.At = mem.now()
-		_ = mem.writeSlot(key, reached)
+		mem.writeSlot(key, fixedMark(reached))
 	}
 
 	folded, err := mem.load(ctx)
@@ -321,8 +322,24 @@ func (mem *memory) runRound(ctx context.Context, key string) {
 	}
 
 	probe.learnTips(commits, watched)
-	mem.storeMappings(folded, mem.matchLandings(ctx, targets, mem.landings(ctx, here.root, commits, byDate)))
-	finish(reached)
+
+	stored := mem.storeMappings(folded, mem.matchLandings(ctx, targets, mem.landings(ctx, here.root, commits, byDate)), commits)
+	finish(reachedAfter(stored, commits, reached, mark))
+}
+
+// reachedAfter is where a round's scan stands once it kept the mappings of
+// its commits up to the one at stored: where it reached with all of them,
+// at that commit with some, where it started with none. A round meeting the
+// cap of stored mappings leaves the rest of its commits to the next round.
+func reachedAfter(stored int, commits []landedCommit, reached scanMark, mark scanMark) scanMark {
+	switch {
+	case stored >= len(commits)-1:
+		return reached
+	case stored < 0:
+		return mark
+	}
+
+	return scanMark{Head: commits[stored].sha, Date: commits[stored].at}
 }
 
 func (mem *memory) descends(ctx context.Context, root string, mark string) bool {
@@ -331,29 +348,72 @@ func (mem *memory) descends(ctx context.Context, root string, mark string) bool 
 	return err == nil
 }
 
-func (mem *memory) storeMappings(folded *state, found []landedMapping) {
+// storeMappings keeps the mappings a round found, commit by commit in the
+// order the round read them, and answers the index of the last commit whose
+// mappings it kept: a commit whose mappings the set has no room for, by
+// count or by its ceiling, ends the round there, -1 where the first does. A
+// mapping to a commit the round did not read counts as the last one's.
+func (mem *memory) storeMappings(folded *state, found []landedMapping, commits []landedCommit) int {
 	if len(found) == 0 {
-		return
+		return len(commits) - 1
 	}
 
 	var held landedSet
 	mem.readSlot(landedKey, &held)
 
-	// One mapping stands per entry or item: a later round's commit replaces
-	// a stored one only by scoring higher.
-	for _, mapping := range found {
-		index := slices.IndexFunc(held.Mappings, func(kept landedMapping) bool { return kept.Target == mapping.Target })
+	held.Mappings = pendingMappings(folded, held.Mappings)
 
-		switch {
-		case index < 0:
-			held.Mappings = append(held.Mappings, mapping)
-		case mapping.Score > held.Mappings[index].Score:
-			held.Mappings[index] = mapping
+	through := func(last int) landedSet {
+		next := landedSet{Mappings: slices.Clone(held.Mappings)}
+
+		for _, mapping := range found {
+			at := slices.IndexFunc(commits, func(commit landedCommit) bool { return commit.sha == mapping.Commit })
+			if at < 0 {
+				at = len(commits) - 1
+			}
+
+			if at <= last {
+				next.add(mapping)
+			}
+		}
+
+		return next
+	}
+
+	for last := len(commits) - 1; last >= 0; last-- {
+		next := through(last)
+		if next.fits() {
+			mem.writeSlot(landedKey, &next)
+
+			return last
 		}
 	}
 
-	held.Mappings = pendingMappings(folded, held.Mappings)
-	_ = mem.writeSlot(landedKey, held)
+	return -1
+}
+
+// add keeps mapping where it may stand: one mapping per entry or item, a
+// later round's commit replacing a stored one only by scoring higher. A
+// mapping past its caps stands nowhere.
+func (held *landedSet) add(mapping landedMapping) {
+	mapping, keep := limitMapping(mapping)
+	if !keep {
+		return
+	}
+
+	index := slices.IndexFunc(held.Mappings, func(kept landedMapping) bool { return kept.Target == mapping.Target })
+
+	switch {
+	case index < 0:
+		held.Mappings = append(held.Mappings, mapping)
+	case mapping.Score > held.Mappings[index].Score:
+		held.Mappings[index] = mapping
+	}
+}
+
+// fits is whether the set stays within its caps, by count and by ceiling.
+func (held *landedSet) fits() bool {
+	return len(held.Mappings) <= landedMappings && slots.EncodedLen(held) <= landedCeiling
 }
 
 // oldestFloor is the oldest floor of every target, and the filing time of
@@ -943,7 +1003,7 @@ func (mem *memory) dropLanded(folded *state, dismissed []landedMapping) {
 		return
 	}
 
-	_ = mem.writeSlot(landedKey, landedSet{Mappings: kept})
+	mem.writeSlot(landedKey, &landedSet{Mappings: kept})
 }
 
 // landedSeenKey names a mapping in a context's shown set by its target and
@@ -1068,7 +1128,7 @@ func (mem *memory) landedNotice(ctx context.Context, seatName string, session st
 		return ""
 	}
 
-	_ = mem.writeSlot(mem.shownKey(session), &shown)
+	mem.writeSlot(mem.shownKey(session), &shown)
 
 	return fmt.Sprintf("%s: landed commits may settle live work; check each against the repository, then: %s",
 		self, strings.Join(parts, "; "))
@@ -1141,7 +1201,7 @@ func (probe *endProbe) learnTips(commits []landedCommit, watched []string) {
 
 func (probe *endProbe) tips() map[string]string {
 	if probe.recorded == nil {
-		probe.recorded = map[string]string{}
+		probe.recorded = branchTips{}
 		probe.mem.readSlot(branchTipsKey, &probe.recorded)
 	}
 
@@ -1155,7 +1215,7 @@ func (probe *endProbe) saveTips() {
 		return
 	}
 
-	_ = probe.mem.writeSlot(branchTipsKey, probe.recorded)
+	probe.mem.writeSlot(branchTipsKey, &probe.recorded)
 }
 
 // recordTip keeps the tip a probe saw of a branch that exists.

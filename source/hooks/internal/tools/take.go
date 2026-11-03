@@ -111,7 +111,7 @@ func (lib *library) take(ctx context.Context, req request) result {
 	}
 
 	if writes {
-		_ = lib.saveSession(ctx, state)
+		lib.saveSession(ctx, state)
 	}
 
 	lib.forget()

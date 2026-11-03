@@ -202,10 +202,12 @@ func firstMatch(texts []string, call toolCall) string {
 
 // trapIndex is the traps a seat holds, its own and received, as the tool hook
 // matches them: the file anchors and the declared triggers; and its notes and
-// todos declaring the paths they are about.
+// todos declaring the paths they are about. FromLog stands in for an index
+// past its ceiling: the tool hook then reads the traps from the log.
 type trapIndex struct {
-	Traps []indexedTrap `json:"traps"`
-	Notes []indexedNote `json:"notes,omitempty"`
+	Traps   []indexedTrap `json:"traps"`
+	Notes   []indexedNote `json:"notes,omitempty"`
+	FromLog bool          `json:"from_log,omitempty"`
 }
 
 // indexedNote is a note or todo the tool hook tells of at a call touching a
@@ -237,6 +239,22 @@ func (trap indexedTrap) touchedBy(call toolCall) string {
 // indexTraps writes the seat's traps for the tool hook, and removes the index
 // where it holds none, so a seat without traps reads nothing on a tool call.
 func (mem *memory) indexTraps(folded *state, seatName string) int {
+	index := mem.trapsOf(folded, seatName)
+
+	if len(index.Traps) == 0 && len(index.Notes) == 0 {
+		mem.clearSlot(mem.trapIndexKey(seatName))
+
+		return 0
+	}
+
+	count := len(index.Traps) + len(index.Notes)
+	mem.writeSlot(mem.trapIndexKey(seatName), &index)
+
+	return count
+}
+
+// trapsOf is the index of the seat's traps and notes as the log holds them.
+func (mem *memory) trapsOf(folded *state, seatName string) trapIndex {
 	var index trapIndex
 
 	for _, held := range mem.ownLive(folded, seatName, "") {
@@ -256,15 +274,7 @@ func (mem *memory) indexTraps(folded *state, seatName string) int {
 		index.Traps = append(index.Traps, trap)
 	}
 
-	if len(index.Traps) == 0 && len(index.Notes) == 0 {
-		mem.clearSlot(mem.trapIndexKey(seatName))
-
-		return 0
-	}
-
-	_ = mem.writeSlot(mem.trapIndexKey(seatName), index)
-
-	return len(index.Traps) + len(index.Notes)
+	return index
 }
 
 // trapNotices tells the calling agent, once per trap until its context
@@ -277,6 +287,15 @@ func (mem *memory) trapNotices(ctx context.Context, seatName string, session str
 	var index trapIndex
 	if !mem.readSlot(mem.trapIndexKey(seatName), &index) {
 		return nil
+	}
+
+	if index.FromLog {
+		folded, err := mem.load(ctx)
+		if err != nil {
+			return nil
+		}
+
+		index = mem.trapsOf(folded, seatName)
 	}
 
 	key := mem.shownKey(session)
@@ -353,7 +372,7 @@ func (mem *memory) trapNotices(ctx context.Context, seatName string, session str
 		shown.Notes = append(shown.Notes, told.id)
 	}
 
-	_ = mem.writeSlot(key, &shown)
+	mem.writeSlot(key, &shown)
 
 	return lines
 }

@@ -245,7 +245,7 @@ func (lib *library) embedPrompt(ctx context.Context, prompt string, maxRunes int
 		return nil, "", fmt.Errorf("embedding the prompt: %w", cmp.Or(err, fmt.Errorf("no vector answered")))
 	}
 
-	_ = promptvector.Save(ctx, lib.promptVectors(), lib.session, prompt, slotKey, vectors[0])
+	lib.reportSlot("keeping the prompt vector of", lib.session, promptvector.Save(ctx, lib.promptVectors(), lib.session, prompt, slotKey, vectors[0]))
 
 	return vectors[0], fingerprint, nil
 }
@@ -368,9 +368,9 @@ func (lib *library) notice(ctx context.Context) int {
 	lines = append(lines, origins...)
 
 	state.Signature = ""
-	_ = lib.saveSession(ctx, state)
+	lib.saveSession(ctx, state)
 	state.Signature = lib.noticeSignature(state)
-	_ = lib.saveSession(ctx, state)
+	lib.saveSession(ctx, state)
 
 	if len(lines) > 0 {
 		_ = hookio.AddContext(lib.streams.Out, "PostToolUse", strings.Join(lines, "\n"))
@@ -465,7 +465,7 @@ func (lib *library) stop(ctx context.Context) int {
 	}
 
 	if len(state.Pending) != before || len(fresh) > 0 {
-		_ = lib.saveSession(ctx, state)
+		lib.saveSession(ctx, state)
 	}
 
 	return 0
@@ -603,7 +603,7 @@ func (lib *library) end(ctx context.Context) int {
 	}
 
 	lib.forgetSession(ctx)
-	promptvector.Remove(ctx, lib.promptVectors(), lib.session)
+	lib.reportSlot("clearing the prompt vector of", lib.session, promptvector.Remove(ctx, lib.promptVectors(), lib.session))
 	lib.forgetSeen(ctx)
 
 	return 0
@@ -632,12 +632,12 @@ func (lib *library) start(ctx context.Context) int {
 // vectors (slots.File.ReclaimStale): each is cleared otherwise only by its
 // session ending cleanly.
 func (lib *library) reclaimStale(ctx context.Context) {
-	_ = lib.sessionSlots().ReclaimStale(ctx)
+	lib.reportSlot("reclaiming", "the session slots", lib.sessionSlots().ReclaimStale(ctx))
 
 	seen, err := lib.seenSlots(ctx)
 	if err == nil {
-		_ = seen.ReclaimStale(ctx)
+		lib.reportSlot("reclaiming", "the seen sets", seen.ReclaimStale(ctx))
 	}
 
-	_ = promptvector.Reclaim(ctx, lib.promptVectors())
+	lib.reportSlot("reclaiming", "the prompt vectors", promptvector.Reclaim(ctx, lib.promptVectors()))
 }

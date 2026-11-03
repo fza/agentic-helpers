@@ -169,7 +169,7 @@ func (mem *memory) changeSubagent(ctx context.Context, session string, agentID s
 		return
 	}
 
-	_ = mem.slotFile().Update(ctx, mem.subagentsKey(session), func(value []byte, found bool) ([]byte, error) {
+	mem.updateSlot(ctx, mem.subagentsKey(session), func(value []byte, found bool) (slots.Fitted, error) {
 		var table subagentTable
 		if found {
 			_ = json.Unmarshal(value, &table)
@@ -183,12 +183,7 @@ func (mem *memory) changeSubagent(ctx context.Context, session string, agentID s
 		change(&record)
 		table.Agents[agentID] = record
 
-		updated, err := json.Marshal(table)
-		if err != nil {
-			return nil, fmt.Errorf("encoding the subagents: %w", err)
-		}
-
-		return updated, nil
+		return &table, nil
 	})
 }
 
@@ -247,8 +242,6 @@ type forkSpawn struct {
 	Shown shownSet `json:"shown"`
 }
 
-func (spawned *forkSpawn) trim() bool { return spawned.Shown.trim() }
-
 func spawnCall(payload hookio.Payload) string {
 	return transcript.SpawnCall(subagentTranscript(payload))
 }
@@ -285,7 +278,7 @@ func (mem *memory) keepForFork(payload hookio.Payload, granted level, seatName s
 	}
 
 	mem.readSlot(key, &spawned.Shown)
-	_ = mem.writeSlot(mem.spawnKey(payload.SessionID, payload.ToolUseID), &spawned)
+	mem.writeSlot(mem.spawnKey(payload.SessionID, payload.ToolUseID), &spawned)
 }
 
 // adoptSpawn starts the calling subagent's shown set, once: a fork's from
@@ -300,7 +293,7 @@ func (mem *memory) adoptSpawn(payload hookio.Payload) {
 		return
 	}
 
-	_ = mem.writeSlot(mem.agentShownKey(payload.SessionID, payload.AgentID), &spawned.Shown)
+	mem.writeSlot(mem.agentShownKey(payload.SessionID, payload.AgentID), &spawned.Shown)
 	mem.clearSlot(mem.spawnKey(payload.SessionID, spawnCall(payload)))
 }
 
@@ -779,10 +772,11 @@ func (mem *memory) endSubagents(ctx context.Context, session string) {
 	mem.clearSlot(mem.subagentsKey(session))
 
 	if mem.recordable() {
-		_ = mem.slotFile().Reclaim(ctx, func(slot slots.Slot) bool {
+		err := mem.slotFile().Reclaim(ctx, func(slot slots.Slot) bool {
 			return strings.HasPrefix(slot.Key, mem.agentShownKey(session, "")) ||
 				strings.HasPrefix(slot.Key, mem.spawnKey(session, ""))
 		})
+		mem.reportSlot("clearing the subagents of", session, err)
 	}
 }
 

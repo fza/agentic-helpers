@@ -100,6 +100,27 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   over the 255-byte key limit and lose the session's state silently, and one holding `/` could land
   on another session's key (`spawn/<a>/<call>`). Hex-encoding such an id was rejected: a second rule
   unlike the tool library's, and a long id would still need hashing to fit.
+- **Ceilings** (`slots.Fitted`, `internal/memory/slotkinds.go`): every kind of value declares a
+  ceiling in encoded JSON bytes, never in words or runes, since a run without spaces is one word of
+  any length. A write applies the kind's caps, then shrinks a value past its ceiling step by step to
+  a minimal form that always fits, so no value a hook builds is refused; one test per kind builds its
+  worst case and stores it. The ladder keeps the prompt cut to the words of the asked line
+  (`EntryTargetWords`), then to 3,500 bytes at a rune boundary; its written files to 20 paths and
+  3,500 bytes, a path past them left out; the owed line to 3,500 bytes of whole lines and a `+N
+  more` line. A month's table of names grows by parts. A trap index past its ceiling becomes the
+  marker `{"traps":[],"from_log":true}`, and the tool hook matches the seat's traps from the log. A
+  landed round whose mappings would pass 300 or the ceiling keeps the commits that fit and leaves its
+  scan mark at the last of them, so the next round takes the rest. Shown sets, the seen mark's due
+  entries and the ended lines' mark drop their older half. The ceilings: `ladder` 11,000; `shown`
+  32,768; `spawn` 33,000; `agents` 110,000 (800 records, id and seat key 64 bytes); `instructions`
+  65,536 (a path past 1,024 bytes is not watched); `graph-seen` 2,200 (past it the month reads as
+  holding no graph); a part of `graph-names` 120,000; `traps`, `do-now`, `skipped`, `seen`,
+  `ledger-ended` 65,536 (an anchor or `--about` path 1,024, a trigger 512; a do-now title 512, a
+  trigger 256, 4 proof triggers of 128); `landed` 120,000 (a target 64, a subject and test 200);
+  `branch-tips` 95,000 (300 branches of 255 bytes); `fork`, `waiter`, `migration-failed`, `brief`,
+  `landed-scan` 200. A slot write that fails is reported on stderr, `agentic-memory: keeping <key>:
+  <error>` (`clearing` for a removal, `reclaiming` for the SessionStart pass), which the agent never
+  reads: a lost write costs session state, never the call.
 - **Journal** (`internal/memorylog`): the log's tail, `log/tail.jnl`, is the 8-byte header
   `AGMJNL\0` and format 1, then length-prefixed records, each a length, a crc32c over the length and
   the record, a kind byte, a schema byte and the body, appended under the log's lock. A reader skips a
@@ -118,9 +139,10 @@ The seen list of the capture notice is a bitset over the store's table of the mo
 two names one position), not the JSON list of names. On `BenchmarkCaptureNotice` over a month of
 2000 entries (Apple M4 Pro), a tool call finding the month unchanged took 19 µs, 4 KB and 24
 allocations with the bitset and 125 µs, 209 KB and 2035 with the names; a call finding an entry
-added took about 4.5 ms either way, since both then load the store. A table past its slot's width
-leaves the names it has no room for unnamed. The tables of months before the last go with the
-SessionStart pass.
+added took about 4.5 ms either way, since both then load the store. A table grows by parts of 6,000
+names (120,000 bytes): the first is keyed by the month, each later one
+`graph-names/<yyyy>/<mm>/<n>`, and a name's position is its part's number times 6,000 plus its line.
+The tables of months before the last go with the SessionStart pass, every part of them.
 
 The migration to format 6 runs under the store lock and writes `format.json` last: it seals the
 JSON-lines tail an earlier release kept, `log/tail.jsonl`, into a segment, takes every per-session

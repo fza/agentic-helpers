@@ -50,7 +50,7 @@ func (mem *memory) presenting(ctx context.Context, again bool) func() {
 
 	return func() {
 		if seen.changed {
-			_ = mem.writeSlot(seen.key, &seen.set)
+			mem.writeSlot(seen.key, &seen.set)
 		}
 
 		mem.seen = nil
