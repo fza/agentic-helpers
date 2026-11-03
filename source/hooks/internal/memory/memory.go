@@ -167,8 +167,10 @@ type memory struct {
 	// call's `agent`: its reads mark its own shown set.
 	reader string
 
-	// handed is the hook payload once read from stdin.
-	handed *hookio.Payload
+	// handed is the hook payload once read from stdin; sessionless says its
+	// session id was refused, so the hook keeps no per-session state.
+	handed      *hookio.Payload
+	sessionless bool
 
 	// acting is the key of the seat a full subagent holds, where the run works
 	// for that subagent: named by `--agent` on the command line, or by the

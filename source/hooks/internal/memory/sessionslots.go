@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"path/filepath"
@@ -85,29 +84,38 @@ func (mem *memory) clearSlot(key string) {
 	_ = mem.slotFile().Delete(context.Background(), key)
 }
 
-func (mem *memory) shownKey(session string) string { return "shown/" + session }
+// sessionKey is the key of a session's own state under purpose, empty in a
+// hook whose payload's session id was refused: a slot refuses an empty key, so
+// such a hook keeps no per-session state. No prefix match may use an empty key.
+func (mem *memory) sessionKey(purpose string, session string, rest ...string) string {
+	if mem.sessionless {
+		return ""
+	}
+
+	return purpose + session + strings.Join(rest, "")
+}
+
+func (mem *memory) shownKey(session string) string { return mem.sessionKey("shown/", session) }
 
 // agentShownKey is the shown set of one subagent of the session, which no
 // read of its spawner's touches.
 func (mem *memory) agentShownKey(session string, agentID string) string {
-	return "shown/" + session + "/agent/" + agentID
+	return mem.sessionKey("shown/", session, "/agent/", agentID)
 }
 
 // spawnKey is what a fork spawned by the session's Agent call callID takes
 // over at its first hook.
 func (mem *memory) spawnKey(session string, callID string) string {
-	return "spawn/" + session + "/" + callID
+	return mem.sessionKey("spawn/", session, "/", callID)
 }
 
-func (mem *memory) ladderKey(session string) string { return "ladder/" + session }
+func (mem *memory) ladderKey(session string) string { return mem.sessionKey("ladder/", session) }
 
-func (mem *memory) forkKey(session string) string { return "fork/" + session }
+func (mem *memory) forkKey(session string) string { return mem.sessionKey("fork/", session) }
 
-func (mem *memory) waiterKey(session string) string { return "waiter/" + session }
+func (mem *memory) waiterKey(session string) string { return mem.sessionKey("waiter/", session) }
 
-func (mem *memory) graphMarkKey(session string) string {
-	return "graph-seen/" + cmp.Or(session, "no-session")
-}
+func (mem *memory) graphMarkKey(session string) string { return mem.sessionKey("graph-seen/", session) }
 
 func (mem *memory) trapIndexKey(seatName string) string { return "traps/" + mem.seatKey(seatName) }
 
@@ -163,7 +171,7 @@ func seatGone(registry seat.Registry, id string) bool {
 // clearEnded clears the state of the session nothing reads once it ended.
 func (mem *memory) clearEnded(session string) {
 	for _, purpose := range endedPurposes {
-		mem.clearSlot(purpose + session)
+		mem.clearSlot(mem.sessionKey(purpose, session))
 	}
 }
 

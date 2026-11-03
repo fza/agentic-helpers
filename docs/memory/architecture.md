@@ -91,7 +91,15 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   `sessions.slots.lock`; readers take no lock. Keys are `<purpose>/<session or seat id>`: `shown`,
   `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`,
   `do-now`, `skipped`, `brief`, `seen`, `ledger-ended` per seat; `graph-names/<yyyy>/<mm>` per month. A
-  value is the JSON the per-session file held.
+  value is the JSON the per-session file held. A hook takes its payload's `session_id` only in the
+  shape `^[A-Za-z0-9_-]{1,128}$` (`hookSessionShape`, as the tool library and the prompt vectors
+  take it); a payload carrying none or one of another shape reads as carrying none, and every
+  per-session key of that hook is empty (`sessionKey`), which the slot file refuses, so it reads and
+  writes no per-session state, not even under the session its claim names, while the brief and the
+  seat's own state work as before. An unchecked id past about 230 bytes would push every such key
+  over the 255-byte key limit and lose the session's state silently, and one holding `/` could land
+  on another session's key (`spawn/<a>/<call>`). Hex-encoding such an id was rejected: a second rule
+  unlike the tool library's, and a long id would still need hashing to fit.
 - **Journal** (`internal/memorylog`): the log's tail, `log/tail.jnl`, is the 8-byte header
   `AGMJNL\0` and format 1, then length-prefixed records, each a length, a crc32c over the length and
   the record, a kind byte, a schema byte and the body, appended under the log's lock. A reader skips a

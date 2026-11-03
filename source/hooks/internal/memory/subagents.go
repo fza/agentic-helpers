@@ -144,7 +144,7 @@ type subagentTable struct {
 	Agents map[string]subagentRecord `json:"agents"`
 }
 
-func (mem *memory) subagentsKey(session string) string { return "agents/" + session }
+func (mem *memory) subagentsKey(session string) string { return mem.sessionKey("agents/", session) }
 
 // recordable is whether the store can keep a session's subagents: the table
 // lives in its slot file.

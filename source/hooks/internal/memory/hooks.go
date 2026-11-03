@@ -11,6 +11,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -104,6 +105,10 @@ func (mem *memory) remind(ctx context.Context, seatName string, session string, 
 	return mem.reminder(ctx, seatName, steps.NudgedAt)
 }
 
+// hookSessionShape is the session id a hook payload may carry, as the tool
+// library and the prompt vectors take it.
+var hookSessionShape = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 type hookEvent func(mem *memory, ctx context.Context, args []string) int
 
 var hookEvents = map[string]hookEvent{
@@ -131,6 +136,15 @@ func (mem *memory) payload() hookio.Payload {
 	payload, err := hookio.ReadPayload(mem.streams.In)
 	if err != nil {
 		payload = hookio.Payload{}
+	}
+
+	// Every per-session slot key is built from the id: one past the key
+	// limit would lose its state silently, one holding `/` could land on
+	// another session's key. A payload carrying an id of any other shape, or
+	// none, keeps no per-session state, not even under the id its claim holds.
+	if !hookSessionShape.MatchString(payload.SessionID) {
+		payload.SessionID = ""
+		mem.sessionless = true
 	}
 
 	mem.handed = &payload
