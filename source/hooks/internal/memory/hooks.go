@@ -40,7 +40,7 @@ const (
 	rearmPercentMargin       = 10
 	transcriptDeltaThreshold = 400 * 1024
 	sensorMaxAge             = 5 * time.Minute
-	nudgesBeforeBackstop     = 2
+	reminderCalls            = 10
 	staleAfter               = 7 * 24 * time.Hour
 	recallFloorOwn           = 2.0
 	recallFloorOther         = 3.0
@@ -84,8 +84,25 @@ func (mem *memory) reminder(ctx context.Context, seatName string, since time.Tim
 	return nudgeText + unsettledAsk + strings.Join(addresses, ", ")
 }
 
-const backstopText = "Memory overdue, two nudges unanswered. " + ledgerAsk + ". File findings with " + self +
-	" new before ending the turn."
+// remind is the reminder while upkeep is owed: from the first nudge threshold
+// the context crosses until the seat answers it. An agent ignoring a capped
+// count of reminders would hear none again before compaction, so it repeats,
+// the one hidden message exempt from firing once per cause.
+func (mem *memory) remind(ctx context.Context, seatName string, session string, transcriptPath string, steps *ladder) string {
+	if steps.Nudges == 0 && !mem.crossed(session, transcriptPath, *steps) {
+		return ""
+	}
+
+	// The hook lines a reminder waits on are those since the first one
+	// unanswered: a later reminder moving the mark would let them go unsettled.
+	if steps.Nudges == 0 {
+		steps.NudgedAt = mem.now()
+	}
+
+	steps.Nudges++
+
+	return mem.reminder(ctx, seatName, steps.NudgedAt)
+}
 
 type hookEvent func(mem *memory, ctx context.Context, args []string) int
 
@@ -478,8 +495,10 @@ type ladder struct {
 	Wrote      []string `json:"wrote,omitempty"`
 	LastPrompt string   `json:"last_prompt,omitempty"`
 	// Owed is the line the last Stop owed the agent, for the next hook
-	// answering with additionalContext.
-	Owed string `json:"owed,omitempty"`
+	// answering with additionalContext; ToolCalls counts the main thread's
+	// tool calls, every reminderCalls-th of which repeats the reminder.
+	Owed      string `json:"owed,omitempty"`
+	ToolCalls int    `json:"tool_calls,omitempty"`
 }
 
 const replayNudgeText = "Turns since your newest entry or state line no longer fit the post-compaction replay. " +
@@ -506,7 +525,7 @@ func (mem *memory) recordWrite(session string, toolName string, path string) {
 // replayNudge asks the seat to file once its turns since its newest entry
 // would no longer fit the replay a compaction brings back, once per newest
 // entry. The transcript is read only after it grew by a piece since the last
-// look. It counts toward neither Nudges nor the Stop backstop.
+// look. It counts toward no reminder.
 func (mem *memory) replayNudge(ctx context.Context, seatName string, transcriptPath string, held *ladder) string {
 	folded, err := mem.load(ctx)
 	if err != nil || transcriptPath == "" {
@@ -732,18 +751,9 @@ func (mem *memory) prompt(ctx context.Context, _ []string) int {
 		steps.Owed = ""
 	}
 
-	// Past the second unanswered nudge Stop owes the backstop; a third nudge
-	// would only repeat it on every prompt.
-	nudged := steps.Nudges < nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps)
-	if nudged {
-		// The hook lines a nudge waits on are those since the first one
-		// unanswered: a later nudge moving the mark would let them go unsettled.
-		if steps.Nudges == 0 {
-			steps.NudgedAt = mem.now()
-		}
-
-		steps.Nudges++
-		out = append(out, mem.reminder(ctx, name, steps.NudgedAt))
+	nudge := mem.remind(ctx, name, session, payload.TranscriptPath, &steps)
+	if nudge != "" {
+		out = append(out, nudge)
 	}
 
 	replay := mem.replayNudge(ctx, name, cmp.Or(payload.TranscriptPath, held.TranscriptPath), &steps)
@@ -819,12 +829,10 @@ func (mem *memory) tool(ctx context.Context, _ []string) int {
 
 	notes := reread
 
-	// What a Stop owed is the seat's, so its main thread hears it.
+	// What a Stop owed and the upkeep reminder are the seat's, so its main
+	// thread hears them, and only its calls count toward the reminder.
 	if payload.AgentID == "" {
-		owed := mem.owedLine(session)
-		if owed != "" {
-			notes = append(notes, owed)
-		}
+		notes = append(notes, mem.owedAtTool(ctx, name, session, payload.TranscriptPath)...)
 	}
 
 	movedHere := mem.moved(ctx, name, held)
@@ -1024,20 +1032,40 @@ func (mem *memory) stop(ctx context.Context, _ []string) int {
 
 	mem.hookLines(ctx, name, held.Commit, session, true)
 
-	pending := mem.owedDoNow(name, session)
+	steps := mem.loadLadder(session)
+	steps.Owed = mem.owedDoNow(name, session)
+	_ = mem.writeSlot(mem.ladderKey(session), steps)
 
-	steps := mem.answer(ctx, name, session, payload.TranscriptPath, mem.loadLadder(session))
+	return 0
+}
 
-	switch {
-	case pending != "":
-		steps.Owed = pending
-	case steps.Nudges >= nudgesBeforeBackstop && mem.crossed(session, payload.TranscriptPath, steps):
-		steps.Owed = backstopText
+// owedAtTool is what a main thread's tool call owes the agent: the line its
+// last Stop owed, and at every reminderCalls-th call the reminder while
+// upkeep is owed.
+func (mem *memory) owedAtTool(ctx context.Context, seatName string, session string, transcriptPath string) []string {
+	steps := mem.loadLadder(session)
+
+	var owed []string
+
+	if steps.Owed != "" {
+		owed = append(owed, steps.Owed)
+		steps.Owed = ""
+	}
+
+	steps.ToolCalls++
+
+	if steps.ToolCalls%reminderCalls == 0 {
+		steps = mem.answer(ctx, seatName, session, transcriptPath, steps)
+
+		nudge := mem.remind(ctx, seatName, session, transcriptPath, &steps)
+		if nudge != "" {
+			owed = append(owed, nudge)
+		}
 	}
 
 	_ = mem.writeSlot(mem.ladderKey(session), steps)
 
-	return 0
+	return owed
 }
 
 // owedLine takes the line the session's last Stop owed the agent, once: Stop

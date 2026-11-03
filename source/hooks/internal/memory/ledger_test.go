@@ -698,19 +698,6 @@ func TestOnlyTheAgentsLedgerChangeAnswersTheNudge(t *testing.T) {
 	}
 }
 
-func TestTheBackstopIsWordedForTheLedger(t *testing.T) {
-	h := newHarness(t)
-	h.must("", "claim", "main")
-	h.sensor(90)
-	h.said(h.promptSaying("go on"), "prompt")
-	h.said(h.promptSaying("go on"), "prompt")
-
-	if owed := h.owedAfterStop(h.stop()); owed != "Memory overdue, two nudges unanswered. Add or tick state lines where work moved: "+
-		"agentic-memory ack state --add '<line>' | ack state#<item> --done. File findings with agentic-memory new before ending the turn." {
-		t.Errorf("the backstop should ask for ledger lines, got %q", owed)
-	}
-}
-
 func TestShippedWorkAsksNothing(t *testing.T) {
 	h := commitHarness(t)
 

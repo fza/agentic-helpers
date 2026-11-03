@@ -260,10 +260,10 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   settle live work` or `retire? landed: <sha>` → check each, then its command; not this work →
   `agentic-memory landed dismiss <id>...`, or it returns each context.
 - **`Context near compaction. Add or tick state lines where work moved: ...`** → add or tick
-  state lines, file what outlives the moment. Fires at most twice until answered; ignored twice →
-  the next prompt or tool call after `Stop` brings `Memory overdue, two nudges unanswered. ...`.
-  Your own line or entry answers it once `landed`/`captured` lines since settle: `Answered once
-  each hook line since is cited in a line of yours, ticked or dropped: <state#item>, ...`.
+  state lines, file what outlives the moment. Repeats, hidden, at every prompt and every 10th tool
+  call until answered. Your own line or entry answers it once `landed`/`captured` lines since
+  settle: `Answered once each hook line since is cited in a line of yours, ticked or dropped:
+  <state#item>, ...`.
 - **`Turns since your newest entry or state line no longer fit the post-compaction replay. ...`**
   → add or tick state lines now.
 - Replay cut → its first piece names `<k> older pieces cut, the full transcript at <path>`; read it

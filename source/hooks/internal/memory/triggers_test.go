@@ -255,22 +255,15 @@ func TestStopHoldsTwiceThenSkips(t *testing.T) {
 	h.must("", "claim", "main")
 	board := h.file("Read the board on claim", "body", "--kind", "rule", "--from", "user", "--on", "claim")
 	h.must("", "claim", "main")
-	h.sensor(90)
-
-	for range 2 {
-		h.said(hookPayload("", "", ""), "prompt")
-	}
 
 	for round := range 2 {
-		owed := h.owedAfterStop(hookPayload("", "", ""))
-		if !strings.Contains(owed, "do-now items pending") || strings.Contains(owed, "Memory overdue") {
-			t.Errorf("Stop %d should owe the do-now items ahead of the backstop, got %q", round+1, owed)
+		if owed := h.owedAfterStop(hookPayload("", "", "")); !strings.Contains(owed, "do-now items pending") {
+			t.Errorf("Stop %d should owe the do-now items, got %q", round+1, owed)
 		}
 	}
 
-	if owed := h.owedAfterStop(hookPayload("", "", "")); strings.Contains(owed, "do-now items pending") ||
-		!strings.Contains(owed, "Memory overdue") {
-		t.Errorf("a third Stop should no longer owe the items, and the backstop should follow, got %q", owed)
+	if owed := h.owedAfterStop(hookPayload("", "", "")); strings.Contains(owed, "do-now items pending") {
+		t.Errorf("a third Stop should no longer owe the items, got %q", owed)
 	}
 
 	h.must(h.sessionEnd("other"), "session-end")

@@ -591,7 +591,7 @@ commits nested under it. `brief --json` carries the ledger as `state`: `lines`, 
 while the slot waits.
 
 An agent change to its ledger moves the start of the post-compaction replay forward as filing does,
-answers the compaction nudge and its backstop, and re-arms the replay nudge. A hook line holds no
+answers the compaction nudge, and re-arms the replay nudge. A hook line holds no
 reasoning and does none of that.
 
 #### A slot written before the ledger
@@ -837,14 +837,14 @@ this session refuses the whole call, `agentic-memory: nothing acked:` then
 `ack --done` warms each rule it settles by 0.5; a decline warms nothing.
 
 `Stop` holds no turn and prints nothing: its `additionalContext` always shows the user `Stop hook
-feedback`, and memory speaks to the agent alone. A line `Stop` owes the agent (do-now items, the
-filing backstop) is marked in the `ladder/<session>` slot and goes out once, as
+feedback`, and memory speaks to the agent alone. A line `Stop` owes the agent (the do-now items
+below) is marked in the `ladder/<session>` slot and goes out once, as
 `additionalContext`, with the next `PreToolUse`, `PostToolUse`, `UserPromptSubmit` or `SessionStart`
 of the main thread, whichever comes first. A `PreToolUse` whose subagent checks rewrite or refuse the
 call leaves the line to that call's `PostToolUse`. An agent that ends its turn without settling is
 not held: the line waits for the next prompt or tool call.
 
-While items are pending, each `Stop` owes the agent, ahead of the filing backstop:
+While items are pending, each `Stop` owes the agent:
 
     agentic-memory: do-now items pending:
     1. m-d4e5f6 Read the board  ack when done
@@ -1475,10 +1475,16 @@ digits or more) or, for a captured line, its graph id. A hook line itself answer
     ... < body. Answered once each hook line since is cited in a line of yours, ticked or dropped: state#k3p, state#q8w
 
 A throwaway line would otherwise silence the nudge while the work it asks about stays unrecorded;
-one `ack` per batch of landed or captured work settles it. It fires on at most two prompts until answered; past that, `Stop` owes the backstop, which the next
-prompt or tool call carries ([Do-now rules](#do-now-rules) says how): `Memory overdue, two nudges
-unanswered. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack
-state#<item> --done. File findings with agentic-memory new before ending the turn.`
+one `ack` per batch of landed or captured work settles it.
+
+Once the context crosses a rung, upkeep is owed until the nudge is answered, and the nudge repeats,
+one line and never two in one hook's answer, at every prompt and at every 10th tool call of the main
+thread (`PostToolUse`, counted per session; a subagent's calls count for nothing). A tenth call
+also fires the first nudge where the context crossed a rung since the last prompt. An answer stops
+the repeats at once. It is the one hidden message that repeats rather than firing once per cause:
+an agent ignoring a capped count of nudges would hear none again before compaction, and upkeep left
+undone costs the next context its picture of the work. Each repeat costs about 60 tokens; a nudge
+on every tool call was rejected, since a line seen constantly is learned to be skipped.
 
 Every line memory gives the agent from a hook, these nudges, the brief and the replay included, is
 `additionalContext`, which Claude Code hands the agent without showing the user; no hook prints
@@ -1491,7 +1497,7 @@ prompt asks once per newest entry or ledger change:
     Turns since your newest entry or state line no longer fit the post-compaction replay. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
 An agent ledger change or any entry moves the replay's start forward and re-arms the nudge, which counts
-toward neither the compaction nudge's two nor the `Stop` backstop. A replay that still cuts turns
+toward no compaction nudge. A replay that still cuts turns
 opens with the count and where the rest is:
 
     agentic-memory: the turns since seat <name>'s newest entry, in <n> pieces, newest last; <k> older pieces cut, the full transcript at <path>:

@@ -1328,11 +1328,9 @@ func TestNudgeLadder(t *testing.T) {
 	}
 
 	h.sensor(90)
-	h.said(payload, "prompt")
-	h.said(payload, "prompt")
 
-	if owed := h.owedAfterStop(payload); !strings.Contains(owed, "two nudges unanswered") {
-		t.Errorf("two unanswered nudges should leave Stop owing the backstop, got %q", owed)
+	if !strings.Contains(h.said(payload, "prompt"), "Context near compaction") {
+		t.Error("a nudge should fire again at the next rung")
 	}
 }
 
@@ -2017,10 +2015,6 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 
 	if steps.Nudges != 0 {
 		t.Error("the replay nudge should leave the compaction nudge's count untouched")
-	}
-
-	if owed := h.owedAfterStop(prompt); strings.Contains(owed, "Memory overdue") {
-		t.Errorf("the replay nudge should never arm the Stop backstop, got %q", owed)
 	}
 
 	h.clock.Advance(4 * time.Hour)

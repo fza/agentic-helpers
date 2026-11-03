@@ -135,8 +135,8 @@ func TestALaterReminderStillWaitsForTheLinesSinceTheFirst(t *testing.T) {
 	h.addLine("x")
 	h.clock.Advance(time.Second)
 
-	if owed := h.owedAfterStop(h.stop()); !strings.Contains(owed, "Memory overdue") {
-		t.Errorf("a line landed between two reminders should keep both unanswered until settled, got %q", owed)
+	if !h.nudgedAgain() {
+		t.Error("a line landed between two reminders should keep both unanswered until settled")
 	}
 }
 
