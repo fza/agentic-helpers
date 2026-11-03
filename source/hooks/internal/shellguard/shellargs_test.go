@@ -8,7 +8,9 @@ import (
 )
 
 // Every case below is how the shell itself behaved, run with marker scripts on
-// macOS's bash, sh, zsh, dash and ksh93, on mksh 59c and on fish 4.9.
+// macOS's bash, sh, zsh, dash and ksh93, on mksh 59c and on fish 4.9, and on
+// Debian's bash 5.2, sh (dash), dash 0.5.12, ksh 93u+m, mksh R59 and fish 3.6
+// and 4.0. Where the two platforms differ, the stricter reading is the case.
 func TestAShellsArgumentsAreJudgedAsTheShellReadsThem(t *testing.T) {
 	g := newGuard(t, true, "")
 	test.FixtureTreeReplacing(t, "shellguard/scripts", filepath.Join(g.tree.Project, "scripts"), g.placeholders)
@@ -76,7 +78,9 @@ func TestAShellsArgumentsAreJudgedAsTheShellReadsThem(t *testing.T) {
 		{"ksh's +c is no -c", "ksh +c clean-outside.sh", ask, judged},
 		{"mksh's +c is no -c", "mksh +c clean-outside.sh", ask, judged},
 		{"bash's +s is -s", "bash +s clean-outside.sh", allow, ""},
-		{"sh's +s is -s", "sh +s clean-outside.sh", allow, ""},
+		{"sh's +s may be no -s, as dash reads it", "sh +s clean-outside.sh", ask, judged},
+		{"sh's +s in a group may be no -s", "sh +es clean-outside.sh", ask, judged},
+		{"sh's -s is -s", "sh -s clean-outside.sh", allow, ""},
 		{"zsh's +s is no -s", "zsh +s clean-outside.sh", ask, judged},
 		{"dash's +s is no -s", "dash +s clean-outside.sh", ask, judged},
 		{"ksh's +s is no -s", "ksh +s clean-outside.sh", ask, judged},
@@ -154,6 +158,7 @@ func TestPipedCodeIsJudgedAsTheShellReadsIt(t *testing.T) {
 		{"ksh's option value holding a c leaves the input", "echo 'rm x' | ksh -ocsh", "deny"},
 		{"bash's +s reads the input past an operand", "echo 'rm x' | bash +s foo", "deny"},
 		{"zsh's +s leaves the operand the script", "echo x | zsh +s scripts/build.sh", "allow"},
+		{"sh's +s may read the input as bash does", "echo 'rm x' | sh +s scripts/build.sh", "deny"},
 		{"fish's -C leaves the input", "echo 'rm x' | fish -C 'echo hi'", "deny"},
 		{"fish's -c replaces the input", "echo 'rm x' | fish -c 'echo hi'", "allow"},
 		{"fish's --command replaces the input", "echo 'rm x' | fish --comm='echo hi'", "allow"},

@@ -17,13 +17,17 @@ const (
 // Each table below holds what the shell did when run, not what a manual says of
 // it: the two disagree often enough, and the shells disagree with each other,
 // that one rule for all of them leaves code unjudged somewhere. Run on macOS's
-// bash, sh (bash again), zsh, dash and ksh93, on mksh 59c and on fish 4.9.
+// bash, sh (bash again), zsh, dash and ksh93, on mksh 59c and on fish 4.9; on
+// Debian 12 and 13's bash 5.2.15 and 5.2.37, sh (dash), dash 0.5.12, ksh 93u+m
+// 1.0.4 and 1.0.10, mksh R59 (2023/04/29, 2025/04/26) and fish 3.6.0 and 4.0.2;
+// and for -R and -T on Debian 10's ksh 93u+ 2012-08-01 and mksh R57. Where a
+// platform's shell reads a form otherwise, the stricter reading is the table's.
 var (
 	// longValues are the long options taking the next word as their value. Any
 	// other takes none: zsh sets every option it has by name (`zsh --exec x.sh`),
-	// so taking a word by default leaves the script unread. dash, ksh and mksh
-	// refuse every long option and run nothing. A list of flags was rejected as
-	// the list that misses one.
+	// and ksh93 each of its `set -o` names (`ksh --norc x.sh`), so taking a word
+	// by default leaves the script unread. dash and mksh refuse every long option
+	// and run nothing. A list of flags was rejected as the list that misses one.
 	longValues = map[string][]string{
 		bashShell: {"--rcfile", "--init-file"},
 		shShell:   {"--rcfile", "--init-file"},
@@ -31,7 +35,9 @@ var (
 	}
 
 	// valueLetters are the short options taking a value, with + as with -. -C is
-	// noclobber here and init code only on fish, and zsh's -O is a flag.
+	// noclobber here and init code only on fish, and zsh's -O is a flag. ksh93u+
+	// writes its cross-reference database to -R's value, where ksh 93u+m refuses
+	// -R and runs nothing; mksh runs on the terminal -T names.
 	valueLetters = map[string]string{
 		bashShell: "oO",
 		shShell:   "oO",
@@ -56,8 +62,11 @@ var (
 	plusInput = []string{bashShell, shShell}
 
 	// inputBesideCode are the shells that run standard input after the code of
-	// `-c -s`. sh counts for where it is dash.
-	inputBesideCode = []string{dashShell, shShell}
+	// `-c -s`, and scriptBesideInput those whose +s may still run the operand.
+	// sh counts for where it is dash, as on Debian: `sh +s x.sh` reads the input
+	// as bash and runs x.sh as dash, so both are judged.
+	inputBesideCode   = []string{dashShell, shShell}
+	scriptBesideInput = []string{shShell}
 )
 
 // fishLongValues are the long options of fish taking a value, each with its
@@ -79,13 +88,15 @@ const fishValueLetters = "cCdDfop"
 
 // shellArguments is what a shell makes of its arguments. operand is the index
 // of the first word past the options, or -1; readsInput says -s made standard
-// input the script; code is the words it runs as code in place of a script;
-// initCode the words fish runs before either.
+// input the script; keepsScript that the operand may run as the script even so;
+// code is the words it runs as code in place of a script; initCode the words
+// fish runs before either.
 type shellArguments struct {
-	operand    int
-	readsInput bool
-	code       []*syntax.Word
-	initCode   []*syntax.Word
+	operand     int
+	readsInput  bool
+	keepsScript bool
+	code        []*syntax.Word
+	initCode    []*syntax.Word
 }
 
 // readShellArguments reads a shell's arguments the way it does. Options stop at
@@ -114,6 +125,7 @@ func readShellArguments(shell string, args []*syntax.Word) shellArguments {
 		case strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+"):
 			group := readOptionGroup(shell, value)
 			parsed.readsInput = parsed.readsInput || group.readsInput
+			parsed.keepsScript = parsed.keepsScript || group.keepsScript
 			carriesCode = carriesCode || group.code
 
 			if group.takesNext {
@@ -158,10 +170,11 @@ func longOption(value string) bool {
 }
 
 type optionGroup struct {
-	readsInput bool
-	code       bool
-	takesNext  bool
-	ends       bool
+	readsInput  bool
+	keepsScript bool
+	code        bool
+	takesNext   bool
+	ends        bool
 }
 
 // readOptionGroup reads the letters of one word of options in order. zsh's b
@@ -182,6 +195,7 @@ func readOptionGroup(shell string, value string) optionGroup {
 			group.takesNext = true
 		case letter == 's':
 			group.readsInput = minus || slices.Contains(plusInput, shell)
+			group.keepsScript = !minus && slices.Contains(scriptBesideInput, shell)
 		case letter == 'c':
 			group.code = minus || slices.Contains(plusCode, shell)
 		case letter == 'b' && shell == zshShell:
@@ -294,7 +308,7 @@ func (parsed shellArguments) runCode() []*syntax.Word {
 // where it names none: -s reads standard input, -c runs code, and the operand
 // may name the input itself.
 func (parsed shellArguments) scriptOperand(args []*syntax.Word) int {
-	if parsed.operand < 0 || parsed.readsInput || len(parsed.code) > 0 || standardOperand(args[parsed.operand]) {
+	if parsed.operand < 0 || parsed.readsInput && !parsed.keepsScript || len(parsed.code) > 0 || standardOperand(args[parsed.operand]) {
 		return -1
 	}
 

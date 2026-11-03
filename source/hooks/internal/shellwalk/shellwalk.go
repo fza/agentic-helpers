@@ -1040,7 +1040,7 @@ func pipedCall(visitor Visitor, call *syntax.CallExpr) {
 	}
 
 	parsed := readShellArguments(name, args[1:])
-	if parsed.replacesInput(name) || parsed.scriptOperand(args[1:]) >= 0 {
+	if parsed.replacesInput(name) || parsed.scriptOperand(args[1:]) >= 0 && !parsed.readsInput {
 		return
 	}
 

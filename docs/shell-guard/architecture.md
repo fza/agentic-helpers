@@ -224,8 +224,9 @@ code, reads the pipe.
 ### A shell's arguments
 
 `shellwalk.readShellArguments` reads a shell's arguments for all three of these: the script, the pipe and the
-code. Its tables hold what each shell did when run with marker scripts, since the shells differ and a manual
-leaves some of it out:
+code. Its tables hold what each shell did when run with marker scripts on macOS and on Debian, since the shells
+differ and a manual leaves some of it out. Where one platform's shell reads a form otherwise, the stricter
+reading is the table's:
 
 | | `bash`, `sh` | `zsh` | `dash` | `ksh` | `mksh` | `fish` |
 |---|---|---|---|---|---|---|
@@ -234,7 +235,7 @@ leaves some of it out:
 | value attached to its letter | no | yes | no | yes | yes | yes |
 | long option taking a value | `--rcfile`, `--init-file` | `--emulate` | none | none | none | every name in `fishLongValues`, by unique prefix, or `=value` |
 | `+c` is `-c` | yes | yes | yes | no | no | no such word |
-| `+s` is `-s` | yes | no | no | no | no | no such word |
+| `+s` is `-s` | yes, but `sh` may be dash: its operand is read too | no | no | no | no | no such word |
 | input runs beside `-c` with `-s` | no, but `sh` may be dash | no | yes | no | no | no `-s` |
 
 Options stop at the first operand, so `bash x.sh -c code` runs `x.sh` with those arguments. An operand `-` is a
@@ -242,7 +243,8 @@ file of that name on every shell: `bash -` alone reads the input because nothing
 while `bash - -`, `bash -- -` and `fish -` run a file named `-`. A letter after a value letter on a shell that
 attaches values is that value, so `zsh -ocorrect` holds no `c`, `zsh -osh_word_split` no `s` and `zsh -ono_rcs`
 no `n`. Any other long option, `--name` or zsh's `+-name`, takes no word: zsh sets each of its options by name,
-so `zsh --exec x.sh` runs `x.sh`, and a list of flags was rejected as the list that misses one. A long option a
+so `zsh --exec x.sh` runs `x.sh`, ksh93 each of its `set -o` names (`ksh --norc x.sh`), and a list of flags was
+rejected as the list that misses one. A long option a
 shell rejects runs nothing, so the word after it is read for no gain, the side a guard errs on. `-C` is noclobber
 everywhere but fish.
 
