@@ -37,10 +37,13 @@ const (
 	itemRetext = "text"
 	lineEnded  = "ended"
 
-	briefHookLines = 12
-	crowdedLedger  = 12
-	landedLines    = 20
-	writtenFiles   = 20
+	// briefHookLines is how many open landed and captured lines stay open
+	// past hookLineLifetime, and how many the brief and show state print.
+	briefHookLines   = 12
+	hookLineLifetime = 24 * time.Hour
+	crowdedLedger    = 12
+	landedLines      = 20
+	writtenFiles     = 20
 )
 
 const ledgerAsk = "Add or tick state lines where work moved: " + self + " ack state --add '<line>' | ack state#<item> --done"
@@ -223,9 +226,10 @@ func (mem *memory) ledgerViews(ctx context.Context, folded *state, seatName stri
 }
 
 // viewLine works a line's state out: an ack's tick, untick or remove wins;
-// a hook line stays open until its hook ticks it; else the line ends once a
-// declared end is reached, once its pinned target ends as a linked todo
-// item's does, or once every id its text cites ended.
+// a landed or captured line ends once it is out of the newest open ones and
+// a day old, any other hook line stays open until its hook ticks it; else the
+// line ends once a declared end is reached, once its pinned target ends as a
+// linked todo item's does, or once every id its text cites ended.
 func (mem *memory) viewLine(ctx context.Context, probe *endProbe, folded *state, seatName string, held *ledger,
 	line ledgerLine,
 ) lineView {
@@ -235,7 +239,15 @@ func (mem *memory) viewLine(ctx context.Context, probe *endProbe, folded *state,
 		view.text, view.flag = folded.pinned(line.Link)
 	}
 
-	if line.Set || line.Hook != "" || line.State != itemOpen {
+	if line.Set || line.State != itemOpen {
+		return view
+	}
+
+	if line.Hook != "" {
+		if historyLine(line) && mem.now().Sub(line.Added) > hookLineLifetime && held.newerHookLines(line.ID) >= briefHookLines {
+			view.state, view.reason = lineEnded, fmt.Sprintf("out of the newest %d", briefHookLines)
+		}
+
 		return view
 	}
 
@@ -264,6 +276,29 @@ func (mem *memory) viewLine(ctx context.Context, probe *endProbe, folded *state,
 	}
 
 	return view
+}
+
+// historyLine is whether a hook line records what shipped, a landed commit
+// or a captured graph entry, rather than where the session stands.
+func historyLine(line ledgerLine) bool {
+	return line.Hook == hookLanded || line.Hook == hookCaptured
+}
+
+// newerHookLines is how many open landed and captured lines the ledger
+// gained after the line id, by the state the log records.
+func (held *ledger) newerHookLines(id string) int {
+	newer, after := 0, false
+
+	for _, other := range held.Lines {
+		switch {
+		case other.ID == id:
+			after = true
+		case after && historyLine(other) && other.State == itemOpen:
+			newer++
+		}
+	}
+
+	return newer
 }
 
 func lineConditions(line ledgerLine) []condition {
@@ -639,7 +674,7 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 
 	for _, view := range open {
 		switch {
-		case view.line.Hook == hookLanded || view.line.Hook == hookCaptured:
+		case historyLine(view.line):
 			if view.line.Hook == hookLanded && slices.ContainsFunc(commits, func(sha string) bool { return sameCommit(sha, view.line.Commit) }) {
 				continue
 			}
@@ -666,7 +701,7 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 
 	for index, view := range history {
 		if index == briefHookLines {
-			lines = append(lines, fmt.Sprintf("  (%d more: %s show state)", len(history)-briefHookLines, self))
+			lines = append(lines, fmt.Sprintf("  (%d more: %s show state --with-history)", len(history)-briefHookLines, self))
 
 			break
 		}
@@ -741,7 +776,7 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 	mem.readSlot(mem.ledgerEndsKey(seatName), &marked)
 
 	for _, view := range mem.ledgerViews(ctx, folded, seatName) {
-		if view.state != lineEnded {
+		if view.state != lineEnded || view.line.Hook != "" {
 			continue
 		}
 
@@ -763,35 +798,97 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 	return lines
 }
 
-// showState is the whole ledger: every line but removed ones, open and
-// settled, with each hook line's age.
-func (mem *memory) showState(ctx context.Context, folded *state, seatName string, withRemoved bool) string {
+// stateShown is which of show state's folded groups it prints: every landed
+// and captured line, every other ticked or ended line, and removed lines.
+type stateShown struct {
+	history, settled, removed bool
+}
+
+func stateShownOf(req request) stateShown {
+	return stateShown{history: req.WithHistory, settled: req.AllItems, removed: req.WithRemoved}
+}
+
+// stateRead is what show state prints of the ledger, agent lines first, then
+// the other hook lines, then the landed and captured ones, each run in the
+// order added, and how many lines each fold holds back.
+type stateRead struct {
+	views            []lineView
+	history, settled int
+}
+
+// stateLines is the ledger as show state reads it: every live line and the
+// newest open landed and captured ones, the rest counted into the fold whose
+// flag prints them.
+func (mem *memory) stateLines(ctx context.Context, folded *state, seatName string, shown stateShown) stateRead {
 	held := folded.ledgerFor(seatName)
 	probe := mem.probe(ctx)
 
+	var (
+		read    stateRead
+		agent   []lineView
+		hooks   []lineView
+		shipped []lineView
+	)
+
+	for _, line := range held.Lines {
+		if line.State == itemRemoved && !shown.removed {
+			continue
+		}
+
+		view := mem.viewLine(ctx, probe, folded, seatName, held, line)
+
+		switch {
+		case line.State == itemRemoved:
+		case historyLine(line):
+			if !shown.history && (!view.open() || held.newerHookLines(line.ID) >= briefHookLines) {
+				read.history++
+
+				continue
+			}
+		case !view.open() && !shown.settled:
+			read.settled++
+
+			continue
+		}
+
+		switch {
+		case historyLine(line):
+			shipped = append(shipped, view)
+		case line.Hook != "":
+			hooks = append(hooks, view)
+		default:
+			agent = append(agent, view)
+		}
+	}
+
+	read.views = slices.Concat(agent, hooks, shipped)
+
+	return read
+}
+
+// showState is the ledger's live lines, each with its state and every hook
+// line's age, and a fold line per group held back naming the flag that
+// prints it.
+func (mem *memory) showState(ctx context.Context, folded *state, seatName string, shown stateShown) string {
 	var lines []string
 
 	if old, pending := folded.oldState(seatName); pending {
 		lines = append(lines, mem.oldLines(old)...)
 	}
 
+	read := mem.stateLines(ctx, folded, seatName, shown)
 	nested := mem.ledgerLanded(folded, seatName)
 
-	for _, line := range held.Lines {
-		if line.State == itemRemoved && !withRemoved {
-			continue
-		}
-
-		view := mem.viewLine(ctx, probe, folded, seatName, held, line)
+	for _, view := range read.views {
 		box := map[string]string{itemOpen: "[ ]", itemDone: "[x]", lineEnded: "[e]", itemRemoved: "[r]"}[view.state]
 
 		text := fmt.Sprintf("  %s %s", box, withFlag(lineMark(view), view.flag))
-		if line.Hook != "" {
-			text += fmt.Sprintf(" (%s)", age(mem.now().Sub(line.Added)))
+		if view.line.Hook != "" {
+			text += fmt.Sprintf(" (%s)", age(mem.now().Sub(view.line.Added)))
 		}
 
-		if len(line.Until) > 0 {
-			text += "  until " + strings.Join(line.Until, ", ")
+		if len(view.line.Until) > 0 {
+			text += "  until " + strings.Join(view.line.Until, ", ")
 		}
 
 		lines = append(lines, text)
@@ -801,10 +898,18 @@ func (mem *memory) showState(ctx context.Context, folded *state, seatName string
 		}
 
 		for _, mapping := range nested {
-			if strings.HasSuffix(mapping.Target, "#"+line.ID) {
+			if strings.HasSuffix(mapping.Target, "#"+view.line.ID) {
 				lines = append(lines, fmt.Sprintf("    landed %s %s", shortCommit(mapping.Commit), mapping.Subject))
 			}
 		}
+	}
+
+	if read.history > 0 {
+		lines = append(lines, fmt.Sprintf("  (%d older landed and captured: %s show state --with-history)", read.history, self))
+	}
+
+	if read.settled > 0 {
+		lines = append(lines, fmt.Sprintf("  (%d settled: %s show state --all-items)", read.settled, self))
 	}
 
 	if len(lines) == 0 {
@@ -1208,10 +1313,20 @@ func graphTitle(path string) string {
 	return ""
 }
 
-// jsonLedger is the ledger as brief --json carries it.
+// jsonLedger is the ledger as brief --json carries it, and as show --json
+// carries the lines show state prints, with what each fold holds back.
 type jsonLedger struct {
-	Lines []jsonLine `json:"lines"`
-	Old   *jsonState `json:"old,omitempty"`
+	Lines  []jsonLine  `json:"lines"`
+	Old    *jsonState  `json:"old,omitempty"`
+	Folded *jsonFolded `json:"folded,omitempty"`
+}
+
+// jsonFolded is how many lines show state holds back: History the landed and
+// captured lines with_history adds, Settled the other ticked and ended lines
+// all_items adds.
+type jsonFolded struct {
+	History int `json:"history,omitempty"`
+	Settled int `json:"settled,omitempty"`
 }
 
 type jsonLine struct {
@@ -1226,9 +1341,26 @@ type jsonLine struct {
 }
 
 func (mem *memory) ledgerJSON(ctx context.Context, folded *state, seatName string) *jsonLedger {
+	return mem.linesJSON(folded, seatName, mem.ledgerViews(ctx, folded, seatName))
+}
+
+// stateJSON is show state as show --json carries it: the lines the text
+// prints and the folds' counts.
+func (mem *memory) stateJSON(ctx context.Context, folded *state, seatName string, shown stateShown) *jsonLedger {
+	read := mem.stateLines(ctx, folded, seatName, shown)
+	answer := mem.linesJSON(folded, seatName, read.views)
+
+	if read.history > 0 || read.settled > 0 {
+		answer.Folded = &jsonFolded{History: read.history, Settled: read.settled}
+	}
+
+	return answer
+}
+
+func (mem *memory) linesJSON(folded *state, seatName string, views []lineView) *jsonLedger {
 	answer := &jsonLedger{Lines: []jsonLine{}}
 
-	for _, view := range mem.ledgerViews(ctx, folded, seatName) {
+	for _, view := range views {
 		answer.Lines = append(answer.Lines, jsonLine{
 			ID: view.line.ID, Text: view.text, Link: view.line.Link, State: view.state, Reason: view.reason,
 			Hook: view.line.Hook, At: view.line.Added.UTC(), Until: view.line.Until,

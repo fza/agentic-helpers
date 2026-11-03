@@ -635,7 +635,7 @@ func (mem *memory) show(ctx context.Context, req request) result {
 				continue
 			}
 
-			blocks = append(blocks, mem.showState(ctx, folded, name, req.WithRemoved))
+			blocks = append(blocks, mem.showState(ctx, folded, name, stateShownOf(req)))
 
 			continue
 		}

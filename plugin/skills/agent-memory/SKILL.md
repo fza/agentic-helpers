@@ -97,7 +97,7 @@ body
 EOF
 agentic-memory ack state --add '<where one piece of work stands>' [--until <end>]...
 agentic-memory ack state#<item>... --done | --remove | --undo
-agentic-memory show state
+agentic-memory show state [--with-history] [--all-items]
 ```
 
 - **Where work stands → state lines, never an entry.** The seat's ledger, first in the brief: add a

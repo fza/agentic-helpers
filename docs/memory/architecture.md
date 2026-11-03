@@ -956,9 +956,15 @@ A line's end is worked out at read, never stored: a declared end through the end
 against an entry built from the line (its seat, session, time added, hashes and claim, and for
 `captured` the graph ids of the `captured` lines added after it); a pinned target through the fold's
 `itemLinks`, as a linked todo item; the ids its text cites through the folded log and the graph's
-statuses. The brief names an ended line once: the slot `ledger-ended/<seat id>` keeps the ids of the
-lines it named, and a line that comes back open leaves it. Rejected: storing an end as a row, which
-would need a write at read and could not follow a target that reopens.
+statuses. A `landed` or `captured` line ends once 12 or more `landed` and `captured` lines the log
+records open were added after it and it is over a day old (`newerHookLines`, `briefHookLines`,
+`hookLineLifetime`); the nudge's `ledger.unsettled` reads the logged state, so such a line still
+holds a nudge until the agent settles it. The brief names an ended agent line once: the slot
+`ledger-ended/<seat id>` keeps the ids of the lines it named, and a line that comes back open leaves
+it. `show state` and its JSON read one selection, `stateLines`, which holds back the landed and
+captured lines out of the newest 12 open ones and every other settled line, counting each group for
+its fold line. Rejected: storing an end as a row, which would need a write at read and could not
+follow a target that reopens.
 
 Hooks add lines through the same rows: PostToolUse after a Bash `git commit`, `merge` or
 `cherry-pick`, and Stop and SessionEnd, read `git log --oneline -n 20 <claim commit>..HEAD` and add

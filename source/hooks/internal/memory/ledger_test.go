@@ -93,7 +93,7 @@ func TestAckStateChangesTheCallingSeatsLedger(t *testing.T) {
 				t.Errorf("the brief should list the line exactly while it is open, got:\n%s", brief)
 			}
 
-			shown := h.must("", "show", "state")
+			shown := h.must("", "show", "state", "--all-items")
 			if tc.shown == "" && strings.Contains(shown, "#"+id) {
 				t.Errorf("show state should leave a removed line out, got:\n%s", shown)
 			}
@@ -532,12 +532,12 @@ func TestTheBriefFoldsHookLinesPastTheNewestTwelve(t *testing.T) {
 
 	brief := stateOf(h.must("", "brief"))
 	if strings.Count(brief, "hook: landed") != 12 || !strings.Contains(brief, "commit number 14") ||
-		strings.Contains(brief, "commit number 2 ") || !strings.Contains(brief, "  (3 more: agentic-memory show state)") {
+		strings.Contains(brief, "commit number 2 ") || !strings.Contains(brief, "  (3 more: agentic-memory show state --with-history)") {
 		t.Errorf("the brief should list the newest 12 hook lines and fold the rest, got:\n%s", brief)
 	}
 
-	if shown := h.must("", "show", "state"); strings.Count(shown, "hook: landed") != 15 {
-		t.Errorf("show state should list every hook line, got:\n%s", shown)
+	if shown := h.must("", "show", "state", "--with-history"); strings.Count(shown, "hook: landed") != 15 {
+		t.Errorf("show state --with-history should list every hook line, got:\n%s", shown)
 	}
 }
 

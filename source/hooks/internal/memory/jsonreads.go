@@ -205,7 +205,7 @@ func (mem *memory) showJSON(ctx context.Context, here tree, folded *state, req r
 				continue
 			}
 
-			ledger = mem.ledgerJSON(ctx, folded, name)
+			ledger = mem.stateJSON(ctx, folded, name, stateShownOf(req))
 
 			continue
 		}

@@ -92,6 +92,7 @@ type request struct {
 	Order          string   `json:"order,omitempty"`
 	WithRemoved    bool     `json:"with_removed,omitempty"`
 	AllItems       bool     `json:"all_items,omitempty"`
+	WithHistory    bool     `json:"with_history,omitempty"`
 	Fresh          bool     `json:"new,omitempty"`
 	Due            dueArg   `json:"due"`
 	Clear          bool     `json:"clear,omitempty"`
@@ -280,7 +281,7 @@ func (req *request) set(spec flagSpec, value string) error {
 		"all-seats": &req.AllSeats, "with-superseded": &req.WithSuperseded, "json": &req.JSON,
 		"no-heat": &req.NoHeat, "all": &req.All, "done": &req.Done, "unused": &req.Unused,
 		"private": &req.Private, "again": &req.Again, "undo": &req.Undo, "remove": &req.Remove,
-		"with-removed": &req.WithRemoved, "all-items": &req.AllItems, "new": &req.Fresh, "due": &req.Due.listed, "clear": &req.Clear,
+		"with-removed": &req.WithRemoved, "all-items": &req.AllItems, "with-history": &req.WithHistory, "new": &req.Fresh, "due": &req.Due.listed, "clear": &req.Clear,
 	}
 
 	switch spec.kind {
@@ -467,20 +468,21 @@ func allCommands() []command {
 			run: (*memory).search,
 		},
 		{
-			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--all-items] [--again]",
+			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--all-items] [--with-history] [--again]",
 			description: "entries in full: stamps, anchors, flags, events, a todo's items; takes each tool an entry names and prints its usage" +
 				foldClause,
 			flags: []flagSpec{
 				{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"with-removed", flagSwitch}, {"all-items", flagSwitch},
-				{"again", flagSwitch},
+				{"with-history", flagSwitch}, {"again", flagSwitch},
 			},
 			positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{` +
 				`"ids":{"type":"array","items":` + idSchema + `,"description":"entry ids or names, or state for this seat's ledger"},` +
 				noHeat + `,` + againKey + `,` +
 				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"},` +
-				`"with_removed":{"type":"boolean","description":"also a todo's removed items"},` +
-				`"all_items":{"type":"boolean","description":"each of a todo's done and dropped items, not their count"}},"required":["ids"]}`,
+				`"with_removed":{"type":"boolean","description":"also a todo's removed items and the ledger's removed lines"},` +
+				`"all_items":{"type":"boolean","description":"each of a todo's done and dropped items and the ledger's settled lines, not their count"},` +
+				`"with_history":{"type":"boolean","description":"every landed and captured line of the ledger, ended ones too"}},"required":["ids"]}`,
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--due] [--again]",

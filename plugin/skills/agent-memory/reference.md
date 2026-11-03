@@ -100,7 +100,12 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
 - Topic refusals: `<id> keeps at least one topic; tag the right one first: agentic-memory tag <id>
   <topic>`; `<id> carries no topic <topic>`.
 - The brief shows notes up to `brief_note_limit` (10). Its state section opens
-  `state (ack state#<item> --done | --remove):`, then `  #k3x: <line>`, hook lines as `  #q1w hook: <line> (<age>)`, the newest 12 `landed` and `captured` ones, the rest `(<n> more: agentic-memory show state)`; an empty ledger reads `state: empty`.
+  `state (ack state#<item> --done | --remove):`, then `  #k3x: <line>`, hook lines as `  #q1w hook: <line> (<age>)`, the newest 12 open `landed` and `captured` ones, the other open ones `(<n> more: agentic-memory show state --with-history)`; an empty ledger reads `state: empty`.
+- `show state` prints the live lines and the newest 12 open `landed` and `captured` ones, then
+  `(<n> older landed and captured: agentic-memory show state --with-history)` and
+  `(<n> settled: agentic-memory show state --all-items)` → run the named flag only when that history
+  or a settled line matters. A `landed` or `captured` line out of the newest 12 and a day old reads
+  `[e]`, `ended: out of the newest 12`; until ticked, removed or cited it still holds a nudge.
 - `space left: attachments <left> of <limit>, tools <left> of <limit>` in the brief → that store
   has under a tenth of its limit (`attachments_total_mb`, `tools_total_mb`) left; only the low
   store is named. No line → room in both.

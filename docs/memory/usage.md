@@ -516,7 +516,7 @@ first line creates it; a seat with none reads `state: empty` at claim and in the
 | `ack state#<item>... --done` | ticks lines | `done` |
 | `ack state#<item>... --remove` | removes lines that no longer belong | `removed` |
 | `ack state#<item>... --undo` | brings a ticked, removed or ended line back, open until ticked or removed | `undone` |
-| `show state` | prints the whole ledger | |
+| `show state [--with-history] [--all-items] [--with-removed]` | prints what is live in the ledger, folding the rest | |
 
 MCP `ack` takes the same: `{"ids":["state"],"add":["<line>"],"until":["claim"]}` or
 `{"ids":["state#k3x"],"done":true}`. `until` takes every form `new --until` takes
@@ -567,13 +567,17 @@ again at the next read.
   session's message, which Claude Code also delivers as a prompt, never takes its place, and a prompt that looks like it holds a credential never reaches it.
 
 A hook writes only where a line would change, and prints nothing. The agent may cite, tick or remove
-a hook line and never has to. Where a [landed round](#landed-work) matches a commit to an open agent
-line, the commit nests under that line as evidence, never a tick, and ends with it.
+a hook line and never has to. A `landed` or `captured` line out of the newest 12 open ones and added
+over a day ago reads as ended, `out of the newest 12`, worked out at each read and never written, so
+an untouched one leaves the open lines after a day. It stays out of `ended since last brief`, and the
+nudge still counts it as unsettled until the agent ticks, removes or cites it. Where a
+[landed round](#landed-work) matches a commit to an open agent line, the commit nests under that
+line as evidence, never a tick, and ends with it.
 
 The brief opens with the ledger, after its first line: the slot waiting to be split
 ([below](#a-slot-written-before-the-ledger)), every open agent line whole, the `dirty` and `asked`
-lines, then the newest 12 `landed` and `captured` lines, newest first, the rest folded into a count.
-Hook lines from earlier sessions stay until they leave the newest 12:
+lines, then the newest 12 open `landed` and `captured` lines, newest first, the other open ones
+folded into a count:
 
     state (ack state#<item> --done | --remove):
       #k3x: gate fix half done: the Bash path records reads, the MCP path not yet
@@ -582,13 +586,29 @@ Hook lines from earlier sessions stay until they leave the newest 12:
       #q1w hook: dirty internal/gate/gate.go (12m)
       #r2e hook: asked fix the gate for MCP reads (12m)
       #t5y hook: captured 20261101-190255-d-tac-6hl Seat state as a ledger (2h)
-      (3 more: agentic-memory show state)
+      (3 more: agentic-memory show state --with-history)
 
-`show state` prints every line but removed ones (`--with-removed` adds them), each with its state,
-`[ ]` open, `[x]` ticked, `[e]` ended with an `ended:` line naming why, its declared ends and the
-commits nested under it. `brief --json` carries the ledger as `state`: `lines`, each with `id`,
-`text`, `link`, `state` (`open`, `done`, `ended`), `reason`, `hook`, `at` and `until`, and `old`
-while the slot waits.
+`show state` prints what is live: the slot waiting to be split, every open agent line with the
+commits nested under it, the open `dirty` and `asked` lines, then the newest 12 open `landed` and
+`captured` lines, each run in the order added. Each line carries its state, `[ ]` open, `[x]`
+ticked, `[e]` ended with an `ended:` line naming why, `[r]` removed, and its declared ends. A fold
+line per group held back names the flag that prints it:
+
+    state of seat main:
+      [ ] #k3x: gate fix half done: the Bash path records reads, the MCP path not yet
+        landed 9c0ffee1 fix: the gate reads MCP calls
+      [ ] #q1w hook: dirty internal/gate/gate.go (12m)
+      [ ] #t5y hook: captured 20261101-190255-d-tac-6hl Seat state as a ledger (2h)
+      (206 older landed and captured: agentic-memory show state --with-history)
+      (76 settled: agentic-memory show state --all-items)
+
+`--with-history` (MCP `with_history`) adds every other `landed` and `captured` line, ticked and ended
+ones included; `--all-items` (MCP `all_items`) adds every other ticked and ended line;
+`--with-removed` (MCP `with_removed`) adds removed lines. `show state --json` and MCP `show` with the
+id `state` carry the same lines as `state`: `lines`, `old` while the slot waits, and `folded`, with
+`history` and `settled`, the counts each fold line names, where a group is held back. `brief --json`
+carries the whole ledger as `state`: `lines`, each with `id`, `text`, `link`, `state` (`open`,
+`done`, `ended`), `reason`, `hook`, `at` and `until`, and `old` while the slot waits.
 
 An agent change to its ledger moves the start of the post-compaction replay forward as filing does,
 answers the compaction nudge, and re-arms the replay nudge. A hook line holds no
