@@ -404,6 +404,11 @@ func TestSearchScopeAndTerms(t *testing.T) {
 			want: []string{"Drive seat"}, miss: []string{"Gate ignores"},
 		},
 		{
+			name: "a named seat narrows a search across every seat",
+			args: []string{"search", "--term", "mcp", "--all-seats", "--seat", "drive"},
+			want: []string{"Drive seat"}, miss: []string{"Gate ignores"},
+		},
+		{
 			name: "a topic filters",
 			args: []string{"search", "--term", ".", "--topic", "storage"},
 			want: []string{"Seal writes"}, miss: []string{"Gate ignores"},
@@ -426,6 +431,13 @@ func TestSearchScopeAndTerms(t *testing.T) {
 				}
 			}
 		})
+	}
+
+	for _, seats := range []string{`["drive"]`, `"drive"`} {
+		out := mcpText(t, h.mcp(`{"name":"search","arguments":{"term":["mcp"],"all_seats":true,"seat":`+seats+`}}`))
+		if !strings.Contains(out, "Drive seat") || strings.Contains(out, "Gate ignores") {
+			t.Errorf("an MCP search naming a seat should narrow to it across every seat, got:\n%s", out)
+		}
 	}
 }
 

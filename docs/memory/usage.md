@@ -385,8 +385,8 @@ agentic-memory claim --shelf row-7ah            # a new seat row-7ah-<n>, the lo
   `<name> names a shelf; claim it with --shelf <name>`.
 - **A seat's memory is its shelf.** Its brief, a search without `--seat` or `--all-seats` and
   prompt recall treat every entry on the shelf as the seat's own; `search --seat <s>` narrows to one
-  filer. The brief of a seat on a shelf of another name opens `agentic-memory: seat rev on shelf
-  row-7ah, ...`.
+  filer, with `--all-seats` too. The brief of a seat on a shelf of another name opens
+  `agentic-memory: seat rev on shelf row-7ah, ...`.
 - **Every seat on the shelf may retire, retain, rekind, retitle, tag and untag its entries, and move
   their due time.** A seat on another shelf is refused: `<id> is on shelf <name>`.
 - **The seats on a shelf are its subscribers.** A shelf mate's new entry arrives as
@@ -1368,7 +1368,7 @@ nothing, so it warms nothing.
 the view's `topic` reads it: the topic itself or one below it, component by component, so `infra`
 holds `infra/ci` and never `infrastructure`. `--seat`, `--all-seats`, `--status`, `--topic` and
 `--with-superseded` compile to the view's filters (see [Views](#views)); `--term` and `--query` are
-search, not filters.
+search, not filters. A seat named narrows: `--seat` with `--all-seats` searches the named seats.
 
 A search returns `--limit` results, 10 unless set, and `--skip <n>` (MCP `skip`) drops the first
 `n` before the limit cuts the page. A page with results past it ends with the next page's flag:

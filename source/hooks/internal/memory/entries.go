@@ -1169,15 +1169,16 @@ func (mem *memory) search(ctx context.Context, req request) result {
 var searchStatuses = []string{statusLive, statusRetired, statusSuperseded}
 
 // searchFilters is what search's flags compile to: the own shelf and what it
-// receives unless --seat or --all-seats widens it, the statuses named, else
-// every one but superseded unless --with-superseded, and the topics named.
+// receives unless --seat or --all-seats widens it, a seat named narrowing
+// --all-seats to it, the statuses named, else every one but superseded unless
+// --with-superseded, and the topics named.
 func (scope *viewScope) searchFilters(req request) ([]filter, error) {
 	var calls [][]string
 
 	switch {
-	case req.AllSeats:
 	case len(req.Seats) > 0:
 		calls = append(calls, append([]string{"seat"}, req.Seats...))
+	case req.AllSeats:
 	default:
 		calls = append(calls, []string{"mine"})
 	}
