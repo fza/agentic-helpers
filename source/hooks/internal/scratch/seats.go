@@ -82,7 +82,7 @@ func RemoveSeat(ctx context.Context, root string, name string, id string) bool {
 		return false
 	}
 
-	return remove(ctx, dir)
+	return remove(ctx, root, dir)
 }
 
 // MoveSeat carries a renamed or moved seat's folder to its new name, marked
@@ -106,10 +106,11 @@ func MoveSeat(root string, from string, fromID string, to string, toID string) {
 // accepts and whose newest file is older than a week, the backstop for a seat
 // nobody releases, and answers how many went.
 func ReapSeats(ctx context.Context, root string, owned func(id string) bool, now time.Time) int {
-	entries, err := os.ReadDir(seatsDir(root))
-	if err != nil {
+	seats, entries := listSeats(root)
+	if seats == nil {
 		return 0
 	}
+	defer seats.Close()
 
 	gone := 0
 	stale := now.Add(-orphanAge)
@@ -134,7 +135,7 @@ func ReapSeats(ctx context.Context, root string, owned func(id string) bool, now
 			continue
 		}
 
-		if remove(ctx, dir) {
+		if removeIn(ctx, seats, entry.Name()) {
 			gone++
 		}
 	}
@@ -216,7 +217,13 @@ func moveInto(root string, source string, target string, clash string) bool {
 		_ = safefs.Rename(root, filepath.Join(source, entry.Name()), at)
 	}
 
-	return os.Remove(source) == nil
+	held, name, err := safefs.Parent(root, source)
+	if err != nil {
+		return false
+	}
+	defer held.Close()
+
+	return held.Remove(name) == nil
 }
 
 // markOf is the seat id a folder's marker names, or nothing where the folder

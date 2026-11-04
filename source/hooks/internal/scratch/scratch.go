@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,6 +30,7 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
+	"github.com/fza/agentic-helpers/source/hooks/internal/safefs"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
@@ -106,7 +108,7 @@ func end(ctx context.Context, root string, session string, out io.Writer) error 
 	}
 
 	held := filepath.Join(seatsDir(root), session)
-	if !isDir(held) || !remove(ctx, held) {
+	if !remove(ctx, root, held) {
 		return nil
 	}
 
@@ -170,10 +172,11 @@ func start(ctx context.Context, env Env, options pluginconfig.Options, out io.Wr
 }
 
 func reap(ctx context.Context, root string, now time.Time) int {
-	entries, err := os.ReadDir(seatsDir(root))
-	if err != nil {
+	seats, entries := listSeats(root)
+	if seats == nil {
 		return 0
 	}
+	defer seats.Close()
 
 	gone := 0
 	stale := now.Add(-orphanAge)
@@ -192,7 +195,7 @@ func reap(ctx context.Context, root string, now time.Time) int {
 			continue
 		}
 
-		if remove(ctx, filepath.Join(seatsDir(root), entry.Name())) {
+		if removeIn(ctx, seats, entry.Name()) {
 			gone++
 		}
 	}
@@ -200,14 +203,55 @@ func reap(ctx context.Context, root string, now time.Time) int {
 	return gone
 }
 
-// remove reports only whether the directory went. A failure leaves nothing a
-// hook's caller could act on, so the next start retries it.
-func remove(ctx context.Context, directory string) bool {
+// listSeats opens `.tmp/seats/` through safefs, following no link from root
+// down, and lists it; nil where it is no folder of the project's own. A
+// committed `.tmp` or `.tmp/seats` link would otherwise hand the sweep any
+// folder on the machine, Claude Code's file-history among them, whose
+// session-named folders it would remove.
+func listSeats(root string) (*safefs.Dir, []fs.DirEntry) {
+	seats, err := safefs.At(root, seatsDir(root))
+	if err != nil {
+		return nil, nil
+	}
+
+	entries, err := seats.Entries()
+	if err != nil {
+		seats.Close()
+
+		return nil, nil
+	}
+
+	return seats, entries
+}
+
+// remove removes the folder below root through safefs, as every other
+// remover there does, and reports only whether it went. A failure leaves
+// nothing a hook's caller could act on, so the next start retries it.
+func remove(ctx context.Context, root string, directory string) bool {
+	held, name, err := safefs.Parent(root, directory)
+	if err != nil {
+		return false
+	}
+	defer held.Close()
+
+	return removeIn(ctx, held, name)
+}
+
+// removeIn removes the folder name below held, refusing a link or a file at
+// the name.
+func removeIn(ctx context.Context, held *safefs.Dir, name string) bool {
 	if ctx.Err() != nil {
 		return false
 	}
 
-	return os.RemoveAll(directory) == nil
+	folder, err := held.Sub(name)
+	if err != nil {
+		return false
+	}
+
+	folder.Close()
+
+	return held.RemoveAll(name) == nil
 }
 
 func isDir(path string) bool {

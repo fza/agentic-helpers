@@ -68,7 +68,8 @@ session's transcript names moves into that seat's folder, a name already there g
 `<first 8 characters of the session id>/` subfolder. A folder no seat claims stays, and goes a week
 after its last change.
 
-A project opts in by carrying `.tmp/`. Claiming an agentic-memory seat in a git checkout counts as
+A project opts in by carrying `.tmp/`. The sweep removes nothing through a `.tmp` or `.tmp/seats`
+that is a link. Claiming an agentic-memory seat in a git checkout counts as
 opting in: the claim creates `.tmp/` where it is missing, and adds it to git's global excludes at
 once. agentic-scratch itself never creates the folder. As a session starts there, the sweep keeps `.tmp/` out of every
 repository: where git does not ignore it already, `.tmp/` is appended to git's global excludes file

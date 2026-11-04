@@ -62,7 +62,8 @@ never create any other name in it. Anything else there moves to `.tmp/keep/` aft
 
 **Only a folder proven throwaway is ever removed:** a seat folder whose marker `.agentic-scratch`
 names one of the store's seats, or a directory named for a session. Anything else is a deliberate
-keep and survives whatever its age. To keep something, put it under `.tmp/keep/<name>/`. Never
+keep and survives whatever its age. A `.tmp` or `.tmp/seats` that is a link → nothing swept through
+it. To keep something, put it under `.tmp/keep/<name>/`. Never
 write, move or delete `.agentic-scratch`.
 
 Session directories reap by directory mtime: a keep whose name looks like a session id is not a keep.

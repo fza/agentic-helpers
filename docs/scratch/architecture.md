@@ -21,6 +21,14 @@ Reaping goes by the directory's own modification time, so a keep whose name happ
 session id is not a keep. A removal that fails leaves nothing a hook's caller could act on; the next
 start tries it again.
 
+**Nothing is listed or removed through a link.** Every sweep opens `.tmp/seats/` from the checkout's top folder down through
+`internal/safefs`, following no link at `.tmp` or `.tmp/seats`, lists it through that descriptor
+(at most `safefs.WalkFiles` entries; a larger folder is left for the agent to clear), and removes a
+folder through `safefs.Dir.RemoveAll` only after opening it as a folder of its own, never a link or
+a file. A repository committing `.tmp/seats` as a link to Claude Code's file-history, whose folders
+are named by session id, so gets none of them removed. The session's end, the start's reap, the
+seat reap, a seat's release and the move into a seat's folder all remove this way.
+
 ## Seat folders
 
 `internal/scratch` holds the seat folder's rules; agentic-memory calls them.
