@@ -590,8 +590,8 @@ its content hash, and eight segments merge into one. A merge bounds what history
 event older than 14 days, the revive window, folds into the shortest run of existing event kinds
 that rebuilds its entry (one `new` row carrying the title, topics, kind and retain override as they
 stood, the latest `confirm`, and the `retire` or `supersede` still standing), so the log grows with
-the entries it holds rather than with every change ever made. Topic merges and every younger event
-stay as they are. An `untag` row carries every name the entry was filed or tagged with that reads as
+the entries it holds rather than with every change ever made. Topic merges, every `item` row (a
+todolist's items, which the `new` row does not carry) and every younger event stay as they are. An `untag` row carries every name the entry was filed or tagged with that reads as
 a removed topic, so folding it needs no topic merge, and past the horizon it folds into the `new`
 row like any other.
 

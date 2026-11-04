@@ -715,10 +715,10 @@ type horizonRun struct {
 // the title, topics, kind and retain override the run left, its latest
 // confirm, and the retires and supersedes a revive can still step back over.
 // No kind is added, so a binary of the same format reads the merged segment.
-// Topic merges and every event past the horizon are kept as they are, and of
-// the state rows only each seat's newest. The body of an entry superseded
-// longer ago than supersedeKeep, or retired longer ago than retiredKeep, is
-// dropped: the one place a body ever is.
+// Topic merges, item rows and every event past the horizon are kept as they
+// are, and of the state rows only each seat's newest. The body of an entry
+// superseded longer ago than supersedeKeep, or retired longer ago than
+// retiredKeep, is dropped: the one place a body ever is.
 func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 	return func(rows []memorylog.Row, payload func(int) ([]byte, error)) ([]memorylog.Event, error) {
 		horizon := now.Add(-supersedeKeep)
@@ -750,7 +750,10 @@ func mergePolicy(now time.Time, retiredKeep time.Duration) memorylog.Policy {
 				continue
 			}
 
-			if row.Kind == memorylog.KindMerge {
+			// A todolist's item rows stay as they are: the new row a run folds
+			// into carries no items, so an item row folded with it would drop
+			// the item from its list.
+			if row.Kind == memorylog.KindMerge || row.Kind == memorylog.KindItem {
 				continue
 			}
 
