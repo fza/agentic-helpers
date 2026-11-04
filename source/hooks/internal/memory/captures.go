@@ -150,7 +150,7 @@ func (mem *memory) captureNotice(ctx context.Context, seatName string, session s
 
 	for _, held := range folded.entryList() {
 		if held.status == statusLive && mem.onShelf(held, seatName) && slices.Contains(held.until, "captured") {
-			waiting = append(waiting, held.label()+" "+held.title)
+			waiting = append(waiting, held.label()+" "+held.shownTitle())
 		}
 	}
 

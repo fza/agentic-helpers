@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
 
@@ -700,10 +701,10 @@ func (mem *memory) changeLines(folded *state, held *ledger, name string, req req
 // added it, and its text.
 func lineMark(view lineView) string {
 	if view.line.Hook != "" {
-		return fmt.Sprintf("#%s hook: %s", view.line.ID, view.text)
+		return fmt.Sprintf("#%s hook: %s", view.line.ID, hookio.NeutralizeInline(view.text))
 	}
 
-	return fmt.Sprintf("#%s: %s", view.line.ID, view.text)
+	return fmt.Sprintf("#%s: %s", view.line.ID, hookio.NeutralizeInline(view.text))
 }
 
 // stateSection is how the brief opens on the seat's ledger: the old slot
@@ -761,7 +762,7 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 
 			for _, mapping := range nested {
 				if strings.HasSuffix(mapping.Target, "#"+view.line.ID) {
-					lines = append(lines, fmt.Sprintf("    landed %s %s", shortCommit(mapping.Commit), mapping.Subject))
+					lines = append(lines, fmt.Sprintf("    landed %s %s", shortCommit(mapping.Commit), hookio.NeutralizeInline(mapping.Subject)))
 				}
 			}
 		}
@@ -864,7 +865,7 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 		kept = append(kept, view.line.ID)
 
 		if !slices.Contains(marked.Shown, view.line.ID) {
-			lines = append(lines, fmt.Sprintf("  state#%s %s: %s (%s)", view.line.ID, view.text, view.reason, settleHint(ledgerID+"#"+view.line.ID, "undo").in(mem.hintChannel(ctx))))
+			lines = append(lines, fmt.Sprintf("  state#%s %s: %s (%s)", view.line.ID, hookio.NeutralizeInline(view.text), hookio.NeutralizeInline(view.reason), settleHint(ledgerID+"#"+view.line.ID, "undo").in(mem.hintChannel(ctx))))
 		}
 	}
 

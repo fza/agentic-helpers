@@ -164,7 +164,7 @@ func (mem *memory) objectOf(held *entry, object jsonEntry) jsonEntry {
 }
 
 func pointer(held *entry) string {
-	return held.label() + " " + held.title + " (seen)"
+	return held.label() + " " + held.shownTitle() + " (seen)"
 }
 
 // jsonSeenEntry is an entry the calling session's context already holds: its

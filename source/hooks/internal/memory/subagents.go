@@ -534,7 +534,7 @@ func (mem *memory) subagentRules(ctx context.Context, parent string) []string {
 
 		for _, text := range strings.Split(strings.TrimSpace(held.body), "\n") {
 			if strings.TrimSpace(text) != "" {
-				rule = append(rule, "    "+text)
+				rule = append(rule, "    "+hookio.Neutralize(text))
 			}
 		}
 

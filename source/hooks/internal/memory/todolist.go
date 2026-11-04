@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
 
@@ -418,7 +419,7 @@ func (folded *state) briefItems(held *entry, indent string) (string, []string) {
 			continue
 		}
 
-		lines = append(lines, fmt.Sprintf("%s%d. #%s: %s", indent, view.position, view.item.ID, cut(view.text, itemTextCut)))
+		lines = append(lines, fmt.Sprintf("%s%d. #%s: %s", indent, view.position, view.item.ID, hookio.NeutralizeInline(cut(view.text, itemTextCut))))
 	}
 
 	return fmt.Sprintf("%d/%d", settled, total), lines

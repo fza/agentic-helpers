@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
 
@@ -101,10 +102,10 @@ func (mem *memory) skip(seatName string, items []doNowItem) {
 
 func itemLine(number int, item doNowItem) string {
 	if len(item.Proof) == 0 {
-		return fmt.Sprintf("%d. %s %s  ack when done", number, item.ID, item.Title)
+		return fmt.Sprintf("%d. %s %s  ack when done", number, item.ID, hookio.NeutralizeInline(item.Title))
 	}
 
-	return fmt.Sprintf("%d. %s %s  proof: %s", number, item.ID, item.Title, strings.Join(item.Proof, ", "))
+	return fmt.Sprintf("%d. %s %s  proof: %s", number, item.ID, hookio.NeutralizeInline(item.Title), strings.Join(item.Proof, ", "))
 }
 
 // doNow is the list owed at a moment, printed before the brief: what the
@@ -131,7 +132,7 @@ func (mem *memory) doNow(folded *state, seatName string, moment string, session 
 		lines = append(lines, "skipped last session:")
 
 		for _, item := range skipped {
-			lines = append(lines, fmt.Sprintf("  %s %s (%s)", item.ID, item.Title, item.Trigger))
+			lines = append(lines, fmt.Sprintf("  %s %s (%s)", item.ID, hookio.NeutralizeInline(item.Title), item.Trigger))
 			named[item.ID] = true
 		}
 

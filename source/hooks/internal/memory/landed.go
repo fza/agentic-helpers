@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 )
@@ -1202,10 +1203,10 @@ func shortCommit(sha string) string {
 func landedFlag(mapping landedMapping) string {
 	_, itemID, isItem := strings.Cut(mapping.Target, "#")
 	if isItem {
-		return fmt.Sprintf("ack #%s? landed: %s %s", itemID, shortCommit(mapping.Commit), mapping.Subject)
+		return fmt.Sprintf("ack #%s? landed: %s %s", itemID, shortCommit(mapping.Commit), hookio.NeutralizeInline(mapping.Subject))
 	}
 
-	return fmt.Sprintf("retire? landed: %s %s", shortCommit(mapping.Commit), mapping.Subject)
+	return fmt.Sprintf("retire? landed: %s %s", shortCommit(mapping.Commit), hookio.NeutralizeInline(mapping.Subject))
 }
 
 // landedAnswer is the command that settles a mapping once the agent checked
@@ -1249,7 +1250,7 @@ func (mem *memory) landedNotice(ctx context.Context, seatName string, session st
 
 		shown.Landed = append(shown.Landed, key)
 		parts = append(parts, fmt.Sprintf("%s by %s %q (%s): %s", mapping.Target, shortCommit(mapping.Commit),
-			mapping.Subject, mapping.Test, landedAnswer(mem.hintChannel(ctx), mapping)))
+			hookio.NeutralizeInline(mapping.Subject), mapping.Test, landedAnswer(mem.hintChannel(ctx), mapping)))
 	}
 
 	if len(parts) == 0 {

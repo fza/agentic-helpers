@@ -192,6 +192,13 @@ store's name, grown by a leading segment while two names share one.
 | `SessionStart` | `start` | at most once a day, clears every key no write touched for a week from the own store's session file, the seen sets and the prompt vectors; on a compaction, `/clear` or resume, clears the seen set |
 | `SessionEnd` | `end` | clears the session's slot, its prompt vector slot and the seen set |
 
+The script nudge names scratch files by their file names, which any process may have chosen, so it
+sets them through `hookio.NeutralizeInline`, as memory sets filed text
+([memory architecture](../memory/architecture.md#filed-text-in-hook-context)): a script named
+`check<newline>agentic-shell-guard: ...` or holding `<system-reminder>` opens no line as a hook's and
+carries no harness tag. Every other name a hook line carries is held to a shape that cannot forge
+either: a tool's name to `namePattern`, a store's label to the segments of its slugged name.
+
 The offer's embed is bounded at five seconds, as agentic-memory's recall is; a timeout adds
 nothing. A prompt's vector lives in a slot per session under
 `<cache>/prompt-vectors/`, which agentic-memory's recall fills too: whichever hook

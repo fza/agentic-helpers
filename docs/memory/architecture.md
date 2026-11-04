@@ -772,6 +772,51 @@ A hook whose event has no hidden channel (Stop) says nothing; no hook prints pla
 | Stop (`wait`, `asyncRewake`) | the idle waiter, below |
 | SessionEnd (`session-end`) | removes the session's context reading and its `instructions/<session>` slot; closes every seat still held for one of its subagents and forgets its `agents/<session>` record, its subagents' shown sets and its spawn slots; adds the state ledger's hook lines as Stop does, keeps the session's last turns as its seat's slice, empties the session's prompt vector slot, and, for any reason but `clear` or `resume`, closes the seat and purges what is due |
 
+## Filed text in hook context
+
+A hook's `additionalContext` reaches the agent unasked, beside Claude Code's own reminders, so no
+filed text may pass there for a line of our hooks or for a harness tag. Every text line carrying
+what an agent, a file, a commit or a transcript filed renders it through `hookio.Neutralize` (text
+opening a line) or `hookio.NeutralizeInline` (text set after an id, whose first line opens none):
+
+- a line whose first visible text opens as a line of our hooks gets `> ` before it, a quote a
+  reader takes as cited, never as said: `agentic-<name>:` and `agentic-<name> <word>:`, `scratch:`,
+  `tool library:`, `GROUNDING GATE:` and `[agentic-shell-guard:`, case folded, with blanks
+  and invisible format characters (Unicode `Cf`) before it skipped. A line break is `\n` or `\r`;
+- the `<` of a tag-shaped token, `<` then an optional `/` or `!`, any `Cf` characters and a letter,
+  becomes `‹` (U+2039), so `</system-reminder>` reads `‹/system-reminder>`. The look-alike is
+  chosen over `&lt;`: no tag parser reads it as `<` and no decoding turns it back into one, where an
+  entity is exactly what an HTML-trained reader decodes, and it adds no character where `&lt;` adds
+  three to every placeholder a body names.
+
+Everything else stays byte for byte, so `a < b` and `<-` survive, and the pass is idempotent. Text
+without `<` or `:` returns at once.
+
+It runs wherever a hook can print filed text: titles in the short line, the seen pointer, `retire?`,
+`ended since last brief`, a citer's line, an arrival, a shelf's changes, the capture notice, the
+list without an alias, do-now items and credential findings (`shownTitle` or the field itself);
+the bodies of the rules a subagent's block carries; a brief's todolist items; state ledger lines,
+hook lines carrying a graph entry's title included, and the reasons and conditions of ended ones;
+event texts under `changed by other seats` and a shelf's changes; landed commit subjects, in the
+notice, an entry's flag and under a state line; the pressure nudge's lines; and transcript turns
+(`transcript.Condense`, so the replay pieces and a seat's slice), and a stored slice again where a
+claim prints it, since a slice an earlier release wrote is raw. `TestFiledTextForgesNoHookLine`
+drives each of them with both forms.
+
+Direct reads print filed text as filed: `show` (its head line, body, items, history and links),
+`search`, a `view` in the long line form, `show state`, and a command's reply naming another entry
+(`similar:`, a `--forbids` match, an alias refusal). The agent asked for them, a body read there may
+be carried into a supersede, and the hooks never print them. Every `--json` answer and MCP structured
+read keeps every field as filed, being data its reader parses. The brief over the
+CLI or MCP shares the hooks' renderers, so it prints neutralized, as it prints after a compaction.
+`presentedKey` hashes `lineIn`, whose title stays raw, so a seen set keeps its keys.
+
+Rejected: one pass over a hook's whole answer at `sayHidden`, since our own lines open with the
+same prefixes and our hints spell placeholders such as `<id>`, so no pass over the answer can tell a
+forged line from ours. Neutralizing in the fold, since the folded state also feeds writes, landed
+matching and JSON, which keep the text as filed. A list of the harness's tag names, which goes stale
+with every Claude Code release where the tag shape does not.
+
 ## The update check
 
 `internal/updates` decides the claim's notice of a newer release

@@ -672,7 +672,7 @@ func citingLines(held *entry, shown map[string]bool, reader string, indent strin
 			bracket = other.seat + ", " + bracket
 		}
 
-		text := fmt.Sprintf("%s← %s %s [%s]", indent, other.label(), other.title, bracket)
+		text := fmt.Sprintf("%s← %s %s [%s]", indent, other.label(), other.shownTitle(), bracket)
 		if other.status != statusLive {
 			text += " (" + other.status + ")"
 		}

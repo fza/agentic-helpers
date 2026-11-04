@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 )
 
 const summaryLimit = 80
@@ -41,11 +43,11 @@ func Condense(turns []Turn) string {
 func turnBlock(turn Turn) string {
 	lines := []string{fmt.Sprintf("## %d  %s", turn.Number, turn.At.UTC().Format("15:04"))}
 	if turn.Asked != "" {
-		lines = append(lines, "asked: "+turn.Asked)
+		lines = append(lines, "asked: "+hookio.NeutralizeInline(turn.Asked))
 	}
 
 	if len(turn.Replied) > 0 {
-		lines = append(lines, "replied: "+strings.Join(turn.Replied, "\n\n"))
+		lines = append(lines, "replied: "+hookio.NeutralizeInline(strings.Join(turn.Replied, "\n\n")))
 	}
 
 	if len(turn.Did) > 0 {
@@ -57,7 +59,7 @@ func turnBlock(turn Turn) string {
 			}
 		}
 
-		lines = append(lines, "did: "+strings.Join(ordered, " · "))
+		lines = append(lines, "did: "+hookio.NeutralizeInline(strings.Join(ordered, " · ")))
 	}
 
 	return strings.Join(lines, "\n") + "\n\n"

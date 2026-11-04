@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/slots"
 )
 
@@ -262,7 +263,7 @@ func (mem *memory) pressureLines(at channel, open []lineView, marks ledgerMarks)
 			text += " ..."
 		}
 
-		lines = append(lines, fmt.Sprintf("  #%s (%s) %s: %s", view.line.ID, age(mem.now().Sub(view.line.Added)), text,
+		lines = append(lines, fmt.Sprintf("  #%s (%s) %s: %s", view.line.ID, age(mem.now().Sub(view.line.Added)), hookio.NeutralizeInline(text),
 			settleHint(ledgerID+"#"+view.line.ID, "done").in(at)))
 	}
 

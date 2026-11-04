@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pieces"
 	"github.com/fza/agentic-helpers/source/hooks/internal/space"
 	"github.com/fza/agentic-helpers/source/hooks/internal/tools"
@@ -312,7 +313,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 
 		for _, other := range held.events {
 			if other.seat != seatName && other.at.After(since) {
-				changed = append(changed, fmt.Sprintf("  %s %s by %s (%s)", held.id, other.text, other.seat, stamp(other.at)))
+				changed = append(changed, fmt.Sprintf("  %s %s by %s (%s)", held.id, hookio.NeutralizeInline(other.text), other.seat, stamp(other.at)))
 			}
 		}
 	}
@@ -538,7 +539,7 @@ func (mem *memory) brief(ctx context.Context, here tree, folded *state, seatName
 		out.add("retire?")
 
 		for _, id := range unprinted {
-			if out.add(fmt.Sprintf("  %s %s  %s", folded.entries[id].label(), folded.entries[id].title, strings.Join(flagged[id], "; "))) {
+			if out.add(fmt.Sprintf("  %s %s  %s", folded.entries[id].label(), folded.entries[id].shownTitle(), strings.Join(flagged[id], "; "))) {
 				unprintedIDs[id] = true
 			}
 		}

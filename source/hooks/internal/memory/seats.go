@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/pluginconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"github.com/fza/agentic-helpers/source/hooks/internal/transcript"
@@ -255,7 +256,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		slice := mem.previousTurns(ctx, folded, req.Name, previous)
 		if slice != "" && used < claimBudget-200 {
 			lines = append(lines, fmt.Sprintf("last turns of the previous session (%s):", short(previous.SessionID)),
-				transcript.Tail(slice, claimBudget-used-100))
+				transcript.Tail(hookio.Neutralize(slice), claimBudget-used-100))
 		}
 	}
 

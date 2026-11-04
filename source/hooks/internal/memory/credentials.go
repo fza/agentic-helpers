@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 	"github.com/fza/agentic-helpers/source/hooks/internal/secrets"
 )
@@ -262,7 +263,7 @@ func (mem *memory) credentialLines(ctx context.Context, seatName string) []strin
 	lines := make([]string, 0, len(found[key]))
 	for _, held := range found[key] {
 		lines = append(lines, fmt.Sprintf("possible credential: %s %s (%s); supersede it: %s",
-			held.ID, held.Title, held.Rules, supersedeHint(held.ID, "credential").in(mem.hintChannel(ctx))))
+			held.ID, hookio.NeutralizeInline(held.Title), held.Rules, supersedeHint(held.ID, "credential").in(mem.hintChannel(ctx))))
 	}
 
 	delete(found, key)

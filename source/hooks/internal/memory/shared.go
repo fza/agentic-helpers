@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
 )
 
@@ -370,7 +371,7 @@ func arrivalLine(here tree, held *entry, reader string, now time.Time) string {
 		return text
 	}
 
-	head := held.label() + " " + held.title + "  ["
+	head := held.label() + " " + held.shownTitle() + "  ["
 	closing := len(head) + strings.Index(text[len(head):], "]")
 
 	return text[:closing] + ", " + strings.Join(named, ", ") + text[closing:]
@@ -418,7 +419,7 @@ func (mem *memory) announceTo(ctx context.Context, folded *state, seatName strin
 			len(changed)))
 
 		for _, other := range changed {
-			lines = append(lines, fmt.Sprintf("  %s %s: %s by %s", other.held.label(), other.held.title, other.text, other.seat))
+			lines = append(lines, fmt.Sprintf("  %s %s: %s by %s", other.held.label(), other.held.shownTitle(), hookio.NeutralizeInline(other.text), other.seat))
 		}
 
 		mem.markChanged(markKey, changed[len(changed)-1].at)

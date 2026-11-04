@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 )
 
 // timeLayout carries the zone: a local time alone repeats an hour each autumn
@@ -32,6 +34,14 @@ func lineIn(here tree, held *entry, zone *time.Location) string {
 	flags := flagsOf(here, held, foldedLinks(held.flags()), zone)
 
 	return withFlags(lineHead(held, zone), append(flags, declared(held, zone)...))
+}
+
+// shownTitle is the title as a line a hook can print shows it: filed text
+// reaches the agent's context there unasked, so none of it may pass for a hook
+// line of ours or a harness tag. lineHead keeps it raw, since show and search
+// are reads the agent asked for, and presentedKey hashes it.
+func (held *entry) shownTitle() string {
+	return hookio.NeutralizeInline(held.title)
 }
 
 // lineHead is a full line before its flags: id and name, title and the bracket.
@@ -70,7 +80,7 @@ func shortLine(here tree, held *entry, reader string, now time.Time, extra ...st
 
 	flags := append(flagsOf(here, held, foldedLinks(held.flags()), time.Local), extra...)
 
-	return withFlags(fmt.Sprintf("%s %s  [%s]", held.label(), held.title, strings.Join(parts, ", ")), flags)
+	return withFlags(fmt.Sprintf("%s %s  [%s]", held.label(), held.shownTitle(), strings.Join(parts, ", ")), flags)
 }
 
 // foldedLinks is a short line's link flags: a settled target in full, since a

@@ -447,7 +447,7 @@ func (lib *library) stop(ctx context.Context) int {
 		state.addPending(nudge{
 			Key: "scripts\x00" + strings.Join(fresh, ","),
 			Line: fmt.Sprintf("tool library: your scratch holds scripts the library lacks: %s. "+
-				"`%s add <name> --from <path> --summary '...' --usage '...'` registers one", strings.Join(fresh, ", "), self),
+				"`%s add <name> --from <path> --summary '...' --usage '...'` registers one", hookio.NeutralizeInline(strings.Join(fresh, ", ")), self),
 		})
 	}
 
