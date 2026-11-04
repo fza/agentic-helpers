@@ -56,7 +56,8 @@ func (mem *memory) instructions(ctx context.Context, _ []string) int {
 
 // instructionsChanged hashes every instruction file the session loaded again
 // and answers one line per file that changed since it was last told; a file
-// the call itself edited (ownEdit) is taken in silently. A session no
+// the call itself edited (ownEdit) is taken in silently, and one that cannot
+// be read waits until it reads, since that says nothing of a change. A session no
 // InstructionsLoaded event reached, from a Claude Code firing none, watches
 // the fixed set seedInstructions names.
 func (mem *memory) instructionsChanged(ctx context.Context, payload hookio.Payload) []string {
@@ -97,8 +98,8 @@ func (mem *memory) instructionsChanged(ctx context.Context, payload hookio.Paylo
 		slices.Sort(paths)
 
 		for _, path := range paths {
-			hash, _ := fileHash(path)
-			if hash == loaded.Files[path] {
+			hash, known := tree{}.contentHash(path)
+			if !known || hash == loaded.Files[path] {
 				continue
 			}
 

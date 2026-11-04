@@ -1180,7 +1180,7 @@ on one is refused.
 | `closed:<graph id>` | the graph entry is closed or superseded, as the cached `sdd export` says; a connected repo's entry is named `<repo_id>:<id>`, or bare where exactly one connected repo holds it, and kept qualified as a link is |
 | `merged:<branch>` | the branch's tip is an ancestor of the default branch: the target of `refs/remotes/origin/HEAD`, else `main`; a deleted branch counts by its recorded tip (below) |
 | `merged:<branch>@<into>` | the branch's tip is an ancestor of `<into>` |
-| `changed:<path>` | the path's content hash differs from its hash at filing |
+| `changed:<path>` | the file's content hash differs from its hash at filing: a file removed or replaced by a folder counts as changed; one that cannot be read gives no answer, and the end waits until it reads |
 | `gone:<path>` | the path no longer exists |
 | `claim` | another session claims the filing seat after the filing |
 | `session` | the filing seat's claim at filing ends: closed by `release` or the session's end, or freed and replaced by another claim; a `/clear` or `/resume` keeps the claim and ends nothing |
@@ -1196,7 +1196,11 @@ target. A branch never seen and never merged under that subject keeps the end ar
 
 A path is relative to the work tree's root. A malformed condition is refused naming the forms:
 `--until takes closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim,
-session, at:<time> or captured, not "<condition>"`. Where the installed sdd lacks `export` (no stock release
+session, at:<time> or captured, not "<condition>"`. `changed:` watches a file, which need not exist
+yet. A folder is refused, since no hash covers its content: `--until changed:<path> names a folder,
+whose content no hash covers; take gone:<path>, or changed: on a file inside it`; so is a file that
+cannot be read, whose content no hash could mark: `--until changed:<path> names a file that cannot
+be read, so no hash marks its content at filing`. Where the installed sdd lacks `export` (no stock release
 carries it), `closed:` is refused, `closed: needs sdd export, which this sdd lacks`, and an entry
 already carrying one ends by its other conditions only. A live entry's line names the conditions as
 `until: <condition>, ...`; an ended one's names none, nothing being left to end.
@@ -1318,7 +1322,9 @@ Search is sdd's: `--term` is a case-insensitive regex, every term required, matc
 title, the body and the reason an ended entry gives; `--query` searches by
 meaning; both fuse by reciprocal rank. Every live result carries `drifted` or `gone`, and every
 result `other branch`, as computed against the tree right then (an ended entry's anchors earn no
-flag, in `show`'s `anchors:` neither), and `confirm` re-anchors a verified entry. A file is hashed
+flag, in `show`'s `anchors:` neither), and `confirm` re-anchors a verified entry. A file that is
+there but cannot be read earns neither flag, since that says nothing of its content, and `confirm`
+keeps its anchor as it was. A file is hashed
 again only once its size or modification time moved since a read last hashed it, so an edit keeping
 both reads as no change.
 
@@ -1639,6 +1645,8 @@ a store, seat or none, as hidden context at the next prompt or tool call:
 The agent reads the file again before going on. `<path>` is relative to the project's root inside
 it, `~/` for a file in the home, else as Claude Code reported it. A file removed since counts as
 changed and is told the same way: the re-read finds it gone, and its instructions no longer hold.
+A file there that cannot be read is told nothing of: that says nothing of its content, and it is
+compared again once it reads.
 
 - **Which files.** Each one Claude Code reports through its `InstructionsLoaded` hook event, of every
   memory type and load reason: `CLAUDE.md`, `CLAUDE.local.md`, the files they import with `@`,
@@ -1854,8 +1862,8 @@ The entry object: `id`, `score` (a ranked search hit's), `title`, `seat`, `shelf
 names, or `["all"]`), `topics`, `kind`, `until`, `when`, `on`, `proof`, `forbids`, `retention` (the
 decay in force, the kind's or a `retain` override), `from`, `filed`, `branch`, `other_branch` (filed
 on a branch other than the checkout's), `commit`, `status`, `status_change` (`at`, `by` the seat,
-`because`, `superseded_by`; absent for a live entry), `anchors` (`path`, `state`: `ok`, `drifted` or
-`gone`), `links` (`target`, `state`: `ok` or what became of it, as `closed by <id>`, `by` the seat
+`because`, `superseded_by`; absent for a live entry), `anchors` (`path`, `state`: `ok`, `drifted`,
+`gone`, or `unreadable` where the file is there but cannot be read), `links` (`target`, `state`: `ok` or what became of it, as `closed by <id>`, `by` the seat
 that made it), `linked_from` (ids, superseded entries aside) and `attachments` (`name`, `sha256`,
 `size`, `stored`: whether the store still holds the file).
 

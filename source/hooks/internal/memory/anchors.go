@@ -179,13 +179,18 @@ func declaredPaths(root string, given []string) []string {
 }
 
 // rehash anchors the same paths to the tree as it stands; a path gone from it
-// drops out.
-func rehash(root string, anchors []anchor) []anchor {
+// drops out, and one that cannot be read keeps the hash it had, since nothing
+// says it went.
+func rehash(here tree, anchors []anchor) []anchor {
 	var fresh []anchor
 
 	for _, held := range anchors {
-		hash, found := fileHash(filepath.Join(root, filepath.FromSlash(held.Path)))
-		if found {
+		hash, known := here.contentHash(filepath.Join(here.root, filepath.FromSlash(held.Path)))
+
+		switch {
+		case !known:
+			fresh = append(fresh, held)
+		case hash != "":
 			fresh = append(fresh, anchor{Path: held.Path, Hash: hash})
 		}
 	}
@@ -210,12 +215,14 @@ func staleness(here tree, held *entry) []string {
 
 // staleState is what became of an anchored file in the caller's checkout, as
 // a line flags it: gone, drifted, or nothing where it still holds what the
-// entry was filed on.
+// entry was filed on or cannot be read, which says neither.
 func staleState(here tree, anchored anchor) string {
-	hash, found := here.fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
+	hash, known := here.contentHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
 
 	switch {
-	case !found:
+	case !known:
+		return ""
+	case hash == "":
 		return "gone"
 	case hash != anchored.Hash:
 		return "drifted"

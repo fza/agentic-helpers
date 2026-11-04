@@ -1,6 +1,8 @@
 package memory
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -78,4 +80,27 @@ func (here tree) fileHash(path string) (string, bool) {
 	}
 
 	return here.hashes.hash(path)
+}
+
+// contentHash is what a comparison against a hash taken earlier reads at
+// path: the content hash of the regular file there, empty where none is, and
+// false where one is there that cannot be read, which says nothing of whether
+// it changed. A cached hash would answer for a file no read could open now, so
+// one that cannot be opened gives no hash whatever its stamp says.
+func (here tree) contentHash(path string) (string, bool) {
+	if unreadable(path) {
+		return "", false
+	}
+
+	hash, found := here.fileHash(path)
+	if found {
+		return hash, true
+	}
+
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) || (err == nil && !info.Mode().IsRegular()) {
+		return "", true
+	}
+
+	return "", false
 }

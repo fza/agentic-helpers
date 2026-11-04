@@ -146,10 +146,12 @@ func (mem *memory) entryJSON(here tree, folded *state, held *entry, withBody boo
 	for _, anchored := range held.anchors {
 		state := "ok"
 
-		hash, found := here.fileHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
+		hash, known := here.contentHash(filepath.Join(here.root, filepath.FromSlash(anchored.Path)))
 
 		switch {
-		case !found:
+		case !known:
+			state = "unreadable"
+		case hash == "":
 			state = "gone"
 		case hash != anchored.Hash:
 			state = "drifted"

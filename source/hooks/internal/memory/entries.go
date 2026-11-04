@@ -1377,7 +1377,7 @@ func (mem *memory) confirm(ctx context.Context, req request) result {
 
 	folded, ids, failure, ok := mem.batch(ctx, "confirmed", req.IDs, false, nil,
 		func(_ *state, held *entry, seat string) (memorylog.Event, error) {
-			confirmed := confirmPayload{Anchors: rehash(here.root, held.anchors), Commit: here.commit, Branch: here.branch}
+			confirmed := confirmPayload{Anchors: rehash(here, held.anchors), Commit: here.commit, Branch: here.branch}
 
 			for _, anchored := range held.anchors {
 				if !slices.ContainsFunc(confirmed.Anchors, func(kept anchor) bool { return kept.Path == anchored.Path }) {

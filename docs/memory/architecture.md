@@ -890,7 +890,8 @@ flags fall back to the file quietly.
 ## Declared ends
 
 A `new` row carries its `--until` conditions (`until`), each path relative to the work tree, and the
-content hash of each `changed:` path at filing (`until_hashes`, empty where no file was there), and,
+content hash of each `changed:` path at filing (`until_hashes`, empty where no file was there; a
+folder or a file that cannot be read is refused rather than stored empty), and,
 for `session`, the claim the filing seat held (`until_hold`: the seat id and the claim's `claimed`
 stamp). Every
 brief runs the end check over the live entries on the checking seat's shelf, rules aside, before it

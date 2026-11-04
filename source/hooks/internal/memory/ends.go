@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -121,7 +122,12 @@ func (mem *memory) untilFor(ctx context.Context, here tree, given []string) ([]s
 			held.value = path
 
 			if held.form == "changed" {
-				hashes[path], _ = fileHash(filepath.Join(here.root, filepath.FromSlash(path)))
+				hash, err := filingHash(filepath.Join(here.root, filepath.FromSlash(path)), path)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				hashes[path] = hash
 			}
 		}
 
@@ -135,6 +141,30 @@ func (mem *memory) untilFor(ctx context.Context, here tree, given []string) ([]s
 	}
 
 	return conditions, hashes, nil
+}
+
+// filingHash is the hash a `changed:` end keeps at filing: the file's content
+// hash, empty where nothing is there yet. A folder is refused, since no hash
+// covers its content and an end on one would never fire; so is a file that
+// cannot be read, whose empty hash would make the end fire the first time it
+// reads.
+func filingHash(full string, path string) (string, error) {
+	info, err := os.Stat(full)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+
+	if err == nil && info.IsDir() {
+		return "", fmt.Errorf("--until changed:%s names a folder, whose content no hash covers; take gone:%s, or changed: on a file inside it",
+			path, path)
+	}
+
+	hash, found := fileHash(full)
+	if !found {
+		return "", fmt.Errorf("--until changed:%s names a file that cannot be read, so no hash marks its content at filing", path)
+	}
+
+	return hash, nil
 }
 
 // lacksExport is whether the installed sdd is known to carry no `export`,
@@ -224,9 +254,9 @@ func (probe *endProbe) met(ctx context.Context, held *entry, end condition) bool
 	case "merged":
 		return probe.branch(ctx, end.value).merged
 	case "changed":
-		hash, _ := probe.here.fileHash(filepath.Join(probe.here.root, filepath.FromSlash(end.value)))
+		hash, known := probe.here.contentHash(filepath.Join(probe.here.root, filepath.FromSlash(end.value)))
 
-		return hash != held.untilHashes[end.value]
+		return known && hash != held.untilHashes[end.value]
 	case "gone":
 		_, err := os.Lstat(filepath.Join(probe.here.root, filepath.FromSlash(end.value)))
 
@@ -506,9 +536,9 @@ func (probe *endProbe) inferredEnd(ctx context.Context, held *entry) string {
 	}
 
 	if len(held.anchors) > 0 && !slices.ContainsFunc(held.anchors, func(anchored anchor) bool {
-		_, found := probe.here.fileHash(filepath.Join(probe.here.root, filepath.FromSlash(anchored.Path)))
+		hash, known := probe.here.contentHash(filepath.Join(probe.here.root, filepath.FromSlash(anchored.Path)))
 
-		return found
+		return !known || hash != ""
 	}) {
 		return "every anchor gone"
 	}
