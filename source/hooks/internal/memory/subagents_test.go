@@ -201,6 +201,25 @@ func TestAPromptTheHookRewroteIsHandedOnUnchanged(t *testing.T) {
 	}
 }
 
+func TestAPromptTheHookRewroteAtALevelIsHandedOnUnchanged(t *testing.T) {
+	for _, marker := range []string{"agentic-helpers: rules", "agentic-helpers: silent", "agentic-helpers: shared"} {
+		t.Run(marker, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+
+			child := h.spawn("", marker+"\nFind where the gate reads its config.")
+
+			input := map[string]any{"description": "a task", "prompt": child, "subagent_type": "general-purpose"}
+			answer := h.preTool("", "Agent", input, "toolu_respawn")
+
+			if answer.HookSpecificOutput.UpdatedInput != nil {
+				t.Errorf("an Agent call re-issued with the prompt rewritten at a level should pass without a rewrite, got:\n%s",
+					answer.HookSpecificOutput.UpdatedInput)
+			}
+		})
+	}
+}
+
 func TestAPromptOutsideAnyScratchFolderGainsTheMachineLineAlone(t *testing.T) {
 	h := newHarness(t)
 

@@ -69,8 +69,12 @@ var (
 	sessionShape = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
 
-// requestedLevel is the level the prompt's first marker line names, none where
-// it carries none.
+// requestedLevel is the level the prompt's first marker line names, else the
+// level its block's level line names, none where it carries neither. An Agent
+// call re-issued with the prompt the hook produced holds the block, not the
+// marker the block replaced: read as no request, the level line would go and
+// the prompt change again, so auto mode never reviews the call. A level line
+// asks no more than a marker does, since the spawner's own level caps both.
 func requestedLevel(prompt string) (level, bool) {
 	for _, line := range strings.Split(prompt, "\n") {
 		found := markerLine.FindStringSubmatch(line)
@@ -81,7 +85,9 @@ func requestedLevel(prompt string) (level, bool) {
 		}
 	}
 
-	return levelNone, false
+	named, _, carries := levelIn(prompt)
+
+	return named, carries
 }
 
 // levelIn is the level and seat the block's level line in a prompt names;

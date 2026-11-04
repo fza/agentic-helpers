@@ -313,8 +313,9 @@ The levels form a ladder, each holding everything of the one below:
   up the block opens with `agentic-helpers level: <level>` (`, seat <name>` at `full`), the line
   the subagent's hooks read its level back from; a line in that shape the prompt already carried is
   dropped. The rewrite never answers the permission decision: the call goes through the user's
-  permission rules as Claude sent it would. A prompt already carrying the block, line for line, is
-  handed on unchanged, so an Agent call re-issued with the input the hook produced reaches auto
+  permission rules as Claude sent it would. A prompt carrying no marker line asks for the level its
+  level line names, capped as a marker is, and a prompt already carrying the block, line for line,
+  is handed on unchanged, so an Agent call re-issued with the input the hook produced reaches auto
   mode's review as sent.
 - **Capped.** A nested subagent never gets more than the subagent spawning it, whatever line its
   prompt handed on: a `silent` child copying `agentic-helpers: full` spawns at `silent`. With memory off,
