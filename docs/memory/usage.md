@@ -795,7 +795,9 @@ attach to it.
 
 - **A regular file only**, once symlinks resolve: `<path> is not a regular file` for a FIFO, a
   device or a directory, `<path>: no such file` for a missing one.
-- **No credential.** The file's raw bytes are scanned under its name:
+- **No credential.** The file's raw bytes are scanned under its name, and where that finds nothing
+  again as nameless text, since the scanner skips some names whole (`.svg`, `.pdf`, images,
+  `go.sum`):
   `attachment <name> looks like a credential (<rule ids>, line <n>); memory never holds one`.
 - **Within the size limits**, on the original bytes: `attachment_max_mb` (10) per file,
   `attachment <name> is <size>, past the <n> MB a file may be (attachment_max_mb)`, and

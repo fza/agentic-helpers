@@ -126,7 +126,17 @@ func (mem *memory) prepareFile(ctx context.Context, path string) (preparedFile, 
 		return preparedFile{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	findings := secrets.Scan(ctx, string(data), name)
+	// By its name, so path rules fire on it, and where that finds nothing,
+	// again as text that is no file: gitleaks' global allowlist skips whole
+	// files by name (`.svg`, `.pdf`, images, `go.sum`), and a credential
+	// attached under such a name would go unscanned.
+	content := string(data)
+
+	findings := secrets.Scan(ctx, content, name)
+	if len(findings) == 0 {
+		findings = secrets.Scan(ctx, content, "")
+	}
+
 	if len(findings) > 0 {
 		rules, line := secrets.Describe(findings)
 

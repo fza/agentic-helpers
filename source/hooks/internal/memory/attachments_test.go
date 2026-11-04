@@ -427,6 +427,30 @@ func TestReadToWritesOnlyInsideTheWorkTreeOrTmp(t *testing.T) {
 	}
 }
 
+// gitleaks' global allowlist skips files by these names; a credential
+// attached under one is still refused.
+func TestAnAttachmentUnderANameTheScannerSkipsIsStillScanned(t *testing.T) {
+	for _, name := range []string{"logo.svg", "report.pdf", "shot.png", "go.sum"} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+
+			file := filepath.Join(t.TempDir(), name)
+			test.WriteFile(t, file, test.SecretFixture(t, "positive/github-pat.txt"))
+
+			got := h.run("body", "new", "--title", "Gate finding with a skipped file", "--attach", file)
+			if got.code != 1 || !strings.Contains(got.err, "attachment "+name+" looks like a credential (") {
+				t.Errorf("an attachment holding a credential should be refused whatever its name, got %d %q",
+					got.code, got.err)
+			}
+
+			if len(h.attachmentFiles()) != 0 {
+				t.Error("a refused attachment should store nothing")
+			}
+		})
+	}
+}
+
 func TestAttachingACredentialLaterIsRefused(t *testing.T) {
 	cases := []struct {
 		name   string
