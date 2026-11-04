@@ -51,7 +51,7 @@ func TestTheStateOfASeatGoneFromTheRegistryIsReclaimed(t *testing.T) {
 		t.Fatalf("writing the registry: %v", err)
 	}
 
-	for _, purpose := range []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/", "channel/"} {
+	for _, purpose := range []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/", "ledger-pressure/", "channel/"} {
 		h.putSlot(purpose+main, "{}")
 		h.putSlot(purpose+"s-purged", "{}")
 		h.putSlot(purpose+"s-expird", "{}")
@@ -62,7 +62,7 @@ func TestTheStateOfASeatGoneFromTheRegistryIsReclaimed(t *testing.T) {
 
 	h.said(h.sessionStart("startup"), "session-start")
 
-	for _, purpose := range []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/", "channel/"} {
+	for _, purpose := range []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/", "ledger-pressure/", "channel/"} {
 		if h.slot(purpose+main) == "" {
 			t.Errorf("a live seat's %s state should stay", purpose)
 		}

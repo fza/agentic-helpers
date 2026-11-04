@@ -677,16 +677,11 @@ func TestNoLineIsRefusedForItsLengthOrCount(t *testing.T) {
 	long := strings.TrimSpace(strings.Repeat("the gate reads every MCP call and the docs follow ", 20))
 	h.addLine(long)
 
-	for index := range 11 {
-		out := h.must("", "ack", "state", "--add", fmt.Sprintf("line %d", index), "--until", "none")
-		if strings.Contains(out, "ledger holds") {
-			t.Fatalf("twelve open lines should draw no note, got %q", out)
+	for index := range 40 {
+		got := h.run("", "ack", "state", "--add", fmt.Sprintf("line %d", index), "--until", "none")
+		if got.code != 0 {
+			t.Fatalf("no count of open lines should refuse an add, got %d %q", got.code, got.err)
 		}
-	}
-
-	out := h.must("", "ack", "state", "--add", "the thirteenth", "--until", "none")
-	if !strings.Contains(out, "ledger holds 13 lines; drop the settled ones") {
-		t.Errorf("past twelve open agent lines the reply should say so, got %q", out)
 	}
 
 	if brief := h.must("", "brief"); !strings.Contains(brief, ": "+long+"\n") {

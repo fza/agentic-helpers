@@ -109,7 +109,7 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   pair, a class file only for the pairs it holds. Writers hold `sessions.slots.lock`; readers take no
   lock. Keys are `<purpose>/<session or seat id>`: `shown`,
   `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`,
-  `do-now`, `skipped`, `brief`, `seen`, `ledger-ended`, `channel` per seat; `graph-names/<yyyy>/<mm>` per month. A
+  `do-now`, `skipped`, `brief`, `seen`, `ledger-ended`, `ledger-pressure`, `channel` per seat; `graph-names/<yyyy>/<mm>` per month. A
   value is the JSON the per-session file held. A hook takes its payload's `session_id` only in the
   shape `^[A-Za-z0-9_-]{1,128}$` (`hookSessionShape`, as the tool library and the prompt vectors
   take it); a payload carrying none or one of another shape reads as carrying none, and every
@@ -135,7 +135,8 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   65,536 (a path past 1,024 bytes is not watched); `graph-seen` 2,200 (past it the month reads as
   holding no graph); a part of `graph-names` 120,000; `traps`, `do-now`, `skipped`, `seen`,
   `ledger-ended` 65,536 (an anchor or `--about` path 1,024, a trigger 512; a do-now title 512, a
-  trigger 256, 4 proof triggers of 128); `landed` 120,000 (a target 64, a subject and test 200);
+  trigger 256, 4 proof triggers of 128); `ledger-pressure` 20,000 (the newest 256 changes, which
+  fit it at any number's width); `landed` 120,000 (a target 64, a subject and test 200);
   `branch-tips` 95,000 (300 branches of 255 bytes); `fork`, `waiter`, `migration-failed`, `brief`,
   `landed-scan` 200. A slot write that fails is reported on stderr, `agentic-memory: keeping <key>:
   <error>` (`clearing` for a removal, `reclaiming` for the SessionStart pass), which the agent never
@@ -1030,6 +1031,26 @@ it. `show state` and its JSON read one selection, `stateLines`, which holds back
 captured lines out of the newest 12 open ones and every other settled line, counting each group for
 its fold line. Rejected: storing an end as a row, which would need a write at read and could not
 follow a target that reopens.
+
+The ledger's size is watched per seat (`internal/memory/ledgerpressure.go`). `ack state --add`,
+`--done` and `--remove`, and the brief first naming lines that ended on their own (`endedLines`),
+each append one event to the slot `ledger-pressure/<seat id>`: `{"at":<unix seconds>,"open":<n>}`,
+with `"settled":true` for a settle, `open` the seat's open agent lines after the change; `--undo`
+records none. The slot also keeps the backoff, `fired` and `further`. Each write first drops events
+older than 14 days and keeps the newest 256 (`windowed`). The marks are worked out at every add and
+brief, never stored: once the window holds 10 settles, `ownMarks` takes the median of `open` at
+settle events as the low mark and adds the interpolated p75 minus p25 of every `open` in the window,
+at least 2, as the high one; short of that, `marksFor` reads the slot of every other seat the
+registry holds and takes the median of the calibrated seats' low and high marks (`borrowedMarks`),
+else 6 and 10. `ledgerPressure.record` decides the nudge: a count at or below the low mark clears
+`fired` and `further`; the first add above the high mark sets `fired` and fires; each later add
+counts `further` and fires above the high mark on 2, 4, 8 and 16, then every 16th (`pressureFires`).
+A settle above the low mark moves neither. The nudge lists the five oldest open agent lines by time
+added, each cut to 12 words, with `settleHint(state#<id>, done)` in the call's channel. The brief
+prints the same lines at the end of its state section whenever the open count stands above the high
+mark, with no backoff. Cost: a sort of at most 256 numbers per add, and at a seat's cold start one
+slot read per seat of the store. A release that does not know the slot keeps it as a key of an
+unknown purpose.
 
 A line's due time is read as an entry's is (`dueNear`): the brief's state section holds an open
 agent line due more than a day ahead in one count, and `dueLines` gives the come-due notice, the

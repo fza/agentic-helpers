@@ -455,6 +455,7 @@ var slotKinds = []struct {
 	{prefix: "skipped/", fresh: func() slots.Fitted { return &skippedItems{} }},
 	{prefix: "seen/", fresh: func() slots.Fitted { return &seenMark{} }},
 	{prefix: "ledger-ended/", fresh: func() slots.Fitted { return &ledgerEnds{} }},
+	{prefix: "ledger-pressure/", fresh: func() slots.Fitted { return &ledgerPressure{} }},
 	{prefix: landedKey, exact: true, fresh: func() slots.Fitted { return &landedSet{} }},
 	{prefix: branchTipsKey, exact: true, fresh: func() slots.Fitted { return &branchTips{} }},
 	{prefix: "fork/", fresh: func() slots.Fitted { return &fixedValue{} }},

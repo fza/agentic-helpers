@@ -201,6 +201,7 @@ tool of the `memory` server, exactly the keys its schema takes) or `agentic-memo
 | nudge's filing | `agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body` | `memory new {"kind":"<kind>","title":"<3-10 words>","topic":["<name>"],"body":"<body>"}` |
 | brief's state header | `state (agentic-memory ack state#<item> --done \| ack state#<item> --remove):` | `state (memory ack {"ids":["state#<item>"],"done":true} \| ack {"ids":["state#<item>"],"remove":true}):` |
 | ended line | `(agentic-memory ack state#<id> --undo)` | `(memory ack {"ids":["state#<id>"],"undo":true})` |
+| ledger size nudge | `#<id> (<age>) <line>: agentic-memory ack state#<id> --done` | `#<id> (<age>) <line>: memory ack {"ids":["state#<id>"],"done":true}` |
 | ledger folds | `agentic-memory show state --with-history` / `--all-items` | `memory show {"ids":["state"],"with_history":true}` / `"all_items":true` |
 | landed | `agentic-memory retire <id> --because 'landed in <sha>'`, `agentic-memory ack <todo>#<item> --done` | `memory retire {"ids":["<id>"],"because":"landed in <sha>"}`, `memory ack {"ids":["<todo>#<item>"],"done":true}` |
 | captured | `agentic-memory link <todo> <graph id>` | `memory link {"id":"<todo>","target":"<graph id>"}` |

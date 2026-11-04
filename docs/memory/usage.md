@@ -550,8 +550,36 @@ takes exactly one of --add, --done, --undo or --remove`). `state#<item>` address
 calling seat's ledger alone, so no seat reaches another's: an id the seat's ledger lacks is
 `state#<item>: no such line`.
 
-Nothing refuses a line for its length or the ledger for its count, a refusal costing a rewrite. Past
-12 open agent lines, the reply adds `ledger holds <n> lines; drop the settled ones`.
+Nothing refuses a line for its length or the ledger for its count: a refusal costs a rewrite, and a
+hard cap blocks work and invites blind ticking. The ledger keeps itself small by marks each seat
+calibrates on its own history instead, since fixed marks would encode one machine's way of working:
+
+- Every add and every settle (a tick, a remove, a line the brief first names as ended) records the
+  time, the seat's own open agent lines after it and which of the two it was, in the slot
+  `ledger-pressure/<seat id>`: the last 14 days, at most 256 changes. An `--undo` records nothing.
+- **Low mark**: the median open count at settle events, the size the seat holds while work closes.
+  **High mark**: the low mark plus the spread, the 75th minus the 25th percentile of every open
+  count in the window, at least 2. Percentiles interpolate between the two nearest ranks.
+- A seat with fewer than 10 settle events in the window takes the median of the marks of the
+  project's other seats that have 10, else 6 low and 10 high.
+- The reply to the first add past the high mark lists the oldest open agent lines, five at most,
+  each cut to 12 words with the call that ticks it, in the reply's channel:
+
+      ledger holds 11 open lines, this seat settles work at 6; tick each settled one, oldest first:
+        #k3x (2d) gate fix halfway; next: the MCP path: agentic-memory ack state#k3x --done
+
+  It fires again on the 2nd, 4th, 8th and 16th add after that, then on every 16th, while the count
+  stays above the low mark; a settle above the low mark leaves that count where it stands. Once the
+  count falls to the low mark, the next add past the high mark fires at once.
+- The brief prints the same lines at the end of its state section whenever the seat's open agent
+  lines stand above the high mark.
+
+A ledger that keeps growing fills the window with higher counts, so the spread and with it the high
+mark rise and the nudge eases; settled work pulls the low mark down again, and the next growth draws
+it at full strength. Rejected: fixed marks, measured on one machine; a moving average with the high
+mark at 1.5 times the low one, which one burst drags for days and whose factor is again fixed;
+listing lines similar to the new one for it to replace, since similarity guesses wrong and a line
+with no successor still never ends.
 
 **A line ends on its own** where it can:
 
@@ -1683,6 +1711,7 @@ Each line in both forms:
 | the brief's state header | `state (agentic-memory ack state#<item> --done \| ack state#<item> --remove):` | `state (memory ack {"ids":["state#<item>"],"done":true} \| ack {"ids":["state#<item>"],"remove":true}):` |
 | `#old` | `split this into lines (agentic-memory ack state --add '<line>' --until <end> ...), then agentic-memory ack state#old --done` | `split this into lines (memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]} ...), then memory ack {"ids":["state#old"],"done":true}` |
 | an ended line | `(agentic-memory ack state#<id> --undo)` | `(memory ack {"ids":["state#<id>"],"undo":true})` |
+| the ledger's size nudge | `#<id> (<age>) <line>: agentic-memory ack state#<id> --done` | `#<id> (<age>) <line>: memory ack {"ids":["state#<id>"],"done":true}` |
 | ledger folds | `agentic-memory show state --with-history`, `agentic-memory show state --all-items` | `memory show {"ids":["state"],"with_history":true}`, `memory show {"ids":["state"],"all_items":true}` |
 | landed | `agentic-memory retire <id> --because 'landed in <sha>'`, `agentic-memory ack <todo>#<item> --done` | `memory retire {"ids":["<id>"],"because":"landed in <sha>"}`, `memory ack {"ids":["<todo>#<item>"],"done":true}` |
 | captured | `agentic-memory link <todo> <graph id>` | `memory link {"id":"<todo>","target":"<graph id>"}` |

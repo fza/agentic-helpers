@@ -47,7 +47,6 @@ const (
 	// past hookLineLifetime, and how many the brief and show state print.
 	briefHookLines   = 12
 	hookLineLifetime = 24 * time.Hour
-	crowdedLedger    = 12
 	landedLines      = 20
 	writtenFiles     = 20
 )
@@ -514,18 +513,14 @@ func (mem *memory) ackState(ctx context.Context, req request) result {
 
 	lines := []string{reply}
 
+	// An undo reopens a line it once settled: neither an add nor a settle.
 	after, err := mem.load(ctx)
-	if err == nil {
-		open := 0
+	if err == nil && !req.Undo {
+		open := ownOpen(mem.ledgerViews(ctx, after, name))
 
-		for _, view := range mem.ledgerViews(ctx, after, name) {
-			if view.open() && view.line.Hook == "" {
-				open++
-			}
-		}
-
-		if open > crowdedLedger {
-			lines = append(lines, fmt.Sprintf("ledger holds %d lines; drop the settled ones", open))
+		marks, fires := mem.recordLedger(ctx, name, len(open), len(req.Add) == 0)
+		if fires {
+			lines = append(lines, mem.pressureLines(mem.hintChannel(ctx), open, marks)...)
 		}
 	}
 
@@ -714,7 +709,8 @@ func lineMark(view lineView) string {
 // stateSection is how the brief opens on the seat's ledger: the old slot
 // waiting to be split, every open agent line whole with the commits a landed
 // round matched to it, the one dirty and the one asked line, and the newest
-// landed and captured lines, the rest folded into a count.
+// landed and captured lines, the rest folded into a count, then the size
+// nudge where the seat's open lines stand above its high mark.
 func (mem *memory) stateSection(ctx context.Context, folded *state, seatName string) []string {
 	views := mem.ledgerViews(ctx, folded, seatName)
 	old, pending := folded.oldState(seatName)
@@ -792,7 +788,7 @@ func (mem *memory) stateSection(ctx context.Context, folded *state, seatName str
 		lines = append(lines, fmt.Sprintf("  %s (%s)", lineMark(view), age(mem.now().Sub(view.line.Added))))
 	}
 
-	return lines
+	return append(lines, mem.briefPressure(ctx, views, seatName)...)
 }
 
 func withFlag(text string, flag string) string {
@@ -858,7 +854,9 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 
 	mem.readSlot(mem.ledgerEndsKey(seatName), &marked)
 
-	for _, view := range mem.ledgerViews(ctx, folded, seatName) {
+	views := mem.ledgerViews(ctx, folded, seatName)
+
+	for _, view := range views {
 		if view.state != lineEnded || view.line.Hook != "" {
 			continue
 		}
@@ -876,6 +874,12 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 		} else {
 			mem.writeSlot(mem.ledgerEndsKey(seatName), &ledgerEnds{Shown: kept})
 		}
+	}
+
+	// Lines that ended on their own settle work as a tick does, counted
+	// once, when the brief first names them.
+	if len(lines) > 0 {
+		mem.recordLedger(ctx, seatName, len(ownOpen(views)), true)
 	}
 
 	return lines

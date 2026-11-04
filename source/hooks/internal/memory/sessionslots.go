@@ -28,7 +28,7 @@ var sessionPurposes = []string{
 // id>`: what the housekeeping reclaims once the registry holds the seat no
 // longer, as a temporary shelf's purge leaves it, or holds it expired. A
 // store running a temporary seat per job otherwise keeps every job's keys.
-var seatPurposes = []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/", "channel/"}
+var seatPurposes = []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", "ledger-ended/", "ledger-pressure/", "channel/"}
 
 // endedPurposes are the keys a session's own state goes under that nothing
 // reads once it ends: SessionEnd clears them, beside its shown set.

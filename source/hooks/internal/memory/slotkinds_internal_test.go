@@ -308,6 +308,23 @@ var worstCases = []struct {
 		},
 	},
 	{
+		kind: "ledger-pressure", key: "ledger-pressure/s-abcdef",
+		value: func() slots.Fitted {
+			held := &ledgerPressure{Fired: true, Further: 1 << 62}
+			for index := range 1_000 {
+				held.Events = append(held.Events, pressureEvent{At: 1<<62 + int64(index), Open: 1 << 62, Settled: true})
+			}
+
+			return held
+		},
+		check: func(t *testing.T, fitted slots.Fitted) {
+			events := fitted.(*ledgerPressure).Events
+			if len(events) != pressureEvents || events[len(events)-1].At != 1<<62+999 {
+				t.Errorf("the ledger's changes should keep the newest within their cap, kept %d", len(events))
+			}
+		},
+	},
+	{
 		kind: "landed", key: landedKey,
 		value: func() slots.Fitted {
 			held := landedSet{}
