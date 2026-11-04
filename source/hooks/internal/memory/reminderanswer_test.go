@@ -203,3 +203,40 @@ func TestAReminderWaitsForTheCapturedLinesSinceIt(t *testing.T) {
 		})
 	}
 }
+
+func TestAReminderFoldsTheHookLinesPastFive(t *testing.T) {
+	cases := []struct {
+		name   string
+		landed int
+		folded bool
+	}{
+		{name: "five lines", landed: 5, folded: false},
+		{name: "six lines", landed: 6, folded: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+			h.clock.Advance(time.Minute)
+			h.sensor(70)
+			h.said(h.promptSaying("go on"), "prompt")
+			h.clock.Advance(time.Minute)
+
+			h.landCommits(1, tc.landed)
+			h.clock.Advance(time.Minute)
+
+			reminder := h.said(h.promptSaying("go on"), "prompt")
+			named := len(regexp.MustCompile(`state#[0-9a-z]+`).FindAllString(reminder[strings.Index(reminder, "ticked or dropped: "):], -1))
+			fold := strings.Contains(reminder, "+1 more: agentic-memory show state  (run before concluding the nudge answered)")
+
+			if fold != tc.folded || named != min(tc.landed, 5) {
+				t.Errorf("a reminder should name up to five hook lines and fold the rest into a count, got %q", reminder)
+			}
+
+			if strings.Contains(reminder, "\n") {
+				t.Errorf("a reminder should stay one line, got %q", reminder)
+			}
+		})
+	}
+}

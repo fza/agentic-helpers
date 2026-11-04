@@ -1590,6 +1590,13 @@ digits or more) or, for a captured line, its graph id. A hook line itself answer
 
     ... < body. Answered once each hook line since is cited in a line of yours, ticked or dropped: state#k3p, state#q8w
 
+It names five such lines at most and folds the rest into a count, the reminder staying one line:
+
+    ... ticked or dropped: state#k3p, state#q8w, state#r2e, state#t5y, state#u7i, +45 more: agentic-memory show state  (run before concluding the nudge answered)
+
+A pull of many graph entries adds a `captured` line each, and the reminder repeats at every prompt:
+naming every line would cost tokens per entry each time, while `show state` lists them once.
+
 A throwaway line would otherwise silence the nudge while the work it asks about stays unrecorded;
 one `ack` per batch of landed or captured work settles it.
 

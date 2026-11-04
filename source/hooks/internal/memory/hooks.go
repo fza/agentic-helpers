@@ -66,10 +66,16 @@ func nudgeText(at channel) string { return "Context near compaction. " + stateFi
 // unsettled, naming each.
 const unsettledAsk = ". Answered once each hook line since is cited in a line of yours, ticked or dropped: "
 
+// unsettledNamed is how many unsettled hook lines a reminder names before it
+// folds the rest into a count: a pull of many graph entries adds a captured
+// line each, and the reminder repeats at every prompt.
+const unsettledNamed = 5
+
 // reminder is the nudge, naming the landed and captured lines added since
 // the seat was first nudged that keep it unanswered.
 func (mem *memory) reminder(ctx context.Context, seatName string, since time.Time) string {
-	nudge := nudgeText(mem.hintChannel(ctx))
+	at := mem.hintChannel(ctx)
+	nudge := nudgeText(at)
 
 	folded, err := mem.load(ctx)
 	if err != nil {
@@ -85,7 +91,12 @@ func (mem *memory) reminder(ctx context.Context, seatName string, since time.Tim
 		return nudge
 	}
 
-	return nudge + unsettledAsk + strings.Join(addresses, ", ")
+	if len(addresses) <= unsettledNamed {
+		return nudge + unsettledAsk + strings.Join(addresses, ", ")
+	}
+
+	return nudge + unsettledAsk + strings.Join(addresses[:unsettledNamed], ", ") + ", " +
+		runBefore(fmt.Sprintf("+%d more: %s", len(addresses)-unsettledNamed, showHint(ledgerID).in(at)), "concluding the nudge answered")
 }
 
 // remind is the reminder while upkeep is owed: from the first nudge threshold
