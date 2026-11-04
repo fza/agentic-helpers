@@ -237,18 +237,35 @@ func (mem *memory) recordLedger(ctx context.Context, seatName string, open int, 
 	return marks, fires
 }
 
-// ownOpen is the seat's open agent lines, oldest first, as the ledger holds
-// them in the order added.
-func ownOpen(views []lineView) []lineView {
+// openToSettle is the seat's open lines the agent settles, oldest first, as
+// the ledger holds them in the order added: its own, and each landed or
+// captured line no line of its own cites. A hook line the nudge left out
+// would never be shown to the agent again; asked and dirty lines record a
+// prompt and a work tree, not finished work.
+func openToSettle(views []lineView) []lineView {
 	var open []lineView
 
 	for _, view := range views {
-		if view.open() && view.line.Hook == "" {
+		if !view.open() {
+			continue
+		}
+
+		if view.line.Hook == "" || (finishedWork(view.line) && !citedByOwn(views, view.line)) {
 			open = append(open, view)
 		}
 	}
 
 	return open
+}
+
+func finishedWork(line ledgerLine) bool {
+	return line.Hook == hookLanded || line.Hook == hookCaptured
+}
+
+func citedByOwn(views []lineView, hook ledgerLine) bool {
+	return slices.ContainsFunc(views, func(own lineView) bool {
+		return own.line.Hook == "" && cites(own.line, hook)
+	})
 }
 
 // pressureLines are the nudge: the count against the low mark, then the
@@ -273,7 +290,7 @@ func (mem *memory) pressureLines(at channel, open []lineView, marks ledgerMarks)
 // briefPressure is the nudge as the brief carries it: whenever the seat's
 // own open lines stand above its high mark.
 func (mem *memory) briefPressure(ctx context.Context, views []lineView, seatName string) []string {
-	open := ownOpen(views)
+	open := openToSettle(views)
 
 	key := mem.seatKey(seatName)
 	if key == "" || len(open) == 0 {

@@ -62,18 +62,19 @@ func stateFirst(at channel) string {
 
 func nudgeText(at channel) string { return "Context near compaction. " + stateFirst(at) }
 
-// unsettledAsk opens what a nudge adds while hook lines since it stay
-// unsettled, naming each.
-const unsettledAsk = ". Answered once each hook line since is cited in a line of yours, ticked or dropped: "
+// unsettledAsk opens what a nudge adds while hook lines stay unsettled,
+// naming each.
+const unsettledAsk = ". Answered once each open hook line is cited in a line of yours, ticked or dropped: "
 
 // unsettledNamed is how many unsettled hook lines a reminder names before it
 // folds the rest into a count: a pull of many graph entries adds a captured
 // line each, and the reminder repeats at every prompt.
 const unsettledNamed = 5
 
-// reminder is the nudge, naming the landed and captured lines added since
-// the seat was first nudged that keep it unanswered.
-func (mem *memory) reminder(ctx context.Context, seatName string, since time.Time) string {
+// reminder is the nudge, naming the landed and captured lines that keep it
+// unanswered: every one the seat's claim holds unsettled, since a line added
+// before the first nudge would otherwise never be named again.
+func (mem *memory) reminder(ctx context.Context, seatName string) string {
 	at := mem.hintChannel(ctx)
 	nudge := nudgeText(at)
 
@@ -83,7 +84,7 @@ func (mem *memory) reminder(ctx context.Context, seatName string, since time.Tim
 	}
 
 	var addresses []string
-	for _, line := range folded.ledgerFor(seatName).unsettled(since) {
+	for _, line := range folded.ledgerFor(seatName).unsettled(mem.claimedAt(mem.seatKey(seatName))) {
 		addresses = append(addresses, ledgerID+"#"+line.ID)
 	}
 
@@ -108,15 +109,15 @@ func (mem *memory) remind(ctx context.Context, seatName string, session string, 
 		return ""
 	}
 
-	// The hook lines a reminder waits on are those since the first one
-	// unanswered: a later reminder moving the mark would let them go unsettled.
+	// The own write that answers a reminder comes after the first one
+	// unanswered: a later reminder moving the mark would ask for another.
 	if steps.Nudges == 0 {
 		steps.NudgedAt = mem.now()
 	}
 
 	steps.Nudges++
 
-	return mem.reminder(ctx, seatName, steps.NudgedAt)
+	return mem.reminder(ctx, seatName)
 }
 
 // hookSessionShape is the session id a hook payload may carry, as the tool
@@ -684,7 +685,7 @@ func (mem *memory) crossed(session string, transcriptPath string, held ladder) b
 
 // answer resets the ladder once the seat answered the last nudge: an entry or
 // a state line of its own after it, once every landed or captured line a hook
-// added since is settled, since a throwaway line would otherwise silence a
+// added since the seat's claim is settled, since a throwaway line would otherwise silence a
 // nudge while the work it asks about stays unrecorded. The rung climbs past
 // where the context stands, since a rung already passed could never fire
 // again inside this window.
@@ -695,7 +696,7 @@ func (mem *memory) answer(ctx context.Context, seatName string, session string, 
 
 	folded, err := mem.load(ctx)
 	if err != nil || !mem.newestOwn(folded, seatName).After(held.NudgedAt) ||
-		len(folded.ledgerFor(seatName).unsettled(held.NudgedAt)) > 0 {
+		len(folded.ledgerFor(seatName).unsettled(mem.claimedAt(mem.seatKey(seatName)))) > 0 {
 		return held
 	}
 

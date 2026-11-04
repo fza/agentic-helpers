@@ -555,14 +555,15 @@ hard cap blocks work and invites blind ticking. The ledger keeps itself small by
 calibrates on its own history instead, since fixed marks would encode one machine's way of working:
 
 - Every add and every settle (a tick, a remove, a line the brief first names as ended) records the
-  time, the seat's own open agent lines after it and which of the two it was, in the slot
+  time, the seat's open lines to settle after it (its own and each uncited `landed` or `captured`
+  line) and which of the two it was, in the slot
   `ledger-pressure/<seat id>`: the last 14 days, at most 256 changes. An `--undo` records nothing.
 - **Low mark**: the median open count at settle events, the size the seat holds while work closes.
   **High mark**: the low mark plus the spread, the 75th minus the 25th percentile of every open
   count in the window, at least 2. Percentiles interpolate between the two nearest ranks.
 - A seat with fewer than 10 settle events in the window takes the median of the marks of the
   project's other seats that have 10, else 6 low and 10 high.
-- The reply to the first add past the high mark lists the oldest open agent lines, five at most,
+- The reply to the first add past the high mark lists the oldest of those lines, five at most,
   each cut to 12 words with the call that ticks it, in the reply's channel:
 
       ledger holds 11 open lines, this seat settles work at 6; tick each settled one, oldest first:
@@ -571,8 +572,8 @@ calibrates on its own history instead, since fixed marks would encode one machin
   It fires again on the 2nd, 4th, 8th and 16th add after that, then on every 16th, while the count
   stays above the low mark; a settle above the low mark leaves that count where it stands. Once the
   count falls to the low mark, the next add past the high mark fires at once.
-- The brief prints the same lines at the end of its state section whenever the seat's open agent
-  lines stand above the high mark.
+- The brief prints the same lines at the end of its state section whenever the seat's open
+  lines to settle stand above the high mark. `asked` and `dirty` lines count toward neither.
 
 A ledger that keeps growing fills the window with higher counts, so the spread and with it the high
 mark rise and the nudge eases; settled work pulls the low mark down again, and the next growth draws
@@ -1583,12 +1584,13 @@ Near compaction a nudge asks for state lines first:
     Context near compaction. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
 Any change the agent makes to its state ledger after the first unanswered nudge, or any entry,
-answers it, once every `landed` or `captured` line a hook added since is settled: ticked, dropped,
+answers it, once every `landed` or `captured` line a hook added since the seat's claim is settled,
+whatever its age: ticked, dropped,
 or cited by a line of the agent's, which names its address `state#<item>`, its commit (seven hex
 digits or more) or, for a captured line, its graph id. A hook line itself answers nothing, and the
 `dirty` and `asked` lines wait on nothing. While such lines stay open a nudge names them:
 
-    ... < body. Answered once each hook line since is cited in a line of yours, ticked or dropped: state#k3p, state#q8w
+    ... < body. Answered once each open hook line is cited in a line of yours, ticked or dropped: state#k3p, state#q8w
 
 It names five such lines at most and folds the rest into a count, the reminder staying one line:
 

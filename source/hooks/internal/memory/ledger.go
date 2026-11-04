@@ -517,7 +517,7 @@ func (mem *memory) ackState(ctx context.Context, req request) result {
 	// An undo reopens a line it once settled: neither an add nor a settle.
 	after, err := mem.load(ctx)
 	if err == nil && !req.Undo {
-		open := ownOpen(mem.ledgerViews(ctx, after, name))
+		open := openToSettle(mem.ledgerViews(ctx, after, name))
 
 		marks, fires := mem.recordLedger(ctx, name, len(open), len(req.Add) == 0)
 		if fires {
@@ -880,7 +880,7 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 	// Lines that ended on their own settle work as a tick does, counted
 	// once, when the brief first names them.
 	if len(lines) > 0 {
-		mem.recordLedger(ctx, seatName, len(ownOpen(views)), true)
+		mem.recordLedger(ctx, seatName, len(openToSettle(views)), true)
 	}
 
 	return lines

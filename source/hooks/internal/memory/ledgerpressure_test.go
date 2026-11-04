@@ -32,10 +32,11 @@ func (h *harness) addLines(count int, prefix string) ([]string, string) {
 func TestTheNudgeListsTheOldestOpenLinesWithTheirTicks(t *testing.T) {
 	h := commitHarness(t)
 	h.must(h.stop(), "stop")
+	h.must("", "ack", "state#"+h.hookLineID(), "--done")
 
 	ids, reply := h.addLines(10, "a step of the gate fix that runs past the twelve words a nudge prints")
 	if strings.Contains(reply, pressureOpens) {
-		t.Fatalf("a ledger at a new seat's cold high mark, its hook lines not counted, should draw no nudge, got %q", reply)
+		t.Fatalf("a ledger at a new seat's cold high mark, its hook line settled, should draw no nudge, got %q", reply)
 	}
 
 	_, reply = h.addLines(1, "the eleventh")

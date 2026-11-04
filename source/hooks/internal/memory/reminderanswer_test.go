@@ -96,24 +96,6 @@ func TestAReminderWaitsForTheLandedLinesSinceIt(t *testing.T) {
 	}
 }
 
-func TestWorkLandedBeforeTheReminderLeavesItToAnyLine(t *testing.T) {
-	h := newHarness(t)
-	h.must("", "claim", "main")
-	h.git.Commit = "9c0ffee1"
-	h.git.Log = map[string]string{"15af1a8c..HEAD": "9c0ffee1 fix: the gate reads MCP calls\n"}
-	h.must(h.stop(), "stop")
-	h.hookLineID()
-	h.clock.Advance(time.Minute)
-	nudged(t, h)
-	h.clock.Advance(time.Minute)
-	h.addLine("x")
-	h.clock.Advance(time.Minute)
-
-	if h.nudgedAgain() {
-		t.Error("a landed line older than the reminder should leave any line of the seat's to answer it")
-	}
-}
-
 func TestALaterReminderStillWaitsForTheLinesSinceTheFirst(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")
@@ -161,8 +143,7 @@ func TestAReminderNamesTheHookLinesItWaitsFor(t *testing.T) {
 	h.clock.Advance(time.Minute)
 
 	reminder := h.said(h.promptSaying("go on"), "prompt")
-	if !strings.Contains(reminder, "< body. Answered once each hook line since is cited in a line of yours, ticked or dropped: state#"+
-		line) {
+	if !strings.Contains(reminder, "< body"+openHookAsk+"state#"+line) {
 		t.Errorf("a reminder waiting on hook lines should name each and what settles it, got %q", reminder)
 	}
 }

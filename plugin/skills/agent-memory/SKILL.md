@@ -105,10 +105,10 @@ agentic-memory show state [--with-history] [--all-items]
 - **Where work stands → state lines, never an entry.** The seat's ledger, first in the brief: add a
   line where work moved, tick or remove the one it settles, never retype the rest. A line is one
   fact, plan or reason only you hold. `--add <memory id>|<todo>#<item>|<graph id>`
-  pins the target. Lines citing ids end with them. **Every add names its end**, `new --until`'s
-  forms, `none` only if your tick alone ends it. `hook:` lines (`landed`, `captured`, `dirty`,
-  `asked`) are free, end at the next claim; never copy them.
-- **`ledger holds <n> open lines, ...`** → run the call beside each settled line.
+  pins it. Lines citing ids end with them. **Every add names its end**, `new --until`'s
+  forms, `none` only if your tick alone ends it. `hook:` lines end at next claim; never copy.
+- **Settle each line the add reply and reminder name, hook lines too.** `ledger holds <n>
+  open lines, ...` → run the call beside each settled one.
 - **`#old (...)` + `state is a ledger now: split this into lines (...), then ...`** → do both; a new line alone settles nothing.
 - `agentic-memory state` refuses: `state is a ledger now, changed a line at a time: ...`.
 - **Kind** sets decay and brief section:
@@ -262,8 +262,8 @@ agentic-memory tag <id> <topic>... / untag <id> <topic>... / merge <from> <into>
   `agentic-memory landed dismiss <id>...`, or it returns each context.
 - **`Context near compaction. Add or tick state lines where work moved: ...`** → add or tick
   state lines, file what outlives the moment. Repeats, hidden, at every prompt and every 10th tool
-  call until answered. Your own line or entry answers it once `landed`/`captured` lines since
-  settle: `Answered once each hook line since is cited in a line of yours, ticked or dropped:
+  call until answered. Your own line or entry answers it once each open `landed`/`captured` line
+  settles: `Answered once each open hook line is cited in a line of yours, ticked or dropped:
   <state#item>, ...`.
 - **`Turns since your newest entry or state line no longer fit the post-compaction replay. ...`**
   → add or tick state lines now.

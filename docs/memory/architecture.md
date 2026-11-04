@@ -1086,8 +1086,9 @@ replacing its one dirty or asked line. Ids come from the todo items' draw, `old`
 keeps each line with its state and whether an ack set it, and `changed`, the time of the seat's
 newest row carrying no `hook`: the point the replay, the nudges and the replay nudge count from
 (`newestOwn`), which a hook line therefore never moves. A nudge also waits on the ledger's
-`landed` and `captured` lines added since the first unanswered one (`ledger.unsettled`, the ladder's
-`nudged_at` set only by that first nudge): each counts as settled once ticked, removed, or cited by
+`landed` and `captured` lines added since the seat's claim (`ledger.unsettled` from `claimedAt`), whatever their
+age, and names them; the ladder's `nudged_at`, set only by the first unanswered nudge, marks only
+where the answering own write must come after. Each counts as settled once ticked, removed, or cited by
 an agent line that is not removed, through its `state#<item>` address, a commit word matching its
 commit (`sameCommit`) or, for a captured line, its graph id in the text or as the pin. An `uncheck` sets the state too, so a line
 brought back stays open whatever ended it.
@@ -1112,7 +1113,9 @@ follow a target that reopens.
 The ledger's size is watched per seat (`internal/memory/ledgerpressure.go`). `ack state --add`,
 `--done` and `--remove`, and the brief first naming lines that ended on their own (`endedLines`),
 each append one event to the slot `ledger-pressure/<seat id>`: `{"at":<unix seconds>,"open":<n>}`,
-with `"settled":true` for a settle, `open` the seat's open agent lines after the change; `--undo`
+with `"settled":true` for a settle, `open` the seat's open lines to settle after the change
+(`openToSettle`: its own open lines and each open `landed` or `captured` line no agent line cites,
+`asked` and `dirty` aside); `--undo`
 records none. The slot also keeps the backoff, `fired` and `further`. Each write first drops events
 older than 14 days and keeps the newest 256 (`windowed`). The marks are worked out at every add and
 brief, never stored: once the window holds 10 settles, `ownMarks` takes the median of `open` at
@@ -1122,10 +1125,12 @@ registry holds and takes the median of the calibrated seats' low and high marks 
 else 6 and 10. `ledgerPressure.record` decides the nudge: a count at or below the low mark clears
 `fired` and `further`; the first add above the high mark sets `fired` and fires; each later add
 counts `further` and fires above the high mark on 2, 4, 8 and 16, then every 16th (`pressureFires`).
-A settle above the low mark moves neither. The nudge lists the five oldest open agent lines by time
+A settle above the low mark moves neither. The nudge lists the five oldest of those lines by time
 added, each cut to 12 words, with `settleHint(state#<id>, done)` in the call's channel. The brief
 prints the same lines at the end of its state section whenever the open count stands above the high
-mark, with no backoff. Cost: a sort of at most 256 numbers per add, and at a seat's cold start one
+mark, with no backoff. A hook line counts there because nothing else would show it to the agent
+again once the reminder's window passed; rejected: the agent running `show state` after every add,
+one more call and a full ledger print per add, when the add's own reply carries the list. Cost: a sort of at most 256 numbers per add, and at a seat's cold start one
 slot read per seat of the store. A release that does not know the slot keeps it as a key of an
 unknown purpose.
 
