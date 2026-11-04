@@ -316,8 +316,11 @@ the release named by the plugin's own `version`, kept under the plugin's data di
 3. At SessionStart, or for a command an agent runs (a `bin/` shim, the `memory` or `tools` MCP server), the
    release archive for this machine and the release's `checksums.txt` are downloaded; the archive
    is unpacked only where its sha256 matches. A prompt or a tool-call hook never downloads.
-4. Otherwise the newest version already there runs. A session that cannot write the data directory,
-   such as a sandboxed job, runs what an earlier session fetched.
+4. Otherwise the newest version already there of the plugin's own major runs. A session that cannot
+   write the data directory, such as a sandboxed job, runs what an earlier session fetched. A
+   release of another major never stands in: `hooks.json` calls the programs by its own major's
+   commands, which another major's program may not know, answering with its usage line on every
+   hook event, SessionEnd's shown in the terminal as it closes.
 5. No binary at all: the grounding gate refuses every call it guards and shell-guard every Bash
    call, each with a message naming the fix, rather than letting work run ungrounded or unguarded;
    shell-guard's output scan says on stderr, exit 1, that tool output reaches the agent unscanned;

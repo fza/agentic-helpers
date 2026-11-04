@@ -272,8 +272,11 @@ if { $session_start || $command; } && [ -n "$data" ] && [ -n "$version" ]; then
 	fi
 fi
 
+# Only a release of the plugin's own major stands in: hooks.json calls the
+# programs by that major's commands, which another major's program may answer
+# with its usage line.
 if [ -n "$data" ] && [ -d "$data" ]; then
-	newest=$(ls -1 "$data" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+	newest=$(ls -1 "$data" | grep -E "^${version%%.*}\.[0-9]+\.[0-9]+\$" | sort -V | tail -n 1)
 	if [ -n "$newest" ] && [ -x "$data/$newest/$binary" ]; then
 		mark_used "$newest"
 		exec "$data/$newest/$binary" "$@"

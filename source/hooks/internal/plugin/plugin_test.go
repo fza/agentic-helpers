@@ -744,6 +744,16 @@ func TestAMissingVersionFallsBackToTheNewestPresent(t *testing.T) {
 		})
 	}
 
+	t.Run("a version of another major never stands in", func(t *testing.T) {
+		plugin := test.NewPlugin(t, pluginRoot, "2.27.0")
+		plugin.Installed(t, "1.10.1", "agentic-helpers")
+
+		got := plugin.Run(t, "hooks/run", nil, "agentic-helpers", "end")
+		if got.Code != 0 || strings.Contains(got.Stdout, "agentic-helpers") || got.Stderr != "" {
+			t.Errorf("a release of an earlier major, whose program knows none of this plugin's hook commands, should not run, got: %+v", got)
+		}
+	})
+
 	t.Run("a prompt asks for no download", func(t *testing.T) {
 		plugin := test.NewPlugin(t, pluginRoot, "1.10.1")
 		plugin.Release(t, "1.10.1", "", "agentic-grounding-gate")
