@@ -39,6 +39,9 @@ const (
 
 	// untilNone is the --until of a state line no condition ends.
 	untilNone = "none"
+	// hookLineClaimed is why a hook line ended: what git and the graph
+	// recorded for one claim's session is the next claim's history.
+	hookLineClaimed = "the seat was claimed since"
 
 	// briefHookLines is how many open landed and captured lines stay open
 	// past hookLineLifetime, and how many the brief and show state print.
@@ -238,8 +241,9 @@ func (mem *memory) ledgerViews(ctx context.Context, folded *state, seatName stri
 }
 
 // viewLine works a line's state out: an ack's tick, untick or remove wins;
-// a landed or captured line ends once it is out of the newest open ones and
-// a day old, any other hook line stays open until its hook ticks it; else the
+// a hook line ends at the seat's next claim, a landed or captured line also
+// once it is out of the newest open ones and a day old, any other hook line
+// stays open until its hook ticks it; else the
 // line ends once a declared end is reached, once its pinned target ends as a
 // linked todo item's does, or once every id its text cites ended.
 func (mem *memory) viewLine(ctx context.Context, probe *endProbe, folded *state, seatName string, held *ledger,
@@ -256,6 +260,12 @@ func (mem *memory) viewLine(ctx context.Context, probe *endProbe, folded *state,
 	}
 
 	if line.Hook != "" {
+		if line.Added.Before(probe.claimedAt(mem.seatKey(seatName))) {
+			view.state, view.reason = lineEnded, hookLineClaimed
+
+			return view
+		}
+
 		if historyLine(line) && mem.now().Sub(line.Added) > hookLineLifetime && held.newerHookLines(line.ID) >= briefHookLines {
 			view.state, view.reason = lineEnded, fmt.Sprintf("out of the newest %d", briefHookLines)
 		}
@@ -1082,8 +1092,9 @@ func (mem *memory) hookLines(ctx context.Context, seatName string, since string,
 
 	if atStop {
 		steps := mem.loadLadder(session)
-		changes = append(changes, mem.dirtyChange(ctx, here, held, steps.Wrote)...)
-		changes = append(changes, mem.askedChange(held, steps.LastPrompt)...)
+		claimed := mem.claimedAt(mem.seatKey(seatName))
+		changes = append(changes, mem.dirtyChange(ctx, here, held, steps.Wrote, claimed)...)
+		changes = append(changes, mem.askedChange(held, steps.LastPrompt, claimed)...)
 	}
 
 	mem.addHookChanges(ctx, held, seatName, changes)
@@ -1149,11 +1160,11 @@ func (mem *memory) landedChanges(ctx context.Context, here tree, held *ledger, s
 	return changes
 }
 
-// dirtyChange keeps the ledger's one dirty line current: the files the
-// session's writes named, and those the line named before, that git still
-// reports changed; ticked once every one is committed or reverted.
-func (mem *memory) dirtyChange(ctx context.Context, here tree, held *ledger, wrote []string) []itemPayload {
-	current := held.openHook(hookDirty)
+// dirtyChange keeps the ledger's one dirty line of the claim current: the
+// files the session's writes named, and those the line named before, that
+// git still reports changed; ticked once every one is committed or reverted.
+func (mem *memory) dirtyChange(ctx context.Context, here tree, held *ledger, wrote []string, claimed time.Time) []itemPayload {
+	current := held.openHook(hookDirty, claimed)
 
 	var candidates []string
 
@@ -1220,16 +1231,17 @@ func (mem *memory) dirtyChange(ctx context.Context, here tree, held *ledger, wro
 	return nil
 }
 
-// askedChange keeps the ledger's one asked line on the session's last
-// prompt, which the prompt hook never takes where it holds a credential.
-func (mem *memory) askedChange(held *ledger, prompt string) []itemPayload {
+// askedChange keeps the ledger's one asked line of the claim on the
+// session's last prompt, which the prompt hook never takes where it holds a
+// credential.
+func (mem *memory) askedChange(held *ledger, prompt string, claimed time.Time) []itemPayload {
 	prompt = strings.Join(strings.Fields(prompt), " ")
 	if prompt == "" {
 		return nil
 	}
 
 	text := cutWords("asked "+prompt, mem.options().EntryTargetWords)
-	current := held.openHook(hookAsked)
+	current := held.openHook(hookAsked, claimed)
 
 	switch {
 	case current == nil:
@@ -1325,9 +1337,11 @@ func cites(own ledgerLine, hook ledgerLine) bool {
 	return false
 }
 
-func (held *ledger) openHook(hook string) *ledgerLine {
+// openHook is the open line of the hook added since the claim: one added
+// before it ended with it.
+func (held *ledger) openHook(hook string, claimed time.Time) *ledgerLine {
 	for index := range held.Lines {
-		if held.Lines[index].Hook == hook && held.Lines[index].State == itemOpen {
+		if held.Lines[index].Hook == hook && held.Lines[index].State == itemOpen && !held.Lines[index].Added.Before(claimed) {
 			return &held.Lines[index]
 		}
 	}

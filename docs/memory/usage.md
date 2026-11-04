@@ -588,7 +588,10 @@ again at the next read.
   session's message, which Claude Code also delivers as a prompt, never takes its place, and a prompt that looks like it holds a credential never reaches it.
 
 A hook writes only where a line would change, and prints nothing. The agent may cite, tick or remove
-a hook line and never has to. A `landed` or `captured` line out of the newest 12 open ones and added
+a hook line and never has to. Every hook line ends at the seat's next claim, `the seat was claimed
+since`: what git and the graph recorded for one claim's session is history to the next, which keeps
+its own `dirty` and `asked` lines. A claim the session holds already, taken again, is no next claim.
+A `landed` or `captured` line out of the newest 12 open ones and added
 over a day ago reads as ended, `out of the newest 12`, worked out at each read and never written, so
 an untouched one leaves the open lines after a day. It stays out of `ended since last brief`, and the
 nudge still counts it as unsettled until the agent ticks, removes or cites it. Where a

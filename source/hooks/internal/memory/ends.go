@@ -159,6 +159,45 @@ type endProbe struct {
 	// merge's parents last gave each watched branch.
 	present  map[string]bool
 	recorded branchTips
+	// claims is each seat's newest claim stamp, read once.
+	claims map[string]time.Time
+}
+
+// claimedAt is when the seat was last claimed, by the probe's read of it.
+func (probe *endProbe) claimedAt(seatKey string) time.Time {
+	at, asked := probe.claims[seatKey]
+	if asked {
+		return at
+	}
+
+	if probe.claims == nil {
+		probe.claims = map[string]time.Time{}
+	}
+
+	at = probe.mem.claimedAt(seatKey)
+	probe.claims[seatKey] = at
+
+	return at
+}
+
+// claimedAt is when the seat was last claimed: the newer of the claim it
+// holds and the one it last held, zero where neither carries a stamp.
+func (mem *memory) claimedAt(seatKey string) time.Time {
+	var newest time.Time
+
+	for _, read := range []func(string, string) (seat.Claim, bool){seat.Read, seat.ReadLast} {
+		claim, found := read(mem.seatsDir(), seatKey)
+		if !found {
+			continue
+		}
+
+		at, err := time.Parse(time.RFC3339Nano, claim.Claimed)
+		if err == nil && at.After(newest) {
+			newest = at
+		}
+	}
+
+	return newest
 }
 
 type branchState struct {

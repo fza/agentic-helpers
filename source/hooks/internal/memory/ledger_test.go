@@ -524,6 +524,44 @@ func TestStopAddsOneDirtyAndOneAskedLine(t *testing.T) {
 	}
 }
 
+func TestHookLinesEndAtTheSeatsNextClaim(t *testing.T) {
+	h := commitHarness(t)
+	h.said(h.promptSaying("fix the gate for MCP reads"), "prompt")
+	h.callTool("Write", map[string]string{"file_path": filepath.Join(h.repo, "README.md")})
+	h.git.SetDirty("README.md")
+	h.must(h.stop(), "stop")
+
+	brief := stateOf(h.must("", "brief"))
+	for _, hook := range []string{"hook: landed 9c0ffee1", "hook: dirty README.md", "hook: asked fix the gate for MCP reads"} {
+		if !strings.Contains(brief, hook) {
+			t.Fatalf("Stop should add the claim's hook lines, got:\n%s", brief)
+		}
+	}
+
+	agent := h.addLine("an agent line stays")
+	h.must("", "release")
+	h.clock.Advance(time.Minute)
+	h.must("", "claim", "main")
+
+	brief = stateOf(h.must("", "brief"))
+	if strings.Contains(brief, "hook:") || !strings.Contains(brief, "#"+agent+": an agent line stays") {
+		t.Errorf("the next claim should end every hook line and leave the agent's, got:\n%s", brief)
+	}
+
+	if shown := h.must("", "show", "state", "--all-items", "--with-history"); strings.Count(shown, "ended: the seat was claimed since") != 3 {
+		t.Errorf("show state should name the claim as why each hook line ended, got:\n%s", shown)
+	}
+
+	h.said(h.promptSaying("now the docs"), "prompt")
+	h.must(h.stop(), "stop")
+
+	brief = stateOf(h.must("", "brief"))
+	if strings.Count(brief, "hook: asked") != 1 || !strings.Contains(brief, "hook: asked now the docs") ||
+		strings.Count(brief, "hook: dirty") != 1 {
+		t.Errorf("the new claim's Stop should add its own asked and dirty lines, got:\n%s", brief)
+	}
+}
+
 func TestAnUnchangedStopWritesNothing(t *testing.T) {
 	h := newHarness(t)
 	h.must("", "claim", "main")

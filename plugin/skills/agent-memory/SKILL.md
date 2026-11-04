@@ -108,8 +108,9 @@ agentic-memory show state [--with-history] [--all-items]
   pins the target. A line citing ids ends once every id it cites ended. **Every add names its end**:
   `--until` takes `new --until`'s forms (`captured`, `merged:<branch>`, `closed:<graph id>` are the
   usual ones), `--until none` only where nothing but your tick ends it; an add without one is
-  refused (`ack state --add needs --until: ...`). Replace a step's line, tick the old one. `hook:` lines (`landed`, `captured`, `dirty`, `asked`) come free; cite or drop
-  them, never copy them. `ledger holds <n> lines; drop the settled ones` → remove what is settled.
+  refused (`ack state --add needs --until: ...`). Replace a step's line, tick the old one. `hook:`
+  lines (`landed`, `captured`, `dirty`, `asked`) come free and end at the seat's next claim; cite or
+  drop them, never copy them. `ledger holds <n> lines; drop the settled ones` → remove what is settled.
 - **`#old (...)` + `state is a ledger now: split this into lines (...), then ...`** → do both steps. A new line alone does not settle it.
 - `agentic-memory state` refuses: `state is a ledger now, changed a line at a time: ...`.
 - **Kind** sets decay and brief section:

@@ -114,7 +114,8 @@ agentic-memory retain <id>... standing|long|normal|short|scratch   # override th
   `(<n> older landed and captured: agentic-memory show state --with-history)` and
   `(<n> settled: agentic-memory show state --all-items)` → run the named flag only when that history
   or a settled line matters. A `landed` or `captured` line out of the newest 12 and a day old reads
-  `[e]`, `ended: out of the newest 12`; until ticked, removed or cited it still holds a nudge.
+  `[e]`, `ended: out of the newest 12`; until ticked, removed or cited it still holds a nudge. A
+  hook line from before the seat's claim reads `[e]`, `ended: the seat was claimed since`.
 - `space left: attachments <left> of <limit>, tools <left> of <limit>` in the brief → that store
   has under a tenth of its limit (`attachments_total_mb`, `tools_total_mb`) left; only the low
   store is named. No line → room in both.
