@@ -1642,8 +1642,8 @@ the slice of the previous session's last turns a claim prints, so each reads dat
 Recall embeds the prompt through the configured embedding endpoint, which may be remote. Each
 prompt is first scanned for credentials with the scanner every piece shares
 ([`secrets`](../secrets/usage.md)). A prompt holding one is embedded by neither agentic-memory nor
-agentic-tools; recall scores the entries by the prompt's words for that prompt instead, and the
-agent hears once:
+agentic-tools; recall scores the entries by the prompt's words for that prompt instead, a word
+weighing less the more entries hold it, and the agent hears once:
 
     agentic-memory: this prompt looks like it holds a credential (<rule ids>); it was not sent to the embedding endpoint
 
