@@ -121,7 +121,7 @@ agentic-memory claim main
 agentic-memory new --title 'Gate ignores MCP reads' --topic gate --kind trap <<'BODY'
 reads are recorded only for Bash, so a search through MCP never counts
 BODY
-agentic-memory ack state --add 'gate fix half done: the Bash path records reads, the MCP path not yet'
+agentic-memory ack state --add 'gate fix half done: the Bash path records reads, the MCP path not yet' --until merged:gate-fix
 agentic-memory ack state#k3x --done
 agentic-memory search --term mcp --query 'gate blind to tool calls'
 agentic-memory supersede m-7q2k4f --by m-9xq0b1
@@ -523,19 +523,24 @@ first line creates it; a seat with none reads `state: empty` at claim and in the
 
 | Call | Does | Answers |
 |---|---|---|
-| `ack state --add '<line>'...` | adds a line per `--add`, each with a stable three-character id | `added state#k3x, state#p9a` |
-| `ack state --add <memory id>\|<todo>#<item>\|<graph id>` | pins the target: the line shows its title and state | `added state#q1w` |
-| `ack state --add '<line>' --until <condition>...` | adds lines that end once any condition is reached | `added state#r2e` |
-| `ack state --add '<line>' --due <time>` | adds lines that matter only from that time ([Due times](#due-times)) | `added state#u7i  due: 2026-11-07 00:00 CET` |
+| `ack state --add '<line>'... --until <condition>...` | adds a line per `--add`, each with a stable three-character id, ending once any condition is reached | `added state#k3x, state#p9a` |
+| `ack state --add '<line>'... --until none` | adds lines no condition ends: only a tick or a remove | `added state#r2e` |
+| `ack state --add <memory id>\|<todo>#<item>\|<graph id> --until <end>` | pins the target: the line shows its title and state | `added state#q1w` |
+| `ack state --add '<line>' --until <end> --due <time>` | adds lines that matter only from that time ([Due times](#due-times)) | `added state#u7i  due: 2026-11-07 00:00 CET` |
 | `ack state#<item>... --done` | ticks lines | `done` |
 | `ack state#<item>... --remove` | removes lines that no longer belong | `removed` |
 | `ack state#<item>... --undo` | brings a ticked, removed or ended line back, open until ticked or removed | `undone` |
 | `show state [--with-history] [--all-items] [--with-removed]` | prints what is live in the ledger, folding the rest | |
 
 MCP `ack` takes the same: `{"ids":["state"],"add":["<line>"],"until":["claim"]}` or
-`{"ids":["state#k3x"],"done":true}`. `until` takes every form `new --until` takes
-([Declared ends](#declared-ends)), and is refused anywhere but on `ack state --add`, a todo's items
-and a rule included:
+`{"ids":["state#k3x"],"done":true}`. Every add names its end: `until` takes every form `new --until`
+takes ([Declared ends](#declared-ends)), or `none` for a line only a tick or a remove ends, `none`
+adding nothing beside another form. An add without one is refused, naming the forms: `ack state
+--add needs --until: closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>,
+claim, session, at:<time> or captured; or none for a line only a tick or a remove ends`. A line
+naming no end stays open through the capture, merge or close that settled it, so a ledger added to
+a step at a time grows like a log. `until` is refused anywhere but on `ack state --add`, a todo's
+items and a rule included:
 `--until declares the ends of the lines ack state --add adds; a todo's items and rules take none`.
 `due` (`--due`) takes the forms `new --due` takes and is refused the same way:
 `--due sets when the lines ack state --add adds come due; a todo's items and rules take none`.
@@ -640,14 +645,14 @@ shows it as `state#old` in its brief at claim, after a compaction and on resume,
 
     state (agentic-memory ack state#<item> --done | ack state#<item> --remove):
       #old (2d old, branch main): gate fix half done; next: the MCP path, then docs
-      state is a ledger now: split this into lines (agentic-memory ack state --add '<line>' ...), then agentic-memory ack state#old --done
+      state is a ledger now: split this into lines (agentic-memory ack state --add '<line>' --until <end> ...), then agentic-memory ack state#old --done
 
 `ack state#old --done` or `--remove` settles it; a new line does not, since one line would silently
 drop the rest of the body. Until then each claim, compaction and resume asks again. A slot a hook
 wrote as a draft is dropped unasked. The old `state` rows stay readable in the log.
 
 `agentic-memory state` refuses, naming the ledger form:
-`state is a ledger now, changed a line at a time: agentic-memory ack state --add '<line>' | agentic-memory ack state#<item> --done | --undo | --remove; agentic-memory show state prints it`.
+`state is a ledger now, changed a line at a time: agentic-memory ack state --add '<line>' --until <end> | agentic-memory ack state#<item> --done | --undo | --remove; agentic-memory show state prints it`.
 The MCP `state` tool is gone.
 
 Words are counted for the body against `entry_target_words` and for the title against 3-10, and the
@@ -741,7 +746,7 @@ The idle waiter looks every poll within its 30 minutes; an entry coming due whil
 shows in the next brief. An entry still live a week past its due time is flagged
 `retire? due <age> ago` (see [Declared ends](#declared-ends)).
 
-A state line may carry one too: `ack state --add '<line>' --due <time>` (MCP `ack` key `due`), the
+A state line may carry one too: `ack state --add '<line>' --until <end> --due <time>` (MCP `ack` key `due`), the
 same forms. It stays in the ledger rather than the due section: held back in the brief's state
 section until a day before it, then whole with its due flag ([The state ledger](#the-state-ledger)).
 An open line coming due is told once as an entry is, in the same `due for <seat>` notice, as
@@ -1526,7 +1531,7 @@ block.
 
 Near compaction a nudge asks for state lines first:
 
-    Context near compaction. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
+    Context near compaction. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
 Any change the agent makes to its state ledger after the first unanswered nudge, or any entry,
 answers it, once every `landed` or `captured` line a hook added since is settled: ticked, dropped,
@@ -1556,7 +1561,7 @@ The turns since the seat's newest entry or change to its state ledger come back 
 in at most five pieces of 9,000 characters, the newest kept. Once they would no longer fit, the next
 prompt asks once per newest entry or ledger change:
 
-    Turns since your newest entry or state line no longer fit the post-compaction replay. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
+    Turns since your newest entry or state line no longer fit the post-compaction replay. Add or tick state lines where work moved: agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done. File an entry only for a finding, an open question or a judgment call: agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body
 
 An agent ledger change or any entry moves the replay's start forward and re-arms the nudge, which counts
 toward no compaction nudge. A replay that still cuts turns
@@ -1671,9 +1676,9 @@ Each line in both forms:
 
 | Line | Command line | MCP |
 |---|---|---|
-| near-compaction and replay nudges | `agentic-memory ack state --add '<line>' \| ack state#<item> --done`, `agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body` | `memory ack {"ids":["state"],"add":["<line>"]} \| ack {"ids":["state#<item>"],"done":true}`, `memory new {"kind":"<kind>","title":"<3-10 words>","topic":["<name>"],"body":"<body>"}` |
+| near-compaction and replay nudges | `agentic-memory ack state --add '<line>' --until <end> \| ack state#<item> --done`, `agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body` | `memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]} \| ack {"ids":["state#<item>"],"done":true}`, `memory new {"kind":"<kind>","title":"<3-10 words>","topic":["<name>"],"body":"<body>"}` |
 | the brief's state header | `state (agentic-memory ack state#<item> --done \| ack state#<item> --remove):` | `state (memory ack {"ids":["state#<item>"],"done":true} \| ack {"ids":["state#<item>"],"remove":true}):` |
-| `#old` | `split this into lines (agentic-memory ack state --add '<line>' ...), then agentic-memory ack state#old --done` | `split this into lines (memory ack {"ids":["state"],"add":["<line>"]} ...), then memory ack {"ids":["state#old"],"done":true}` |
+| `#old` | `split this into lines (agentic-memory ack state --add '<line>' --until <end> ...), then agentic-memory ack state#old --done` | `split this into lines (memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]} ...), then memory ack {"ids":["state#old"],"done":true}` |
 | an ended line | `(agentic-memory ack state#<id> --undo)` | `(memory ack {"ids":["state#<id>"],"undo":true})` |
 | ledger folds | `agentic-memory show state --with-history`, `agentic-memory show state --all-items` | `memory show {"ids":["state"],"with_history":true}`, `memory show {"ids":["state"],"all_items":true}` |
 | landed | `agentic-memory retire <id> --because 'landed in <sha>'`, `agentic-memory ack <todo>#<item> --done` | `memory retire {"ids":["<id>"],"because":"landed in <sha>"}`, `memory ack {"ids":["<todo>#<item>"],"done":true}` |
@@ -1689,7 +1694,7 @@ Each line in both forms:
 | no seat | `claim a seat first: agentic-memory claim <seat>`, `Claim one: agentic-memory claim <seat>` | `claim a seat first: memory claim {"name":"<seat>"}`, `Claim one: memory claim {"name":"<seat>"}` |
 | held seat | ``its holder releases it with `agentic-memory release` `` | ``its holder releases it with `memory release {}` `` |
 | `view --layout brief` | `agentic-memory brief prints it, agentic-memory view --explain brief shows it` | `memory brief {} prints it, memory view {"explain":"brief"} shows it` |
-| carry-forward, full subagent | `file each finding with agentic-memory new`; `with agentic-memory new, write where it stands with agentic-memory ack state --add '<line>'` | `file each finding with memory new`; `with memory new, write where it stands with memory ack {"ids":["state"],"add":["<line>"]}` |
+| carry-forward, full subagent | `file each finding with agentic-memory new`; `with agentic-memory new, write where it stands with agentic-memory ack state --add '<line>' --until <end>` | `file each finding with memory new`; `with memory new, write where it stands with memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]}` |
 
 Lines answering only a command line stay command lines: usage refusals, `state`'s refusal, and
 every line of a CLI-only command, `read`'s next page and a topic merge among them.

@@ -37,6 +37,9 @@ const (
 	itemRetext = "text"
 	lineEnded  = "ended"
 
+	// untilNone is the --until of a state line no condition ends.
+	untilNone = "none"
+
 	// briefHookLines is how many open landed and captured lines stay open
 	// past hookLineLifetime, and how many the brief and show state print.
 	briefHookLines   = 12
@@ -58,7 +61,7 @@ func oldStateAsk(at channel) string {
 
 // stateRefusal answers `state`, which the MCP server does not list, so it
 // only ever answers a command line.
-const stateRefusal = "state is a ledger now, changed a line at a time: " + self + " ack state --add '<line>' | " +
+const stateRefusal = "state is a ledger now, changed a line at a time: " + self + " ack state --add '<line>' --until <end> | " +
 	self + " ack state#<item> --done | --undo | --remove; " + self + " show state prints it"
 
 var (
@@ -67,6 +70,7 @@ var (
 	ErrUntilAdd    = errors.New("--until declares the ends of the lines ack state --add adds; a todo's items and rules take none")
 	ErrDueAdd      = errors.New("--due sets when the lines ack state --add adds come due; a todo's items and rules take none")
 	ErrStateAdd    = errors.New("--add takes the one id state, no item address")
+	ErrUntilNeeded = errors.New("ack state --add needs --until: " + untilForms + "; or none for a line only a tick or a remove ends")
 	// stateAddress is a ledger line's address, `state#<item>`.
 	stateAddress = regexp.MustCompile(`^state#([a-z0-9]+)$`)
 	// citedMemory finds a memory id or a todo item's address a line's text
@@ -523,9 +527,15 @@ func (mem *memory) addLines(ctx context.Context, held *ledger, name string, req 
 		return nil, "", ErrStateAdd
 	}
 
+	if len(req.Until) == 0 {
+		return nil, "", ErrUntilNeeded
+	}
+
+	// none keeps no condition: beside another one it adds nothing.
+	declared := slices.DeleteFunc(slices.Clone(req.Until), func(text string) bool { return strings.TrimSpace(text) == untilNone })
 	here := mem.checkout(ctx)
 
-	until, hashes, err := mem.untilFor(ctx, here, req.Until)
+	until, hashes, err := mem.untilFor(ctx, here, declared)
 	if err != nil {
 		return nil, "", err
 	}

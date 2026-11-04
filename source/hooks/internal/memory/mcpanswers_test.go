@@ -188,7 +188,7 @@ func TestEveryToolAnswersItsShape(t *testing.T) {
 		{"topics", `{}`},
 		{"who", `{}`},
 		{"confirm", `{"ids":["` + first + `"]}`},
-		{"ack", `{"ids":["state"],"add":["where the work stands"]}`},
+		{"ack", `{"ids":["state"],"add":["where the work stands"],"until":["none"]}`},
 		{"retitle", `{"id":"` + first + `","title":"Gate finding filed renamed"}`},
 		{"due", `{"id":"` + first + `","due":"2026-11-01"}`},
 		{"tag", `{"id":"` + first + `","topic":["hooks"]}`},

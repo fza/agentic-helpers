@@ -41,7 +41,7 @@ agentic-memory holder --session <id> --json
 - Coming due mid-run → `agentic-memory: due for <seat> (<n>):`, once. Act on it.
 - Moved: `due <id> <time>`; dropped: `due <id> --clear`.
 - A week past due → `retire? due <age> ago`.
-- A state line: `ack state --add '<line>' --due <time>`. Held in the state section as `(<n> due later,
+- A state line: `ack state --add '<line>' --until <end> --due <time>`. Held in the state section as `(<n> due later,
   next <time>: agentic-memory show state)` until a day before, then whole with `due in <age>`; told
   once as `state#<item>: <text>  due <age> ago`. Elsewhere → `--due sets when the lines ack state
   --add adds come due; ...`.
@@ -196,7 +196,7 @@ tool of the `memory` server, exactly the keys its schema takes) or `agentic-memo
 
 | Line | Command line | MCP |
 |---|---|---|
-| nudge, replay nudge | `agentic-memory ack state --add '<line>' \| ack state#<item> --done` | `memory ack {"ids":["state"],"add":["<line>"]} \| ack {"ids":["state#<item>"],"done":true}` |
+| nudge, replay nudge | `agentic-memory ack state --add '<line>' --until <end> \| ack state#<item> --done` | `memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]} \| ack {"ids":["state#<item>"],"done":true}` |
 | nudge's filing | `agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body` | `memory new {"kind":"<kind>","title":"<3-10 words>","topic":["<name>"],"body":"<body>"}` |
 | brief's state header | `state (agentic-memory ack state#<item> --done \| ack state#<item> --remove):` | `state (memory ack {"ids":["state#<item>"],"done":true} \| ack {"ids":["state#<item>"],"remove":true}):` |
 | ended line | `(agentic-memory ack state#<id> --undo)` | `(memory ack {"ids":["state#<id>"],"undo":true})` |

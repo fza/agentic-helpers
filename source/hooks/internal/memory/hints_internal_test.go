@@ -17,8 +17,8 @@ func TestEveryHintTakesItsChannelsForm(t *testing.T) {
 		mcp  string
 	}{
 		{"add a state line", addStateHint(),
-			`agentic-memory ack state --add '<line>'`,
-			`memory ack {"ids":["state"],"add":["<line>"]}`},
+			`agentic-memory ack state --add '<line>' --until <end>`,
+			`memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]}`},
 		{"tick a state line", settleHint("state#<item>", "done"),
 			`agentic-memory ack state#<item> --done`,
 			`memory ack {"ids":["state#<item>"],"done":true}`},
@@ -128,8 +128,8 @@ func TestHintFragmentsTakeTheirChannelsForm(t *testing.T) {
 		{"a verb the server does not list", func(at channel) string { return hintVerb(at, "merge") },
 			`agentic-memory merge`, `agentic-memory merge`},
 		{"the ledger nudge", ledgerAsk,
-			`Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done`,
-			`Add or tick state lines where work moved: memory ack {"ids":["state"],"add":["<line>"]} | ack {"ids":["state#<item>"],"done":true}`},
+			`Add or tick state lines where work moved: agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done`,
+			`Add or tick state lines where work moved: memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]} | ack {"ids":["state#<item>"],"done":true}`},
 		{"the no-seat refusal", noSeatText,
 			`claim a seat first: agentic-memory claim <seat>`,
 			`claim a seat first: memory claim {"name":"<seat>"}`},

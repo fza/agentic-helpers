@@ -97,7 +97,7 @@ agentic-memory new --title '<3-10 words>' --topic <name>... \
   [--due <RFC 3339 or date>] <<'EOF'
 body
 EOF
-agentic-memory ack state --add '<where one piece of work stands>' [--until <end>]...
+agentic-memory ack state --add '<where one piece of work stands>' --until <end>|none...
 agentic-memory ack state#<item>... --done | --remove | --undo
 agentic-memory show state [--with-history] [--all-items]
 ```
@@ -105,8 +105,10 @@ agentic-memory show state [--with-history] [--all-items]
 - **Where work stands → state lines, never an entry.** The seat's ledger, first in the brief: add a
   line where work moved, tick or remove the one it settles, never retype the rest. A line is one
   fact, plan or reason only you hold. `--add <memory id>|<todo>#<item>|<graph id>`
-  pins the target. A line citing ids ends once every id it cites ended; `--until` takes `new
-  --until`'s forms. `hook:` lines (`landed`, `captured`, `dirty`, `asked`) come free; cite or drop
+  pins the target. A line citing ids ends once every id it cites ended. **Every add names its end**:
+  `--until` takes `new --until`'s forms (`captured`, `merged:<branch>`, `closed:<graph id>` are the
+  usual ones), `--until none` only where nothing but your tick ends it; an add without one is
+  refused (`ack state --add needs --until: ...`). Replace a step's line, tick the old one. `hook:` lines (`landed`, `captured`, `dirty`, `asked`) come free; cite or drop
   them, never copy them. `ledger holds <n> lines; drop the settled ones` → remove what is settled.
 - **`#old (...)` + `state is a ledger now: split this into lines (...), then ...`** → do both steps. A new line alone does not settle it.
 - `agentic-memory state` refuses: `state is a ledger now, changed a line at a time: ...`.

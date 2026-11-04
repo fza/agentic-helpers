@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	cliStateAsk = `agentic-memory ack state --add '<line>' | ack state#<item> --done`
-	mcpStateAsk = `memory ack {"ids":["state"],"add":["<line>"]} | ack {"ids":["state#<item>"],"done":true}`
+	cliStateAsk = `agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done`
+	mcpStateAsk = `memory ack {"ids":["state"],"add":["<line>"],"until":["<end>"]} | ack {"ids":["state#<item>"],"done":true}`
 )
 
 // claimThrough takes the seat main through the channel named: the command
@@ -223,7 +223,7 @@ func TestALineAnsweringNoCallFollowsTheLastChannel(t *testing.T) {
 func TestTheSessionStartBriefFollowsTheLastChannel(t *testing.T) {
 	h := newHarness(t)
 	h.mcp(`{"name":"claim","arguments":{"name":"main"}}`)
-	h.mcp(`{"name":"ack","arguments":{"ids":["state"],"add":["halfway through the gate fix"]}}`)
+	h.mcp(`{"name":"ack","arguments":{"ids":["state"],"add":["halfway through the gate fix"],"until":["none"]}}`)
 
 	start, _ := json.Marshal(map[string]string{"session_id": h.session, "source": "compact"})
 

@@ -116,11 +116,11 @@ func TestTheStateLedger(t *testing.T) {
 
 	h.must("", "claim", "main")
 
-	if got := h.run("", "ack", "state", "--add", "  "); got.code != 1 || !strings.Contains(got.err, "--add needs a line") {
+	if got := h.run("", "ack", "state", "--add", "  ", "--until", "none"); got.code != 1 || !strings.Contains(got.err, "--add needs a line") {
 		t.Errorf("an empty line should be refused, got %d %q", got.code, got.err)
 	}
 
-	out := h.must("", "ack", "state", "--add", "halfway through the gate fix")
+	out := h.must("", "ack", "state", "--add", "halfway through the gate fix", "--until", "none")
 	id := lineAddress.FindStringSubmatch(out)
 
 	if id == nil || strings.TrimSpace(out) != "added state#"+id[1] {
@@ -178,7 +178,7 @@ func TestAStateWriteAnswersTheCompactionNudge(t *testing.T) {
 	h.sensor(70)
 
 	if !strings.Contains(h.said(payload, "prompt"), "Context near compaction. Add or tick state lines where work moved: "+
-		"agentic-memory ack state --add '<line>' | ack state#<item> --done. "+
+		"agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done. "+
 		"File an entry only for a finding, an open question or a judgment call") {
 		t.Fatal("the nudge should ask for state lines first")
 	}

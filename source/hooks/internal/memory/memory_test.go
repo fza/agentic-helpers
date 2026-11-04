@@ -1994,7 +1994,7 @@ func TestTheReplayNudgeFiresOnceTheTurnsOutgrowTheReplay(t *testing.T) {
 
 	first := h.said(prompt, "prompt")
 	if !strings.Contains(first, "Turns since your newest entry or state line no longer fit the post-compaction replay. "+
-		"Add or tick state lines where work moved: agentic-memory ack state --add '<line>' | ack state#<item> --done. "+
+		"Add or tick state lines where work moved: agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done. "+
 		"File an entry only for a finding, an open question or a judgment call: "+
 		"agentic-memory new --kind <kind> --title '<3-10 words>' --topic <name>... < body") {
 		t.Errorf("turns outgrowing the replay should nudge the seat to file:\n%s", first)

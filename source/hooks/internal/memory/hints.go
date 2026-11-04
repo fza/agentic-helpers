@@ -254,7 +254,7 @@ func mcpPairs(args []hintArg) string {
 // Every command a reply or a hook line names, each held once.
 
 func addStateHint() hintCall {
-	return hint("ack", hintIDs(ledgerID), hintText("add", []string{"<line>"}))
+	return hint("ack", hintIDs(ledgerID), hintText("add", []string{"<line>"}), hintFlag("until", []string{"<end>"}))
 }
 
 // settleHint changes one todo item or ledger line, or settles a rule: switch

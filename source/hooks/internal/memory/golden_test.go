@@ -82,7 +82,7 @@ func goldenStore(t *testing.T) *harness {
 
 	file(h, "Finding citing a closed decision", "see the decision", "--link", closedDecision)
 	file(h, "Readme names the build steps", "the README.md lists them")
-	run(h, "", "ack", "state", "--add", "ten words of where the gate fix stands")
+	run(h, "", "ack", "state", "--add", "ten words of where the gate fix stands", "--until", "none")
 
 	h.clock.Advance(time.Hour)
 	file(other, "Review owes the API diff", "a handover", "--for", "main")

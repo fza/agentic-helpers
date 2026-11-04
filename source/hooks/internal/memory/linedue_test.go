@@ -10,7 +10,7 @@ import (
 func TestAStateLineCarriesItsDueTime(t *testing.T) {
 	h := heldHarness(t)
 
-	added := h.must("", "ack", "state", "--add", "Rescan the transcripts after the release", "--due", "2027-01-01")
+	added := h.must("", "ack", "state", "--add", "Rescan the transcripts after the release", "--until", "none", "--due", "2027-01-01")
 	if !regexp.MustCompile(`^added state#[a-z0-9]{3}  due: 2027-01-01 00:00 \S+$`).MatchString(strings.TrimSpace(added)) {
 		t.Errorf("an added line should name its due time in its normal form: %s", added)
 	}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -23,9 +24,14 @@ func (h *harness) promptSaying(prompt string) string {
 	return string(data)
 }
 
-// addLine adds one line to the seat's ledger and answers its id.
+// addLine adds one line to the seat's ledger and answers its id: a line
+// whose extra names no --until ends on none.
 func (h *harness) addLine(line string, extra ...string) string {
 	h.t.Helper()
+
+	if !slices.Contains(extra, "--until") {
+		extra = append(extra, "--until", "none")
+	}
 
 	out := h.must("", append([]string{"ack", "state", "--add", line}, extra...)...)
 
@@ -179,6 +185,9 @@ func TestAckStateRefusesWhatIsNoLedgerChange(t *testing.T) {
 		{name: "a removed line", args: []string{"ack", "state#" + removed, "--done"}, want: "state#" + removed + ": no such line"},
 		{name: "old with no old slot", args: []string{"ack", "state#old", "--done"}, want: "state#old: no such line"},
 		{name: "a bad until", args: []string{"ack", "state", "--add", "x", "--until", "soon"}, want: "--until takes"},
+		{name: "an add without until", args: []string{"ack", "state", "--add", "x"},
+			want: "ack state --add needs --until: closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>, claim, session, at:<time> or captured; or none"},
+		{name: "none beside a bad until", args: []string{"ack", "state", "--add", "x", "--until", "none", "--until", "soon"}, want: "--until takes"},
 	}
 
 	for _, tc := range cases {
@@ -194,6 +203,48 @@ func TestAckStateRefusesWhatIsNoLedgerChange(t *testing.T) {
 				t.Error("a refused ack should write nothing")
 			}
 		})
+	}
+}
+
+func TestUntilNoneAddsALineNoConditionEnds(t *testing.T) {
+	cases := []struct {
+		name  string
+		until []string
+		shown string
+	}{
+		{name: "none alone", until: []string{"none"}, shown: ": kept open\n"},
+		{name: "none beside a condition", until: []string{"none", "claim"}, shown: ": kept open  until claim\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.must("", "claim", "main")
+
+			args := []string{"ack", "state", "--add", "kept open"}
+			for _, end := range tc.until {
+				args = append(args, "--until", end)
+			}
+
+			found := lineAddress.FindStringSubmatch(h.must("", args...))
+			if found == nil {
+				t.Fatal("an add naming none should be accepted")
+			}
+
+			if shown := h.must("", "show", "state") + "\n"; !strings.Contains(shown, "#"+found[1]+tc.shown) {
+				t.Errorf("none should keep no condition of its own, got:\n%s", shown)
+			}
+		})
+	}
+}
+
+func TestMCPAckRefusesAStateLineWithoutUntil(t *testing.T) {
+	h := newHarness(t)
+	h.must("", "claim", "main")
+
+	answer := h.mcp(`{"name":"ack","arguments":{"ids":["state"],"add":["over MCP"]}}`)
+	if !strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "needs --until") {
+		t.Errorf("MCP ack should refuse a state line naming no end, got %s", answer)
 	}
 }
 
@@ -589,13 +640,13 @@ func TestNoLineIsRefusedForItsLengthOrCount(t *testing.T) {
 	h.addLine(long)
 
 	for index := range 11 {
-		out := h.must("", "ack", "state", "--add", fmt.Sprintf("line %d", index))
+		out := h.must("", "ack", "state", "--add", fmt.Sprintf("line %d", index), "--until", "none")
 		if strings.Contains(out, "ledger holds") {
 			t.Fatalf("twelve open lines should draw no note, got %q", out)
 		}
 	}
 
-	out := h.must("", "ack", "state", "--add", "the thirteenth")
+	out := h.must("", "ack", "state", "--add", "the thirteenth", "--until", "none")
 	if !strings.Contains(out, "ledger holds 13 lines; drop the settled ones") {
 		t.Errorf("past twelve open agent lines the reply should say so, got %q", out)
 	}
@@ -619,7 +670,7 @@ func TestTheStateCommandRefusesNamingAckState(t *testing.T) {
 	before := h.logBytes()
 
 	got := h.run("where work stands", "state")
-	if got.code != 1 || !strings.Contains(got.err, "agentic-memory ack state --add '<line>'") {
+	if got.code != 1 || !strings.Contains(got.err, "agentic-memory ack state --add '<line>' --until <end>") {
 		t.Errorf("state should refuse, naming the ack state form, got %d %q", got.code, got.err)
 	}
 
@@ -659,7 +710,7 @@ func nudged(t *testing.T, h *harness) {
 	h.sensor(70)
 
 	if !strings.Contains(h.said(h.promptSaying("go on"), "prompt"), "Context near compaction. Add or tick state lines where work moved: "+
-		"agentic-memory ack state --add '<line>' | ack state#<item> --done") {
+		"agentic-memory ack state --add '<line>' --until <end> | ack state#<item> --done") {
 		t.Fatal("the nudge should fire past 65% of the window, worded for the ledger")
 	}
 }
@@ -719,7 +770,7 @@ func TestAnAgentWrittenSlotWaitsAsStateOld(t *testing.T) {
 	writeOldState(t, h, "gate fix halfway; next: docs", false)
 
 	want := "  #old (0m old, branch main): gate fix halfway; next: docs\n  " +
-		"state is a ledger now: split this into lines (agentic-memory ack state --add '<line>' ...), then agentic-memory ack state#old --done"
+		"state is a ledger now: split this into lines (agentic-memory ack state --add '<line>' --until <end> ...), then agentic-memory ack state#old --done"
 
 	moments := []struct {
 		name string
