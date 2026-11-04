@@ -2,13 +2,15 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 	"io"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
 type flagKind int
@@ -41,7 +43,7 @@ type request struct {
 	About          []string `json:"about,omitempty"`
 	Terms          []string `json:"term,omitempty"`
 	Query          string   `json:"query,omitempty"`
-	Seats          []string `json:"seat,omitempty"`
+	Seats          seatsArg `json:"seat,omitempty"`
 	AllSeats       bool     `json:"all_seats,omitempty"`
 	WithSuperseded bool     `json:"with_superseded,omitempty"`
 	Limit          int      `json:"limit,omitempty"`
@@ -101,6 +103,31 @@ type request struct {
 	// inherited marks a claim a hook makes for a resumed or forked session,
 	// which the user never asked for.
 	inherited bool
+}
+
+// seatsArg is the `seat` key, which `search` reads as a list of seats and
+// `show` as the one seat whose ledger it reads, a string in show's schema.
+type seatsArg []string
+
+func (arg *seatsArg) UnmarshalJSON(data []byte) error {
+	var one string
+
+	if json.Unmarshal(data, &one) == nil {
+		*arg = seatsArg{one}
+
+		return nil
+	}
+
+	var many []string
+
+	err := json.Unmarshal(data, &many)
+	if err != nil {
+		return fmt.Errorf("seat takes a seat name or a list of them: %w", err)
+	}
+
+	*arg = many
+
+	return nil
 }
 
 type result struct {
@@ -271,7 +298,7 @@ func (req *request) set(spec flagSpec, value string) error {
 		"due": &req.Due.text,
 	}
 	lists := map[string]*[]string{
-		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": &req.Seats, "status": &req.Statuses,
+		"topic": &req.Topics, "about": &req.About, "term": &req.Terms, "seat": (*[]string)(&req.Seats), "status": &req.Statuses,
 		"for": &req.For, "link": &req.Links, "tool": &req.Tools, "absorbs": &req.Absorbs, "until": &req.Until, "attach": &req.Attach,
 		"when": &req.When, "on": &req.On, "proof": &req.Proof, "forbids": &req.Forbids,
 		"item": &req.Items, "add": &req.Add,
@@ -468,12 +495,12 @@ func allCommands() []command {
 			run: (*memory).search,
 		},
 		{
-			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--all-items] [--with-history] [--again]",
+			name: "show", usage: "show <id>... [--no-heat] [--with-superseded] [--with-removed] [--all-items] [--with-history] [--seat <seat>] [--again]",
 			description: "entries in full: stamps, anchors, flags, events, a todo's items; takes each tool an entry names and prints its usage" +
 				foldClause,
 			flags: []flagSpec{
 				{"no-heat", flagSwitch}, {"with-superseded", flagSwitch}, {"with-removed", flagSwitch}, {"all-items", flagSwitch},
-				{"with-history", flagSwitch}, {"again", flagSwitch},
+				{"with-history", flagSwitch}, {"seat", flagList}, {"again", flagSwitch},
 			},
 			positional: someIDs, run: (*memory).show,
 			schema: `{"type":"object","properties":{` +
@@ -482,7 +509,8 @@ func allCommands() []command {
 				`"with_superseded":{"type":"boolean","description":"also superseded entries linking here"},` +
 				`"with_removed":{"type":"boolean","description":"also a todo's removed items and the ledger's removed lines"},` +
 				`"all_items":{"type":"boolean","description":"each of a todo's done and dropped items and the ledger's settled lines, not their count"},` +
-				`"with_history":{"type":"boolean","description":"every landed and captured line of the ledger, ended ones too"}},"required":["ids"]}`,
+				`"with_history":{"type":"boolean","description":"every landed and captured line of the ledger, ended ones too"},` +
+				`"seat":{"type":"string","description":"with state: another seat's ledger, read-only"}},"required":["ids"]}`,
 		},
 		{
 			name: "brief", usage: "brief [--topic <name>] [--kind rule|trap|todo|note] [--due] [--again]",

@@ -14,6 +14,7 @@ import (
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/memorylog"
+	"github.com/fza/agentic-helpers/source/hooks/internal/seat"
 )
 
 // A seat's state is a ledger of lines: the agent adds, ticks and removes one
@@ -73,6 +74,9 @@ var (
 	ErrUntilAdd    = errors.New("--until declares the ends of the lines ack state --add adds; a todo's items and rules take none")
 	ErrDueAdd      = errors.New("--due sets when the lines ack state --add adds come due; a todo's items and rules take none")
 	ErrStateAdd    = errors.New("--add takes the one id state, no item address")
+	ErrShowSeats   = errors.New("--seat names the one seat whose ledger show state reads")
+	ErrSeatNoState = errors.New("--seat names whose ledger show state reads; give state among the ids")
+	ErrUnknownSeat = errors.New("no such seat")
 	ErrUntilNeeded = errors.New("ack state --add needs --until: " + untilForms + "; or none for a line only a tick or a remove ends")
 	// stateAddress is a ledger line's address, `state#<item>`.
 	stateAddress = regexp.MustCompile(`^state#([a-z0-9]+)$`)
@@ -887,13 +891,77 @@ func (mem *memory) endedLines(ctx context.Context, folded *state, seatName strin
 }
 
 // stateShown is which of show state's folded groups it prints: every landed
-// and captured line, every other ticked or ended line, and removed lines.
+// and captured line, every other ticked or ended line, and removed lines; and
+// the seat --seat named, which every fold hint names again, empty for the
+// caller's own.
 type stateShown struct {
 	history, settled, removed bool
+	seat                      string
 }
 
 func stateShownOf(req request) stateShown {
-	return stateShown{history: req.WithHistory, settled: req.AllItems, removed: req.WithRemoved}
+	shown := stateShown{history: req.WithHistory, settled: req.AllItems, removed: req.WithRemoved}
+	if len(req.Seats) > 0 {
+		shown.seat = req.Seats[0]
+	}
+
+	return shown
+}
+
+// foldHint is the show state call printing one fold, naming the seat read.
+func (shown stateShown) foldHint(flag string) hintCall {
+	call := showHint(ledgerID, flag)
+	if shown.seat != "" {
+		call.args = append(call.args, hintFlag("seat", shown.seat))
+	}
+
+	return call
+}
+
+// ledgerSeat is the seat whose ledger show state reads: the one --seat names,
+// read-only and whether or not the caller holds a seat, else the caller's
+// own; empty with why where there is none.
+func (mem *memory) ledgerSeat(ctx context.Context, req request) (string, string) {
+	if len(req.Seats) == 0 {
+		name, isSeated := mem.seated(ctx)
+		if !isSeated {
+			return "", noSeatText(mem.hintChannel(ctx))
+		}
+
+		return name, ""
+	}
+
+	name := req.Seats[0]
+
+	var names []string
+	for _, key := range seat.Known(mem.seatsDir()) {
+		names = append(names, mem.seatName(key))
+	}
+
+	if slices.Contains(names, name) {
+		return name, ""
+	}
+
+	if len(names) == 0 {
+		return "", fmt.Sprintf("%v: %s; no seat in this project", ErrUnknownSeat, name)
+	}
+
+	slices.Sort(names)
+
+	return "", fmt.Sprintf("%v: %s; this project's seats: %s", ErrUnknownSeat, name, strings.Join(names, ", "))
+}
+
+// showSeatRefusal is why show's --seat cannot be read as given: more than one
+// seat, or no state id to read the seat's ledger by.
+func showSeatRefusal(req request) error {
+	switch {
+	case len(req.Seats) > 1:
+		return ErrShowSeats
+	case len(req.Seats) == 1 && !slices.Contains(req.IDs, ledgerID):
+		return ErrSeatNoState
+	}
+
+	return nil
 }
 
 // stateRead is what show state prints of the ledger, agent lines first, then
@@ -961,7 +1029,14 @@ func (mem *memory) showState(ctx context.Context, folded *state, seatName string
 	var lines []string
 
 	if old, pending := folded.oldState(seatName); pending {
-		lines = append(lines, mem.oldLines(mem.hintChannel(ctx), old)...)
+		oldLines := mem.oldLines(mem.hintChannel(ctx), old)
+		// Splitting the old slot is its own seat's work: another seat reads
+		// the slot without the request.
+		if shown.seat != "" {
+			oldLines = oldLines[:1]
+		}
+
+		lines = append(lines, oldLines...)
 	}
 
 	read := mem.stateLines(ctx, folded, seatName, shown)
@@ -997,11 +1072,11 @@ func (mem *memory) showState(ctx context.Context, folded *state, seatName string
 	}
 
 	if read.history > 0 {
-		lines = append(lines, fmt.Sprintf("  (%d older landed and captured: %s)", read.history, showHint(ledgerID, "with_history").in(mem.hintChannel(ctx))))
+		lines = append(lines, fmt.Sprintf("  (%d older landed and captured: %s)", read.history, shown.foldHint("with_history").in(mem.hintChannel(ctx))))
 	}
 
 	if read.settled > 0 {
-		lines = append(lines, fmt.Sprintf("  (%d settled: %s)", read.settled, showHint(ledgerID, "all_items").in(mem.hintChannel(ctx))))
+		lines = append(lines, fmt.Sprintf("  (%d settled: %s)", read.settled, shown.foldHint("all_items").in(mem.hintChannel(ctx))))
 	}
 
 	if len(lines) == 0 {

@@ -1077,8 +1077,10 @@ both and the items, its layout moved up with them.
 
 A seat's state ledger is a run of `item` rows whose entry is the reserved id `state`, filed under the
 seat they belong to, so the fold keys a ledger by seat name as it does the slot it replaces
-(`folded.ledgers[seatName]`, `internal/memory/ledger.go`) and no seat reaches another's: `ack
-state` and `show state` resolve the calling seat first. No memory id collides, every one starting
+(`folded.ledgers[seatName]`, `internal/memory/ledger.go`) and no seat writes another's: `ack
+state` resolves the calling seat and takes no other, and `show state` reads the calling seat's unless
+`--seat` names another of the project (`ledgerSeat`), which it reads through the same selection and
+writes nothing for. No memory id collides, every one starting
 `m-`. A row's payload is the todo item's, `{op, id, text, link}`, with `until`, `until_hashes` and
 `until_hold` for declared ends, `due` for the time it comes due, `session`, and for a hook's line `hook` (`landed`, `captured`,
 `dirty`, `asked`), `commit` or `paths`. `op` is add, check, uncheck or remove, and `text` for a hook

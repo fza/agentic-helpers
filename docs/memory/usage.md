@@ -531,6 +531,7 @@ first line creates it; a seat with none reads `state: empty` at claim and in the
 | `ack state#<item>... --remove` | removes lines that no longer belong | `removed` |
 | `ack state#<item>... --undo` | brings a ticked, removed or ended line back, open until ticked or removed | `undone` |
 | `show state [--with-history] [--all-items] [--with-removed]` | prints what is live in the ledger, folding the rest | |
+| `show state --seat <seat> [--with-history] [--all-items] [--with-removed]` | prints another seat's ledger, read-only | |
 
 MCP `ack` takes the same: `{"ids":["state"],"add":["<line>"],"until":["claim"]}` or
 `{"ids":["state#k3x"],"done":true}`. Every add names its end: `until` takes every form `new --until`
@@ -665,6 +666,15 @@ id `state` carry the same lines as `state`: `lines`, `old` while the slot waits,
 `history` and `settled`, the counts each fold line names, where a group is held back. `brief --json`
 carries the whole ledger as `state`: `lines`, each with `id`, `text`, `link`, `state` (`open`,
 `done`, `ended`), `reason`, `hook`, `at`, `until` and `due`, and `old` while the slot waits.
+
+`show state --seat <seat>` (MCP `seat`, a string) reads another seat's ledger in the caller's
+project, read-only and with or without a seat held: the same lines, hook lines among them, the same
+flags and folds, each fold line naming `--seat <seat>` again; `--json` and MCP carry it as `state`.
+A slot of that seat waiting to be split prints without the request to split it, which is that
+seat's work. A seat the project lacks is refused with the seats it has:
+`state: no such seat: nobody; this project's seats: idea, main`. `--seat` takes one seat and needs
+the id `state`. Writes stay the caller's own: `ack` takes no `--seat`, and an address of another
+seat's line names no line of the caller's.
 
 An agent change to its ledger moves the start of the post-compaction replay forward as filing does,
 answers the compaction nudge, and re-arms the replay nudge. A hook line holds no

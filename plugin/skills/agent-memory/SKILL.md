@@ -106,7 +106,7 @@ agentic-memory show state [--with-history] [--all-items]
   line where work moved, tick or remove the one it settles, never retype the rest. A line is one
   fact, plan or reason only you hold. `--add <memory id>|<todo>#<item>|<graph id>`
   pins it. Lines citing ids end with them. **Every add names its end**, `new --until`'s
-  forms, `none` only if your tick alone ends it. `hook:` lines end at next claim; never copy.
+  forms, `none` if only your tick ends it. `hook:` lines end at next claim; never copy.
 - **Settle each line the add reply and reminder name, hook lines too.** `ledger holds <n>
   open lines, ...` → run the call beside each settled one.
 - **`#old (...)` + `state is a ledger now: split this into lines (...), then ...`** → do both; a new line alone settles nothing.
@@ -193,10 +193,11 @@ agentic-memory brief [--topic <t>] [--kind rule|trap|todo|note]
   or pages it does not print. Before acting on, answering about, or concluding the absence of what
   it folds → run its command. A seen pointer carries none: its text is in your context.
 - **Each entry prints once per context.** Printed already, unchanged since → `<id> (<name>) <title>
-  (seen)` (JSON `{"id", "name", "title", "seen": true}`, a search hit's with its score); its text
+  (seen)` (JSON: [reference.md](reference.md#json)); its text
   is above. A run in the brief → `<n> seen above, unchanged`. `show` after a search line still
   prints the body. Compaction, `/clear`, resume → full again.
-- Own shelf by default; `--all-seats` → other seats' work, to take over, never redo.
+- Own shelf by default; `--all-seats` → other seats' work, to take over, never redo; their state:
+  `show state --seat <seat>`.
 - `--term`: case-insensitive RE2, all required. `--query`: by meaning. Both → fused. `--status`
   alone → a listing by time.
 - **`<id> (<name>) 92% <title>`**: score, whole percent of the best hit (100). A listing prints none.

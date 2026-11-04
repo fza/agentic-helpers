@@ -646,6 +646,11 @@ func (mem *memory) topicCounts(folded *state) map[string]int {
 }
 
 func (mem *memory) show(ctx context.Context, req request) result {
+	seatErr := showSeatRefusal(req)
+	if seatErr != nil {
+		return refused("%v", seatErr)
+	}
+
 	folded, err := mem.load(ctx)
 	if err != nil {
 		return refused("%v", err)
@@ -669,9 +674,9 @@ func (mem *memory) show(ctx context.Context, req request) result {
 
 	for _, id := range req.IDs {
 		if id == ledgerID {
-			name, isSeated := mem.seated(ctx)
-			if !isSeated {
-				blocks = append(blocks, "state: "+noSeatText(mem.hintChannel(ctx)))
+			name, why := mem.ledgerSeat(ctx, req)
+			if why != "" {
+				blocks = append(blocks, "state: "+why)
 				missing = true
 
 				continue
