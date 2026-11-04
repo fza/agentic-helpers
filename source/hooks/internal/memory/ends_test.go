@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -493,6 +494,40 @@ func TestTheCaptureNotice(t *testing.T) {
 
 	if first := fresh.must(fresh.toolCall(), "tool"); strings.Contains(first, "graph gained") {
 		t.Errorf("a session's first look should only mark the graph, whatever waits:\n%s", first)
+	}
+}
+
+func TestABurstOfGainsFoldsInTheCaptureNotice(t *testing.T) {
+	h := newHarness(t)
+	withGraph(t, h)
+	h.must("", "claim", "main")
+	h.file("Owner decision waiting for capture", "body", "--kind", "todo", "--item", "settle it", "--until", "captured")
+	h.must(h.toolCall(), "tool")
+
+	for index := range 50 {
+		kind := "d"
+		if index%10 == 9 {
+			kind = "s"
+		}
+
+		test.WriteFile(t, filepath.Join(h.repo, ".sdd", "graph", "2026", "10", fmt.Sprintf("24-%06d-%s-tac-pul.md", index, kind)), "---\n---\n")
+	}
+
+	out := toolContext(h.must(h.toolCall(), "tool"))
+
+	var told []string
+
+	for line := range strings.Lines(out) {
+		if strings.Contains(line, "graph gained") || strings.Contains(line, "more gained") {
+			told = append(told, strings.TrimSuffix(line, "\n"))
+		}
+	}
+
+	if len(told) != 2 ||
+		!strings.HasPrefix(told[0], "agentic-memory: graph gained 50 entries, among them "+
+			"20261024-000048-d-tac-pul, 20261024-000047-d-tac-pul, 20261024-000046-d-tac-pul; open todos waiting for a capture: ") ||
+		told[1] != "+47 more gained: agentic-memory show state --with-history  (run before concluding none settles a todo)" {
+		t.Errorf("a burst of gains should name its count and the newest decisions on one line and fold the rest:\n%s", out)
 	}
 }
 

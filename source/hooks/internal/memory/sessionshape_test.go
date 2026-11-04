@@ -14,7 +14,7 @@ import (
 )
 
 // sessionPurposes are the key prefixes of a session's own state.
-var sessionPurposes = []string{"shown/", "ladder/", "graph-seen/", "fork/", "waiter/", "instructions/", "agents/", "spawn/"}
+var sessionPurposes = []string{"shown/", "ladder/", "graph-mark/", "graph-folders/", "graph-seen/", "fork/", "waiter/", "instructions/", "agents/", "spawn/"}
 
 // sessionState is every per-session slot the store holds, key to value.
 func (h *harness) sessionState() map[string]string {
@@ -103,7 +103,7 @@ func TestAUUIDSessionIDKeepsItsSessionState(t *testing.T) {
 	h.hookRound(test.Session)
 
 	held := h.sessionState()
-	for _, key := range []string{"ladder/" + test.Session, "instructions/" + test.Session, "graph-seen/" + test.Session} {
+	for _, key := range []string{"ladder/" + test.Session, "instructions/" + test.Session, "graph-mark/" + test.Session, "graph-folders/" + test.Session} {
 		if _, kept := held[key]; !kept {
 			t.Errorf("a UUID session id should keep its per-session keys as before, kept %v", slices.Sorted(maps.Keys(held)))
 		}

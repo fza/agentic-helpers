@@ -93,7 +93,7 @@ Store format 6 keeps what changes often in binary formats agentic-tools and shel
   while the held copy is under a day old: most hook calls put back an unchanged value. A day bounds
   the skip because readers drop a key by its write time, a week on at the shortest, so a key still
   in use is written again once a day. Clearing a key frees its pair for the next key. A SessionEnd
-  clears the session's `shown`, `instructions`, `ladder`, `waiter`, `graph-seen` and `fork` keys; the
+  clears the session's `shown`, `instructions`, `ladder`, `waiter`, `graph-mark`, `graph-folders` and `fork` keys, and an earlier release's `graph-seen`; the
   SessionStart pass clears every session key older than `staleAfter` (a session that never reached
   its end), and every seat key whose seat the registry no longer holds or holds expired, as the
   purge of a temporary shelf leaves it: a store running a temporary seat per job would otherwise keep
@@ -108,8 +108,8 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   span up to its highest write, so the layout keeps every file dense: the directory pays 1 KiB a
   pair, a class file only for the pairs it holds. Writers hold `sessions.slots.lock`; readers take no
   lock. Keys are `<purpose>/<session or seat id>`: `shown`,
-  `ladder`, `graph-seen`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`,
-  `do-now`, `skipped`, `brief`, `seen`, `ledger-ended`, `ledger-pressure`, `channel` per seat; `graph-names/<yyyy>/<mm>` per month. A
+  `ladder`, `graph-mark`, `graph-folders`, `fork`, `waiter`, `migration-failed`, `instructions` per session; `traps`,
+  `do-now`, `skipped`, `brief`, `seen`, `ledger-ended`, `ledger-pressure`, `channel` per seat; `graph-table/<yyyy>/<mm>` per month of the graph. A
   value is the JSON the per-session file held. A hook takes its payload's `session_id` only in the
   shape `^[A-Za-z0-9_-]{1,128}$` (`hookSessionShape`, as the tool library and the prompt vectors
   take it); a payload carrying none or one of another shape reads as carrying none, and every
@@ -132,8 +132,8 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   scan mark at the last of them, so the next round takes the rest. Shown sets, the seen mark's due
   entries and the ended lines' mark drop their older half. The ceilings: `ladder` 11,000; `shown`
   32,768; `spawn` 33,000; `agents` 110,000 (800 records, id and seat key 64 bytes); `instructions`
-  65,536 (a path past 1,024 bytes is not watched); `graph-seen` 2,200 (past it the month reads as
-  holding no graph); a part of `graph-names` 120,000; `traps`, `do-now`, `skipped`, `seen`,
+  65,536 (a path past 1,024 bytes is not watched); `graph-mark` 2,200 (60 years under a root of 1,024 bytes; past it the month reads as
+  holding no graph); `graph-folders` 24,576 (every month of 20 years; past it the next look is a first one); a part of `graph-table` 120,000; `traps`, `do-now`, `skipped`, `seen`,
   `ledger-ended` 65,536 (an anchor or `--about` path 1,024, a trigger 512; a do-now title 512, a
   trigger 256, 4 proof triggers of 128); `ledger-pressure` 20,000 (the newest 256 changes, which
   fit it at any number's width); `landed` 120,000 (a target 64, a subject and test 200);
@@ -154,15 +154,30 @@ agentic-tools' SessionStart does for its own slot files ([tools architecture](..
   carrying the checksum of a file whose length and time are unchanged, so a figure reads the ledger
   and never walks the files. Lock files, temp files and links are no data files.
 
-The seen list of the capture notice is a bitset over the store's table of the month's entry names
-(`graph-names/<yyyy>/<mm>`, appended under the slot file's writer lock, so two sessions never give
-two names one position), not the JSON list of names. On `BenchmarkCaptureNotice` over a month of
-2000 entries (Apple M4 Pro), a tool call finding the month unchanged took 19 µs, 4 KB and 24
-allocations with the bitset and 125 µs, 209 KB and 2035 with the names; a call finding an entry
-added took about 4.5 ms either way, since both then load the store. A table grows by parts of 6,000
-names (120,000 bytes): the first is keyed by the month, each later one
-`graph-names/<yyyy>/<mm>/<n>`, and a name's position is its part's number times 6,000 plus its line.
-The tables of months before the last go with the SessionStart pass, every part of them.
+What the capture notice has told a session is a position per month in the store's table of that
+month's entry names (`graph-table/<yyyy>/<mm>`, appended under the slot file's writer lock, so two
+sessions never give two names one position): a name at or past it is new to the session. A table
+grows by parts of 6,000 names (120,000 bytes): the first is keyed by the month, each later one
+`graph-table/<yyyy>/<mm>/<n>`, and a name's position is its part's number times 6,000 plus its line.
+A table stays for as long as the store does, every month of it, since every session's mark counts
+positions in it: about 20 bytes a name, so a graph of 5,000 entries keeps about 100 KB of tables.
+The tables an earlier release keeps, `graph-names/<yyyy>/<mm>`, still go with the SessionStart pass
+for every month before the last; the capture notice reads none of them. Rejected: a bitset per
+month of the names a session saw, which forgets a name the moment a checkout removes it and names it
+again when it comes back.
+
+`BenchmarkCaptureNoticeOnGraphs` weighs the notice on a graph shaped like this repository's (599
+entries over 3 months of one year, 5 folders to `stat`) and on one of 5,000 entries over 36 months
+(41 folders). Against a notice watching the current month alone, the medians of
+three interleaved runs on an Apple M4 Pro under a load average near 30: a call finding the graph
+unchanged, 31 µs, 7.8 KB and 42 allocations against 25 µs on the first graph, and 102 µs, 24.6 KB
+and 152 allocations against 27 µs on the second, its 41 `stat` calls the cost; a call finding an
+entry added to the current month, 1.6 ms against 1.3 ms and 1.9 against 1.5, each then writing the
+table and both marks; an entry pulled into the oldest month, 1.6 and 1.7 ms where watching the
+current month alone spent 34 µs and never saw it; a session's first look, which lists every month,
+1.7 ms against 0.7 and 9.2 ms against 0.6, once per session. Holding every folder's stamp in the
+one mark read on every call cost 115 to 175 µs on the second graph: the class-file read and the
+decode of every folder that the brief spares.
 
 The migration to format 6 runs under the store lock and writes `format.json` last: it seals the
 JSON-lines tail an earlier release kept, `log/tail.jsonl`, into a segment, takes every per-session
@@ -750,7 +765,7 @@ A hook whose event has no hidden channel (Stop) says nothing; no hook prints pla
 | SessionStart (`session-log <n>`) | after a compaction, prints piece `<n>` of the turns since the seat's newest entry or agent change to its state ledger; one hook per piece, since Claude Code inlines a hook's output only up to 10,000 characters and swaps anything longer for a file path. Pieces are 9,000 characters (`pieceChars`), at most five (`maxPieces`), the newest kept; where older ones were cut, the first piece's header names their count and the transcript's path; a piece opening inside a day repeats that day's `# <date> UTC` header within the 9,000, as `transcript.Tail` does for a claim's slice |
 | UserPromptSubmit (`prompt`) | first, for any session, seat or none, hashes every file its `instructions/<session>` slot records and prints `agentic-memory: <path> changed since loaded; re-read it` for each whose hash moved, recording the new hash; a session with no slot yet seeds it with the fixed set ([usage](usage.md#instruction-files-that-change)) and prints nothing for it; then, for a fork carrying a marker, once its transcript is written, removes the marker and, where it holds no seat, seats it as SessionStart would, printing the claim's output or the seatless notice instead of anything else; otherwise adds up to three related entries, the nudge near compaction (at every prompt from the first rung crossed until answered, `remind`) and the replay nudge once the turns since the seat's newest entry or agent change to its state ledger would no longer fit the pieces, once per newest entry or ledger change; the ladder records the time of the one it fired for (`replay_nudged_for`) and the transcript size at its last check (`replay_checked_size`), and the transcript is condensed only once it grew by `pieceChars` bytes since; the prompt's vector comes from, or goes to, the session's slot under `<cache>/prompt-vectors/`, which agentic-tools' offer shares; a prompt holding a credential is never embedded: recall scores entries by its words and the notice prints once; without an embedder configured (`embed.ErrNotConfigured`), recall prints nothing; a recall the embedder fails prints `agentic-memory: prompt recall failed, retried each prompt: <error>` once per outage, and the next working recall re-arms it |
 | InstructionsLoaded (`instructions`) | records the file Claude Code reports (`file_path`) with its content hash under the session's `instructions/<session>` slot, through the slot file's `Update`, so files reported at once never lose each other; needs no seat; says nothing |
-| PostToolUse (`tool`) | first the instruction-file check UserPromptSubmit runs, as `additionalContext`, where an `Edit`, `Write` or `NotebookEdit` of a recorded path takes the new hash in silently; then, for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; on the main thread's call, gives the line the last Stop owed and counts the call in the ladder (`tool_calls`), every tenth one answering or repeating the nudge near compaction as UserPromptSubmit does (`owedAtTool`); tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; adds the state ledger's `captured` lines for the graph's gains, and after a Bash `git commit`, `merge` or `cherry-pick` its `landed` lines; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for the graph's directory of the current month |
+| PostToolUse (`tool`) | first the instruction-file check UserPromptSubmit runs, as `additionalContext`, where an `Edit`, `Write` or `NotebookEdit` of a recorded path takes the new hash in silently; then, for a fork carrying a marker, does what UserPromptSubmit does for it, the claim's output or the seatless notice as `additionalContext`; on the main thread's call, gives the line the last Stop owed and counts the call in the ladder (`tool_calls`), every tenth one answering or repeating the nudge near compaction as UserPromptSubmit does (`owedAtTool`); tells the seat about arrivals, graph gains and the traps the call touched, in one `additionalContext`, and settles the do-now items the call proves; adds the state ledger's `captured` lines for the graph's gains, and after a Bash `git commit`, `merge` or `cherry-pick` its `landed` lines; where the log's tail and manifest are as they were at the seat's last look, two `stat` calls for arrivals, and one for each folder of the graph, its root, every year and every month |
 | PreToolUse (`pre-tool`) | on a Bash call whose `tool_input.command` does not contain `agentic-memory`, exits 0 writing nothing as soon as the payload is read, before the store and the seat are looked up: every Bash call runs the hook side by side with shell-guard, and the slower of the two sets the delay; on every other Bash call, on the Agent tool and on the memory MCP tools, runs the subagent checks ([usage](usage.md#subagents)): rewrites the Agent prompt and, for a fork, keeps its spawn slot; refuses a subagent's call its level does not allow; sets `--agent` on a reading subagent's every direct `agentic-memory` call and `agent` on its every memory tool call; refuses either from the main thread |
 | SubagentStop (`subagent-stop`) | removes the subagent's shown set and any spawn slot kept for it, and releases a `full` subagent's seat |
 | Stop (`stop`) | adds the state ledger's `landed` lines for commits since the claim and keeps its one `dirty` and one `asked` line current ([State ledger](#state-ledger)); while do-now items are pending, at most twice per moment, marks their line owed in the ladder's `owed` field; prints nothing and holds no turn, since Stop `additionalContext` always shows the user `Stop hook feedback`; the main thread's next PreToolUse (where its subagent checks give the call no answer), PostToolUse, UserPromptSubmit or SessionStart carries the line once |
@@ -920,11 +935,27 @@ past the horizon writes it into the `new` row. For any other form, `revive` asks
 question once more and refuses while the condition is met. A `revive` row from an earlier release
 carries `{}` and changes the status alone.
 
-The tool hook finds graph gains without reading a capture's output: it keeps, per session, the
-graph directory of the current month (`<graph_dir>/<yyyy>/<mm>`, resolved once a month through the
-graph resolver), that directory's modification time and size, and the entry files it held, as a
-bitset in the slot `graph-seen/<session>` ([File formats](#file-formats)). A call `stat`s the directory; only a changed stamp lists
-it, and an entry file not listed before is a gain. A session's first look records and says nothing.
+The tool hook finds graph gains without reading a capture's output, and counts every entry that
+arrives as one, in whichever month folder it lands: a capture in the current month, a `git pull`, a
+merge or a checkout in any. It keeps two slots per session. `graph-folders/<session>` holds the full
+look: a stamp, modification time and size, of the graph's root, each year folder and each month
+folder, and per month the position its table of names had reached ([File formats](#file-formats)).
+`graph-mark/<session>` holds the brief: the root (`<graph_dir>`, resolved once a month through the
+graph resolver), every year with its months as a set of 12 bits, and a 64-bit FNV-1a digest of
+every folder's stamp, the same digest the full look carries. The brief fits the slot directory's
+own twin, so a call reads one pair, `stat`s the root, every year and every month it names, and
+hashes the stamps; only a digest that moved reads the full look and lists a folder whose stamp
+moved: the root for a new year, a year for a new month, a month for its entries. A full look whose
+digest is not the brief's, as a write lost between the two leaves it, counts as a first look. A
+folder's modification time moves whenever a name in it is added, removed or renamed, whoever writes
+it. An entry file whose name the month's table
+met at or past the position the session's last look reached is a gain. A name already in the table
+is never a gain again: an entry a checkout of an older ref deletes or renames back, and brings back
+on the way forward, is told once, and a folder gone keeps its mark. A session's first look records
+and says nothing. Rejected: telling a pulled entry from the seat's own capture (a fuller stamp and a
+second hint wording), and leaving pulled entries to the grounding gate, which re-asks reads on any
+graph change but ends no `--until captured` line; the accepted cost is that another seat's pulled
+capture ends this seat's `--until captured` lines and asks for a link.
 
 A probe that finds a `merged:` branch records its tip in the slot file under `branch-tips`; once
 the branch is gone, the end asks `merge-base --is-ancestor <recorded tip> <into>`. A landed-commit

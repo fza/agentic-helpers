@@ -20,7 +20,7 @@ const sessionSlotsName = "sessions.slots"
 // sessionPurposes are the keys a session's own state goes under: what the
 // housekeeping reclaims once nobody came back to it.
 var sessionPurposes = []string{
-	"shown/", "ladder/", "graph-seen/", "fork/", "waiter/", "migration-failed/", "instructions/", "agents/", "seen/agent/",
+	"shown/", "ladder/", "graph-mark/", "graph-folders/", "graph-seen/", "fork/", "waiter/", "migration-failed/", "instructions/", "agents/", "seen/agent/",
 	"spawn/",
 }
 
@@ -32,7 +32,7 @@ var seatPurposes = []string{"traps/", "do-now/", "skipped/", "brief/", "seen/", 
 
 // endedPurposes are the keys a session's own state goes under that nothing
 // reads once it ends: SessionEnd clears them, beside its shown set.
-var endedPurposes = []string{"ladder/", "waiter/", "graph-seen/", "fork/"}
+var endedPurposes = []string{"ladder/", "waiter/", "graph-mark/", "graph-folders/", "graph-seen/", "fork/"}
 
 func (mem *memory) slotFile() *slots.File {
 	file := slots.Open(mem.env.Roots.Cache, filepath.Join(mem.cacheDir(), sessionSlotsName))
@@ -130,7 +130,11 @@ func (mem *memory) forkKey(session string) string { return mem.sessionKey("fork/
 
 func (mem *memory) waiterKey(session string) string { return mem.sessionKey("waiter/", session) }
 
-func (mem *memory) graphMarkKey(session string) string { return mem.sessionKey("graph-seen/", session) }
+func (mem *memory) graphMarkKey(session string) string { return mem.sessionKey("graph-mark/", session) }
+
+func (mem *memory) graphFoldersKey(session string) string {
+	return mem.sessionKey("graph-folders/", session)
+}
 
 func (mem *memory) trapIndexKey(seatName string) string { return "traps/" + mem.seatKey(seatName) }
 
@@ -142,9 +146,11 @@ func (mem *memory) briefMarkKey(seatName string) string { return "brief/" + mem.
 
 func (mem *memory) seenKey(seatName string) string { return "seen/" + mem.seatKey(seatName) }
 
-// reclaimSessions clears every session's own state stale names, and the
-// tables of entry names of every month before the last: a session still in
-// the last month at its turn keeps reading its table.
+// reclaimSessions clears every session's own state stale names, and an
+// earlier release's tables of entry names of every month before the last: a
+// session of that release still in the last month at its turn keeps reading
+// its table. The capture notice's own tables stay, since every session's mark
+// counts positions in them, whichever month.
 func (mem *memory) reclaimSessions(ctx context.Context, stale func(slots.Slot) bool) {
 	now := mem.now().Local()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
@@ -153,7 +159,7 @@ func (mem *memory) reclaimSessions(ctx context.Context, stale func(slots.Slot) b
 	registry, found := mem.registry()
 
 	err := mem.slotFile().Reclaim(ctx, func(slot slots.Slot) bool {
-		month, isNames := namesMonth(slot.Key)
+		month, isNames := legacyNamesMonth(slot.Key)
 		if isNames {
 			return !slices.Contains(kept, month)
 		}

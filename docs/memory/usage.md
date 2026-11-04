@@ -1207,11 +1207,21 @@ already carrying one ends by its other conditions only. A live entry's line name
 
 `captured` is for an owner decision waiting for its capture into the graph, which has no graph id to
 watch while it waits. Once the graph holds the decision, `link <todo> <graph id>` links the todo to
-it, and that link ends it: the reply adds `retired <todo>: end reached: captured`. When a tool call
-adds graph entries while the seat holds open `captured` entries, the next tool call's answer names
-them once:
+it, and that link ends it: the reply adds `retired <todo>: end reached: captured`. When graph
+entries arrive while the seat holds open `captured` entries, the next tool call's answer names them
+once:
 
     agentic-memory: graph gained <id>, ...; open todos waiting for a capture: <id> <title>, ...; link the one it settles: agentic-memory link <todo> <graph id>
+
+Every entry that arrives counts, in whichever month folder it lands: the seat's own capture, and
+one a `git pull`, a merge or a checkout brings, another seat's capture included. So a pulled
+capture also reaches the `captured` end of a state line. An entry already told is never told again,
+even after a checkout of an older ref removes it and the way back brings it back. Past three entries,
+the line names the count and three of them, the decisions first and the newest first, and a fold
+line counts the rest, which stand as `captured` lines in the state ledger:
+
+    agentic-memory: graph gained <n> entries, among them <id>, <id>, <id>; open todos waiting for a capture: <id> <title>, ...; link the one it settles: agentic-memory link <todo> <graph id>
+    +<n - 3> more gained: agentic-memory show state --with-history  (run before concluding none settles a todo)
 
 A todo without items filed `--until captured` is a note and a state line, the line carrying the end:
 a line's `captured` is reached at the first capture after it, with no link to make.

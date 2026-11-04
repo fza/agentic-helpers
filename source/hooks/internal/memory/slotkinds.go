@@ -21,6 +21,7 @@ const (
 	agentsCeiling       = 110_000
 	instructionsCeiling = 65_536
 	graphMarkCeiling    = 2_200
+	graphFoldersCeiling = 24_576
 	trapsCeiling        = 65_536
 	doNowCeiling        = 65_536
 	seenCeiling         = 65_536
@@ -212,14 +213,31 @@ func (mark *graphMark) Ceiling() int { return graphMarkCeiling }
 func (mark *graphMark) Limit() {}
 
 // Shrink marks the month as holding no graph: the session hears of no capture
-// until the month turns. A directory within pathBytes and a part's names
-// stay within the ceiling (TestAMarkOfAFullPartKeepsItsGraph).
+// until the month turns. A root within pathBytes and 60 years stay within the
+// ceiling (TestTheMarksOfManyYearsKeepTheirGraph).
 func (mark *graphMark) Shrink() bool {
-	if mark.Dir == noGraph && mark.Stamp == "" && mark.Seen == nil {
+	if mark.Root == noGraph && mark.Years == nil && mark.Digest == "" {
 		return false
 	}
 
-	mark.Dir, mark.Stamp, mark.Seen = noGraph, "", nil
+	mark.Root, mark.Years, mark.Digest = noGraph, nil, ""
+
+	return true
+}
+
+func (folders *graphFolders) Ceiling() int { return graphFoldersCeiling }
+
+func (folders *graphFolders) Limit() {}
+
+// Shrink drops every folder and the digest, so the next look reads as a
+// first one and tells nothing. Every month of 20 years stays within the
+// ceiling (TestTheMarksOfManyYearsKeepTheirGraph).
+func (folders *graphFolders) Shrink() bool {
+	if folders.Digest == "" && folders.Folders == nil {
+		return false
+	}
+
+	folders.Digest, folders.Folders = "", nil
 
 	return true
 }
@@ -449,7 +467,8 @@ var slotKinds = []struct {
 	{prefix: "spawn/", fresh: func() slots.Fitted { return &forkSpawn{} }},
 	{prefix: "agents/", fresh: func() slots.Fitted { return &subagentTable{} }},
 	{prefix: "instructions/", fresh: func() slots.Fitted { return &loadedInstructions{} }},
-	{prefix: "graph-seen/", fresh: func() slots.Fitted { return &graphMark{} }},
+	{prefix: "graph-mark/", fresh: func() slots.Fitted { return &graphMark{} }},
+	{prefix: "graph-folders/", fresh: func() slots.Fitted { return &graphFolders{} }},
 	{prefix: "traps/", fresh: func() slots.Fitted { return &trapIndex{} }},
 	{prefix: "do-now/", fresh: func() slots.Fitted { return &doNowState{} }},
 	{prefix: "skipped/", fresh: func() slots.Fitted { return &skippedItems{} }},
@@ -471,7 +490,7 @@ var slotKinds = []struct {
 // names a part holds. Nothing is kept of a value too large that does not
 // decode as its kind.
 func refit(slot slots.Slot) ([]byte, bool) {
-	if strings.HasPrefix(slot.Key, graphNamesPrefix) {
+	if strings.HasPrefix(slot.Key, graphNamesPrefix) || strings.HasPrefix(slot.Key, legacyNamesPrefix) {
 		return firstNames(slot.Value), true
 	}
 

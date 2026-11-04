@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -189,14 +191,36 @@ var worstCases = []struct {
 		},
 	},
 	{
-		kind: "graph-seen", key: "graph-seen/" + strings.Repeat("s", 128),
+		kind: "graph-mark", key: "graph-mark/" + strings.Repeat("s", 128),
 		value: func() slots.Fitted {
-			return &graphMark{Month: "2026/11", Dir: worst(4_096), Stamp: worst(400), Seen: bytes.Repeat([]byte{0xff}, 100_000)}
+			years := map[string]uint16{}
+			for index := range 2_000 {
+				years[worst(40)+strconv.Itoa(index)] = math.MaxUint16
+			}
+
+			return &graphMark{Month: "2026/11", Root: worst(4_096), Years: years, Digest: worst(400)}
 		},
 		check: func(t *testing.T, fitted slots.Fitted) {
 			held := fitted.(*graphMark)
-			if held.Dir != noGraph || held.Month != "2026/11" {
+			if held.Root != noGraph || held.Years != nil || held.Digest != "" || held.Month != "2026/11" {
 				t.Errorf("a graph mark past its ceiling should mark its month as holding no graph")
+			}
+		},
+	},
+	{
+		kind: "graph-folders", key: "graph-folders/" + strings.Repeat("s", 128),
+		value: func() slots.Fitted {
+			folders := map[string]folderMark{}
+			for index := range 2_000 {
+				folders[worst(40)+strconv.Itoa(index)] = folderMark{Stamp: worst(400), Next: 1 << 62}
+			}
+
+			return &graphFolders{Digest: worst(400), Folders: folders}
+		},
+		check: func(t *testing.T, fitted slots.Fitted) {
+			held := fitted.(*graphFolders)
+			if held.Digest != "" || held.Folders != nil {
+				t.Errorf("a full look past its ceiling should drop its folders and its digest, reading as a first look")
 			}
 		},
 	},
@@ -480,19 +504,41 @@ func TestAFullPartOfNamesIsStored(t *testing.T) {
 	}
 }
 
-// TestAMarkOfAFullPartKeepsItsGraph builds the graph mark of a session that
-// has seen a part's every name in the longest directory kept: it fits whole,
-// without falling back to the no-graph mark.
-func TestAMarkOfAFullPartKeepsItsGraph(t *testing.T) {
-	dir := strings.Repeat("d", pathBytes-2)
-	mark := graphMark{
-		Month: "2026/11", Dir: dir, Stamp: fmt.Sprintf("%d@%d", int64(1<<62), int64(1<<62)),
-		Seen: bytes.Repeat([]byte{0xff}, namesPerPart/8),
+// TestTheMarksOfManyYearsKeepTheirGraph builds the brief of a graph of 60
+// years under the longest root kept, and the full look over every month of 20
+// years, each stamp at its widest and each table past nine full parts: both
+// fit whole, without falling back to a first look or the no-graph mark.
+func TestTheMarksOfManyYearsKeepTheirGraph(t *testing.T) {
+	root := strings.Repeat("d", pathBytes-2)
+	widest := fmt.Sprintf("%d@%d", int64(math.MaxInt64), int64(math.MaxInt64))
+	digest := strconv.FormatUint(math.MaxUint64, 36)
+	years := map[string]uint16{}
+	folders := map[string]folderMark{rootFolder: {Stamp: widest}}
+
+	for year := 1970; year < 2030; year++ {
+		years[strconv.Itoa(year)] = 1<<12 - 1
 	}
 
-	_, err := slots.Encode(&mark)
-	if err != nil || mark.Dir != dir || len(mark.Seen) != namesPerPart/8 {
-		t.Errorf("a mark over one full part should keep its directory and its bits: %v", err)
+	for year := 2010; year < 2030; year++ {
+		folders[strconv.Itoa(year)] = folderMark{Stamp: widest}
+
+		for month := 1; month <= 12; month++ {
+			folders[fmt.Sprintf("%d/%02d", year, month)] = folderMark{Stamp: widest, Next: 9 * namesPerPart}
+		}
+	}
+
+	mark := graphMark{Month: "2026/11", Root: root, Years: years, Digest: digest}
+	look := graphFolders{Digest: digest, Folders: folders}
+
+	_, markErr := slots.Encode(&mark)
+	_, lookErr := slots.Encode(&look)
+
+	if markErr != nil || mark.Root != root || len(mark.Years) != len(years) {
+		t.Errorf("a brief over 60 years should keep its root and every year: %v", markErr)
+	}
+
+	if lookErr != nil || look.Digest != digest || len(look.Folders) != len(folders) {
+		t.Errorf("a full look over 20 years of folders should keep every folder: %v", lookErr)
 	}
 }
 

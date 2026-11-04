@@ -12,6 +12,8 @@ func TestASessionEndClearsTheStateNothingReadsAfterIt(t *testing.T) {
 	h.must("", "claim", "main")
 	h.said(h.promptOf("start"), "prompt")
 	h.putSlot("waiter/"+test.Session, "1 2")
+	h.putSlot("graph-mark/"+test.Session, "{}")
+	h.putSlot("graph-folders/"+test.Session, "{}")
 	h.putSlot("graph-seen/"+test.Session, "{}")
 	h.putSlot("fork/"+test.Session, "{}")
 	h.putSlot("ladder/another-session", "{}")
@@ -22,7 +24,7 @@ func TestASessionEndClearsTheStateNothingReadsAfterIt(t *testing.T) {
 
 	h.must(h.promptOf(""), "session-end")
 
-	for _, purpose := range []string{"ladder/", "waiter/", "graph-seen/", "fork/"} {
+	for _, purpose := range []string{"ladder/", "waiter/", "graph-mark/", "graph-folders/", "graph-seen/", "fork/"} {
 		if h.slot(purpose+test.Session) != "" {
 			t.Errorf("a session's end should clear its %s state", purpose)
 		}

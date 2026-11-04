@@ -16,182 +16,123 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
-// namesMark is the seen list as the JSON names of the month's entry files: the
-// alternative BenchmarkCaptureNotice weighs against the bitset graphMark keeps.
-type namesMark struct {
-	Month string   `json:"month"`
-	Dir   string   `json:"dir"`
-	Stamp string   `json:"stamp"`
-	Names []string `json:"names,omitempty"`
+// graphShape is a graph the capture notice is weighed on: its entry paths,
+// `<yyyy>/<mm>/<name>.md`, and the time its tool calls run at.
+type graphShape struct {
+	name  string
+	paths func(testing.TB) []string
+	now   time.Time
 }
 
-// captureNoticeNames is captureNotice with the seen list kept as namesMark,
-// up to where both load the store.
-func (mem *memory) captureNoticeNames(ctx context.Context, session string) int {
-	now := mem.now().Local()
-	monthKey := now.Format("2006/01")
+// graphShapes are a graph shaped like this repository's, and a larger one of
+// 5,000 entries spread over 36 months.
+func graphShapes() []graphShape {
+	return []graphShape{
+		{name: "repo", now: time.Date(2026, 11, 4, 12, 0, 0, 0, time.Local), paths: func(tb testing.TB) []string {
+			return strings.Fields(test.Fixture(tb, "memory/capture-graph.txt"))
+		}},
+		{name: "synthetic", now: time.Date(2026, 11, 28, 12, 0, 0, 0, time.Local), paths: func(testing.TB) []string {
+			const entries, months = 5_000, 36
 
-	var mark namesMark
+			first := time.Date(2023, 12, 1, 0, 0, 0, 0, time.Local)
+			paths := make([]string, 0, entries)
 
-	had := mem.readSlot("graph-names-json/"+session, &mark)
+			for index := range entries {
+				month := first.AddDate(0, index*months/entries, 0)
+				paths = append(paths, fmt.Sprintf("%s/%02d-%06d-%s-tac-%03d.md",
+					month.Format("2006/01"), 1+index%28, index, []string{"d", "s"}[index%2], index%1000))
+			}
 
-	month := mark.Dir
-	if !had || mark.Month != monthKey || month == "" {
-		month = filepath.Join(mem.graphProject(ctx).entries, now.Format("2006"), now.Format("01"))
+			return paths
+		}},
 	}
-
-	stamp := "-"
-
-	info, err := os.Stat(month)
-	if err == nil {
-		stamp = fmt.Sprintf("%d@%d", info.ModTime().UnixNano(), info.Size())
-	}
-
-	if had && mark.Month == monthKey && mark.Dir == month && mark.Stamp == stamp {
-		return 0
-	}
-
-	files, _ := os.ReadDir(month)
-
-	var names, gained []string
-
-	for _, file := range files {
-		id := now.Format("200601") + strings.TrimSuffix(file.Name(), ".md")
-		if file.IsDir() || !strings.HasSuffix(file.Name(), ".md") || !isGraphID(id) {
-			continue
-		}
-
-		names = append(names, file.Name())
-
-		if had && (mark.Month != monthKey || !slices.Contains(mark.Names, file.Name())) {
-			gained = append(gained, id)
-		}
-	}
-
-	_ = mem.slotFile().PutJSON(ctx, "graph-names-json/"+session, namesMark{Month: monthKey, Dir: month, Stamp: stamp, Names: names})
-
-	if len(gained) > 0 {
-		_, _ = mem.load(ctx)
-	}
-
-	return len(gained)
 }
 
-// captureMonth is a store whose graph's month holds the fixture's entries,
-// about as many as a busy project files in a month.
-func captureMonth(b *testing.B) (*memory, string) {
+// shapedGraph is a store whose graph holds the shape's entries.
+func shapedGraph(b *testing.B, shape graphShape) (*memory, string) {
 	b.Helper()
 
 	root := b.TempDir()
-	filed := time.Date(2026, 10, 29, 12, 0, 0, 0, time.Local)
 	entries := filepath.Join(root, "graph")
-	month := filepath.Join(entries, "2026", "10")
 
-	err := os.MkdirAll(month, 0o700)
-	if err != nil {
-		b.Fatal(err)
-	}
+	for _, path := range shape.paths(b) {
+		err := os.MkdirAll(filepath.Join(entries, filepath.Dir(path)), 0o700)
+		if err == nil {
+			err = os.WriteFile(filepath.Join(entries, path), nil, 0o600)
+		}
 
-	for _, name := range strings.Fields(test.Fixture(b, "memory/capture-month.txt")) {
-		err = os.WriteFile(filepath.Join(month, name), nil, 0o600)
 		if err != nil {
 			b.Fatal(err)
 		}
 	}
 
-	mem := &memory{
+	return &memory{
 		env: Env{
 			Roots: home.Roots{Data: filepath.Join(root, "data"), Cache: filepath.Join(root, "cache")},
-			Now:   func() time.Time { return filed },
+			Now:   func() time.Time { return shape.now },
 		},
 		key:         "bench",
 		graphConfig: &resolvedGraph{entries: entries},
-	}
-
-	return mem, month
+	}, entries
 }
 
-// BenchmarkCaptureNotice weighs the seen list of the capture notice as a
-// bitset over the store's table of names against JSON names, on a tool call
-// that finds the month unchanged and on one that finds an entry added.
-func BenchmarkCaptureNotice(b *testing.B) {
-	variants := []struct {
-		name   string
-		notice func(mem *memory, session string)
-	}{
-		{name: "bitset", notice: func(mem *memory, session string) {
+// BenchmarkCaptureNoticeOnGraphs weighs the capture notice on each graph
+// shape: a tool call finding the graph unchanged, one finding an entry added
+// to the current month, one finding an entry pulled into the oldest month,
+// and a session's first look.
+func BenchmarkCaptureNoticeOnGraphs(b *testing.B) {
+	for _, shape := range graphShapes() {
+		notice := func(mem *memory, session string) {
 			mem.captureNotice(context.Background(), "main", session)
-		}},
-		{name: "json", notice: func(mem *memory, session string) {
-			mem.captureNoticeNames(context.Background(), session)
-		}},
-	}
+		}
 
-	for _, variant := range variants {
-		b.Run(variant.name+"/unchanged", func(b *testing.B) {
-			mem, _ := captureMonth(b)
-			variant.notice(mem, test.Session)
+		b.Run(shape.name+"/unchanged", func(b *testing.B) {
+			mem, _ := shapedGraph(b, shape)
+			notice(mem, test.Session)
 
 			for b.Loop() {
-				variant.notice(mem, test.Session)
+				notice(mem, test.Session)
 			}
 		})
 
-		b.Run(variant.name+"/one-added", func(b *testing.B) {
-			mem, month := captureMonth(b)
-			variant.notice(mem, test.Session)
+		added := func(b *testing.B, month func(paths []string) string) {
+			mem, entries := shapedGraph(b, shape)
+			folder := filepath.Join(entries, filepath.FromSlash(month(shape.paths(b))))
+			notice(mem, test.Session)
 
-			added := filepath.Join(month, "29-235959-d-tac-zzz.md")
-			present := false
-
-			for b.Loop() {
+			for count := 0; b.Loop(); count++ {
 				b.StopTimer()
 
-				if present {
-					_ = os.Remove(added)
-				} else {
-					_ = os.WriteFile(added, nil, 0o600)
-				}
-
-				present = !present
+				path := filepath.Join(folder, fmt.Sprintf("28-%06d-d-tac-zzz.md", count))
+				_ = os.WriteFile(path, nil, 0o600)
 
 				b.StartTimer()
-				variant.notice(mem, test.Session)
+				notice(mem, test.Session)
+				b.StopTimer()
+
+				_ = os.Remove(path)
+				notice(mem, test.Session)
+
+				b.StartTimer()
+			}
+		}
+
+		b.Run(shape.name+"/one-added", func(b *testing.B) {
+			added(b, func(paths []string) string { return filepath.ToSlash(filepath.Dir(paths[len(paths)-1])) })
+		})
+
+		b.Run(shape.name+"/one-pulled-into-oldest-month", func(b *testing.B) {
+			added(b, func(paths []string) string { return filepath.ToSlash(filepath.Dir(paths[0])) })
+		})
+
+		b.Run(shape.name+"/first-look", func(b *testing.B) {
+			mem, _ := shapedGraph(b, shape)
+			notice(mem, test.Session)
+
+			for count := 0; b.Loop(); count++ {
+				notice(mem, fmt.Sprintf("session-%d", count))
 			}
 		})
-	}
-}
-
-func TestBothSeenListsTellTheSameGains(t *testing.T) {
-	root := t.TempDir()
-	filed := time.Date(2026, 10, 29, 12, 0, 0, 0, time.Local)
-	month := filepath.Join(root, "graph", "2026", "10")
-
-	names := strings.Fields(test.Fixture(t, "memory/capture-month.txt"))[:50]
-	for _, name := range names {
-		test.WriteFile(t, filepath.Join(month, name), "")
-	}
-
-	mem := &memory{
-		env: Env{
-			Roots: home.Roots{Data: filepath.Join(root, "data"), Cache: filepath.Join(root, "cache")},
-			Now:   func() time.Time { return filed },
-		},
-		key:         "bench",
-		graphConfig: &resolvedGraph{entries: filepath.Join(root, "graph")},
-	}
-
-	_, before := mem.captureNotice(context.Background(), "main", "bits")
-	namesBefore := mem.captureNoticeNames(context.Background(), "names")
-
-	test.WriteFile(t, filepath.Join(month, "29-235959-d-tac-zzz.md"), "")
-
-	_, after := mem.captureNotice(context.Background(), "main", "bits")
-	namesAfter := mem.captureNoticeNames(context.Background(), "names")
-
-	if len(before) != 0 || namesBefore != 0 || len(after) != 1 || namesAfter != len(after) {
-		t.Errorf("both seen lists should count the one entry added, bitset %d then %d, names %d then %d",
-			len(before), len(after), namesBefore, namesAfter)
 	}
 }
 
@@ -213,6 +154,172 @@ func captureStore(t *testing.T) (*memory, string) {
 		key:         "bench",
 		graphConfig: &resolvedGraph{entries: filepath.Join(root, "graph")},
 	}, month
+}
+
+func TestAnEntryArrivingInAnyMonthIsGained(t *testing.T) {
+	for _, arrival := range []struct{ name, path, id string }{
+		{name: "the current month", path: "2026/10/29-235959-d-tac-pul.md", id: "20261029-235959-d-tac-pul"},
+		{name: "an earlier month", path: "2026/09/30-120000-d-tac-pul.md", id: "20260930-120000-d-tac-pul"},
+		{name: "a month folder new to its year", path: "2026/08/30-120000-s-tac-pul.md", id: "20260830-120000-s-tac-pul"},
+		{name: "a year folder new to the graph", path: "2025/12/30-120000-d-cpt-pul.md", id: "20251230-120000-d-cpt-pul"},
+	} {
+		t.Run(arrival.name, func(t *testing.T) {
+			mem, month := captureStore(t)
+			test.WriteFile(t, filepath.Join(filepath.Dir(filepath.Dir(month)), "2026", "09", "29-120000-d-tac-old.md"), "")
+
+			_, before := mem.captureNotice(context.Background(), "main", test.Session)
+
+			test.WriteFile(t, filepath.Join(filepath.Dir(filepath.Dir(month)), filepath.FromSlash(arrival.path)), "")
+
+			_, after := mem.captureNotice(context.Background(), "main", test.Session)
+			_, again := mem.captureNotice(context.Background(), "main", test.Session)
+
+			if len(before) != 0 || !slices.Equal(after, []string{arrival.id}) || len(again) != 0 {
+				t.Errorf("an entry arriving in any month folder should be gained once, got %v then %v then %v", before, after, again)
+			}
+		})
+	}
+}
+
+func TestACheckoutOfAnOlderRefGainsNothing(t *testing.T) {
+	mem, month := captureStore(t)
+	graph := filepath.Dir(filepath.Dir(month))
+	earlier := filepath.Join(graph, "2026", "09")
+	kept := filepath.Join(month, "29-100000-d-tac-ren.md")
+	renamed := filepath.Join(month, "29-100001-d-tac-ren.md")
+	pulled := filepath.Join(month, "29-110000-s-tac-new.md")
+
+	test.WriteFile(t, kept, "")
+	test.WriteFile(t, filepath.Join(earlier, "30-120000-d-tac-old.md"), "")
+
+	look := func() []string {
+		_, gained := mem.captureNotice(context.Background(), "main", test.Session)
+
+		return gained
+	}
+
+	move := func(from string, to string) {
+		err := os.Rename(from, to)
+		if err != nil {
+			t.Fatalf("moving %s: %v", from, err)
+		}
+	}
+
+	look()
+
+	move(kept, renamed)
+	test.WriteFile(t, pulled, "")
+
+	newer := look()
+
+	move(renamed, kept)
+
+	err := os.Remove(pulled)
+	if err == nil {
+		err = os.RemoveAll(earlier)
+	}
+
+	if err != nil {
+		t.Fatalf("checking out the older ref: %v", err)
+	}
+
+	older := look()
+
+	move(kept, renamed)
+	test.WriteFile(t, pulled, "")
+	test.WriteFile(t, filepath.Join(earlier, "30-120000-d-tac-old.md"), "")
+
+	back := look()
+
+	if !slices.Equal(newer, []string{"20261029-100001-d-tac-ren", "20261029-110000-s-tac-new"}) {
+		t.Errorf("a pull renaming one entry and adding another should gain both names, got %v", newer)
+	}
+
+	if len(older) != 0 || len(back) != 0 {
+		t.Errorf("an entry deleted, renamed back or brought back by a checkout should never count as gained, got %v then %v", older, back)
+	}
+}
+
+func TestAFolderNotShapedAsAYearOrAMonthIsNeverLookedInto(t *testing.T) {
+	mem, month := captureStore(t)
+	graph := filepath.Dir(filepath.Dir(month))
+
+	_, before := mem.captureNotice(context.Background(), "main", test.Session)
+
+	for _, path := range []string{"notes/10/30-120000-d-tac-pul.md", "2026/drafts/30-120000-d-tac-pul.md", "20266/10/30-120000-d-tac-pul.md"} {
+		test.WriteFile(t, filepath.Join(graph, filepath.FromSlash(path)), "")
+	}
+
+	_, after := mem.captureNotice(context.Background(), "main", test.Session)
+
+	if len(before) != 0 || len(after) != 0 {
+		t.Errorf("a file in a folder not named as a year or a month should never count as gained, got %v", after)
+	}
+}
+
+func TestAFullLookLostOrStaleReadsAsAFirstLook(t *testing.T) {
+	for _, damage := range []struct {
+		name  string
+		apply func(mem *memory)
+	}{
+		{name: "lost", apply: func(mem *memory) { mem.clearSlot(mem.graphFoldersKey(test.Session)) }},
+		{name: "stale", apply: func(mem *memory) {
+			mem.writeSlot(mem.graphFoldersKey(test.Session), &graphFolders{Digest: "stale", Folders: map[string]folderMark{}})
+		}},
+	} {
+		t.Run(damage.name, func(t *testing.T) {
+			mem, month := captureStore(t)
+
+			_, before := mem.captureNotice(context.Background(), "main", test.Session)
+
+			damage.apply(mem)
+			test.WriteFile(t, filepath.Join(month, "29-235959-d-tac-zzz.md"), "")
+
+			_, damaged := mem.captureNotice(context.Background(), "main", test.Session)
+
+			test.WriteFile(t, filepath.Join(month, "29-235958-d-tac-yyy.md"), "")
+
+			_, after := mem.captureNotice(context.Background(), "main", test.Session)
+
+			if len(before) != 0 || len(damaged) != 0 || !slices.Equal(after, []string{"20261029-235958-d-tac-yyy"}) {
+				t.Errorf("a full look not matching its brief should read as a first look, then count again, got %v then %v", damaged, after)
+			}
+		})
+	}
+}
+
+func TestARefusedSessionLooksAtNoFolder(t *testing.T) {
+	mem, month := captureStore(t)
+	mem.sessionless = true
+
+	_, before := mem.captureNotice(context.Background(), "main", test.Session)
+
+	test.WriteFile(t, filepath.Join(month, "29-235959-d-tac-zzz.md"), "")
+
+	_, after := mem.captureNotice(context.Background(), "main", test.Session)
+
+	if len(before) != 0 || len(after) != 0 || mem.hasSlot(namesKey("2026/10", 0)) {
+		t.Errorf("a session keeping no mark should list no month and tell nothing, got %v", after)
+	}
+}
+
+func TestAGraphElsewhereAtTheMonthsTurnIsLookedAtAfresh(t *testing.T) {
+	mem, _ := captureStore(t)
+
+	_, before := mem.captureNotice(context.Background(), "main", test.Session)
+
+	elsewhere := filepath.Join(t.TempDir(), "graph")
+	test.WriteFile(t, filepath.Join(elsewhere, "2026", "10", "29-235959-d-tac-zzz.md"), "")
+	test.WriteFile(t, filepath.Join(elsewhere, "2026", "11", "01-000001-d-tac-zzz.md"), "")
+
+	mem.graphConfig = &resolvedGraph{entries: elsewhere}
+	mem.env.Now = func() time.Time { return time.Date(2026, 11, 1, 12, 0, 0, 0, time.Local) }
+
+	_, after := mem.captureNotice(context.Background(), "main", test.Session)
+
+	if len(before) != 0 || len(after) != 0 {
+		t.Errorf("a graph resolved elsewhere should be marked afresh, telling none of its entries, got %v", after)
+	}
 }
 
 func TestSessionsSharingTheNameTableEachCountWhatTheyMissed(t *testing.T) {
@@ -268,12 +375,12 @@ func TestAFullPartOfTheNameTableGrowsItByAPart(t *testing.T) {
 	}
 }
 
-func TestTheNameTablesOfMonthsBeforeTheLastAreReclaimed(t *testing.T) {
+func TestOnlyAnEarlierReleasesNameTablesOfMonthsBeforeTheLastAreReclaimed(t *testing.T) {
 	mem, _ := captureStore(t)
 
 	for _, key := range []string{
 		"graph-names/2026/10", "graph-names/2026/10/1", "graph-names/2026/09", "graph-names/2026/08", "graph-names/2026/08/1",
-		"graph-names/2025/10",
+		"graph-names/2025/10", "graph-table/2026/10", "graph-table/2025/10", "graph-table/2025/10/1",
 	} {
 		err := mem.slotFile().Put(context.Background(), key, []byte("29-235959-d-tac-zzz\n"))
 		if err != nil {
@@ -285,10 +392,10 @@ func TestTheNameTablesOfMonthsBeforeTheLastAreReclaimed(t *testing.T) {
 
 	for key, kept := range map[string]bool{
 		"graph-names/2026/10": true, "graph-names/2026/10/1": true, "graph-names/2026/09": true,
-		"graph-names/2026/08": false, "graph-names/2026/08/1": false, "graph-names/2025/10": false,
+		"graph-names/2026/08": false, "graph-names/2026/08/1": false, "graph-names/2025/10": false, "graph-table/2026/10": true, "graph-table/2025/10": true, "graph-table/2025/10/1": true,
 	} {
 		if mem.hasSlot(key) != kept {
-			t.Errorf("only the tables of this month and the last should stay, %s kept: %v", key, mem.hasSlot(key))
+			t.Errorf("the capture notice should keep its tables of every month and an earlier release's of this month and the last only, %s kept: %v", key, mem.hasSlot(key))
 		}
 	}
 }
