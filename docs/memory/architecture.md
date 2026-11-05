@@ -623,7 +623,8 @@ stays in search, flagged, and `revive` refuses it.
 ## Seats and liveness
 
 A claim file, under the seat's id, names the holding session, the pid of its `claude` process, that process's start time
-(`started`, RFC 3339 in UTC), when it was claimed, and the session's transcript. A `release` or a
+(`started`, RFC 3339 in UTC), the name it runs under (`process`, where the claimer found its owner),
+when it was claimed, and the session's transcript. A `release` or a
 SessionEnd closing the seat moves the claim to `<id>.last.json` with `closed`, the time it closed.
 A claim records `commit`, HEAD when it was taken, which the `landed` lines of the seat's state ledger
 count the session's commits from. A claim made with `--session` for a session holding no seat is a reservation: `reserved` holds its
@@ -632,7 +633,18 @@ seat, writes its owning `claude` process, start time and transcript into it, and
 `scratch:` line and brief, except at a resumed session's SessionStart. A handover writes the
 new seat's claim from the old one, process and all, with `moved_from` naming the old seat until the
 session's next hook reports it. A call finds its own
-seat by walking up the process tree to the nearest `claude` process.
+seat by walking up the process tree to the nearest ancestor that started its Claude Code session,
+or that runs under the name `claude` (`AGENTIC_MEMORY_PROCESS_NAME` renames it). Claude Code starts
+every process of a session with `CLAUDE_CODE_SESSION_ID`, and `CLAUDECODE=1`, and is itself started
+without them: the nearest ancestor whose environment reads and lacks the caller's value of the first
+of them the caller carries is Claude Code, whatever its executable is named. The native installer
+runs it under its version number (`2.1.34`), an npm install as `node`. The session id comes first
+because it also tells a Claude Code started inside another's session from the one above it, which
+`CLAUDECODE` cannot. The environment is the one each process started with, read from the kernel
+(`kern.procargs2` on darwin, `/proc/<pid>/environ` on Linux); a process whose environment does not
+read is never taken for the owner. Rejected: a list of names Claude Code runs under, which grows with
+every way to install it and would take an unrelated `node` for the owner; `CLAUDE_PID`, which the Bash
+tool's shell carries and the MCP server does not.
 
 A seat held for a `full` subagent carries `agent`: `pending` from the spawn until the subagent's
 first hook names it, then its agent id. Its claim names the session and its `claude` process, as
@@ -698,14 +710,17 @@ the store's lock is taken: a seat is minted before its claim is judged. The memo
 seats while it runs; a registry kept from an earlier call would judge a seat minted since as having
 no claim and overwrite its holder's.
 
-A holder is alive while its pid runs `claude` and that process started at the recorded instant, so a
-reused pid never passes. A process on its way out counts as gone: on darwin a zombie or one inside
-exit (`P_WEXIT`, state `E` in `ps`), on Linux state `Z` or `X`. Such a husk keeps its pid and name
+A holder is alive while its pid runs under the name its claim records in `process`, `claude` (or
+`AGENTIC_MEMORY_PROCESS_NAME`) where a claim records none, and that process started at the recorded
+instant, so a reused pid never passes. A claim made without an owner among the claimer's ancestors
+records no name, so a shell standing in for one never reads alive. A process on its way out
+counts as gone: on darwin a zombie or one inside exit (`P_WEXIT`, state `E` in `ps`), on Linux
+state `Z` or `X`. Such a husk keeps its pid and name
 until its parent reaps it, which may never happen when the parent is a husk too, and it runs no
 session any more. The process table is read from the kernel, never through a `ps` spawn:
 `sysctl kern.proc.pid` on darwin (parent pid, name and start time in one call), and on Linux
 `/proc/<pid>/stat` with the boot time from `/proc/stat`, ticks counted at 100 a second. The name is
-the kernel's, truncated to 16 bytes, which `claude` fits. Start times are whole seconds, the same
+the kernel's, truncated to 16 bytes, which a claim records as read. Start times are whole seconds, the same
 instant earlier releases read from `ps -o lstart=`, so their claims still compare. A claim written
 by an earlier release may hold `ps` text: in the C locale it reads back as an instant; in another
 locale it cannot, so such a claim is judged by the process alone, and its holder's next claim

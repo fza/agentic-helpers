@@ -187,7 +187,7 @@ func (mem *memory) adopt(ctx context.Context, payload hookio.Payload) bool {
 		return false
 	}
 
-	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
+	owner, process := seat.Holder(ctx, mem.env.Processes, mem.env.OwnerName)
 	started, running := mem.env.Processes.StartTime(ctx, owner)
 
 	took := false
@@ -198,6 +198,7 @@ func (mem *memory) adopt(ctx context.Context, payload hookio.Payload) bool {
 		}
 
 		claim.PID = owner
+		claim.Process = process
 		claim.Reserved = ""
 		claim.TranscriptPath = payload.TranscriptPath
 		claim.Claimed = mem.now().Format(time.RFC3339Nano)

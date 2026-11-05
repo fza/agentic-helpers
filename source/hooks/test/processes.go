@@ -25,6 +25,28 @@ type Process struct {
 	Name     string
 	Started  time.Time
 	Terminal string
+	// Environment is what the process was started with; Hidden keeps it
+	// unreadable, as the kernel keeps another user's.
+	Environment []string
+	Hidden      bool
+}
+
+// SessionVariable is the variable Claude Code starts every process of a
+// session with, its value the session's id.
+const SessionVariable = "CLAUDE_CODE_SESSION_ID"
+
+// NewProcessesRunningAs is the tree of NewProcesses with Claude Code running
+// under name, as the native installer's version-named executable or node runs
+// it: the hook and its shell carry the session's variables, Claude Code itself
+// none.
+func NewProcessesRunningAs(name string) *Processes {
+	session := []string{SessionVariable + "=" + Session, "CLAUDECODE=1"}
+
+	return &Processes{self: HookPID, guard: &sync.RWMutex{}, Table: map[int]Process{
+		HookPID:  {Parent: ShellPID, Name: "agentic-memory", Environment: session},
+		ShellPID: {Parent: OwnerPID, Name: "zsh", Environment: session},
+		OwnerPID: {Parent: 1, Name: name, Started: OwnerStart, Environment: []string{"HOME=/Users/dev"}},
+	}}
 }
 
 type Processes struct {
@@ -105,6 +127,18 @@ func (fake *Processes) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	}
 
 	return held.Started, true
+}
+
+func (fake *Processes) Environment(_ context.Context, pid int) ([]string, bool) {
+	fake.guard.RLock()
+	defer fake.guard.RUnlock()
+
+	held, found := fake.Table[pid]
+	if !found || held.Hidden {
+		return nil, false
+	}
+
+	return held.Environment, true
 }
 
 func (fake *Processes) Terminal(_ context.Context, pid int) string {

@@ -590,9 +590,9 @@ func (mem *memory) holdForSubagent(ctx context.Context, parent string, session s
 		return "", err
 	}
 
-	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
+	owner, process := seat.Holder(ctx, mem.env.Processes, mem.env.OwnerName)
 	held := seat.Claim{
-		SessionID: session, PID: owner, Claimed: mem.now().Format(time.RFC3339Nano),
+		SessionID: session, PID: owner, Process: process, Claimed: mem.now().Format(time.RFC3339Nano),
 		Commit: mem.checkout(ctx).commit, Agent: agentPending,
 	}
 

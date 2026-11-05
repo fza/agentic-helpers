@@ -71,7 +71,7 @@ type Processes interface {
 
 // Env says where the records live, Dir, empty where the cache root is
 // unknown; where a session runs is read from Getenv and Processes, the
-// Claude Code process being the nearest ancestor named OwnerName.
+// Claude Code process being the one memory's seats find (seat.OwnerAncestor).
 type Env struct {
 	Dir       string
 	Getenv    func(string) string

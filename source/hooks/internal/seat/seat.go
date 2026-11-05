@@ -6,6 +6,7 @@
 package seat
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,6 +30,15 @@ import (
 // How far up the process tree to look for the owner. A hook runs through a
 // shell, so the immediate parent is not reliably the Claude process.
 const ancestorDepth = 12
+
+// The variables Claude Code starts every process of a session with, the most
+// telling first: the session's id tells a Claude Code started inside another
+// session from the one above it, which CLAUDECODE, always 1, cannot. Claude
+// Code itself starts without them, so the nearest ancestor not carrying the
+// caller's value is the one that started the session, whatever its executable
+// is named: the native installer runs it under its version number, an npm
+// install as node.
+var sessionVariables = []string{"CLAUDE_CODE_SESSION_ID", "CLAUDECODE"}
 
 // A seat name is a word in any script, counted in runes. Letters only, never a
 // separator or a dot, so a name is always a plain path segment.
@@ -71,6 +81,10 @@ type Claim struct {
 	// its session's process, so the process lookup passes it over: a call
 	// reaches it only by naming the agent.
 	Agent string `json:"agent,omitempty"`
+	// Process is the name the holder's executable ran under when claimed, set
+	// where the claimer found its session's Claude Code among its ancestors.
+	// Alive holds a claim without it to the configured owner name.
+	Process string `json:"process,omitempty"`
 }
 
 type Processes interface {
@@ -78,6 +92,7 @@ type Processes interface {
 	Parent() int
 	ParentAndName(ctx context.Context, pid int) (int, string)
 	StartTime(ctx context.Context, pid int) (time.Time, bool)
+	Environment(ctx context.Context, pid int) ([]string, bool)
 }
 
 // ValidName holds a name already in its Normal spelling to the name rule.
@@ -312,15 +327,26 @@ func Names(held map[string]Claim) []string {
 	return names
 }
 
-// Owner is the nearest ancestor running the owner process, or the immediate
-// parent where none does.
+// Owner is the owner process among the caller's ancestors, or the immediate
+// parent where none is.
 func Owner(ctx context.Context, processes Processes, ownerName string) int {
-	owner := OwnerAncestor(ctx, processes, ownerName)
-	if owner == 0 {
-		return processes.Parent()
-	}
+	owner, _ := Holder(ctx, processes, ownerName)
 
 	return owner
+}
+
+// Holder is the process a claim made now names, with the name a claim records
+// for it: the owner and the name it runs under, or the immediate parent and no
+// name where no ancestor is the owner.
+func Holder(ctx context.Context, processes Processes, ownerName string) (int, string) {
+	owner := OwnerAncestor(ctx, processes, ownerName)
+	if owner == 0 {
+		return processes.Parent(), ""
+	}
+
+	_, name := processes.ParentAndName(ctx, owner)
+
+	return owner, name
 }
 
 // UnderOwner says whether the owner process is among the caller's ancestors,
@@ -329,9 +355,11 @@ func UnderOwner(ctx context.Context, processes Processes, ownerName string) bool
 	return OwnerAncestor(ctx, processes, ownerName) != 0
 }
 
-// OwnerAncestor is the nearest ancestor running the owner process, zero where
-// none does.
+// OwnerAncestor is the nearest ancestor that started the caller's Claude Code
+// session or runs under the owner name, zero where none does.
 func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) int {
+	variable, value := carriedSession(ctx, processes)
+
 	parent, _ := processes.ParentAndName(ctx, processes.Self())
 	for range ancestorDepth {
 		if parent <= 1 {
@@ -339,7 +367,7 @@ func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) i
 		}
 
 		grandparent, name := processes.ParentAndName(ctx, parent)
-		if name == ownerName {
+		if name == ownerName || startedSession(ctx, processes, parent, variable, value) {
 			return parent
 		}
 
@@ -349,8 +377,54 @@ func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) i
 	return 0
 }
 
-// Alive reports whether the claim's holder still runs: the same pid, still the
-// owner process, started at the same instant, so a reused pid never passes.
+// carriedSession is the first of the session variables the caller was started
+// with, and its value, empty where it carries none, as a process no Claude Code
+// started.
+func carriedSession(ctx context.Context, processes Processes) (string, string) {
+	environment, _ := processes.Environment(ctx, processes.Self())
+
+	for _, variable := range sessionVariables {
+		value, found := lookupVariable(environment, variable)
+		if found {
+			return variable, value
+		}
+	}
+
+	return "", ""
+}
+
+// startedSession says whether pid started the session the caller carries:
+// its environment reads, and holds the variable at another value or not at
+// all. A process whose environment does not read is never taken for it.
+func startedSession(ctx context.Context, processes Processes, pid int, variable string, value string) bool {
+	if variable == "" {
+		return false
+	}
+
+	environment, readable := processes.Environment(ctx, pid)
+	if !readable {
+		return false
+	}
+
+	held, found := lookupVariable(environment, variable)
+
+	return !found || held != value
+}
+
+func lookupVariable(environment []string, variable string) (string, bool) {
+	for _, entry := range environment {
+		name, value, found := strings.Cut(entry, "=")
+		if found && name == variable {
+			return value, true
+		}
+	}
+
+	return "", false
+}
+
+// Alive reports whether the claim's holder still runs: the same pid, still
+// under the name its claim records, or the owner name where it records none,
+// started at the same instant, so a reused pid never passes.
 //
 // A claim written by an earlier release holds `ps` text in the claimer's
 // locale. Text in another locale cannot be read back into an instant, so such
@@ -361,7 +435,7 @@ func Alive(ctx context.Context, processes Processes, ownerName string, held Clai
 	}
 
 	_, name := processes.ParentAndName(ctx, held.PID)
-	if name == "" || name != ownerName {
+	if name == "" || name != cmp.Or(held.Process, ownerName) {
 		return false
 	}
 

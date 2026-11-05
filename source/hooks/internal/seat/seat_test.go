@@ -117,6 +117,145 @@ func TestOwnerWalksPastTheShell(t *testing.T) {
 	}
 }
 
+func TestTheOwnerIsClaudeCodeWhateverItsExecutableIsNamed(t *testing.T) {
+	cases := []struct {
+		name  string
+		tree  func() *test.Processes
+		owner int
+	}{
+		{
+			name:  "the native installer's version-named executable",
+			tree:  func() *test.Processes { return test.NewProcessesRunningAs("2.1.318") },
+			owner: test.OwnerPID,
+		},
+		{
+			name:  "node running Claude Code",
+			tree:  func() *test.Processes { return test.NewProcessesRunningAs("node") },
+			owner: test.OwnerPID,
+		},
+		{
+			name: "a Claude Code that starts its processes with CLAUDECODE alone",
+			tree: func() *test.Processes {
+				processes := test.NewProcessesRunningAs("2.1.318")
+				for _, pid := range []int{test.HookPID, test.ShellPID} {
+					held := processes.Table[pid]
+					held.Environment = []string{"CLAUDECODE=1"}
+					processes.Table[pid] = held
+				}
+
+				return processes
+			},
+			owner: test.OwnerPID,
+		},
+		{
+			name: "a session variable set empty",
+			tree: func() *test.Processes {
+				processes := test.NewProcessesRunningAs("2.1.318")
+				for _, pid := range []int{test.HookPID, test.ShellPID} {
+					held := processes.Table[pid]
+					held.Environment = []string{test.SessionVariable + "="}
+					processes.Table[pid] = held
+				}
+
+				return processes
+			},
+			owner: test.OwnerPID,
+		},
+		{
+			name: "a Claude Code started inside another Claude Code's session",
+			tree: func() *test.Processes {
+				processes := test.NewProcessesRunningAs("2.1.318")
+				held := processes.Table[test.OwnerPID]
+				held.Parent = test.OtherOwnerPID
+				held.Environment = []string{test.SessionVariable + "=outer-session", "CLAUDECODE=1"}
+				processes.Table[test.OwnerPID] = held
+				processes.Table[test.OtherOwnerPID] = test.Process{Parent: 1, Name: "2.1.300"}
+
+				return processes
+			},
+			owner: test.OwnerPID,
+		},
+		{
+			name: "a process between whose environment is hidden",
+			tree: func() *test.Processes {
+				processes := test.NewProcessesRunningAs("2.1.318")
+				held := processes.Table[test.ShellPID]
+				held.Hidden = true
+				processes.Table[test.ShellPID] = held
+
+				return processes
+			},
+			owner: test.OwnerPID,
+		},
+		{
+			name: "a hook no Claude Code started, under a version-named process",
+			tree: func() *test.Processes {
+				processes := test.NewProcessesRunningAs("2.1.318")
+				for _, pid := range []int{test.HookPID, test.ShellPID} {
+					held := processes.Table[pid]
+					held.Environment = nil
+					processes.Table[pid] = held
+				}
+
+				return processes
+			},
+		},
+		{
+			name:  "the default tree, Claude Code named claude and no session carried",
+			tree:  test.NewProcesses,
+			owner: test.OwnerPID,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if seat.OwnerAncestor(context.Background(), tc.tree(), "claude") != tc.owner {
+				t.Error("the owner should be the nearest ancestor that started the caller's session, or the one running the owner name")
+			}
+		})
+	}
+}
+
+func TestAClaimRecordsTheNameItsHolderRunsUnder(t *testing.T) {
+	ctx := context.Background()
+
+	owner, process := seat.Holder(ctx, test.NewProcessesRunningAs("2.1.318"), "claude")
+	if owner != test.OwnerPID || process != "2.1.318" {
+		t.Errorf("a claim should name the Claude Code process with the name it runs under, got %d %q", owner, process)
+	}
+
+	owner, process = seat.Holder(ctx, test.NewProcessesOutsideClaude(), "claude")
+	if owner != test.ShellPID || process != "" {
+		t.Errorf("without an owner the parent should stand in under no name, got %d %q", owner, process)
+	}
+}
+
+func TestAliveHoldsAClaimToTheNameItRecords(t *testing.T) {
+	processes := test.NewProcessesRunningAs("2.1.318")
+
+	cases := []struct {
+		name    string
+		process string
+		start   string
+		alive   bool
+	}{
+		{name: "the recorded name at the recorded start", process: "2.1.318", start: test.OwnerStarted, alive: true},
+		{name: "the recorded name at another start", process: "2.1.318", start: "2026-09-25T12:00:01Z"},
+		{name: "another recorded name at the recorded start", process: "node", start: test.OwnerStarted},
+		{name: "no recorded name, held to the owner name", start: test.OwnerStarted},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			held := seat.Claim{SessionID: test.Session, PID: test.OwnerPID, Started: tc.start, Process: tc.process}
+
+			if seat.Alive(context.Background(), processes, "claude", held) != tc.alive {
+				t.Error("a claim should read alive only while its pid runs under the name it records, from the start it records")
+			}
+		})
+	}
+}
+
 func TestUnderOwner(t *testing.T) {
 	cases := []struct {
 		name      string

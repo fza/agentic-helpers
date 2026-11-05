@@ -5,10 +5,53 @@
 package process
 
 import (
+	"bytes"
+	"encoding/binary"
 	"os"
 	"strings"
 	"time"
 )
+
+// ProcargsEnvironment is the environment a darwin process was started with,
+// from its kern.procargs2: the argument count, the executable path padded with
+// NULs, that many arguments, then the environment up to an empty string. The
+// kernel copies it from the process's own stack, so it is what the process
+// started with, not what it set since.
+func ProcargsEnvironment(raw []byte) ([]string, bool) {
+	if len(raw) < 4 {
+		return nil, false
+	}
+
+	count := int(binary.NativeEndian.Uint32(raw[:4]))
+
+	_, rest, found := bytes.Cut(raw[4:], []byte{0})
+	if !found {
+		return nil, false
+	}
+
+	rest = bytes.TrimLeft(rest, "\x00")
+
+	for range count {
+		_, rest, found = bytes.Cut(rest, []byte{0})
+		if !found {
+			return nil, false
+		}
+	}
+
+	var environment []string
+
+	for len(rest) > 0 {
+		entry, after, _ := bytes.Cut(rest, []byte{0})
+		if len(entry) == 0 {
+			break
+		}
+
+		environment = append(environment, string(entry))
+		rest = after
+	}
+
+	return environment, true
+}
 
 type Table struct{}
 

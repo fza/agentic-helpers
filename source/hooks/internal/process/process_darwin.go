@@ -35,6 +35,17 @@ func (Table) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	return time.Unix(seconds, 0), true
 }
 
+// Environment is the environment pid was started with, unreadable where the
+// process is gone or the kernel keeps it from this user.
+func (Table) Environment(_ context.Context, pid int) ([]string, bool) {
+	raw, err := unix.SysctlRaw("kern.procargs2", pid)
+	if err != nil {
+		return nil, false
+	}
+
+	return ProcargsEnvironment(raw)
+}
+
 // darwinNoDevice is NODEV, the terminal device of a process with none.
 const darwinNoDevice = -1
 

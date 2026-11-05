@@ -18,6 +18,10 @@ func (Table) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	return proc.StartTime(pid)
 }
 
+func (Table) Environment(_ context.Context, pid int) ([]string, bool) {
+	return proc.Environment(pid)
+}
+
 // Terminal is the device file of pid's controlling terminal, empty where it
 // has none, is gone, or the file at the name its device takes is another
 // device.

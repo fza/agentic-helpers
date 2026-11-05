@@ -46,8 +46,9 @@ under the writer lock, so parallel hooks of one session never lose each other's 
 is JSON carrying its `schema`; one of another schema reads as no record, and the next event writes
 a fresh one.
 
-The Claude Code process is the nearest ancestor named `claude` (`AGENTIC_MEMORY_PROCESS_NAME`
-renames it, as for memory's seats), its start read in whole seconds from the kernel as a claim's
+The Claude Code process is found as memory's seats find their owner: the nearest ancestor that
+started the session, whatever its executable is named, or that runs under the name `claude`
+(`AGENTIC_MEMORY_PROCESS_NAME` renames it), its start read in whole seconds from the kernel as a claim's
 is (`process.Table.StartTime`). Its controlling terminal comes from the kernel too: on darwin the
 `e_tdev` of `kern.proc.pid`, a pseudo-terminal device named `/dev/ttysNNN` by its minor; on Linux
 field 7 of `/proc/<pid>/stat`, named `/dev/pts/N` or `/dev/ttyN`. The name is kept only where the

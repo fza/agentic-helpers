@@ -2,8 +2,10 @@ package process_test
 
 import (
 	"context"
+	"encoding/binary"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -73,6 +75,76 @@ func TestTheTableReadsTheKernelNeverPs(t *testing.T) {
 
 	if parent != 0 || name != "" || found {
 		t.Error("a pid nothing runs should read as gone")
+	}
+}
+
+func TestProcargsEnvironment(t *testing.T) {
+	procargs := func(count uint32, rest string) []byte {
+		return append(binary.NativeEndian.AppendUint32(nil, count), rest...)
+	}
+
+	cases := []struct {
+		name        string
+		raw         []byte
+		environment []string
+		readable    bool
+	}{
+		{
+			name:        "arguments, then the environment, then the strings the kernel adds",
+			raw:         procargs(2, "/opt/claude/2.1.318\x00\x00\x00\x002.1.318\x00-p\x00HOME=/Users/dev\x00CLAUDECODE=1\x00\x00ptr_munge=\x00"),
+			environment: []string{"HOME=/Users/dev", "CLAUDECODE=1"},
+			readable:    true,
+		},
+		{
+			name:        "an argument holding an equals sign",
+			raw:         procargs(2, "/bin/env\x00env\x00A=1\x00B=2\x00"),
+			environment: []string{"B=2"},
+			readable:    true,
+		},
+		{name: "no environment", raw: procargs(1, "/bin/sh\x00sh\x00"), readable: true},
+		{name: "arguments cut short", raw: procargs(3, "/bin/sh\x00sh\x00-c\x00")},
+		{name: "an executable path never ended", raw: procargs(1, "/bin/sh")},
+		{name: "an executable path never ended, no arguments counted", raw: procargs(0, "/bin/sh")},
+		{name: "no argument count", raw: []byte{1, 0}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			environment, readable := process.ProcargsEnvironment(tc.raw)
+			if readable != tc.readable || !slices.Equal(environment, tc.environment) {
+				t.Errorf("the environment should read past the arguments up to an empty string, got %q %v", environment,
+					readable)
+			}
+		})
+	}
+}
+
+func TestTheTableReadsTheEnvironmentAProcessStartedWith(t *testing.T) {
+	environment, readable := process.Table{}.Environment(context.Background(), os.Getpid())
+	if !readable || !slices.Contains(environment, "PATH="+os.Getenv("PATH")) {
+		t.Errorf("this process's environment should read from the kernel, got %v", readable)
+	}
+
+	_, readable = process.Table{}.Environment(context.Background(), test.DeadPID)
+	if readable {
+		t.Error("a pid nothing runs should have no environment")
+	}
+}
+
+func TestProcfsReadsTheEnvironment(t *testing.T) {
+	root := t.TempDir()
+	test.FixtureTree(t, "process/proc", root)
+
+	procfs := process.Procfs{Root: os.DirFS(root)}
+
+	environment, readable := procfs.Environment(4242)
+	if !readable || !slices.Equal(environment, []string{"HOME=/home/dev", "CLAUDECODE=1"}) {
+		t.Errorf("the environment should split at every NUL, got %q %v", environment, readable)
+	}
+
+	_, readable = procfs.Environment(999)
+	if readable {
+		t.Error("a pid not in the tree should have no environment")
 	}
 }
 

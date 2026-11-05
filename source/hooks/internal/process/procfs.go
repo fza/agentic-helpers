@@ -53,6 +53,25 @@ func (procfs Procfs) StartTime(pid int) (time.Time, bool) {
 	return time.Unix(booted+ticks/clockTicks, 0), true
 }
 
+// Environment is the environment pid was started with, from its `environ`,
+// unreadable where the process is gone or belongs to another user.
+func (procfs Procfs) Environment(pid int) ([]string, bool) {
+	raw, err := fs.ReadFile(procfs.Root, strconv.Itoa(pid)+"/environ")
+	if err != nil {
+		return nil, false
+	}
+
+	var environment []string
+
+	for entry := range bytes.SplitSeq(raw, []byte{0}) {
+		if len(entry) > 0 {
+			environment = append(environment, string(entry))
+		}
+	}
+
+	return environment, true
+}
+
 // TerminalDevice is the major and minor number of pid's controlling terminal,
 // field 7 of its stat, which packs the minor's low byte, then 12 bits of
 // major, then the minor's upper bits; a process without one holds zero.

@@ -141,7 +141,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		return mem.claimFor(ctx, req)
 	}
 
-	owner := seat.Owner(ctx, mem.env.Processes, mem.env.OwnerName)
+	owner, process := seat.Holder(ctx, mem.env.Processes, mem.env.OwnerName)
 
 	current, _ := mem.ownSeat(ctx)
 	if current != "" && current != req.Name {
@@ -178,7 +178,7 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 		return refused("%v", err)
 	}
 
-	took, refusal, err := mem.take(ctx, req.Name, key, current == req.Name, owner)
+	took, refusal, err := mem.take(ctx, req.Name, key, current == req.Name, owner, process)
 	if err != nil {
 		return refused("%v", err)
 	}
@@ -304,7 +304,7 @@ type taken struct {
 // take writes this session's claim on the seat filed under key, reading and
 // judging the claim it replaces under the seats lock, and answers the claim
 // written with the previous holder's, or why the seat cannot be taken.
-func (mem *memory) take(ctx context.Context, name string, key string, own bool, owner int) (taken, string, error) {
+func (mem *memory) take(ctx context.Context, name string, key string, own bool, owner int, process string) (taken, string, error) {
 	dir := mem.seatsDir()
 
 	unlock, err := seat.Lock(ctx, mem.env.Roots.Data, dir)
@@ -350,6 +350,8 @@ func (mem *memory) take(ctx context.Context, name string, key string, own bool, 
 	if running {
 		took.held.Started = seat.FormatStarted(started)
 	}
+
+	took.held.Process = process
 
 	err = seat.Write(mem.env.Roots.Data, dir, key, took.held)
 	if err != nil {
