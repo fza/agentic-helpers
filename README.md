@@ -176,9 +176,7 @@ curl -sL https://github.com/networkteam/sdd/releases/latest/download/install.sh 
 
 **Optional: the fork [github.com/fza/sdd](https://github.com/fza/sdd)** (`brew install fza/tap/sdd`).
 agentic-helpers works with stock sdd, and uses the fork's extras wherever the installed `sdd`
-offers them. [`docs/capture/usage.md`](docs/capture/usage.md) lists them. One caution: once
-`sdd migrate` moves a graph to the fork's schema, stock sdd can no longer write to it, so everyone
-writing to that graph needs the fork.
+offers them. [`docs/capture/usage.md`](docs/capture/usage.md) lists them.
 
 ## Options
 
