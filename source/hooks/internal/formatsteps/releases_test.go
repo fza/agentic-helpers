@@ -221,6 +221,14 @@ func (run releaseRun) liveClaim() {
 		}
 
 		claim["pid"], claim["started"] = claimOwnerPID, test.OwnerStart.UTC().Format(time.RFC3339)
+
+		// A release recording the name its holder ran under recorded the
+		// fixture script's; the test's table runs its owner as claude.
+		_, named := claim["process"]
+		if named {
+			claim["process"] = "claude"
+		}
+
 		raw, _ = json.Marshal(claim)
 		test.WriteFile(run.t, path, string(raw))
 	}

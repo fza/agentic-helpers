@@ -441,7 +441,8 @@ func (session *scripted) play(ctx context.Context) error {
 		{id: sessionA, binary: "agentic-memory", args: []string{"retire", session.ids["retired"], "--because", "proven wrong"}},
 		{id: sessionA, binary: "agentic-memory", args: []string{"supersede", session.ids["old"], "--by", session.ids["new"],
 			"--because", "the release lost a step"}},
-		{id: sessionA, binary: "agentic-memory", args: []string{"ack", "state", "--add", "gate fix halfway; next: wire the MCP reads, then docs"}},
+		{id: sessionA, binary: "agentic-memory", args: []string{"ack", "state", "--add", "gate fix halfway; next: wire the MCP reads, then docs",
+			"--until", "none"}},
 		{id: sessionA, stdin: hook(map[string]any{"session_id": sessionA, "prompt": "go on with the gate", "cwd": session.repo}),
 			binary: "agentic-memory", args: []string{"prompt"}},
 		{id: sessionA, binary: "agentic-tools", args: []string{"add", "count-lines", "--from", "scripts/count-lines.sh",
@@ -469,7 +470,7 @@ func (session *scripted) play(ctx context.Context) error {
 	}
 
 	return session.steps(ctx, []step{
-		{id: sessionB, binary: "agentic-memory", args: []string{"ack", "state", "--add", "drive sync done; next: tell main"}},
+		{id: sessionB, binary: "agentic-memory", args: []string{"ack", "state", "--add", "drive sync done; next: tell main", "--until", "claim"}},
 		{id: sessionB, binary: "agentic-memory", args: []string{"release"}},
 		{id: sessionA, binary: "agentic-memory", args: []string{"claim", "main"}},
 	})
