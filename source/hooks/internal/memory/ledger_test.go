@@ -243,8 +243,12 @@ func TestMCPAckRefusesAStateLineWithoutUntil(t *testing.T) {
 	h.must("", "claim", "main")
 
 	answer := h.mcp(`{"name":"ack","arguments":{"ids":["state"],"add":["over MCP"]}}`)
-	if !strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, "needs --until") {
-		t.Errorf("MCP ack should refuse a state line naming no end, got %s", answer)
+	if !strings.Contains(answer, `"isError":true`) || !strings.Contains(answer, `with \"add\" needs \"until\": closed:`) {
+		t.Errorf("MCP ack should refuse a state line naming no end by its MCP keys, got %s", answer)
+	}
+
+	if strings.Contains(answer, "--until") || strings.Contains(answer, "--add") {
+		t.Errorf("an MCP refusal should name no command-line flag, got %s", answer)
 	}
 }
 

@@ -538,7 +538,9 @@ MCP `ack` takes the same: `{"ids":["state"],"add":["<line>"],"until":["claim"]}`
 takes ([Declared ends](#declared-ends)), or `none` for a line only a tick or a remove ends, `none`
 adding nothing beside another form. An add without one is refused, naming the forms: `ack state
 --add needs --until: closed:<graph id>, merged:<branch>[@<into>], changed:<path>, gone:<path>,
-claim, session, at:<time> or captured; or none for a line only a tick or a remove ends`. A line
+claim, session, at:<time> or captured; or none for a line only a tick or a remove ends`, and over
+MCP by its keys: `ack on state with "add" needs "until": ...; or "none" for a line only a tick or a
+remove ends`. A line
 naming no end stays open through the capture, merge or close that settled it, so a ledger added to
 a step at a time grows like a log. `until` is refused anywhere but on `ack state --add`, a todo's
 items and a rule included:

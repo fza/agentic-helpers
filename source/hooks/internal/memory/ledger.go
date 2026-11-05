@@ -77,7 +77,6 @@ var (
 	ErrShowSeats   = errors.New("--seat names the one seat whose ledger show state reads")
 	ErrSeatNoState = errors.New("--seat names whose ledger show state reads; give state among the ids")
 	ErrUnknownSeat = errors.New("no such seat")
-	ErrUntilNeeded = errors.New("ack state --add needs --until: " + untilForms + "; or none for a line only a tick or a remove ends")
 	// stateAddress is a ledger line's address, `state#<item>`.
 	stateAddress = regexp.MustCompile(`^state#([a-z0-9]+)$`)
 	// citedMemory finds a memory id or a todo item's address a line's text
@@ -532,13 +531,24 @@ func (mem *memory) ackState(ctx context.Context, req request) result {
 	return done(strings.Join(lines, "\n"))
 }
 
+// untilNeeded is the refusal of a state line added without an end, its keys
+// spelled for the caller's channel: an agent rewrites the call it made by the
+// keys the refusal names.
+func untilNeeded(at channel) string {
+	if at == channelCLI {
+		return "ack state --add needs --until: " + untilForms + "; or none for a line only a tick or a remove ends"
+	}
+
+	return `ack on state with "add" needs "until": ` + untilForms + `; or "none" for a line only a tick or a remove ends`
+}
+
 func (mem *memory) addLines(ctx context.Context, held *ledger, name string, req request) ([]memorylog.Event, string, error) {
 	if len(req.IDs) != 1 || req.IDs[0] != ledgerID {
 		return nil, "", ErrStateAdd
 	}
 
 	if len(req.Until) == 0 {
-		return nil, "", ErrUntilNeeded
+		return nil, "", errors.New(untilNeeded(mem.hintChannel(ctx)))
 	}
 
 	// none keeps no condition: beside another one it adds nothing.
