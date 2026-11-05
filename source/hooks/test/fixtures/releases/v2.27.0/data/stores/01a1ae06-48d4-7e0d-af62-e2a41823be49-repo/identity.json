@@ -1,0 +1,15 @@
+{
+  "id": "01a1ae06-48d4-7e0d-af62-e2a41823be49-repo",
+  "created": "2026-11-05T23:23:29.876256Z",
+  "checkouts": [
+    {
+      "path": "@WORK@/repo",
+      "common_dir": "@WORK@/repo/.git",
+      "volume": "61133638-5510-48FD-B07D-CF0F85F9891D",
+      "inode": 1576810542
+    }
+  ],
+  "legacy_keys": [
+    "local/99018751f400"
+  ]
+}
