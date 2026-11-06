@@ -78,30 +78,33 @@ func TestTheTableReadsTheKernelNeverPs(t *testing.T) {
 	}
 }
 
-func TestProcargsEnvironment(t *testing.T) {
+func TestProcargsCommand(t *testing.T) {
 	procargs := func(count uint32, rest string) []byte {
 		return append(binary.NativeEndian.AppendUint32(nil, count), rest...)
 	}
 
 	cases := []struct {
-		name        string
-		raw         []byte
-		environment []string
-		readable    bool
+		name       string
+		raw        []byte
+		executable string
+		args       []string
+		readable   bool
 	}{
 		{
-			name:        "arguments, then the environment, then the strings the kernel adds",
-			raw:         procargs(2, "/opt/claude/2.1.318\x00\x00\x00\x002.1.318\x00-p\x00HOME=/Users/dev\x00CLAUDECODE=1\x00\x00ptr_munge=\x00"),
-			environment: []string{"HOME=/Users/dev", "CLAUDECODE=1"},
-			readable:    true,
+			name:       "the executable padded with NULs, then the arguments, then the environment",
+			raw:        procargs(2, "/opt/claude/2.1.318\x00\x00\x00\x00claude\x00-p\x00HOME=/Users/dev\x00\x00ptr_munge=\x00"),
+			executable: "/opt/claude/2.1.318",
+			args:       []string{"claude", "-p"},
+			readable:   true,
 		},
 		{
-			name:        "an argument holding an equals sign",
-			raw:         procargs(2, "/bin/env\x00env\x00A=1\x00B=2\x00"),
-			environment: []string{"B=2"},
-			readable:    true,
+			name:       "an argument holding an equals sign",
+			raw:        procargs(2, "/bin/env\x00env\x00A=1\x00B=2\x00"),
+			executable: "/bin/env",
+			args:       []string{"env", "A=1"},
+			readable:   true,
 		},
-		{name: "no environment", raw: procargs(1, "/bin/sh\x00sh\x00"), readable: true},
+		{name: "no arguments counted", raw: procargs(0, "/bin/sh\x00"), executable: "/bin/sh", args: []string{}, readable: true},
 		{name: "arguments cut short", raw: procargs(3, "/bin/sh\x00sh\x00-c\x00")},
 		{name: "an executable path never ended", raw: procargs(1, "/bin/sh")},
 		{name: "an executable path never ended, no arguments counted", raw: procargs(0, "/bin/sh")},
@@ -110,41 +113,75 @@ func TestProcargsEnvironment(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			environment, readable := process.ProcargsEnvironment(tc.raw)
-			if readable != tc.readable || !slices.Equal(environment, tc.environment) {
-				t.Errorf("the environment should read past the arguments up to an empty string, got %q %v", environment,
-					readable)
+			executable, args, readable := process.ProcargsCommand(tc.raw)
+			if readable != tc.readable || executable != tc.executable || !slices.Equal(args, tc.args) {
+				t.Errorf("the command should read the executable, then as many arguments as counted, got %q %q %v",
+					executable, args, readable)
 			}
 		})
 	}
 }
 
-func TestTheTableReadsTheEnvironmentAProcessStartedWith(t *testing.T) {
-	environment, readable := process.Table{}.Environment(context.Background(), os.Getpid())
-	if !readable || !slices.Contains(environment, "PATH="+os.Getenv("PATH")) {
-		t.Errorf("this process's environment should read from the kernel, got %v", readable)
+func TestTheTableReadsTheCommandAProcessStartedWith(t *testing.T) {
+	executable, args, readable := process.Table{}.Command(context.Background(), os.Getpid())
+	if !readable || len(args) == 0 || !slices.Equal(args, os.Args) || executable == "" {
+		t.Errorf("this process's command should read from the kernel, got %q %q %v", executable, args, readable)
 	}
 
-	_, readable = process.Table{}.Environment(context.Background(), test.DeadPID)
+	_, _, readable = process.Table{}.Command(context.Background(), test.DeadPID)
 	if readable {
-		t.Error("a pid nothing runs should have no environment")
+		t.Error("a pid nothing runs should have no command")
 	}
 }
 
-func TestProcfsReadsTheEnvironment(t *testing.T) {
+func TestProcfsReadsTheCommand(t *testing.T) {
 	root := t.TempDir()
 	test.FixtureTree(t, "process/proc", root)
 
-	procfs := process.Procfs{Root: os.DirFS(root)}
-
-	environment, readable := procfs.Environment(4242)
-	if !readable || !slices.Equal(environment, []string{"HOME=/home/dev", "CLAUDECODE=1"}) {
-		t.Errorf("the environment should split at every NUL, got %q %v", environment, readable)
+	err := os.Symlink("/usr/bin/node", filepath.Join(root, "4242", "exe"))
+	if err != nil {
+		t.Fatalf("linking the executable: %v", err)
 	}
 
-	_, readable = procfs.Environment(999)
+	procfs := process.Procfs{Root: os.DirFS(root)}
+
+	executable, args, readable := procfs.Command(4242)
+	want := []string{"node", "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js", "--resume"}
+	if !readable || executable != "/usr/bin/node" || !slices.Equal(args, want) {
+		t.Errorf("the command should be where exe leads and cmdline split at every NUL, got %q %q %v",
+			executable, args, readable)
+	}
+
+	_, _, readable = procfs.Command(4343)
 	if readable {
-		t.Error("a pid not in the tree should have no environment")
+		t.Error("a process whose exe does not read should have no command")
+	}
+
+	err = os.Mkdir(filepath.Join(root, "7000"), 0o755)
+	if err != nil {
+		t.Fatalf("creating a process without arguments: %v", err)
+	}
+
+	err = os.Symlink("/usr/bin/node", filepath.Join(root, "7000", "exe"))
+	if err != nil {
+		t.Fatalf("linking the executable: %v", err)
+	}
+
+	_, _, readable = procfs.Command(7000)
+	if readable {
+		t.Error("a process whose cmdline does not read should have no command")
+	}
+
+	test.WriteFile(t, filepath.Join(root, "7100", "cmdline"), "node\x00")
+
+	_, _, readable = procfs.Command(7100)
+	if readable {
+		t.Error("a process whose exe does not read, as another user's, should have no command")
+	}
+
+	_, _, readable = procfs.Command(999)
+	if readable {
+		t.Error("a pid not in the tree should have no command")
 	}
 }
 

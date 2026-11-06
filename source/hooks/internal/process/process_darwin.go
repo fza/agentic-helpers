@@ -35,15 +35,16 @@ func (Table) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	return time.Unix(seconds, 0), true
 }
 
-// Environment is the environment pid was started with, unreadable where the
-// process is gone or the kernel keeps it from this user.
-func (Table) Environment(_ context.Context, pid int) ([]string, bool) {
+// Command is the executable path and the arguments pid was started with,
+// unreadable where the process is gone or the kernel keeps them from this
+// user.
+func (Table) Command(_ context.Context, pid int) (string, []string, bool) {
 	raw, err := unix.SysctlRaw("kern.procargs2", pid)
 	if err != nil {
-		return nil, false
+		return "", nil, false
 	}
 
-	return ProcargsEnvironment(raw)
+	return ProcargsCommand(raw)
 }
 
 // darwinNoDevice is NODEV, the terminal device of a process with none.

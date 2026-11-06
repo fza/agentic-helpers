@@ -633,18 +633,19 @@ seat, writes its owning `claude` process, start time and transcript into it, and
 `scratch:` line and brief, except at a resumed session's SessionStart. A handover writes the
 new seat's claim from the old one, process and all, with `moved_from` naming the old seat until the
 session's next hook reports it. A call finds its own
-seat by walking up the process tree to the nearest ancestor that started its Claude Code session,
-or that runs under the name `claude` (`AGENTIC_MEMORY_PROCESS_NAME` renames it). Claude Code starts
-every process of a session with `CLAUDE_CODE_SESSION_ID`, and `CLAUDECODE=1`, and is itself started
-without them: the nearest ancestor whose environment reads and lacks the caller's value of the first
-of them the caller carries is Claude Code, whatever its executable is named. The native installer
-runs it under its version number (`2.1.34`), an npm install as `node`. The session id comes first
-because it also tells a Claude Code started inside another's session from the one above it, which
-`CLAUDECODE` cannot. The environment is the one each process started with, read from the kernel
-(`kern.procargs2` on darwin, `/proc/<pid>/environ` on Linux); a process whose environment does not
-read is never taken for the owner. Rejected: a list of names Claude Code runs under, which grows with
-every way to install it and would take an unrelated `node` for the owner; `CLAUDE_PID`, which the Bash
-tool's shell carries and the MCP server does not.
+seat by walking up the process tree to the nearest ancestor that is Claude Code: one running under
+the name `claude` (`AGENTIC_MEMORY_PROCESS_NAME` renames it); one running under a version number
+(`2.1.318`) whose executable, its links resolved, is `.../claude/versions/<that version>`, as the
+native installer runs it; or `node` whose first argument past its own options, its links resolved,
+lies inside `node_modules/@anthropic-ai/claude-code/`, as an npm install runs it. The executable
+and the arguments are the ones each process started with, read from the kernel (`kern.procargs2` on
+darwin, `/proc/<pid>/exe` and `/proc/<pid>/cmdline` on Linux); a process whose command does not
+read is never taken for the owner. A shell between is never taken for it, whatever its environment
+holds. Rejected: the nearest ancestor whose start environment lacks the caller's
+`CLAUDE_CODE_SESSION_ID`, since Claude Code sets that variable inside the Bash tool's shell rather
+than in the environment it starts the shell with, so the shell itself passed for Claude Code and a
+claim died with the call; any `node` or version-named process, which takes an MCP server or a
+wrapper for the owner; `CLAUDE_PID`, which the Bash tool's shell carries and the MCP server does not.
 
 A seat held for a `full` subagent carries `agent`: `pending` from the spawn until the subagent's
 first hook names it, then its agent id. Its claim names the session and its `claude` process, as

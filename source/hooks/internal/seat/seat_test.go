@@ -2,6 +2,7 @@ package seat_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -118,43 +119,89 @@ func TestOwnerWalksPastTheShell(t *testing.T) {
 }
 
 func TestTheOwnerIsClaudeCodeWhateverItsExecutableIsNamed(t *testing.T) {
+	withOwner := func(name string, change func(owner *test.Process)) func() *test.Processes {
+		return func() *test.Processes {
+			processes := test.NewProcessesRunningAs(name)
+			owner := processes.Table[test.OwnerPID]
+			change(&owner)
+			processes.Table[test.OwnerPID] = owner
+
+			return processes
+		}
+	}
+
 	cases := []struct {
 		name  string
 		tree  func() *test.Processes
 		owner int
 	}{
 		{
-			name:  "the native installer's version-named executable",
-			tree:  func() *test.Processes { return test.NewProcessesRunningAs("2.1.318") },
+			name:  "the default tree, Claude Code named claude",
+			tree:  test.NewProcesses,
 			owner: test.OwnerPID,
 		},
 		{
-			name:  "node running Claude Code",
+			name:  "the native installer's version-named executable",
+			tree:  func() *test.Processes { return test.NewProcessesRunningAs(test.NativeVersion) },
+			owner: test.OwnerPID,
+		},
+		{
+			name:  "node running the npm package's script",
 			tree:  func() *test.Processes { return test.NewProcessesRunningAs("node") },
 			owner: test.OwnerPID,
 		},
 		{
-			name: "a Claude Code that starts its processes with CLAUDECODE alone",
-			tree: func() *test.Processes {
-				processes := test.NewProcessesRunningAs("2.1.318")
-				for _, pid := range []int{test.HookPID, test.ShellPID} {
-					held := processes.Table[pid]
-					held.Environment = []string{"CLAUDECODE=1"}
-					processes.Table[pid] = held
-				}
-
-				return processes
-			},
+			name: "node running the npm package's script after its own options",
+			tree: withOwner("node", func(owner *test.Process) {
+				owner.Args = []string{"node", "--no-warnings", test.NpmScript, "--resume"}
+			}),
 			owner: test.OwnerPID,
 		},
 		{
-			name: "a session variable set empty",
+			name: "a version-named executable outside the native installer's versions",
+			tree: withOwner(test.NativeVersion, func(owner *test.Process) {
+				owner.Executable = "/opt/tools/" + test.NativeVersion
+			}),
+		},
+		{
+			name: "a version-named executable of another version than its name",
+			tree: withOwner(test.NativeVersion, func(owner *test.Process) {
+				owner.Executable = "/Users/dev/.local/share/claude/versions/2.1.300"
+			}),
+		},
+		{
+			name: "a name shaped like no version, run from the native installer's versions",
+			tree: withOwner("latest", func(owner *test.Process) {
+				owner.Executable = "/Users/dev/.local/share/claude/versions/latest"
+			}),
+		},
+		{
+			name: "node running another script",
+			tree: withOwner("node", func(owner *test.Process) {
+				owner.Args = []string{"node", "/usr/local/lib/node_modules/some-mcp-server/index.js"}
+			}),
+		},
+		{
+			name: "node running no script",
+			tree: withOwner("node", func(owner *test.Process) {
+				owner.Args = []string{"node", "--version"}
+			}),
+		},
+		{
+			name: "node whose command does not read",
+			tree: withOwner("node", func(owner *test.Process) {
+				owner.Hidden = true
+			}),
+		},
+		{
+			name: "a node MCP server between the caller and a claude Claude Code",
 			tree: func() *test.Processes {
-				processes := test.NewProcessesRunningAs("2.1.318")
-				for _, pid := range []int{test.HookPID, test.ShellPID} {
-					held := processes.Table[pid]
-					held.Environment = []string{test.SessionVariable + "="}
-					processes.Table[pid] = held
+				processes := test.NewProcesses()
+				shell := processes.Table[test.ShellPID]
+				shell.Parent = test.OtherOwnerPID
+				processes.Table[test.ShellPID] = shell
+				processes.Table[test.OtherOwnerPID] = test.Process{
+					Parent: test.OwnerPID, Name: "node", Args: []string{"node", "/opt/mcp/server.js"},
 				}
 
 				return processes
@@ -164,55 +211,71 @@ func TestTheOwnerIsClaudeCodeWhateverItsExecutableIsNamed(t *testing.T) {
 		{
 			name: "a Claude Code started inside another Claude Code's session",
 			tree: func() *test.Processes {
-				processes := test.NewProcessesRunningAs("2.1.318")
-				held := processes.Table[test.OwnerPID]
-				held.Parent = test.OtherOwnerPID
-				held.Environment = []string{test.SessionVariable + "=outer-session", "CLAUDECODE=1"}
-				processes.Table[test.OwnerPID] = held
-				processes.Table[test.OtherOwnerPID] = test.Process{Parent: 1, Name: "2.1.300"}
+				processes := test.NewProcesses()
+				owner := processes.Table[test.OwnerPID]
+				owner.Parent = test.OtherOwnerPID
+				processes.Table[test.OwnerPID] = owner
+				processes.Table[test.OtherOwnerPID] = test.Process{Parent: 1, Name: "claude"}
 
 				return processes
 			},
 			owner: test.OwnerPID,
 		},
 		{
-			name: "a process between whose environment is hidden",
-			tree: func() *test.Processes {
-				processes := test.NewProcessesRunningAs("2.1.318")
-				held := processes.Table[test.ShellPID]
-				held.Hidden = true
-				processes.Table[test.ShellPID] = held
-
-				return processes
-			},
-			owner: test.OwnerPID,
-		},
-		{
-			name: "a hook no Claude Code started, under a version-named process",
-			tree: func() *test.Processes {
-				processes := test.NewProcessesRunningAs("2.1.318")
-				for _, pid := range []int{test.HookPID, test.ShellPID} {
-					held := processes.Table[pid]
-					held.Environment = nil
-					processes.Table[pid] = held
-				}
-
-				return processes
-			},
-		},
-		{
-			name:  "the default tree, Claude Code named claude and no session carried",
-			tree:  test.NewProcesses,
-			owner: test.OwnerPID,
+			name: "no Claude Code above the caller",
+			tree: test.NewProcessesOutsideClaude,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if seat.OwnerAncestor(context.Background(), tc.tree(), "claude") != tc.owner {
-				t.Error("the owner should be the nearest ancestor that started the caller's session, or the one running the owner name")
+				t.Error("the owner should be the nearest ancestor that is Claude Code by name, by the native installer's executable or by the npm package's script")
 			}
 		})
+	}
+}
+
+func TestTheOwnerIsFoundThroughTheLinksItRunsBy(t *testing.T) {
+	root := t.TempDir()
+	versions := filepath.Join(root, "share", "claude", "versions")
+	npm := filepath.Join(root, "lib", "node_modules", "@anthropic-ai", "claude-code")
+	bin := filepath.Join(root, "bin")
+
+	test.WriteFile(t, filepath.Join(versions, test.NativeVersion), "")
+	test.WriteFile(t, filepath.Join(npm, "cli.js"), "")
+
+	err := os.Mkdir(bin, 0o755)
+	if err != nil {
+		t.Fatalf("creating %s: %v", bin, err)
+	}
+
+	for target, link := range map[string]string{
+		filepath.Join(versions, test.NativeVersion): filepath.Join(bin, "claude"),
+		filepath.Join(npm, "cli.js"):                filepath.Join(bin, "claude-npm"),
+	} {
+		err := os.Symlink(target, link)
+		if err != nil {
+			t.Fatalf("linking %s: %v", link, err)
+		}
+	}
+
+	native := test.NewProcessesRunningAs(test.NativeVersion)
+	owner := native.Table[test.OwnerPID]
+	owner.Executable = filepath.Join(bin, "claude")
+	native.Table[test.OwnerPID] = owner
+
+	if seat.OwnerAncestor(context.Background(), native, "claude") != test.OwnerPID {
+		t.Error("a version-named Claude Code started through a link should be found where the link leads")
+	}
+
+	node := test.NewProcessesRunningAs("node")
+	owner = node.Table[test.OwnerPID]
+	owner.Args = []string{"node", filepath.Join(bin, "claude-npm")}
+	node.Table[test.OwnerPID] = owner
+
+	if seat.OwnerAncestor(context.Background(), node, "claude") != test.OwnerPID {
+		t.Error("node running npm's claude link should be found where the link leads")
 	}
 }
 

@@ -55,21 +55,26 @@ func (procfs Procfs) StartTime(pid int) (time.Time, bool) {
 
 // Environment is the environment pid was started with, from its `environ`,
 // unreadable where the process is gone or belongs to another user.
-func (procfs Procfs) Environment(pid int) ([]string, bool) {
-	raw, err := fs.ReadFile(procfs.Root, strconv.Itoa(pid)+"/environ")
+// Command is the executable pid runs, the target of /proc/<pid>/exe, and the
+// arguments it was started with, /proc/<pid>/cmdline split at every NUL.
+func (procfs Procfs) Command(pid int) (string, []string, bool) {
+	executable, err := fs.ReadLink(procfs.Root, strconv.Itoa(pid)+"/exe")
 	if err != nil {
-		return nil, false
+		return "", nil, false
 	}
 
-	var environment []string
-
-	for entry := range bytes.SplitSeq(raw, []byte{0}) {
-		if len(entry) > 0 {
-			environment = append(environment, string(entry))
-		}
+	raw, err := fs.ReadFile(procfs.Root, strconv.Itoa(pid)+"/cmdline")
+	if err != nil {
+		return "", nil, false
 	}
 
-	return environment, true
+	var args []string
+
+	for arg := range bytes.SplitSeq(bytes.TrimSuffix(raw, []byte{0}), []byte{0}) {
+		args = append(args, string(arg))
+	}
+
+	return executable, args, true
 }
 
 // TerminalDevice is the major and minor number of pid's controlling terminal,

@@ -25,27 +25,38 @@ type Process struct {
 	Name     string
 	Started  time.Time
 	Terminal string
-	// Environment is what the process was started with; Hidden keeps it
-	// unreadable, as the kernel keeps another user's.
-	Environment []string
-	Hidden      bool
+	// Executable / Args are what the process was started with; Hidden keeps
+	// them unreadable, as the kernel keeps another user's.
+	Executable string
+	Args       []string
+	Hidden     bool
 }
 
-// SessionVariable is the variable Claude Code starts every process of a
-// session with, its value the session's id.
-const SessionVariable = "CLAUDE_CODE_SESSION_ID"
+// The places the native installer and an npm install run Claude Code from.
+const (
+	NativeVersion    = "2.1.318"
+	NativeExecutable = "/Users/dev/.local/share/claude/versions/" + NativeVersion
+	NpmScript        = "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+)
 
 // NewProcessesRunningAs is the tree of NewProcesses with Claude Code running
-// under name, as the native installer's version-named executable or node runs
-// it: the hook and its shell carry the session's variables, Claude Code itself
-// none.
+// under name: NativeVersion as the native installer runs it, from
+// NativeExecutable, node running NpmScript as an npm install does, any other
+// name from /usr/local/bin.
 func NewProcessesRunningAs(name string) *Processes {
-	session := []string{SessionVariable + "=" + Session, "CLAUDECODE=1"}
+	owner := Process{Parent: 1, Name: name, Started: OwnerStart, Executable: "/usr/local/bin/" + name, Args: []string{name}}
+
+	switch name {
+	case NativeVersion:
+		owner.Executable, owner.Args = NativeExecutable, []string{"claude"}
+	case "node":
+		owner.Executable, owner.Args = "/usr/local/bin/node", []string{"node", NpmScript}
+	}
 
 	return &Processes{self: HookPID, guard: &sync.RWMutex{}, Table: map[int]Process{
-		HookPID:  {Parent: ShellPID, Name: "agentic-memory", Environment: session},
-		ShellPID: {Parent: OwnerPID, Name: "zsh", Environment: session},
-		OwnerPID: {Parent: 1, Name: name, Started: OwnerStart, Environment: []string{"HOME=/Users/dev"}},
+		HookPID:  {Parent: ShellPID, Name: "agentic-memory", Executable: "/usr/local/bin/agentic-memory", Args: []string{"agentic-memory"}},
+		ShellPID: {Parent: OwnerPID, Name: "zsh", Executable: "/bin/zsh", Args: []string{"/bin/zsh", "-c"}},
+		OwnerPID: owner,
 	}}
 }
 
@@ -129,16 +140,16 @@ func (fake *Processes) StartTime(_ context.Context, pid int) (time.Time, bool) {
 	return held.Started, true
 }
 
-func (fake *Processes) Environment(_ context.Context, pid int) ([]string, bool) {
+func (fake *Processes) Command(_ context.Context, pid int) (string, []string, bool) {
 	fake.guard.RLock()
 	defer fake.guard.RUnlock()
 
 	held, found := fake.Table[pid]
 	if !found || held.Hidden {
-		return nil, false
+		return "", nil, false
 	}
 
-	return held.Environment, true
+	return held.Executable, held.Args, true
 }
 
 func (fake *Processes) Terminal(_ context.Context, pid int) string {

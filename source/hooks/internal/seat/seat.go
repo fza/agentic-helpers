@@ -31,14 +31,18 @@ import (
 // shell, so the immediate parent is not reliably the Claude process.
 const ancestorDepth = 12
 
-// The variables Claude Code starts every process of a session with, the most
-// telling first: the session's id tells a Claude Code started inside another
-// session from the one above it, which CLAUDECODE, always 1, cannot. Claude
-// Code itself starts without them, so the nearest ancestor not carrying the
-// caller's value is the one that started the session, whatever its executable
-// is named: the native installer runs it under its version number, an npm
-// install as node.
-var sessionVariables = []string{"CLAUDE_CODE_SESSION_ID", "CLAUDECODE"}
+// Claude Code runs under the owner name, `claude`, except where it is
+// installed another way: the native installer runs it under its version
+// number from `.../claude/versions/<version>`, an npm install as `node` running
+// a script of the npm package. A version-named or `node` process counts only
+// with that executable or that script, so an MCP server or a wrapper between
+// the caller and Claude Code is never taken for it.
+var versionName = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
+const (
+	installedVersions = "claude/versions"
+	npmPackage        = "node_modules/@anthropic-ai/claude-code/"
+)
 
 // A seat name is a word in any script, counted in runes. Letters only, never a
 // separator or a dot, so a name is always a plain path segment.
@@ -92,7 +96,7 @@ type Processes interface {
 	Parent() int
 	ParentAndName(ctx context.Context, pid int) (int, string)
 	StartTime(ctx context.Context, pid int) (time.Time, bool)
-	Environment(ctx context.Context, pid int) ([]string, bool)
+	Command(ctx context.Context, pid int) (string, []string, bool)
 }
 
 // ValidName holds a name already in its Normal spelling to the name rule.
@@ -355,11 +359,11 @@ func UnderOwner(ctx context.Context, processes Processes, ownerName string) bool
 	return OwnerAncestor(ctx, processes, ownerName) != 0
 }
 
-// OwnerAncestor is the nearest ancestor that started the caller's Claude Code
-// session or runs under the owner name, zero where none does.
+// OwnerAncestor is the nearest ancestor that is Claude Code, zero where none
+// is. A shell between is never taken for it, whatever its environment holds:
+// Claude Code sets its session's variables inside the Bash tool's shell, not
+// in the environment it starts the shell with.
 func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) int {
-	variable, value := carriedSession(ctx, processes)
-
 	parent, _ := processes.ParentAndName(ctx, processes.Self())
 	for range ancestorDepth {
 		if parent <= 1 {
@@ -367,7 +371,7 @@ func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) i
 		}
 
 		grandparent, name := processes.ParentAndName(ctx, parent)
-		if name == ownerName || startedSession(ctx, processes, parent, variable, value) {
+		if name == ownerName || installedAnotherWay(ctx, processes, parent, name) {
 			return parent
 		}
 
@@ -377,49 +381,48 @@ func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) i
 	return 0
 }
 
-// carriedSession is the first of the session variables the caller was started
-// with, and its value, empty where it carries none, as a process no Claude Code
-// started.
-func carriedSession(ctx context.Context, processes Processes) (string, string) {
-	environment, _ := processes.Environment(ctx, processes.Self())
-
-	for _, variable := range sessionVariables {
-		value, found := lookupVariable(environment, variable)
-		if found {
-			return variable, value
-		}
-	}
-
-	return "", ""
-}
-
-// startedSession says whether pid started the session the caller carries:
-// its environment reads, and holds the variable at another value or not at
-// all. A process whose environment does not read is never taken for it.
-func startedSession(ctx context.Context, processes Processes, pid int, variable string, value string) bool {
-	if variable == "" {
+// installedAnotherWay says whether pid, running under name, is Claude Code as
+// the native installer or an npm install runs it.
+func installedAnotherWay(ctx context.Context, processes Processes, pid int, name string) bool {
+	if name != "node" && !versionName.MatchString(name) {
 		return false
 	}
 
-	environment, readable := processes.Environment(ctx, pid)
-	if !readable {
-		return false
+	executable, args, _ := processes.Command(ctx, pid)
+	if name == "node" {
+		return runsNpmPackage(args)
 	}
 
-	held, found := lookupVariable(environment, variable)
+	resolved := resolvedPath(executable)
 
-	return !found || held != value
+	return filepath.Base(resolved) == name && strings.HasSuffix(filepath.ToSlash(filepath.Dir(resolved)), "/"+installedVersions)
 }
 
-func lookupVariable(environment []string, variable string) (string, bool) {
-	for _, entry := range environment {
-		name, value, found := strings.Cut(entry, "=")
-		if found && name == variable {
-			return value, true
+// runsNpmPackage says whether node's arguments run a script of the npm
+// package: the first argument after node's own options, through the link
+// npm's `claude` command is.
+func runsNpmPackage(args []string) bool {
+	for _, arg := range args[min(1, len(args)):] {
+		if strings.HasPrefix(arg, "-") {
+			continue
 		}
+
+		return strings.Contains(filepath.ToSlash(resolvedPath(arg)), "/"+npmPackage)
 	}
 
-	return "", false
+	return false
+}
+
+// resolvedPath is path with every link resolved, path itself where that
+// fails: a process's executable on darwin is the path it was started by,
+// a link such as `~/.local/bin/claude` included.
+func resolvedPath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
 }
 
 // Alive reports whether the claim's holder still runs: the same pid, still
