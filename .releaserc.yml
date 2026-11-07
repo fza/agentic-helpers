@@ -14,8 +14,12 @@ branches:
   - main
 tagFormat: v${version}
 plugins:
+  # A build(release) commit asks for a minor release where its other commits
+  # would cut a patch: the release after v2.27.0 is v2.28.0.
   - - "@semantic-release/commit-analyzer"
     - preset: conventionalcommits
+      releaseRules:
+        - {type: build, scope: release, release: minor}
   - - "@semantic-release/release-notes-generator"
     - preset: conventionalcommits
   - - "@semantic-release/exec"
