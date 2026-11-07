@@ -1,0 +1,8 @@
+{
+  "name": "count-lines",
+  "summary": "print the line count of each file named",
+  "usage": "count-lines \u003cfile\u003e...",
+  "files": [
+    "count-lines.sh"
+  ]
+}
