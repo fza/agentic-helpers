@@ -313,9 +313,9 @@ func validID(id string) bool {
 	return true
 }
 
-// listed is a record as `sessions --json` prints it: every field present,
+// Listed is a record as `sessions --json` prints it: every field present,
 // a time unknown as null.
-type listed struct {
+type Listed struct {
 	Schema           int        `json:"schema"`
 	SessionID        string     `json:"session_id"`
 	PID              int        `json:"pid"`
@@ -335,18 +335,16 @@ type listed struct {
 	Gone             bool       `json:"gone"`
 }
 
-// list prints every record of this schema as one JSON array, in session id
-// order. A record is gone where its process is not running, or runs from
-// another start than the one recorded, as a reused pid does.
-func list(ctx context.Context, env Env, streams hookio.Streams) int {
-	printed := []listed{}
+// Records is every record of this schema, in session id order, each marked
+// gone where its process is not running, or runs from another start than the
+// one recorded, as a reused pid does.
+func Records(ctx context.Context, env Env) ([]Listed, error) {
+	printed := []Listed{}
 
 	if env.Dir != "" {
 		held, err := env.file().All(ctx)
 		if err != nil {
-			_, _ = fmt.Fprintf(streams.Err, "%s: reading the session records: %v\n", self, err)
-
-			return 1
+			return nil, fmt.Errorf("reading the session records: %w", err)
 		}
 
 		for _, slot := range held {
@@ -359,7 +357,19 @@ func list(ctx context.Context, env Env, streams hookio.Streams) int {
 		}
 	}
 
-	slices.SortFunc(printed, func(a listed, b listed) int { return strings.Compare(a.SessionID, b.SessionID) })
+	slices.SortFunc(printed, func(a Listed, b Listed) int { return strings.Compare(a.SessionID, b.SessionID) })
+
+	return printed, nil
+}
+
+// list prints every record as one JSON array (Records).
+func list(ctx context.Context, env Env, streams hookio.Streams) int {
+	printed, err := Records(ctx, env)
+	if err != nil {
+		_, _ = fmt.Fprintf(streams.Err, "%s: %v\n", self, err)
+
+		return 1
+	}
 
 	data, err := json.MarshalIndent(printed, "", "  ")
 	if err != nil {
@@ -373,8 +383,8 @@ func list(ctx context.Context, env Env, streams hookio.Streams) int {
 	return 0
 }
 
-func (held entry) listed(ctx context.Context, env Env, session string) listed {
-	return listed{
+func (held entry) listed(ctx context.Context, env Env, session string) Listed {
+	return Listed{
 		Schema: Schema, SessionID: session,
 		PID: held.PID, Started: optional(held.Started), TTY: held.TTY,
 		TermProgram: held.TermProgram, ITermSessionID: held.ITermSessionID,

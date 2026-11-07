@@ -145,6 +145,18 @@ func (env Env) settled() bool {
 	return exists(env.Roots.FormatFile()) && !exists(env.journalPath())
 }
 
+// Unmigrated says the home does not yet hold what the old layout keeps: an
+// old tree waits for its migration, or a run stopped before it finished.
+func (env Env) Unmigrated() bool {
+	return env.usable() && env.pending() && !env.settled()
+}
+
+// OldTrees is every folder the old layout kept under `.claude`, whether it
+// still stands or not.
+func (env Env) OldTrees() []string {
+	return []string{env.memoryRoot(), env.toolsRoot(), env.writersRoot()}
+}
+
 // oldLayout says an old tree is still a folder: a store, a library or a
 // writers list may wait in it.
 func (env Env) oldLayout() bool {

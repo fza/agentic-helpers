@@ -119,8 +119,10 @@ type memory struct {
 	// tools is the tool library an entry's tool links reach, opened on first
 	// use.
 	tools *tools.Linked
-	// key is the id of the store the checkout works on.
+	// key is the id of the store the checkout works on; dir, where set, is the
+	// memory folder an export reads in its place.
 	key string
+	dir string
 	// facts is the checkout as the home matches it; unbound says no store
 	// matched it yet, so key names a store nothing holds until a write
 	// creates it; question is the user's call standing on it.
@@ -210,7 +212,16 @@ func (mem *memory) graphProject(ctx context.Context) resolvedGraph {
 	return *mem.graphConfig
 }
 
-func (mem *memory) store() string     { return mem.env.Roots.Store(mem.key, home.Memory) }
+// store is the store's memory folder: dir where an export names one, as an
+// unclaimed store's, else the folder of the store key names.
+func (mem *memory) store() string {
+	if mem.dir != "" {
+		return mem.dir
+	}
+
+	return mem.env.Roots.Store(mem.key, home.Memory)
+}
+
 func (mem *memory) logDir() string    { return filepath.Join(mem.store(), "log") }
 func (mem *memory) seatsDir() string  { return seat.Dir(mem.store()) }
 func (mem *memory) sensorDir() string { return mem.env.Roots.Sessions(agent) }

@@ -14,7 +14,9 @@
 //     because a piece they rest on is off, `bound` runs a command for at
 //     most a duration, standing in for a missing `timeout`, the hook `record`
 //     keeps each session's record of where it runs and its last event, and
-//     `sessions --json` prints those records.
+//     `sessions --json` prints those records, `export <file>` writes every
+//     store on the machine into one archive, and `uninstall` exports, then
+//     removes agentic-helpers from the machine.
 //
 // The release archive and the launcher link each of the other names to this
 // program. The hook program agentic-shell-guard stays a program of its own,

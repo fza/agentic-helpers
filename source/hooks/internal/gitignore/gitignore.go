@@ -36,7 +36,7 @@ func (global Global) Ensure(ctx context.Context, piece, dir, path, pattern strin
 		return "", nil
 	}
 
-	file := global.file(ctx, dir)
+	file := global.File(ctx, dir)
 	if file == "" {
 		return "", nil
 	}
@@ -82,10 +82,10 @@ func (global Global) Ensure(ctx context.Context, piece, dir, path, pattern strin
 	return fmt.Sprintf("%s: added %s to %s, so git ignores it in every repository", piece, pattern, file), nil
 }
 
-// file is `core.excludesFile` from the global git config, a leading `~/`
+// File is `core.excludesFile` from the global git config, a leading `~/`
 // expanded as git expands it, else git's default under the XDG config home.
 // No home and no setting leaves no file to write.
-func (global Global) file(ctx context.Context, dir string) string {
+func (global Global) File(ctx context.Context, dir string) string {
 	set, err := global.Git.Output(ctx, dir, "config", "--global", "--get", "core.excludesFile")
 	configured := strings.TrimSpace(set)
 

@@ -141,8 +141,50 @@ with a second name, a hard link, is refused wherever it is written. A refusal na
 `<path> has a second name, a hard link; register a copy of it`.
 
 What stays on plain `os` lies outside every root: git's global excludes file, Claude Code's
-`settings.local.json`, and the folder of `config.yaml` under the XDG config home (the file itself is
-replaced through `safefs`, its folder as the root).
+`settings.local.json`, the folder of `config.yaml` under the XDG config home (the file itself is
+replaced through `safefs`, its folder as the root), and the archive `agentic-helpers export` writes
+wherever the user names.
+
+## Export and uninstall
+
+`internal/export` writes the [`agent-memory-export` archive](../export/format.md). Each component
+reads its own data for it, through the readers its commands use, so no storage format is read twice:
+
+| Reader | Reads |
+|---|---|
+| `memory.Export` | the store's format, seat registry, shelves, name index, claims and slices, and one snapshot of the log, folded with every seat kept by its id; each attachment through the reader `agentic-memory read` uses, which checks its hash |
+| `tools.Export` | the library's format, each tool folder's `current` or `merged`, its journals through the journal reader, and each version folder through `safefs`'s walk, which refuses a link |
+| `home.Roots.StoreDirs`, `home.ReadIdentityFile` | every folder under `stores/` and `unclaimed/` named as a store id, and its identity as stored |
+
+The export folds the log itself rather than through the fold cache, and reads memory only at this
+release's format. A component at an older format is copied through `safefs`, which refuses a link,
+to `<cache>/export-tmp/<id>/`, laid out as a home of its own (`data/`, `cache/`), so every format
+step writes below the copy, the session slots of its cache included. `memory.MigrateCopy` and
+`tools.MigrateCopy` run the component's own step table on it, the copy is read as any store is, and
+it is removed by a deferred call that runs however the read ends; a copy a killed run left goes
+before the next copy of that store. The folders of the cache path missing before the copy, the
+cache root and any folder above it, are noted first and removed again after the copy, deepest
+first, each only while empty, so the export leaves the cache tree as it found it. Migrating the store itself was rejected: an export changes no
+store. Refusing an older store was rejected too: an unclaimed store has no checkout to migrate it
+through, and it would block every export and uninstall. The command runs before the migration of
+the old layout every other `agentic-helpers` command starts with.
+
+Every store is read before a byte is written, so a store that cannot be read refuses the export
+whole. The archive is written to a temporary file beside the target, checked by `export.Verify`, and
+then linked into place, which refuses a file another process put there meanwhile; `--force` renames
+over it instead. `export.Verify` checks the archive against its own manifest, and `uninstall` runs it
+again on the placed file before it removes anything.
+
+`internal/uninstall` reads the session records (`sessionrecord.Records`) and every store's
+identity before it removes anything, for the sessions it refuses over and the checkouts whose traces
+it lists. `--dry-run` reads the records too, and names the sessions a real run would be refused
+over instead of refusing. The calling session is told apart by `CLAUDE_CODE_SESSION_ID`, or by its Claude Code
+process, found as a seat claim finds it (`seat.OwnerAncestor`). The plugin is dropped before any
+folder goes: removing the binaries first would leave every running session's hooks pointing at a
+release that is gone, and a session start in between would fetch it again. Each folder goes through `safefs.Root` on its parent and `os.Root.RemoveAll`
+on its name, which removes a link below it without following it. `claude` runs through a runner the
+environment hands in, so a test fakes it, and a command that never started reads as a missing
+`claude`.
 
 ## The migration
 

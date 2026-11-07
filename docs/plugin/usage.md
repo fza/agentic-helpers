@@ -235,6 +235,82 @@ no settings and migrates nothing, so the output is the command's alone. The comm
 process group of its own, which gets `SIGTERM` when the duration runs out and `SIGKILL` 5 seconds
 later; the exit is then 124, else the command's own.
 
+## Export
+
+`agentic-helpers export [--force] <file>` writes every store on the machine into one `tar.gz` of
+the [`agent-memory-export` format](../export/format.md): every memory entry with its whole history,
+every seat, shelf and state ledger, each seat's last turns, every attached file, and the tool
+library, the unclaimed stores included. The archive belongs to the user, to keep or to read with any
+tool.
+
+- **It only reads the stores.** It reads each store as every reader does and takes no lock a reader
+  does not take, and changes no store.
+- **An older store travels through a copy.** Memory or a tool library at an older format than this
+  release's is copied to `<cache>/export-tmp/<id>/`, the copy migrated by the component's own steps
+  and read, and the copy removed, however the read ends, with any folder of the cache path the
+  export had to make for it: the cache tree is left as it was found. The store keeps its format and its bytes;
+  the manifest names the format it migrated from (`migrated_from`), and the summary says so.
+- **All or nothing.** A store it cannot read refuses the whole export, naming the store and why,
+  and exits 1: memory, a tool library or the home at a newer format than this release's, a
+  `format.json` no release wrote, a store holding a link where a copy is due, a tool folder whose
+  current version cannot be read. While the old layout under `~/.claude` waits for its migration,
+  the export refuses too; any other `agentic-helpers` command, such as `agentic-helpers check`,
+  migrates it.
+- **An attached file the machine lost** does not refuse the export: its record says
+  `"stored": false`, and the summary names it.
+- **The target** is written under a temporary name beside it, read back whole, then moved into
+  place. An existing target is refused unless `--force` is given.
+- **Read back whole** means: one gzip stream holding one tar, `manifest.json` first, every member at
+  a path the format allows, every JSON Lines member a run of objects, every attachment matching the
+  hash it is named for, every attachment an entry says is stored present, and every count the
+  manifest gives matching the members.
+
+It prints the archive's path and size, a line per store, and the attachments it holds:
+
+```
+agentic-helpers export: wrote /Users/ana/agentic-helpers.tar.gz (48211 bytes)
+  github.com/acme/app (0192f3a4-...-app): 412 entries, 9 seats, 7 shelves, 58 state lines, 6 slices; 14 tools, 31 versions
+  attachments: 3 files, 48211 bytes
+```
+
+## Uninstall
+
+`agentic-helpers uninstall [--export-to <file> | --discard-data] [--ignore-sessions] [--dry-run]`
+takes agentic-helpers off the machine. It asks nothing: agents run it, so its flags are the consent.
+
+1. **No other session.** While another Claude Code session runs, by its session record (the one
+   `agentic-helpers sessions --json` prints, not marked gone), it refuses and names each session.
+   The calling session does not count: the one `CLAUDE_CODE_SESSION_ID` names, or the one whose
+   Claude Code process runs the call. `--ignore-sessions` passes over a record a crashed session
+   left.
+2. **Export.** It writes the archive to `--export-to`, else to
+   `~/agentic-helpers-export-<UTC stamp>.tar.gz`, then reads it back whole. On any failure it stops
+   and removes nothing. A target inside a folder the uninstall removes is refused.
+   `--discard-data` skips the export and says first that memory stores, the tool library and
+   attachments are deleted with no export.
+3. **Drop the plugin.** It runs `claude plugin uninstall agentic-helpers@agentic-helpers`, then
+   `claude plugin marketplace remove agentic-helpers`, before any folder goes, so no session starts a
+   hook whose binaries are gone. Where `claude` is missing or fails, it prints the command to run
+   by hand, and the rest of the uninstall stands.
+4. **Remove what is its own**, through the parent folder's descriptor, so a link planted inside goes
+   without what it points at: the cache root, the data root, the old layout's folders under
+   `~/.claude` (`agentic-memory`, `agentic-tools`, `agentic-helpers`), and the plugin's data folder,
+   the one `CLAUDE_PLUGIN_DATA` names where it is agentic-helpers', else every
+   `agentic-helpers-*` folder under `~/.claude/plugins/data/`. A root holding the user's home or
+   Claude Code's config folder is refused, and nothing is removed.
+5. **Restart.** One line says the calling session must be restarted: its hooks still name the
+   plugin just removed.
+6. **List what it leaves.** Other tools and projects may rely on these, so each is listed with how
+   to remove it: each of the lines `.tmp/` and `**/.claude/settings.local.json` in git's global
+   excludes file, with a `grep -vxF '<line>' <file> > <file>.new; [ $? -le 1 ] && mv <file>.new
+   <file>` command that works with BSD and GNU grep alike; in every checkout a store knew, its
+   `.tmp/` folder, with an `rm -rf` command; and the `autoMemoryEnabled` key of its
+   `.claude/settings.local.json`, named with the file to edit by hand.
+
+`--dry-run` prints each step it would take and changes nothing. Another live session does not
+refuse it: it adds the line that a real run is refused while those sessions run, and names each.
+The exit is 1 where the uninstall was refused, the export or a removal failed, else 0.
+
 ## Session records
 
 The hook `agentic-helpers record` keeps one record per Claude Code session, for any reader that

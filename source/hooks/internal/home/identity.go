@@ -263,3 +263,71 @@ func suffixFor(checkout Checkout) string {
 
 	return ""
 }
+
+// StoreDir is one store's folder on the machine: claimed under `stores/`,
+// or waiting under `unclaimed/` for a checkout to claim it again.
+type StoreDir struct {
+	ID        string
+	Dir       string
+	Unclaimed bool
+}
+
+// StoreDirs is every folder under `stores/` and `unclaimed/` named as a
+// store id, in ascending id order. An id found under both is an error: the
+// home keeps a store in one place.
+func (roots Roots) StoreDirs() ([]StoreDir, error) {
+	var found []StoreDir
+
+	seen := map[string]bool{}
+
+	for _, place := range []struct {
+		root      string
+		unclaimed bool
+	}{{roots.Stores(), false}, {roots.unclaimed(), true}} {
+		listed, err := os.ReadDir(place.root)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("listing %s: %w", place.root, err)
+		}
+
+		for _, entry := range listed {
+			if !entry.IsDir() || !ValidID(entry.Name()) {
+				continue
+			}
+
+			if seen[entry.Name()] {
+				return nil, fmt.Errorf("the store %s is both claimed and unclaimed", entry.Name())
+			}
+
+			seen[entry.Name()] = true
+			found = append(found, StoreDir{
+				ID: entry.Name(), Dir: filepath.Join(place.root, entry.Name()), Unclaimed: place.unclaimed,
+			})
+		}
+	}
+
+	slices.SortFunc(found, func(one, other StoreDir) int { return strings.Compare(one.ID, other.ID) })
+
+	return found, nil
+}
+
+// ReadIdentityFile reads the `identity.json` of the store folder dir, its
+// bytes as stored beside the identity they hold.
+func ReadIdentityFile(dir string) (Identity, []byte, error) {
+	path := filepath.Join(dir, identityName)
+
+	identity, err := readIdentity(path)
+	if err != nil {
+		return Identity{}, nil, err
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Identity{}, nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	return identity, raw, nil
+}

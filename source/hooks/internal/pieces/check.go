@@ -43,7 +43,8 @@ type Env struct {
 }
 
 const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | prune | dump <file> | " +
-	"bound <duration> <command> | record | sessions --json"
+	"bound <duration> <command> | record | sessions --json | export [--force] <file> | " +
+	"uninstall [--export-to <file> | --discard-data] [--ignore-sessions] [--dry-run]"
 
 // Main runs `agentic-helpers check` and `agentic-helpers config`. check first
 // copies the answers for keys that left the plugin's dialog into

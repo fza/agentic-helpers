@@ -4,7 +4,7 @@ Every page states what the tree does now, in the present tense. What is unbuilt 
 in the decision graph under `.sdd/`, and why each piece is the way it is lives there too.
 
 Each piece has a folder with two pages: `usage.md`, what an agent or a person does with it, and
-`architecture.md`, how it works inside.
+`architecture.md`, how it works inside. `export/` defines a file format, on one page of its own.
 
 | Folder | Piece |
 |---|---|
@@ -14,3 +14,4 @@ Each piece has a folder with two pages: `usage.md`, what an agent or a person do
 | [`scratch/`](scratch/usage.md) | `agentic-scratch`: where throwaway goes and what the sweep removes ([architecture](scratch/architecture.md)) |
 | [`shell-guard/`](shell-guard/usage.md) | `agentic-shell-guard`: the removals, `find -delete`, credentials and `mktemp` calls every Bash call is held to, and the credential lines withheld from tool output ([architecture](shell-guard/architecture.md)) |
 | [`secrets/`](secrets/usage.md) | the credential scanner every piece writing shared text runs first: where it runs, what a refusal says ([architecture](secrets/architecture.md)) |
+| [`export/`](export/format.md) | the `agent-memory-export` archive: every store on the machine in one file, as `agentic-helpers export` and `agentic-helpers uninstall` write it ([usage](plugin/usage.md#export)) |

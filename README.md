@@ -115,6 +115,15 @@ five times input.
 - **Claude Code only.** The hooks read Claude Code's payloads, settings and transcripts. No other
   agent is tested or supported.
 
+## Your data
+
+What your agents filed is yours. `agentic-helpers export <file>` writes all of it into one archive:
+every memory entry with its history, every seat and state ledger, every attached file and the tool
+library, in a documented format ([`docs/export/format.md`](docs/export/format.md)) any program can
+read. `agentic-helpers uninstall` writes that archive first and checks it, then removes what
+agentic-helpers keeps on the machine and lists what it leaves for you to remove by hand.
+[docs/plugin/usage.md](docs/plugin/usage.md#export) has both commands.
+
 ## Requirements
 
 - macOS or Linux, on amd64 or arm64.

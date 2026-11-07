@@ -94,6 +94,14 @@ Nothing leaves the machine unless one of these applies:
   `memory_turns_off_auto: false` leaves the file alone.
 - Git's global excludes file gains `.tmp/` and `**/.claude/settings.local.json`; a repository's
   `.git` gains an `agentic-store` file naming its memory store.
+- `agentic-helpers export <file>` writes one archive of every store to the file named.
+  An older store is read through a copy migrated under the cache folder, removed once read,
+  with any cache folder the export made for it.
+  `agentic-helpers uninstall` refuses while another Claude Code session runs, writes the archive to
+  `~/agentic-helpers-export-<UTC stamp>.tar.gz` unless told otherwise, runs
+  `claude plugin uninstall` and `claude plugin marketplace remove` for the plugin, then removes the
+  data and cache folders, the old layout's folders under `~/.claude` and the plugin's data folder.
+  It changes nothing of the lines and keys above, and lists each with how to remove it.
 
 ## What it decides
 

@@ -39,6 +39,10 @@ func helpersMain() int {
 		return sessionsMain(ctx, userHome)
 	}
 
+	if len(os.Args) > 1 && (os.Args[1] == "export" || os.Args[1] == "uninstall") {
+		return exportMain(ctx, userHome)
+	}
+
 	machine := migration.Machine(userHome, os.Getenv)
 	migration.Prepare(ctx, machine, os.Stderr)
 
