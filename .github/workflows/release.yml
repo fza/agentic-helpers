@@ -15,11 +15,16 @@ permissions:
   contents: read
 
 jobs:
+  # A tag being finished was tested before its release commit, which changes
+  # only the version; tested again it would ask for its own release fixture,
+  # which exists only once the release does.
   test:
+    if: inputs.publish == ''
     uses: ./.github/workflows/test.yml
 
   release:
     needs: test
+    if: ${{ !cancelled() && (needs.test.result == 'success' || (inputs.publish != '' && needs.test.result == 'skipped')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
