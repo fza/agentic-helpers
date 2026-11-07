@@ -34,6 +34,19 @@ jobs:
           version: v2.19.0
           install-only: true
 
+      # semantic-release counts from the newest version tag, and GitHub refuses
+      # the tag names of deleted immutable releases (v2.22.0 to v2.27.0) for
+      # good. Where the version plugin/.claude-plugin/plugin.json carries has no
+      # tag, its release commit is tagged in this checkout only, never pushed,
+      # so the next version counts from it.
+      - run: |
+          version="$(jq -r .version plugin/.claude-plugin/plugin.json)"
+          if ! git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            released="$(git log -1 --format=%H --fixed-strings --grep "chore(release): v${version} [skip ci]")"
+            test -n "${released}"
+            git tag "v${version}" "${released}"
+          fi
+
       # The notes generator semantic-release bundles renders with
       # conventional-changelog-writer 8; the conventionalcommits preset needs
       # writer 9 from its major 10 on, so it stays on major 9.
