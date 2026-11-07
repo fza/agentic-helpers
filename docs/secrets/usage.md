@@ -12,8 +12,6 @@ embedding endpoint, which may be remote.
 | Piece | What is scanned | On a finding |
 |---|---|---|
 | `agentic-tools add`, `update`, `merge` (CLI and MCP) | every file of the version written (by its name and as plain text), a fork's first version included; `--summary`, `--usage`, `--inputs`, `--outputs`, `--distinct`, `--why` | refused, nothing embedded or written ([tools](../tools/usage.md#credentials)) |
-| the grounding gate, on every graph write | a Bash `sdd new` or `agentic-capture` command's text, every file a plain `sdd new` attaches, the `agentic-capture` draft and every file its header's `attach` names (scanned by its name in the entry, and as nameless text where that finds nothing; only a literal path, refusing `$`, `~` and a relative one after a `cd` or behind a launcher), the `report` of `mcp__sdd__next` and the `params` of `mcp__sdd__start_procedure` (every key and string, one per line; never the session `label`), a file staged through `mcp__sdd__stage_attachment` | refused, whichever sdd is installed, reads, grounded draft or exempt seat notwithstanding; what it cannot scan (standard input, a file not on disk) is refused too ([grounding gate](../grounding-gate/usage.md)) |
-| `agentic-capture`, right before each `sdd new` | exactly what it hands sdd: the body, every header value as its flag carries it, every attached file | refused, exit 1; the gate's scan reads the files earlier, so this one catches a file changed since ([capture](../capture/architecture.md#credentials)) |
 | shell-guard, on every Bash call | the command's whole text | `ask`, `deny` or nothing as `shell_guard_secrets` says ([shell-guard](../shell-guard/usage.md)) |
 | shell-guard, after every tool call | every string of the output, where it comes from outside the project and `shell_guard_secret_output` covers the tool | each line holding one is withheld from the agent, the rest shown ([shell-guard](../shell-guard/usage.md#credentials-in-tool-output)) |
 | every agentic-memory write to its log (CLI and MCP) | every text the write carries: title, body, topics, anchors, declared conditions and triggers, state, link target, reason; every file it attaches (by its name, and as nameless text where that finds nothing) | refused, nothing embedded or written ([memory](../memory/usage.md#writes-holding-a-credential)) |
@@ -31,8 +29,6 @@ rest. Each piece's wording is part of its contract, quoted by its skill:
 
     agentic-tools: <file or flag> looks like a credential (<rule ids>, line <n>); the library never holds one
     agentic-memory: this prompt looks like it holds a credential (<rule ids>); it was not sent to the embedding endpoint
-    GROUNDING GATE: refused. The capture holds what looks like a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable
-    agentic-capture: refused. The capture holds what looks like a credential (<rule ids>, <where>, line <n>); the graph is shared and immutable
     agentic-shell-guard: the command holds what looks like a credential (<rule ids>, line <n>); history, logs and files keep it; reference it instead: "$NAME" or a file
     agentic-memory: <where> looks like a credential (<rule ids>, line <n>); memory never holds one
 
@@ -42,5 +38,4 @@ reads as one; nothing overrides a refusal, gitleaks' inline `gitleaks:allow` mar
 
 A rule id `scan-incomplete` means the scan could not finish (the context ended, or a vendored rule
 failed to load), and the text was refused rather than passed unscanned. Where the hook's own
-context ended, `agentic-capture`, the grounding gate and shell-guard say the scan was cut short
-instead, and name no credential.
+context ended, shell-guard says the scan was cut short instead, and names no credential.

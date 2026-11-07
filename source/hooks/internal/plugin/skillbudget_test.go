@@ -22,8 +22,6 @@ var skillBudgets = []struct {
 	budget int
 	reason string
 }{
-	{"agent-capture", 14500, "13.8k when set: the capture paths, the draft's shape and every refusal agentic-capture prints"},
-	{"agent-grounding", 14800, "14.1k when set: both search modes, read depths, ref kinds and every gate refusal"},
 	{"agent-memory", 20500, "19.6k when set: the core after its reference files split off; the largest, since seats, filing and the quiet rules all act on every turn"},
 	{"agent-scratch", 4500, "4.2k when set: where scratch goes and what the sweep removes"},
 	{"agent-shell-guard", 13000, "12.4k when set, after its walkthroughs moved to scripts.md, output.md and reference.md: every refusal and ask reason with its fix"},

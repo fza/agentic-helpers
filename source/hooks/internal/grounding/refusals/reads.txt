@@ -1,3 +1,0 @@
-GROUNDING GATE: refused. Run the reads owed, then run this call again.
-{gather}
-{owed}

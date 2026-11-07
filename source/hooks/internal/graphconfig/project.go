@@ -11,7 +11,7 @@ import (
 const defaultEntries = ".sdd/graph"
 
 // Project is where a directory's sdd state lives. Dir is the `.sdd/` holding
-// the project's config, `grounding.yaml` and `tmp/`; Entries is the directory
+// the project's config and `tmp/`; Entries is the directory
 // its graph entries live under. Both are empty where no graph governs. Split
 // says the governing `.sdd/` names its graph repository through `project_dir`.
 type Project struct {
@@ -83,7 +83,7 @@ func resolveFrom(dir string) Project {
 // stock sdd keeps a graph apart. Empty where the graph stays inside root or
 // no `.sdd/` sits there. Unlike Resolve, this follows a `graph_dir` leaving
 // the checkout: it names the repository a store is shared with, not where
-// the gate counts entries.
+// the graph's entries are read.
 func Link(root string) string {
 	held := filepath.Join(root, GraphDirName)
 

@@ -1,3 +1,0 @@
-gather_command: |
-  pilot graph
-  gather

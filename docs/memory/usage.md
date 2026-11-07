@@ -16,7 +16,7 @@ different things, and an entry belongs in exactly one:
 | For | everyone working on the project, for as long as it stands | one job, the seat, across compactions and sessions |
 | Lives | in the repository, under version control, reviewed like code | on the machine, in the project's store under `~/.local/share/agentic-helpers/stores/`, outside the repository |
 | Changes | never in place: a decision is superseded, a signal closed | retired or superseded, and fading at the rate its kind sets (`rule` never, `note` in two weeks) |
-| Found by | `sdd search`, `sdd show`, and the grounding gate making an agent read it | the brief, prompt recall, `search` |
+| Found by | `sdd search`, `sdd show`, and sdd-helpers' grounding gate making an agent read it | the brief, prompt recall, `search` |
 
 A memory entry about a decision points at the graph entry by its id and never restates it: two
 copies drift, and a reader acts on whichever it opened. A project without a graph files its
@@ -134,8 +134,7 @@ a compaction prints it again. `release`, the end of the session and a rename act
 
 A seat name is a word in any script: a letter, then up to 23 letters, combining marks, digits or
 dashes, counted in characters (`main`, `haupt`, `главная`, `メイン`, `मुख्य`). Every name agentic-memory
-reads (`claim`, `release`, `holder`, `--seat`, the MCP keys carrying a seat, `exempt_seats` in
-`.sdd/grounding.yaml`) is normalised to Unicode NFC and lower-cased first, so `Café` typed
+reads (`claim`, `release`, `holder`, `--seat`, the MCP keys carrying a seat) is normalised to Unicode NFC and lower-cased first, so `Café` typed
 precomposed or decomposed names one seat with one file.
 
 `rename '<new name>'` (CLI only) gives the seat the calling session holds a new
@@ -1976,4 +1975,4 @@ included; that line is for an embedder that is set and fails.
 
 ## Off on the machine
 
-The plugin option `memory_enabled` switches agentic-memory on or off for the machine, on unless set. Off, every memory hook says nothing, every subcommand exits 1 with `agentic-memory: off on this machine (plugin option memory_enabled)`, and the `memory` MCP server lists no tools, its instructions naming the option. The grounding gate's `exempt_seats` and the seat name agentic-tools stamps go off with it.
+The plugin option `memory_enabled` switches agentic-memory on or off for the machine, on unless set. Off, every memory hook says nothing, every subcommand exits 1 with `agentic-memory: off on this machine (plugin option memory_enabled)`, and the `memory` MCP server lists no tools, its instructions naming the option. The seat name agentic-tools stamps goes off with it.

@@ -1,10 +1,8 @@
-// Package sddcaps tells what the sdd on the PATH can do. Stock sdd
-// (github.com/networkteam/sdd) carries nearly every surface agentic-helpers
-// uses; the fork at github.com/fza/sdd adds a few. Fork versions do not order
-// against stock ones, so each surface is read from the binary's own help text:
-// urfave/cli lists every command under COMMANDS and every flag under OPTIONS.
-// What writes to a graph support depends on the graph as well as the binary;
-// fork releases carrying `sdd info --format json` state it there.
+// Package sddcaps tells what the sdd on the PATH can do: whether it carries
+// `sdd export`, which stock releases lack. Fork versions
+// (github.com/fza/sdd) do not order against stock ones
+// (github.com/networkteam/sdd), so the surface is read from the binary's own
+// help text, where urfave/cli lists every command under COMMANDS.
 package sddcaps
 
 import (
@@ -23,12 +21,6 @@ import (
 )
 
 const (
-	Fork         = "github.com/fza/sdd"
-	ForkInstall  = "brew install fza/tap/sdd"
-	StockInstall = "brew install networkteam/tap/sdd"
-)
-
-const (
 	limit     = 5 * time.Second
 	cacheFile = "sdd-caps.json"
 	// surfaces counts the changes to what the probe reads. It opens the cache
@@ -40,17 +32,9 @@ const (
 // Caps is what one sdd binary offers. Runs is false where no sdd answered;
 // Printed then says what the attempt printed, for the message naming it.
 type Caps struct {
-	Runs              bool   `json:"runs"`
-	Printed           string `json:"-"`
-	PreflightVerified bool   `json:"preflight_verified"`
-	PreflightTimeout  bool   `json:"preflight_timeout"`
-	Title             bool   `json:"title"`
-	ActorKind         bool   `json:"actor_kind"`
-	LocalConfig       bool   `json:"local_config"`
-	Migrate           bool   `json:"migrate"`
-	Export            bool   `json:"export"`
-	ProjectDir        bool   `json:"project_dir"`
-	InfoJSON          bool   `json:"info_json"`
+	Runs    bool   `json:"runs"`
+	Printed string `json:"-"`
+	Export  bool   `json:"export"`
 }
 
 type Runner interface {
@@ -82,10 +66,7 @@ type cached struct {
 	Caps Caps   `json:"caps"`
 }
 
-var (
-	flagName = regexp.MustCompile(`--([a-z][a-z0-9-]*)`)
-	command  = regexp.MustCompile(`^\s+([a-z][a-z0-9-]*)(?:,\s*[a-z]+)*\s{2,}`)
-)
+var command = regexp.MustCompile(`^\s+([a-z][a-z0-9-]*)(?:,\s*[a-z]+)*\s{2,}`)
 
 // Of probes the sdd run from dir.
 func (probe Probe) Of(ctx context.Context, dir string) Caps {
@@ -103,35 +84,7 @@ func (probe Probe) Of(ctx context.Context, dir string) Caps {
 		return Caps{Printed: err.Error()}
 	}
 
-	newHelp, err := probe.help(ctx, dir, "new", "--help")
-	if err != nil {
-		return Caps{Printed: err.Error()}
-	}
-
-	initHelp, err := probe.help(ctx, dir, "init", "--help")
-	if err != nil {
-		return Caps{Printed: err.Error()}
-	}
-
-	// A release without `sdd info` lacks `--format` too, so a help page that
-	// cannot be read only leaves InfoJSON false.
-	infoHelp, _ := probe.help(ctx, dir, "info", "--help")
-
-	commands := commandsIn(root)
-	rootFlags, newFlags, initFlags := flagsIn(root), flagsIn(newHelp), flagsIn(initHelp)
-
-	found := Caps{
-		Runs:              true,
-		PreflightVerified: newFlags["preflight-verified"],
-		PreflightTimeout:  newFlags["preflight-timeout"],
-		Title:             newFlags["title"],
-		ActorKind:         newFlags["actor-kind"],
-		LocalConfig:       rootFlags["local-config"],
-		Migrate:           commands["migrate"],
-		Export:            commands["export"],
-		ProjectDir:        initFlags["project-dir"],
-		InfoJSON:          flagsIn(infoHelp)["format"],
-	}
+	found := Caps{Runs: true, Export: commandsIn(root)["export"]}
 
 	if key != "" {
 		probe.save(key, found)
@@ -175,26 +128,6 @@ func commandsIn(help string) map[string]bool {
 			if match != nil {
 				found[match[1]] = true
 			}
-		}
-	}
-
-	return found
-}
-
-// flagsIn names every flag a help text lists: each `--name` a line opens with,
-// and its aliases, read up to the column the usage text starts in.
-func flagsIn(help string) map[string]bool {
-	found := map[string]bool{}
-
-	for line := range strings.SplitSeq(help, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "--") {
-			continue
-		}
-
-		names, _, _ := strings.Cut(trimmed, "  ")
-		for _, match := range flagName.FindAllStringSubmatch(names, -1) {
-			found[match[1]] = true
 		}
 	}
 

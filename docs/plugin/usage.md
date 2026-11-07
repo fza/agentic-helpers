@@ -9,7 +9,6 @@ from any hook.
 | Hook | Runs when the project carries | Otherwise |
 |---|---|---|
 | Memory | a seat claimed with `agentic-memory claim <seat>`; where a project has memory but the session holds no seat, one line names the seats and says a prompt naming one in other words or another language asks to claim it | exits 0, silently |
-| Grounding gate | a `.sdd/` decision graph, at the project root or above it, without `enabled: false` in its `grounding.yaml` | exits 0, silently |
 | Scratch sweep | a `.tmp/` directory | exits 0, silently |
 | Tool library | a git work tree, on a machine where the first `agentic-tools add` created a library in some store of the home | exits 0, silently |
 | Shell-guard | nothing: it judges every Bash call of every project | its `shell_guard_*` options turn each guard off |
@@ -190,26 +189,38 @@ deletes.
 
 ## sdd
 
-The grounding gate and `agentic-capture` work with stock sdd
-([github.com/networkteam/sdd](https://github.com/networkteam/sdd)) and use what the fork
-[github.com/fza/sdd](https://github.com/fza/sdd) adds wherever the installed `sdd` carries it. What a
-binary carries is read from its own `sdd --help`, `sdd new --help`, `sdd init --help` and `sdd info --help`, never from
-its version, and kept in `<cache>/sdd-caps.json` per binary path, modification time and size.
+Memory works with stock sdd ([github.com/networkteam/sdd](https://github.com/networkteam/sdd)) and
+uses `sdd export`, which no stock release carries yet, wherever the installed `sdd` has it. Whether a
+binary carries it is read from its own `sdd --help`, never from its version, and kept in
+`<cache>/sdd-caps.json` per binary path, modification time and size. Without it, memory flags a
+graph link by whether its entry file exists.
 
-| Fork surface | Without it |
-|---|---|
-| `sdd new --preflight-verified` | `agentic-capture` runs one `sdd new`, which checks and writes |
-| `sdd new --title`, `--actor-kind` | a draft carrying `title` or `actor_kind` is refused, naming the fork |
-| `sdd --local-config` | `--preflight-route` is refused |
-| `sdd migrate` | a graph on schema 2 is refused; a schema refusal names no `sdd migrate` |
-| `sdd init --project-dir` | the gate's engine refusal skips a project naming `project_dir` |
-| `sdd info --format json` | `agentic-capture` reads a titled draft's graph schema from `.sdd/meta.json` instead of asking sdd |
-| `sdd export` (no stock release) | memory flags a graph link by whether its entry file exists |
+## Moved to sdd-helpers
+
+The grounding gate and `agentic-capture` ship in the
+[sdd-helpers](https://github.com/fza/sdd-helpers) plugin, as `sdd-grounding-gate` and
+`sdd-capture`, with their skills and options. agentic-helpers carries neither, and reads none of the
+options `grounding_gate_enabled`, `capture_enabled` and `capture_remove_draft`; a `config.yaml` still
+naming one gets the line for an unknown key. Install sdd-helpers beside agentic-helpers:
+
+```bash
+claude plugin marketplace add fza/sdd-helpers
+claude plugin install sdd-helpers@sdd-helpers
+```
+
+At session start, in a project whose directory carries `.sdd/`, `agentic-helpers check` prints one
+line while Claude Code's `plugins/installed_plugins.json` (under `CLAUDE_CONFIG_DIR`, else
+`~/.claude`) lists no plugin keyed `sdd-helpers@<marketplace>`; a missing or unreadable file counts
+as none:
+
+```text
+agentic-helpers: the grounding gate and agentic-capture moved to the sdd-helpers plugin: claude plugin marketplace add fza/sdd-helpers, then claude plugin install sdd-helpers@sdd-helpers
+```
 
 ## Commands
 
-Claude Code's Bash tool finds `agentic-capture`, `agentic-helpers`, `agentic-memory` and `agentic-tools` through the plugin's `bin/`,
-which hands each call to the launcher, so `agentic-capture --help` is answered by the real binary.
+Claude Code's Bash tool finds `agentic-helpers`, `agentic-memory` and `agentic-tools` through the plugin's `bin/`,
+which hands each call to the launcher, so `agentic-tools help` is answered by the real binary.
 With no binary installed and none fetchable, a command from `bin/` or the MCP server exits 1 and
 says why on stderr, where a hook stays silent. An `agentic-*` binary on the PATH outside a plugin's
 `bin/` gets one SessionStart line naming its directory, since every project's Bash would run it ahead
@@ -320,8 +331,7 @@ saved for it stays in effect until removed from `pluginConfigs` by hand.
 **Keys deciding when stored data every agent shares is deleted live in `config.yaml` only**:
 `retired_body_lifetime`, `tools_version_lifetime`, `cache_retention`, `temporary_seat_lifetime`, `tools_total_mb` and `orphan_store_grace`. The dialog lacks them and a value
 in the user settings or the hook environment is ignored, since two agents set apart would leave the
-lowest value deciding for both. Managed settings still set them. A key deleting only what one session
-made for itself, `capture_remove_draft`, stays in the dialog. At session start `agentic-helpers check`
+lowest value deciding for both. Managed settings still set them. At session start `agentic-helpers check`
 copies a value the user settings still hold for a `config.yaml`-only key into `config.yaml`, where the
 file names none; it writes no settings file.
 
@@ -331,7 +341,7 @@ built-in default, the layer below it:
 
 | Keys | `config.yaml` takes |
 |---|---|
-| `shell_guard_enabled`, `grounding_gate_enabled`, `shell_guard_lone_removal`, `shell_guard_expansion`, `shell_guard_nested_code`, `shell_guard_mktemp`, `shell_guard_alternatives` | only `true` |
+| `shell_guard_enabled`, `shell_guard_lone_removal`, `shell_guard_expansion`, `shell_guard_nested_code`, `shell_guard_mktemp`, `shell_guard_alternatives` | only `true` |
 | `shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets` | only as strict or stricter: `off` < `ask` < `deny` |
 | `shell_guard_secret_output` | only as strict or stricter: `off` < `files` < `all` |
 | `shell_guard_ask_timeout` | only as short or shorter; `0` waits without limit, the loosest |
@@ -371,15 +381,13 @@ below applies, and `agentic-helpers check` names it at session start, one line e
 that does not parse. `config` lists each as `problem:`.
 An invalid value in a settings file still sets every option to its default, as before.
 
-[`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md),
-[`../capture/usage.md`](../capture/usage.md) and [`../shell-guard/usage.md`](../shell-guard/usage.md)
-list each option.
+[`../memory/usage.md`](../memory/usage.md), [`../tools/usage.md`](../tools/usage.md) and
+[`../shell-guard/usage.md`](../shell-guard/usage.md) list each option.
 
 ## Switching a piece off
 
 Each piece has a boolean plugin option switching it on or off for the machine, on unless set:
-`memory_enabled`, `tools_enabled`, `scratch_enabled`, `grounding_gate_enabled`, `capture_enabled` and
-`shell_guard_enabled`. Off, its hooks say nothing, its commands exit 1 with
+`memory_enabled`, `tools_enabled`, `scratch_enabled` and `shell_guard_enabled`. Off, its hooks say nothing, its commands exit 1 with
 `<binary>: off on this machine (plugin option <key>)`, its MCP server lists no tools and its
 instructions name the option, and its skill stays listed. Each binary checks its own switch. A
 feature resting on an off piece goes off with it, and the rest of its piece runs; the table is in
@@ -387,8 +395,9 @@ feature resting on an off piece goes off with it, and the rest of its piece runs
 line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`,
 and, where the machine needs a command substitution shell-guard enforces, one naming them, such as
 `agentic-helpers: this machine: timeout -> agentic-helpers bound; sed and date are BSD` (see
-[shell-guard's command alternatives](../shell-guard/usage.md#command-alternatives)); run as a command
-it lists every piece on or off, with its features off under it.
+[shell-guard's command alternatives](../shell-guard/usage.md#command-alternatives)), and, in a
+graph project lacking the sdd-helpers plugin, the line [naming it](#moved-to-sdd-helpers); run as a
+command it lists every piece on or off, with its features off under it.
 
 Every binary reads `config.yaml`, then `settings.json` under `CLAUDE_CONFIG_DIR` (else `~/.claude`),
 then, in a hook, the options Claude Code hands it as `CLAUDE_PLUGIN_OPTION_<KEY>`, then the managed
@@ -420,8 +429,6 @@ skill carrying what it cannot say in a one-line refusal.
 | Skill | Carries |
 |---|---|
 | `agentic-helpers:agent-memory` | what a seat is, how to claim one, how to file, find, retire and supersede, what belongs in memory against what belongs in the graph (and that a project without a graph files its decisions and defects in memory), and what comes back after a compaction |
-| `agentic-helpers:agent-grounding` | the sdd reads that open the gate, how deep to read an entry and why, which reference kind is the sharp one, and what each refusal means |
-| `agentic-helpers:agent-capture` | the draft's shape, what runs before an sdd entry is written, and what each refusal and exit code means |
 | `agentic-helpers:agent-tools` | looking for a tool before writing one, taking and registering tools, what each duplicate refusal means, and what each `tool library:` line asks |
 | `agentic-helpers:agent-scratch` | where throwaway goes, what the sweep removes, and how to keep something from it |
 | `agentic-helpers:agent-shell-guard` | what passes a Bash call, what each shell-guard refusal and question means, and what to do about it |
@@ -451,8 +458,7 @@ checkout's gitignored `.claude/bin` in the `env` block of the checkout's own
 
 A change to a binary then reaches the hooks on the next event after
 `GOBIN="$PWD/.claude/bin" go install -C source/hooks ./cmd/...` from the checkout root. The
-install builds `agentic-helpers`, not `agentic-memory`, `agentic-tools`, `agentic-capture` or
-`agentic-scratch`: the launcher links each of those names to `agentic-helpers` in `.claude/bin` the
+install builds `agentic-helpers`, not `agentic-memory`, `agentic-tools` or `agentic-scratch`: the launcher links each of those names to `agentic-helpers` in `.claude/bin` the
 first time it runs one,
 and replaces a program an earlier build left under the name once `agentic-helpers` is newer. Never
 install into `~/go/bin` or another directory on the PATH: every project's Bash calls would find the

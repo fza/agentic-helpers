@@ -26,10 +26,8 @@ func TestEachTieBreaksOnlyWhileItsPieceIsOff(t *testing.T) {
 		ties []pieces.Tie
 	}{
 		{`"scratch_enabled":false`, []pieces.Tie{pieces.MktempBan}},
-		{`"grounding_gate_enabled":false`, []pieces.Tie{pieces.CaptureGrounded}},
-		{`"memory_enabled":false`, []pieces.Tie{pieces.ExemptSeats, pieces.ToolsSeatName}},
-		{`"memory_enabled":false,"tools_enabled":false`, []pieces.Tie{pieces.ExemptSeats}},
-		{`"capture_enabled":false`, nil},
+		{`"memory_enabled":false`, []pieces.Tie{pieces.ToolsSeatName}},
+		{`"memory_enabled":false,"tools_enabled":false`, nil},
 	}
 
 	for _, tc := range cases {
@@ -69,10 +67,6 @@ func TestTheLinesAPieceAndATieSpeak(t *testing.T) {
 	if got := pieces.Tools.Instructions(); got != "agentic-tools is off on this machine; plugin option tools_enabled turns it on" {
 		t.Errorf("an off piece's MCP server should say which option turns it on, got %q", got)
 	}
-
-	if got := pieces.CaptureGrounded.Off(); got != "agentic-capture: off while grounding gate is off (plugin option grounding_gate_enabled)" {
-		t.Errorf("a command whose work rests on an off piece should say so, got %q", got)
-	}
 }
 
 func TestCheck(t *testing.T) {
@@ -85,10 +79,10 @@ func TestCheck(t *testing.T) {
 	}{
 		{"a session start with every tie whole says nothing", "", true, nil, []string{"agentic-helpers"}},
 		{"a session start names each broken tie", `"scratch_enabled":false,"memory_enabled":false`, true,
-			[]string{pieces.MktempBan.Line(), pieces.ExemptSeats.Line(), pieces.ToolsSeatName.Line()}, []string{"memory  "}},
+			[]string{pieces.MktempBan.Line(), pieces.ToolsSeatName.Line()}, []string{"memory  "}},
 		{"a command lists every piece and what is off under it", `"scratch_enabled":false`, false,
-			[]string{"memory          on\n", "scratch         off  (plugin option scratch_enabled)\n",
-				"shell-guard     on\n  off: shell-guard's mktemp ban, as scratch is off; turn scratch_enabled on to restore it\n"}, nil},
+			[]string{"memory       on\n", "scratch      off  (plugin option scratch_enabled)\n",
+				"shell-guard  on\n  off: shell-guard's mktemp ban, as scratch is off; turn scratch_enabled on to restore it\n"}, nil},
 	}
 
 	for _, tc := range cases {

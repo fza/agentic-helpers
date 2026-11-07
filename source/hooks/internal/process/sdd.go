@@ -44,12 +44,6 @@ const sddConfigLimit = 5 * time.Second
 // SddConfig reads sdd's configuration as sdd layers it for a directory.
 type SddConfig struct{}
 
-// SddValue is what `sdd config get <key>` prints in dir, trimmed, or nothing
-// where sdd is missing, fails or knows no such key.
-func (config SddConfig) SddValue(ctx context.Context, dir string, key string) string {
-	return strings.TrimSpace(config.get(ctx, dir, key))
-}
-
 // EmbeddingConfig is what `sdd config get embedding` prints in dir, or nothing
 // where sdd is missing or fails.
 func (config SddConfig) EmbeddingConfig(ctx context.Context, dir string) string {

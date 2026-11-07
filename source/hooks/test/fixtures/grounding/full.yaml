@@ -1,3 +1,0 @@
-# The listing that grounds a question, and the lint a draft body passes.
-listing_prefix: area-
-draft_lint: vale --output=line

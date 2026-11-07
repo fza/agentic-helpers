@@ -13,7 +13,7 @@
 | `plugin/bin/` | the commands the Bash tool finds, each handing its call to the launcher |
 | `plugin/skills/` | one skill per hook |
 | `plugin/README.md` | what the plugin is, and everything it runs, sends, writes and decides, for a user reading the installed plugin |
-| `source/hooks/` | one Go module: under `cmd/`, a binary per guarding hook program and `agentic-helpers`, which runs as `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` under those names (its `links/` holds them as links for the release archive); everything else under `internal/` |
+| `source/hooks/` | one Go module: under `cmd/`, a binary per guarding hook program and `agentic-helpers`, which runs as `agentic-memory`, `agentic-tools` and `agentic-scratch` under those names (its `links/` holds them as links for the release archive); everything else under `internal/` |
 
 Claude Code loads every component it finds at a plugin's root, so nothing but the plugin's own
 files goes into `plugin/`.
@@ -22,19 +22,17 @@ files goes into `plugin/`.
 
 | Event | Binaries |
 |---|---|
-| SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-grounding-gate start`, `agentic-helpers record` |
+| SessionStart | `agentic-memory session-start`, `agentic-memory session-log`, `agentic-scratch start`, `agentic-tools start`, `agentic-helpers check`, `agentic-helpers record` |
 | InstructionsLoaded | `agentic-memory instructions` |
 | UserPromptSubmit | `agentic-memory prompt`, `agentic-tools prompt`, `agentic-helpers record` |
-| PreToolUse on `AskUserQuestion`, `Write`, `Edit`, `NotebookEdit`, `Bash`, `Monitor`, `mcp__sdd__show`, `mcp__sdd__start_procedure`, `mcp__sdd__next`, `mcp__sdd__stage_attachment` | `agentic-grounding-gate gate` |
 | PreToolUse on `Bash`, `Monitor` | `agentic-shell-guard` |
 | PreToolUse on `Agent`, `Task`, `Bash`, `mcp__plugin_agentic-helpers_memory__*` | `agentic-memory pre-tool` |
 | PermissionRequest on `Bash`, `Monitor` | `agentic-shell-guard permission`, with a timeout past the longest countdown `shell_guard_ask_timeout` allows |
 | PreToolUse and PermissionRequest on every tool | `agentic-helpers record` |
-| PostToolUse on `Bash`, `mcp__sdd__search`, `mcp__sdd__view`, `mcp__sdd__next`, `Write`, `Edit` | `agentic-grounding-gate record` |
 | PostToolUse on every tool | `agentic-shell-guard output`, `agentic-memory tool`, `agentic-tools notice`, `agentic-helpers record` |
 | SubagentStop | `agentic-memory subagent-stop` |
 | Stop | `agentic-memory stop`, `agentic-tools stop`, `agentic-helpers record`, and `agentic-memory wait` marked `asyncRewake` with a timeout past its 30-minute deadline |
-| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-grounding-gate end`, `agentic-tools end`, `agentic-helpers end`, `agentic-helpers record` |
+| SessionEnd | `agentic-memory session-end`, `agentic-scratch end`, `agentic-tools end`, `agentic-helpers end`, `agentic-helpers record` |
 
 ### Session records
 
@@ -127,9 +125,7 @@ A process allowed to write part of the home, or a repository's committed files, 
 where the owner's next write goes. So every file agentic-helpers creates, opens for writing, appends
 to, renames or makes a folder for below a root goes through `internal/safefs`. The roots are the
 data home (`$XDG_DATA_HOME/agentic-helpers` or `AGENTIC_HELPERS_HOME`), the cache home
-(`$XDG_CACHE_HOME/agentic-helpers`), a checkout's top folder (`.tmp/` and its seat folders, a
-draft's lint body), the folder holding a graph's directory (`.sdd/tmp/capture.lock`, the grounding
-gate's ledgers) and a git common dir (the `agentic-store` pointer). The migration walks the old
+(`$XDG_CACHE_HOME/agentic-helpers`), a checkout's top folder (`.tmp/` and its seat folders) and a git common dir (the `agentic-store` pointer). The migration walks the old
 layout under `.claude` from each path's own folder, and `agentic-memory read --to` from the resolved
 work tree or `/tmp`. A root and every folder above it are the owner's and may be links: a symlinked
 `~/.local/share` keeps working.
@@ -308,7 +304,7 @@ the release named by the plugin's own `version`, kept under the plugin's data di
 (`~/.claude/plugins/data/agentic-helpers-agentic-helpers/<version>/`):
 
 1. `AGENTIC_HELPERS_BIN_DIR` set: the binary in that directory runs, and nothing is fetched. For
-   `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` the launcher first
+   `agentic-memory`, `agentic-tools` and `agentic-scratch` the launcher first
    links the name to `agentic-helpers` beside it where the name is missing, or is a program an
    earlier build left that `agentic-helpers` is newer than, since `go install` builds
    `agentic-helpers` alone. The link is made under a name of its own and renamed into place, so a
@@ -322,25 +318,25 @@ the release named by the plugin's own `version`, kept under the plugin's data di
    release of another major never stands in: `hooks.json` calls the programs by its own major's
    commands, which another major's program may not know, answering with its usage line on every
    hook event, SessionEnd's shown in the terminal as it closes.
-5. No binary at all: the grounding gate refuses every call it guards and shell-guard every Bash
-   call, each with a message naming the fix, rather than letting work run ungrounded or unguarded;
+5. No binary at all: shell-guard refuses every Bash call, with a message naming the fix, rather
+   than letting work run unguarded;
    shell-guard's output scan says on stderr, exit 1, that tool output reaches the agent unscanned;
    every other hook does nothing. The SessionStart that failed to fetch says why, once.
 
 The archive is unpacked in the fetch's work directory and renamed into place, so a version
 directory is complete or absent.
 
-The archive holds `agentic-shell-guard`, `agentic-grounding-gate` and `agentic-helpers` as
-programs, and `agentic-memory`, `agentic-tools`, `agentic-capture` and `agentic-scratch` as links
+The archive holds `agentic-shell-guard` and `agentic-helpers` as programs, and
+`agentic-memory`, `agentic-tools` and `agentic-scratch` as links
 to `agentic-helpers`, which `tar` keeps as links. `agentic-helpers` picks its command by the base
 of the path it runs under, so the launcher runs `<version>/agentic-memory` as it runs any other
 name, and an earlier release whose archive holds a program under each name runs unchanged. Each
 program carries its own copy of the Go runtime and of the packages it shares, so one program for
-the four commands and `agentic-helpers` keeps one copy: a release unpacks to 25 to 28 MB across
+the commands and `agentic-helpers` keeps one copy: a release unpacks to 25 to 28 MB across
 darwin and linux, amd64 and arm64, where a program per name took 50 MB. The hook programs that
 refuse a call when they fail stay apart: a fault in the startup code of a memory, tool-library or
 scratch package (a Go panic exits 2, which Claude Code reads as a refusal) breaks every name of
-`agentic-helpers`, never a Bash or graph call, and shell-guard's start loads only its own packages.
+`agentic-helpers`, never a Bash call, and shell-guard's start loads only its own packages.
 agentic-scratch refuses nothing: it runs only at SessionStart and SessionEnd, so such a fault
 leaves a session's scratch folder unprepared and unswept, and its start pays the other commands'
 package setup, under a millisecond. agentic-memory starts a landed-commit round from its own name
@@ -356,7 +352,7 @@ user named `agentic-*` executes from (darwin: `kern.proc.uid` and the path in `k
 linux: `/proc/<pid>/exe`), compared against the data directory as given and with its links
 resolved, and every version whose mark is under 14 days old, and deletes every other folder named
 as a version. A session still running an older plugin version runs that version's programs, and
-without them its grounding gate and shell-guard refuse every call, so a folder goes only once no
+without them its shell-guard refuses every Bash call, so a folder goes only once no
 session can need it. Rejected: keeping the newest three, a fixed bound of about 150 MB, which
 leaves a session running an older version without its programs; leaving every release, about
 50 MB more per release without end.

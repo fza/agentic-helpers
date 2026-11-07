@@ -1,6 +1,6 @@
 {
   "name": "agentic-helpers",
-  "description": "Claude Code hooks and skills for sdd decision graphs, agent memory and scratch space",
+  "description": "Claude Code hooks and skills for agent memory, a helper-script library, scratch space and a Bash guard",
   "owner": {
     "name": "Felix Zandanel"
   },
@@ -8,7 +8,7 @@
     {
       "name": "agentic-helpers",
       "source": "./plugin",
-      "description": "agentic-memory, the scratch sweep and grounding gate hooks, agentic-capture, and a skill for each"
+      "description": "agentic-memory, agentic-tools, the scratch sweep and shell-guard hooks, and a skill for each"
     }
   ]
 }

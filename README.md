@@ -6,8 +6,8 @@ time, guesses about decisions your team already made, leaves probe files behind,
 runs a command you would never have allowed.
 
 agentic-helpers fixes that, quietly, for every Claude Code session on your machine. Install it once:
-your agent remembers where work stands, reuses what other agents already built, checks your
-project's decisions before it acts, cleans up after itself, and stays inside safe limits. There is
+your agent remembers where work stands, reuses what other agents already built, cleans up after
+itself, and stays inside safe limits. There is
 nothing to run by hand. Hooks do the work in the background, and a short skill per piece tells the
 agent what it is doing. The goal is an agent you can leave alone for longer, and trust more when you
 come back.
@@ -16,8 +16,7 @@ come back.
 > and sends none of it anywhere. Text leaves the machine only for an embedding model you configure
 > for search by meaning, and that model can run locally (Ollama, LM Studio). Beyond that, it
 > downloads its own release from GitHub and, once a day while auto-update is off, asks GitHub
-> whether a newer one is out (`update_notice: false` stops it). A graph capture runs sdd's
-> pre-flight, which sends the draft to Claude through `claude -p`.
+> whether a newer one is out (`update_notice: false` stops it).
 > [plugin/README.md](plugin/README.md#what-it-sends) lists every case.
 
 | Piece | Command | What it does |
@@ -25,8 +24,6 @@ come back.
 | memory | `agentic-memory` | Keeps notes the agent reads again after a compaction or in a new session |
 | tool library | `agentic-tools` | Shares helper scripts between agents, so none is written twice |
 | scratch sweep | `agentic-scratch` | Gives each seat or session one place for throwaway files, and empties it when the work ends |
-| grounding gate | `agentic-grounding-gate` | Makes the agent read the decision graph before it asks, drafts or captures, and collapses sdd output the agent was already shown |
-| capture | `agentic-capture` | Writes new graph entries through one checked path, free of credentials |
 | shell-guard | `agentic-shell-guard` | Keeps deletions inside the project, and credentials out of commands and output |
 
 Memory and the tool library are also available as MCP servers, `memory` and `tools`.
@@ -73,22 +70,24 @@ Memory and the tool library are also available as MCP servers, `memory` and `too
 - **Commands that work on this machine.** A command missing here (`timeout`) or a usage BSD `sed`
   or `date` gets wrong is refused, naming the one that works.
 
-## Extended sdd features
+## Moved to sdd-helpers
 
-For projects keeping a decision graph with [sdd](https://github.com/networkteam/sdd), in the
-repository itself or in a separate one.
+The grounding gate and `agentic-capture`, the hooks for projects keeping a decision graph with
+[sdd](https://github.com/networkteam/sdd), ship in the
+[sdd-helpers](https://github.com/fza/sdd-helpers) plugin, as `sdd-grounding-gate` and
+`sdd-capture`. agentic-helpers no longer carries them, nor their options. Install sdd-helpers beside
+it:
 
-### Grounding gate
+```bash
+claude plugin marketplace add fza/sdd-helpers
+claude plugin install sdd-helpers@sdd-helpers
+```
 
-- **Decisions are read before they are discussed.** The agent must search and list the graph before
-  it asks you a question, drafts an entry or captures one.
-- **Repeated sdd output shrinks.** An entry the agent was already shown comes back as a short
-  pointer instead of in full.
+Until it is installed, each session start in a project carrying a `.sdd/` graph says so:
 
-### Capture
-
-- **One checked path into the graph.** Every new entry passes the project's lint, sdd's pre-flight
-  and a credential scan before it is written.
+```text
+agentic-helpers: the grounding gate and agentic-capture moved to the sdd-helpers plugin: claude plugin marketplace add fza/sdd-helpers, then claude plugin install sdd-helpers@sdd-helpers
+```
 
 ## Measurements
 
@@ -99,7 +98,6 @@ five times input.
 | Work | Without agentic-helpers | With agentic-helpers | Saved |
 |---|---|---|---|
 | Getting a helper script the library already holds | write it: 1,307 output tokens (median), about 6,500 input-token equivalents | find and take it: about 4,100 input-token equivalents | about 37% per script; 40 of 49 stored tools cost more to write than to find |
-| Reading sdd decision-graph entries again | 42% of 13.8 million characters of sdd output repeat what the agent already saw | entries already shown come back as a short pointer; a run of repeated reads fell from 9,426 to 7,714 characters | about 18% on that run |
 
 
 ## Good to know
@@ -108,8 +106,8 @@ five times input.
   to do. Shell-guard is the exception: it checks every Bash call in every project, unless its
   options turn the guard feature off.
 - **The hooks and commands are Go binaries** built from `source/hooks`. Each release publishes them,
-  and the plugin downloads them. `agentic-memory`, `agentic-tools`, `agentic-capture` and
-  `agentic-scratch` are one program, `agentic-helpers`, answering to each name.
+  and the plugin downloads them. `agentic-memory`, `agentic-tools` and `agentic-scratch` are one
+  program, `agentic-helpers`, answering to each name.
 - **Subagents get what their spawner names.** One line `agentic-helpers: <level>` in the Agent
   prompt picks `none` (the scratch folder and machine notes, the default), `rules`, `silent`
   (read-only memory), `shared` or `full` (a memory seat of its own). A subagent never gets more than
@@ -122,10 +120,9 @@ five times input.
 - macOS or Linux, on amd64 or arm64.
 - Claude Code. The one-step `/plugin install` with `--marketplace` needs 2.1.275 or later.
 - git. Memory works only inside a git work tree, unless `memory_require_git` is off.
-- [sdd](https://github.com/networkteam/sdd), only for projects with a graph under `.sdd/`. Collapsing
-  repeated sdd output needs the fza fork, `v0.18.0-alpha.2.fza.41` or later (`sessions.token_saving`);
-  with any other sdd, answers pass through as sdd gives them. Collapsing a `view` answer needs
-  `v0.18.0-alpha.2.fza.42` or later (`view_sections`).
+- [sdd](https://github.com/networkteam/sdd), only for projects with a graph under `.sdd/`: memory
+  resolves an entry cited from a graph in another repository through `sdd export`, and search by
+  meaning follows sdd's embedding configuration where `embedding_provider` is `auto`.
 
 ## Installing
 
@@ -175,8 +172,8 @@ curl -sL https://github.com/networkteam/sdd/releases/latest/download/install.sh 
 ```
 
 **Optional: the fork [github.com/fza/sdd](https://github.com/fza/sdd)** (`brew install fza/tap/sdd`).
-agentic-helpers works with stock sdd, and uses the fork's extras wherever the installed `sdd`
-offers them. [`docs/capture/usage.md`](docs/capture/usage.md) lists them.
+agentic-helpers works with stock sdd, and uses the fork's `sdd export` wherever the installed `sdd`
+offers it ([`docs/plugin/usage.md`](docs/plugin/usage.md#sdd)).
 
 ## Options
 
@@ -218,8 +215,6 @@ Rules, in short ([docs/plugin/usage.md](docs/plugin/usage.md#options) has the de
 | `tools_enabled` | `true` | agentic-tools, the same way |
 | `scratch_enabled` | `true` | The scratch sweep |
 | `scratch_sweep` | `release` | When a seat's scratch folder goes: `release` at `agentic-memory release`, `session` when its session ends, `idle` only after a week unused |
-| `grounding_gate_enabled` | `true` | The grounding gate |
-| `capture_enabled` | `true` | `agentic-capture` |
 | `shell_guard_enabled` | `true` | Shell-guard |
 
 ### Search by meaning
@@ -275,12 +270,6 @@ everything once. [docs/memory/usage.md](docs/memory/usage.md) has the detail.
 | `tools_version_lifetime` | `90d` | `config.yaml` only. How long a tool version stays once a newer one replaced it, whatever space is left (at least `14d`); a current version or a fork's origin never goes |
 | `cache_retention` | `90d` | `config.yaml` only. How long a vector store of memory or the tool library survives once no binary has read or written it (at least `14d`); a daily background run deletes it after, and a changed embedder's store goes this way |
 
-### Capture
-
-| Option | Default | What it controls |
-|---|---|---|
-| `capture_remove_draft` | `true` | `agentic-capture` deletes a draft once its entry is captured, unless git tracks it or it lies outside the work tree, the graph repository's work tree and `/tmp` |
-
 ### Shell-guard
 
 An `ask` option also takes `deny` or `off`.
@@ -314,8 +303,6 @@ agentic-helpers: scratch is off, so shell-guard's mktemp ban is off; turn scratc
 | Turned off | Also off | Because |
 |---|---|---|
 | `scratch_enabled` | Shell-guard's `mktemp` ban, whatever `shell_guard_mktemp` says | The ban sends scratch files to `.tmp/`, which nothing would sweep |
-| `grounding_gate_enabled` | `agentic-capture` | Its grounding check is the gate's hook; without it, a draft lands unchecked |
-| `memory_enabled` | The grounding gate's `exempt_seats` | A seat is a memory claim, and a claim left over from before must not exempt anything |
 | `memory_enabled` | The seat name agentic-tools stamps on what it files | The name comes from memory's seat registry |
 
 ## Contributing

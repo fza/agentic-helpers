@@ -59,7 +59,7 @@ func TestThePluginsVersionRunsWhenPresent(t *testing.T) {
 
 func TestSessionStartFetchesTheRelease(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
-	plugin.Release(t, "1.4.0", "", "agentic-scratch", "agentic-grounding-gate")
+	plugin.Release(t, "1.4.0", "", "agentic-scratch", "agentic-shell-guard")
 
 	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-scratch", "start")
 	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join(plugin.Data, "1.4.0", "agentic-scratch")+" start") {
@@ -70,7 +70,7 @@ func TestSessionStartFetchesTheRelease(t *testing.T) {
 		t.Errorf("the checksums and the archive should be fetched once each, got: %v", plugin.CurlCalls(t))
 	}
 
-	if !test.Exists(t, filepath.Join(plugin.Data, "1.4.0", "agentic-grounding-gate")) {
+	if !test.Exists(t, filepath.Join(plugin.Data, "1.4.0", "agentic-shell-guard")) {
 		t.Error("every binary of the release should be unpacked")
 	}
 
@@ -82,7 +82,7 @@ func TestSessionStartFetchesTheRelease(t *testing.T) {
 func TestACommandFetchesAMissingRelease(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	plugin.Release(t, "1.4.0", "", "agentic-memory")
-	plugin.Installed(t, "1.3.0", "agentic-capture")
+	plugin.Installed(t, "1.3.0", "agentic-tools")
 
 	got := plugin.Run(t, "hooks/run", nil, "--command", "agentic-memory", "mcp")
 	if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join(plugin.Data, "1.4.0", "agentic-memory")+" mcp") {
@@ -91,57 +91,6 @@ func TestACommandFetchesAMissingRelease(t *testing.T) {
 
 	if strings.Contains(got.Stdout, "agentic-helpers:") {
 		t.Errorf("a command's stdout belongs to the binary and carries no notice, got: %+v", got)
-	}
-}
-
-func TestTheGateSeesSddsMCPTools(t *testing.T) {
-	content, err := os.ReadFile(filepath.Join(pluginRoot, "hooks", "hooks.json"))
-	if err != nil {
-		t.Fatalf("reading hooks.json: %v", err)
-	}
-
-	var wiring struct {
-		Hooks map[string][]struct {
-			Matcher string `json:"matcher"`
-			Hooks   []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-
-	err = json.Unmarshal(content, &wiring)
-	if err != nil {
-		t.Fatalf("parsing hooks.json: %v", err)
-	}
-
-	matched := func(event string, mode string) []string {
-		var tools []string
-
-		for _, group := range wiring.Hooks[event] {
-			for _, hook := range group.Hooks {
-				if strings.HasSuffix(hook.Command, "agentic-grounding-gate "+mode) {
-					tools = append(tools, strings.Split(group.Matcher, "|")...)
-				}
-			}
-		}
-
-		return tools
-	}
-
-	for _, tool := range []string{"mcp__sdd__show", "mcp__sdd__start_procedure", "mcp__sdd__next", "mcp__sdd__stage_attachment"} {
-		if !slices.Contains(matched("PreToolUse", "gate"), tool) {
-			t.Errorf("the gate should judge %s before it runs", tool)
-		}
-	}
-
-	for _, tool := range []string{"mcp__sdd__search", "mcp__sdd__view"} {
-		if !slices.Contains(matched("PostToolUse", "record"), tool) {
-			t.Errorf("the gate should record %s as a read", tool)
-		}
-	}
-
-	if !slices.Contains(matched("PostToolUse", "record"), "mcp__sdd__stage_attachment") {
-		t.Error("the gate should record the text of every file staged for the engine")
 	}
 }
 
@@ -182,7 +131,6 @@ func TestEveryToolRunningAShellCommandIsJudged(t *testing.T) {
 	hooks := []struct{ event, command string }{
 		{"PreToolUse", `/hooks/run" agentic-shell-guard`},
 		{"PermissionRequest", "agentic-shell-guard permission"},
-		{"PreToolUse", "agentic-grounding-gate gate"},
 	}
 
 	for _, hook := range hooks {
@@ -721,20 +669,20 @@ func TestAMissingVersionFallsBackToTheNewestPresent(t *testing.T) {
 		extra []string
 		args  []string
 	}{
-		{name: "a prompt never downloads", args: []string{"agentic-grounding-gate", "turn"}},
+		{name: "a prompt never downloads", args: []string{"agentic-tools", "prompt"}},
 		{name: "a session start that cannot download", extra: []string{"FAKE_RELEASES=/nonexistent"},
-			args: []string{"--session-start", "agentic-grounding-gate", "start"}},
+			args: []string{"--session-start", "agentic-tools", "start"}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			plugin := test.NewPlugin(t, pluginRoot, "1.10.1")
-			plugin.Installed(t, "1.9.0", "agentic-grounding-gate")
-			plugin.Installed(t, "1.10.0", "agentic-grounding-gate")
-			plugin.Installed(t, "1.2.0", "agentic-grounding-gate")
+			plugin.Installed(t, "1.9.0", "agentic-tools")
+			plugin.Installed(t, "1.10.0", "agentic-tools")
+			plugin.Installed(t, "1.2.0", "agentic-tools")
 
 			got := plugin.Run(t, "hooks/run", tc.extra, tc.args...)
-			if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.10.0", "agentic-grounding-gate")) {
+			if got.Code != 0 || !strings.Contains(got.Stdout, filepath.Join("1.10.0", "agentic-tools")) {
 				t.Errorf("the newest version present should run, by version order, got: %+v", got)
 			}
 
@@ -756,10 +704,10 @@ func TestAMissingVersionFallsBackToTheNewestPresent(t *testing.T) {
 
 	t.Run("a prompt asks for no download", func(t *testing.T) {
 		plugin := test.NewPlugin(t, pluginRoot, "1.10.1")
-		plugin.Release(t, "1.10.1", "", "agentic-grounding-gate")
-		plugin.Installed(t, "1.9.0", "agentic-grounding-gate")
+		plugin.Release(t, "1.10.1", "", "agentic-tools")
+		plugin.Installed(t, "1.9.0", "agentic-tools")
 
-		plugin.Run(t, "hooks/run", nil, "agentic-grounding-gate", "turn")
+		plugin.Run(t, "hooks/run", nil, "agentic-tools", "prompt")
 
 		if plugin.CurlCalls(t) != nil {
 			t.Error("only a session start should download")
@@ -813,13 +761,11 @@ func TestNoBinaryAtAll(t *testing.T) {
 		notice bool
 		says   string
 	}{
-		{name: "the gate refuses", args: []string{"agentic-grounding-gate", "gate"}, code: 2},
 		{name: "shell-guard refuses", args: []string{"agentic-shell-guard"}, code: 2},
 		{name: "shell-guard's output scan says the output went unscanned", args: []string{"agentic-shell-guard", "output"}, code: 1,
 			says: "tool output reaches the agent unscanned"},
 		{name: "a session start says why once", args: []string{"--session-start", "agentic-scratch", "start"}, notice: true},
 		{name: "any other hook stays quiet", args: []string{"agentic-memory", "prompt"}},
-		{name: "the gate's own record stays quiet", args: []string{"agentic-grounding-gate", "record"}},
 		{name: "a command from bin/ fails loudly", args: []string{"--command", "agentic-memory", "new"}, code: 1},
 	}
 
@@ -855,7 +801,7 @@ func TestNoBinaryAtAll(t *testing.T) {
 func TestTheShimsRunTheRealBinary(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 	data := filepath.Join(plugin.Config, "plugins", "data", "agentic-helpers-agentic-helpers")
-	plugin.Binaries(t, filepath.Join(data, "1.4.0"), "agentic-capture", "agentic-memory")
+	plugin.Binaries(t, filepath.Join(data, "1.4.0"), "agentic-tools", "agentic-memory")
 
 	bashTool := []string{"CLAUDE_PLUGIN_ROOT", "CLAUDE_PLUGIN_DATA", "CLAUDE_CONFIG_DIR=" + plugin.Config}
 
@@ -863,7 +809,7 @@ func TestTheShimsRunTheRealBinary(t *testing.T) {
 		shim string
 		args []string
 	}{
-		{shim: "bin/agentic-capture", args: []string{"--help"}},
+		{shim: "bin/agentic-tools", args: []string{"list"}},
 		{shim: "bin/agentic-memory", args: []string{"claim", "main"}},
 	}
 
@@ -965,7 +911,7 @@ func TestTheReleaseCarriesTheCommandNamesAsLinksToAgenticHelpers(t *testing.T) {
 	}
 
 	links := releaseLinks(t)
-	if !slices.Equal(links, []string{"agentic-capture", "agentic-memory", "agentic-scratch", "agentic-tools"}) {
+	if !slices.Equal(links, []string{"agentic-memory", "agentic-scratch", "agentic-tools"}) {
 		t.Errorf("the release should carry each folded command's name and no other, got: %v", links)
 	}
 
@@ -983,7 +929,7 @@ func TestTheReleaseCarriesTheCommandNamesAsLinksToAgenticHelpers(t *testing.T) {
 }
 
 func TestTheOverrideLinksEachCommandNameToAgenticHelpers(t *testing.T) {
-	for _, name := range []string{"agentic-memory", "agentic-tools", "agentic-capture", "agentic-scratch"} {
+	for _, name := range []string{"agentic-memory", "agentic-tools", "agentic-scratch"} {
 		t.Run(name, func(t *testing.T) {
 			plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
 			built := filepath.Join(t.TempDir(), "bin")
@@ -1048,25 +994,25 @@ func TestTheOverrideLinksNoOtherName(t *testing.T) {
 	built := filepath.Join(t.TempDir(), "bin")
 	plugin.Binaries(t, built, "agentic-helpers")
 
-	for _, name := range []string{"agentic-shell-guard", "agentic-grounding-gate"} {
+	for _, name := range []string{"agentic-shell-guard", "agentic-capture"} {
 		plugin.Run(t, "hooks/run", []string{"AGENTIC_HELPERS_BIN_DIR=" + built}, name)
 
 		if test.Exists(t, filepath.Join(built, name)) {
-			t.Errorf("a hook program of its own should never be linked to agentic-helpers, got a link for %s", name)
+			t.Errorf("a name agentic-helpers does not answer to should never be linked to it, got a link for %s", name)
 		}
 	}
 }
 
 func TestAReleaseCarryingTheNamesAsLinksRunsEachUnderItsName(t *testing.T) {
 	plugin := test.NewPlugin(t, pluginRoot, "1.4.0")
-	plugin.FoldedRelease(t, "1.4.0", "agentic-memory", "agentic-tools", "agentic-capture", "agentic-scratch")
+	plugin.FoldedRelease(t, "1.4.0", "agentic-memory", "agentic-tools", "agentic-scratch")
 
 	got := plugin.Run(t, "hooks/run", nil, "--session-start", "agentic-memory", "session-start")
 	if got.Code != 0 || !strings.Contains(got.Stdout, "ran "+filepath.Join(plugin.Data, "1.4.0", "agentic-memory")+" session-start") {
 		t.Fatalf("the fetched release should run agentic-helpers under the hook's name, got: %+v", got)
 	}
 
-	for _, name := range []string{"agentic-tools", "agentic-capture", "agentic-scratch"} {
+	for _, name := range []string{"agentic-tools", "agentic-scratch"} {
 		target, err := os.Readlink(filepath.Join(plugin.Data, "1.4.0", name))
 		if err != nil || target != "agentic-helpers" {
 			t.Errorf("unpacking should keep every name a link, got %s: %q %v", name, target, err)

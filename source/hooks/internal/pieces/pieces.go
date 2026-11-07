@@ -40,16 +40,12 @@ var (
 		on: func(options pluginconfig.Options) bool { return options.ToolsEnabled }}
 	Scratch = Piece{Name: "scratch", Binary: "agentic-scratch", Key: "scratch_enabled",
 		on: func(options pluginconfig.Options) bool { return options.ScratchEnabled }}
-	GroundingGate = Piece{Name: "grounding gate", Binary: "agentic-grounding-gate", Key: "grounding_gate_enabled",
-		on: func(options pluginconfig.Options) bool { return options.GroundingGateEnabled }}
-	Capture = Piece{Name: "capture", Binary: "agentic-capture", Key: "capture_enabled",
-		on: func(options pluginconfig.Options) bool { return options.CaptureEnabled }}
 	ShellGuard = Piece{Name: "shell-guard", Binary: "agentic-shell-guard", Key: "shell_guard_enabled",
 		on: func(options pluginconfig.Options) bool { return options.ShellGuardEnabled }}
 )
 
 func All() []Piece {
-	return []Piece{Memory, Tools, Scratch, GroundingGate, Capture, ShellGuard}
+	return []Piece{Memory, Tools, Scratch, ShellGuard}
 }
 
 // Tie is a feature of a piece, In, that rests on another, On, and goes off
@@ -64,27 +60,17 @@ type Tie struct {
 var (
 	MktempBan = Tie{In: ShellGuard, On: Scratch, Feature: "shell-guard's mktemp ban",
 		Why: "its refusal sends scratch files to a .tmp/ nothing sweeps"}
-	CaptureGrounded = Tie{In: Capture, On: GroundingGate, Feature: "agentic-capture",
-		Why: "its grounding check is the gate's hook; without it a draft lands ungrounded"}
-	ExemptSeats = Tie{In: GroundingGate, On: Memory, Feature: "the grounding gate's exempt_seats",
-		Why: "a seat is an agentic-memory claim; a claim left from before the switch must not exempt anything"}
 	ToolsSeatName = Tie{In: Tools, On: Memory, Feature: "the seat name agentic-tools stamps on what it files",
 		Why: "it reads the name from agentic-memory's seat registry"}
 )
 
 func Ties() []Tie {
-	return []Tie{MktempBan, CaptureGrounded, ExemptSeats, ToolsSeatName}
+	return []Tie{MktempBan, ToolsSeatName}
 }
 
 // Holds is whether the feature runs: the piece it rests on is on.
 func (tie Tie) Holds(options pluginconfig.Options) bool {
 	return tie.On.On(options)
-}
-
-// Off is what a command whose whole work is the tie's feature answers on
-// stderr while the tie is broken, exiting 1.
-func (tie Tie) Off() string {
-	return fmt.Sprintf("%s: off while %s is off (plugin option %s)", tie.In.Binary, tie.On.Name, tie.On.Key)
 }
 
 // Line is how a broken tie reads at session start.

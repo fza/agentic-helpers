@@ -1,9 +1,8 @@
 # agentic-helpers
 
 A Claude Code plugin that builds better habits into every session: memory that survives a
-compaction, a shared library of helper scripts, one place for throwaway files, a gate that makes
-the agent read a project's decision graph before it asks or drafts, a checked path for new graph
-entries, and a guard on every Bash call. Each piece comes with a skill that explains it to the
+compaction, a shared library of helper scripts, one place for throwaway files, and a guard on every
+Bash call. Each piece comes with a skill that explains it to the
 agent. The full guide lives in the repository: <https://github.com/fza/agentic-helpers>.
 
 ## Install
@@ -30,16 +29,24 @@ the version first installed: turn auto-update on under `/plugin`, Marketplaces, 
 - **agentic-tools** shares helper scripts between agents, over the `tools` MCP server.
 - **agentic-scratch** gives each seat or session a `.tmp/seats/` folder and empties it when the
   work ends.
-- **agentic-grounding-gate** holds questions, drafts and captures until the agent has read the
-  project's [sdd](https://github.com/networkteam/sdd) decision graph.
-- **agentic-capture** writes new graph entries through one checked path.
 - **agentic-shell-guard** keeps deletions inside the project and credentials out of commands and
   output.
+
+## Moved to sdd-helpers
+
+The grounding gate and `agentic-capture`, for projects keeping an
+[sdd](https://github.com/networkteam/sdd) decision graph, ship in the
+[sdd-helpers](https://github.com/fza/sdd-helpers) plugin as `sdd-grounding-gate` and `sdd-capture`.
+In a project carrying `.sdd/`, each session start names them until sdd-helpers is installed:
+
+```bash
+claude plugin marketplace add fza/sdd-helpers
+claude plugin install sdd-helpers@sdd-helpers
+```
 
 ## Example prompts
 
 - "main seat": the agent claims its memory seat and says where the work stands.
-- "What did we decide about the release workflow?": the gate has the agent search the graph first.
 - "Write a script that counts tokens per tool reply": the agent first looks for a tool another
   agent already wrote.
 
@@ -49,10 +56,9 @@ The hooks and both MCP servers run `hooks/run`, a shell script that starts the G
 release named in `.claude-plugin/plugin.json`. On the first run of a release it downloads them from
 `https://github.com/fza/agentic-helpers/releases`, checks each archive against the release's
 `checksums.txt`, and keeps them under Claude Code's plugin data folder. The binaries are built
-from the repository's `source/hooks` by its release workflow. `agentic-memory`, `agentic-tools`,
-`agentic-capture` and `agentic-scratch` are one program, `agentic-helpers`, run under each of those
-names: the release carries them as links to it. The hooks `agentic-shell-guard` and
-`agentic-grounding-gate` are programs of their own.
+from the repository's `source/hooks` by its release workflow. `agentic-memory`, `agentic-tools`
+and `agentic-scratch` are one program, `agentic-helpers`, run under each of those names: the
+release carries them as links to it. The hook `agentic-shell-guard` is a program of its own.
 
 A session end starts one detached `agentic-helpers sweep` process that tidies the plugin's own
 data. `agentic-memory wait` may wake an idle session when another session files an entry for it.
@@ -65,8 +71,6 @@ Nothing leaves the machine unless one of these applies:
   embedding endpoint: the one sdd's own settings name (the default), OpenAI, or Ollama. Prompts,
   entry text and tool descriptions go to it, with the API key the options name; a prompt that looks like it holds a credential is never sent. With
   `embedding_provider: off`, nothing goes.
-- **A graph entry is captured.** sdd's pre-flight check sends the draft to Claude through
-  `claude -p`.
 - **A release is first run.** The binaries are fetched from GitHub, as above.
 - **A seat is claimed, at most once a day.** The claim asks GitHub's API for the latest release, to
   say when a newer one is out while auto-update is off. The request carries nothing but the
@@ -98,10 +102,6 @@ Nothing leaves the machine unless one of these applies:
   holds a credential, or uses a command missing on the machine. In auto mode an ask nobody answers
   is refused after a countdown. It never approves a call. After every tool call it replaces output
   lines from outside the project that look like a credential.
-- **The grounding gate** refuses graph calls and captures until the agent has read the graph. It
-  shortens an sdd MCP answer to what the calling agent was not shown already, where sdd answers
-  with `sessions.token_saving` off, keeping each agent's record of what it was shown under the
-  project's `.sdd/tmp/`.
 - **agentic-memory** can hold the end of a turn once, asking the agent to write where its work
   stands. It rewrites an Agent call's prompt, swapping the `agentic-helpers: <level>` line for that
   level's notes, without answering its permission prompt. It refuses a subagent's memory call its

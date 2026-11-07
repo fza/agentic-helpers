@@ -22,7 +22,7 @@ two hex digits other than `00`. Any other escape leaves it no value, as an expan
 (one to three digits, wrapped to a byte), `\u`, `\U`, `\c`, a one-digit `\x` and a NUL truncating
 the word each read in ways a decoder could get subtly wrong, and a guard reading one string where
 bash runs another would let that one through. The reading is
-`shellwalk.Literal`, shared with the grounding gate, so `$'rm'` is `rm` to both. A command's name
+`shellwalk.Literal`, shared with the memory hooks, so `$'rm'` is `rm` to both. A command's name
 is the base name of its first word, lower-cased, so `/bin/rm`, `\rm` and `RM` are `rm`.
 
 ## Lone removals
@@ -103,7 +103,7 @@ other (`sudo -u $user`, `nice -n $n`, `sudo -u {root,rm}`) may split into the va
 its own, so the walk takes it for the command and it takes this verdict. A name holding a glob or
 brace counts as not fixed text too, since it expands into other words; a `[` counts as a glob only
 with a `]` after it in the same word, so the test command `[ -f x ]` is fixed text. The walk that finds calls, launchers, nested code and pipe feeds lives in
-`internal/shellwalk`, which the grounding gate walks commands through too.
+`internal/shellwalk`, which the memory hooks walk commands through too.
 
 ## Command alternatives
 
@@ -295,7 +295,7 @@ which run elsewhere or later.
 
 Before a call is offered, `walker.call` writes out every variable the walked text fixes
 (`fixedValues`, built once per walk by `fixedValuesOf`), so every visitor, shell-guard and the
-grounding gate alike, and the walk's own `cd`, script and write tracking see the call as if its
+memory hooks alike, and the walk's own `cd`, script and write tracking see the call as if its
 author had typed the value. A plain `$X` or `${X}` resolves at a use only where every `Assign` to
 `X` anywhere in the text is one `topLevelAssignments` accepts (an assignment-only statement of the
 file's own, or `export` or `readonly` given no option, alone or the leading statement of an `&&` or
@@ -350,8 +350,7 @@ deep, missing, unopenable, or over `shellwalk.MaxScript` (1 MiB). A file with a 
 first 8000 bytes is no text and no script. A script run by its path is read by its `#!` line,
 through `env` and its options and assignments: a shell's or none goes out as `Visitor.Script` with
 no interpreter, another interpreter's as `Visitor.Script` naming it, any other as nothing. A shell
-or `source` reads the file as shell whatever its first line says. The grounding gate walks shell
-scripts only; another interpreter's text is as opaque to it as inline code is.
+or `source` reads the file as shell whatever its first line says.
 
 shell-guard walks a script's text with an inspector in script mode (`inspector.inScript`), in the
 directory and depth the event carries; another interpreter's text goes to that inspector's `Inline`.

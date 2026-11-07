@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "gitlab": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@zereight/mcp-gitlab"]
-    }
-  }
-}

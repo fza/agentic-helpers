@@ -243,15 +243,12 @@ type Options struct {
 	ShellGuardAskTimeout time.Duration
 	ToolsDuplicateFloor  float64
 	ToolsQueryFloor      float64
-	CaptureRemoveDraft   bool
 	// MemoryEnabled ... ShellGuardEnabled switch each piece on or off for the
 	// machine; every one is on unless set.
-	MemoryEnabled        bool
-	ToolsEnabled         bool
-	ScratchEnabled       bool
-	GroundingGateEnabled bool
-	CaptureEnabled       bool
-	ShellGuardEnabled    bool
+	MemoryEnabled     bool
+	ToolsEnabled      bool
+	ScratchEnabled    bool
+	ShellGuardEnabled bool
 	// ScratchSweep chooses when a seat's scratch folder is removed: at its
 	// release, at its session's end, or only by the week-idle reap.
 	ScratchSweep string
@@ -267,11 +264,11 @@ var Keys = []string{
 	"embedding_dimensions", "embedding_api_key_env", "embedding_timeout", "embedding_query_template", "embedding_document_template",
 	"entry_target_words", "landed_scan_interval", "retired_body_lifetime", "tools_version_lifetime", "cache_retention", "entry_id_length", "brief_note_limit", "attachment_max_mb", "attachments_total_mb", "tools_total_mb", "memory_require_git", "memory_language", "writing_style",
 	"memory_turns_off_auto",
-	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor", "capture_remove_draft",
+	"temporary_seat_lifetime", "orphan_store_grace", "tools_query_floor", "tools_duplicate_floor",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
 	"shell_guard_secret_output", "shell_guard_secret_output_skip", "shell_guard_extra_roots", "shell_guard_alternatives",
-	"memory_enabled", "tools_enabled", "scratch_enabled", "scratch_sweep", "grounding_gate_enabled", "capture_enabled",
+	"memory_enabled", "tools_enabled", "scratch_enabled", "scratch_sweep",
 	"shell_guard_enabled", "update_notice",
 }
 
@@ -326,7 +323,7 @@ var NeverConfig = []string{
 // as the layers below it, for the same reason: the file must not lift a guard.
 // Loosening one stays possible through Claude Code's settings.
 var TightenOnly = []string{
-	"shell_guard_enabled", "grounding_gate_enabled", "shell_guard_lone_removal", "shell_guard_expansion",
+	"shell_guard_enabled", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_alternatives", "shell_guard_secret_output",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_secrets", "shell_guard_ask_timeout",
 }
@@ -657,13 +654,13 @@ func Defaults() Options {
 		EmbeddingSource: EmbeddingSourceAuto, EmbeddingProvider: EmbeddingProviderAuto, EmbeddingTimeout: DefaultEmbeddingTimeout, EntryIDLength: DefaultEntryIDLength,
 		BriefNoteLimit: DefaultBriefNoteLimit, AttachmentMaxMB: DefaultAttachmentMaxMB, AttachmentsTotalMB: DefaultAttachmentsTotalMB,
 		ToolsTotalMB: DefaultToolsTotalMB, MemoryRequireGit: true, MemoryTurnsOffAuto: true, ToolsDuplicateFloor: DefaultToolsDuplicateFloor,
-		ToolsQueryFloor: DefaultToolsQueryFloor, CaptureRemoveDraft: true, WritingStyle: StyleTerse,
+		ToolsQueryFloor: DefaultToolsQueryFloor, WritingStyle: StyleTerse,
 		ShellGuardOutsideProject: ShellGuardAsk, ShellGuardFindDelete: ShellGuardAsk, ShellGuardSecrets: ShellGuardAsk,
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
 		ShellGuardAlternatives: true, MemoryLanguage: DefaultMemoryLanguage, TemporarySeatLifetime: DefaultTemporarySeatLifetime,
 		OrphanStoreGrace: DefaultOrphanStoreGrace, ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
 		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, ScratchSweep: ScratchSweepRelease,
-		GroundingGateEnabled: true, CaptureEnabled: true, ShellGuardEnabled: true, UpdateNotice: true,
+		ShellGuardEnabled: true, UpdateNotice: true,
 	}
 }
 
@@ -737,12 +734,9 @@ func (options *Options) fields() fields {
 			"shell_guard_nested_code":  &options.ShellGuardNestedCode,
 			"shell_guard_mktemp":       &options.ShellGuardMktemp,
 			"shell_guard_alternatives": &options.ShellGuardAlternatives,
-			"capture_remove_draft":     &options.CaptureRemoveDraft,
 			"memory_enabled":           &options.MemoryEnabled,
 			"tools_enabled":            &options.ToolsEnabled,
 			"scratch_enabled":          &options.ScratchEnabled,
-			"grounding_gate_enabled":   &options.GroundingGateEnabled,
-			"capture_enabled":          &options.CaptureEnabled,
 			"shell_guard_enabled":      &options.ShellGuardEnabled,
 			"update_notice":            &options.UpdateNotice,
 		},

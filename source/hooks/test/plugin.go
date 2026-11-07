@@ -51,7 +51,7 @@ func NewPlugin(t *testing.T, source string, version string) *Plugin {
 		Version:  version,
 	}
 
-	for _, script := range []string{"hooks/run", "bin/agentic-capture", "bin/agentic-memory"} {
+	for _, script := range []string{"hooks/run", "bin/agentic-tools", "bin/agentic-memory"} {
 		content, err := os.ReadFile(filepath.Join(source, script))
 		if err != nil {
 			t.Fatalf("reading %s: %v", script, err)

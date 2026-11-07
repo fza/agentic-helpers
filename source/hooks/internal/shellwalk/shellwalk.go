@@ -2,7 +2,7 @@
 // it, for the commands it runs: every simple command, every command a launcher
 // (env, xargs, sudo, find, ...) runs, and every piece of code another program
 // runs as shell (a shell's -c, eval, trap, a here-document fed to a shell).
-// shell-guard and the grounding gate both judge a command through it, so the
+// shell-guard and the memory hooks both read a command through it, so the
 // launcher and nesting rules cannot drift apart between them.
 //
 // The walk parses nothing nested itself: it hands the visitor the words of

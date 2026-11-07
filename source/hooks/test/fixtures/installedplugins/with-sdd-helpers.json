@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "plugins": {
+    "agentic-helpers@agentic-helpers": [
+      {
+        "scope": "user",
+        "installPath": "/home/user/.claude/plugins/cache/agentic-helpers/agentic-helpers/2.28.0",
+        "version": "2.28.0",
+        "installedAt": "2026-10-01T08:00:00.000Z",
+        "lastUpdated": "2026-11-01T08:00:00.000Z"
+      }
+    ],
+    "sdd-helpers@sdd-helpers": [
+      {
+        "scope": "user",
+        "installPath": "/home/user/.claude/plugins/cache/sdd-helpers/sdd-helpers/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-11-07T08:00:00.000Z",
+        "lastUpdated": "2026-11-07T08:00:00.000Z"
+      }
+    ]
+  }
+}

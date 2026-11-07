@@ -1,14 +1,11 @@
 package graphconfig_test
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
-	"github.com/fza/agentic-helpers/source/hooks/test"
 )
 
 func TestGraphDir(t *testing.T) {
@@ -32,88 +29,4 @@ func TestGraphDir(t *testing.T) {
 	if graphconfig.GraphDir(below) != filepath.Join(root, ".sdd") {
 		t.Error("the graph above should govern the directory below")
 	}
-}
-
-func TestLoad(t *testing.T) {
-	defaults := graphconfig.Default()
-
-	cases := []struct {
-		name    string
-		content string
-		want    graphconfig.Config
-		fails   bool
-	}{
-		{name: "no file", want: defaults},
-		{name: "prefix and lint", content: test.Fixture(t, "grounding/full.yaml"), want: graphconfig.Config{ListingPrefix: "area-", DraftLint: "vale --output=line", ShowDepth: defaults.ShowDepth}},
-		{name: "empty file", content: "", want: defaults},
-		{name: "not yaml", content: "listing_prefix: [unclosed", fails: true},
-		{name: "show depth", content: test.Fixture(t, "grounding/show-depth.yaml"), want: graphconfig.Config{ListingPrefix: "area-", ShowDepth: graphconfig.ShowDepth{Down: 3, Up: 2, ExemptSeats: []string{"reviewer", "scout"}}}},
-		{name: "one direction", content: test.Fixture(t, "grounding/show-depth-down.yaml"), want: graphconfig.Config{ShowDepth: graphconfig.ShowDepth{Down: 3, Up: 1}}},
-		{name: "no depth owed", content: test.Fixture(t, "grounding/show-depth-none.yaml"), want: graphconfig.Config{}},
-		{name: "exempt seats alone", content: test.Fixture(t, "grounding/show-depth-exempt.yaml"), want: graphconfig.Config{ShowDepth: graphconfig.ShowDepth{Down: 2, Up: 1, ExemptSeats: []string{"reviewer"}}}},
-		{name: "empty block", content: test.Fixture(t, "grounding/show-depth-empty.yaml"), want: defaults},
-		{name: "negative depth", content: test.Fixture(t, "grounding/show-depth-negative.yaml"), fails: true},
-		{name: "read command and suffix", content: test.Fixture(t, "grounding/read-command.yaml"), want: graphconfig.Config{ListingPrefix: "area-", ReadCommand: "python3 scripts/graph.py", ReadSuffix: "--entry <entry>", ShowDepth: defaults.ShowDepth}},
-		{name: "read command spaced out", content: test.Fixture(t, "grounding/read-command-spaced.yaml"), want: graphconfig.Config{ReadCommand: "python3 scripts/graph.py", ShowDepth: defaults.ShowDepth}},
-		{name: "read suffix alone", content: test.Fixture(t, "grounding/read-suffix.yaml"), want: graphconfig.Config{ReadSuffix: "--entry <entry>", ShowDepth: defaults.ShowDepth}},
-		{name: "gather command", content: test.Fixture(t, "grounding/gather-command.yaml"), want: graphconfig.Config{ListingPrefix: "area-", ReadCommand: "pilot graph", GatherCommand: "pilot graph gather", ReadSuffix: "--entry <entry>", ShowDepth: defaults.ShowDepth}},
-		{name: "read command as a list", content: test.Fixture(t, "grounding/read-command-list.yaml"), fails: true},
-		{name: "capture through the CLI", content: test.Fixture(t, "grounding/cli-capture.yaml"), want: graphconfig.Config{CLICapture: true, ShowDepth: defaults.ShowDepth}},
-		{name: "switched off", content: test.Fixture(t, "grounding/disabled.yaml"), want: graphconfig.Config{Disabled: true, ShowDepth: defaults.ShowDepth}},
-		{name: "switched on", content: test.Fixture(t, "grounding/enabled.yaml"), want: defaults},
-		{name: "a switch that is no boolean", content: test.Fixture(t, "grounding/enabled-invalid.yaml"), fails: true},
-		{name: "exempt seats at both scopes", content: test.Fixture(t, "grounding/exempt-seats.yaml"), want: graphconfig.Config{ExemptSeats: []string{"reviewer"}, ShowDepth: graphconfig.ShowDepth{Down: 2, Up: 1, ExemptSeats: []string{"scout"}}}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			graph := filepath.Join(t.TempDir(), ".sdd")
-			if tc.name != "no file" {
-				test.WriteFile(t, filepath.Join(graph, "grounding.yaml"), tc.content)
-			}
-
-			got, err := graphconfig.Load(graph)
-			if (err != nil) != tc.fails {
-				t.Fatalf("only a file the gate cannot enforce as written should fail, got: %v", err)
-			}
-
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("the config should be read as written, defaults filling what it leaves out, got: %+v", got)
-			}
-		})
-	}
-
-	for _, tc := range []struct {
-		fixture string
-		want    error
-	}{
-		{fixture: "read-command-quoted.yaml", want: graphconfig.ErrReadCommand},
-		{fixture: "read-command-operator.yaml", want: graphconfig.ErrReadCommand},
-		{fixture: "read-command-variable.yaml", want: graphconfig.ErrReadCommand},
-		{fixture: "read-command-lines.yaml", want: graphconfig.ErrReadCommand},
-		{fixture: "read-suffix-lines.yaml", want: graphconfig.ErrReadSuffix},
-		{fixture: "gather-command-quoted.yaml", want: graphconfig.ErrGatherCommand},
-		{fixture: "gather-command-operator.yaml", want: graphconfig.ErrGatherCommand},
-		{fixture: "gather-command-lines.yaml", want: graphconfig.ErrGatherCommand},
-	} {
-		t.Run(tc.fixture+" names itself", func(t *testing.T) {
-			graph := filepath.Join(t.TempDir(), ".sdd")
-			test.WriteFile(t, filepath.Join(graph, "grounding.yaml"), test.Fixture(t, "grounding/"+tc.fixture))
-
-			_, err := graphconfig.Load(graph)
-			if !errors.Is(err, tc.want) {
-				t.Errorf("a read the gate cannot match or print on one line should be refused, got: %v", err)
-			}
-		})
-	}
-
-	t.Run("a negative depth names itself", func(t *testing.T) {
-		graph := filepath.Join(t.TempDir(), ".sdd")
-		test.WriteFile(t, filepath.Join(graph, "grounding.yaml"), test.Fixture(t, "grounding/show-depth-negative.yaml"))
-
-		_, err := graphconfig.Load(graph)
-		if !errors.Is(err, graphconfig.ErrNegativeDepth) {
-			t.Errorf("the error should say a depth went below 0, got: %v", err)
-		}
-	})
 }

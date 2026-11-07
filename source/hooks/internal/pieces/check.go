@@ -11,7 +11,6 @@ import (
 	"github.com/fza/agentic-helpers/source/hooks/internal/cacheprune"
 	"github.com/fza/agentic-helpers/source/hooks/internal/dump"
 	"github.com/fza/agentic-helpers/source/hooks/internal/embed"
-	"github.com/fza/agentic-helpers/source/hooks/internal/graphconfig"
 	"github.com/fza/agentic-helpers/source/hooks/internal/home"
 	"github.com/fza/agentic-helpers/source/hooks/internal/hookio"
 	"github.com/fza/agentic-helpers/source/hooks/internal/migration"
@@ -34,26 +33,14 @@ type Env struct {
 	// SddConfig reads sdd's embedding block in Dir, the project the session
 	// works in, for the line saying an `sdd` embedding source finds none.
 	SddConfig embed.Sdd
-	// SddValues reads one sdd setting in Dir, for the line saying sdd's own
-	// repeat filter keeps the grounding gate's collapse off; nil reads none.
-	SddValues SddValues
 	Dir       string
+	// InstalledPlugins is Claude Code's `installed_plugins.json`, for the
+	// line naming the plugin the graph hooks moved to.
+	InstalledPlugins string
 	// ToolPrune is the tool library's version pruning, which `prune` runs
 	// beside the vector stores' while agentic-tools is on; nil runs none.
 	ToolPrune func(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Duration, now time.Time)
 }
-
-// SddValues answers what `sdd config get <key>` prints in dir, or nothing
-// where sdd is missing, fails or knows no such key.
-type SddValues interface {
-	SddValue(ctx context.Context, dir string, key string) string
-}
-
-// TokenSavingLine is the SessionStart line while sdd's own repeat filter is
-// on: sdd then answers without the structured fields the grounding gate
-// collapses by.
-const TokenSavingLine = "sdd's sessions.token_saving is on, so the grounding gate's per-agent collapse of " +
-	"repeated sdd output is off; `sdd config set sessions.token_saving off` turns it on"
 
 const usage = "usage: " + self + " check | config [get <key> | set <key> <value>] | sweep | end | prune | dump <file> | " +
 	"bound <duration> <command> | record | sessions --json"
@@ -63,7 +50,8 @@ const usage = "usage: " + self + " check | config [get <key> | set <key> <value>
 // `config.yaml`. As the SessionStart hook it marks the cache root for
 // backups to skip (home.Roots.ExcludeCache), then prints one line per broken
 // tie and per `config.yaml` problem, then one naming the command
-// substitutions the machine needs, nothing where none is; run as a command
+// substitutions the machine needs, nothing where none is, and one naming the
+// plugin the graph hooks moved to, in a graph project lacking it; run as a command
 // it lists every piece on or off and, under each, its features off through a
 // tie. sweep and end run and start the sweep of the old layout
 // (internal/migration). dump prints a data file kept in a binary format as
@@ -122,8 +110,8 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 			_, _ = fmt.Fprintln(streams.Out, self+": "+line)
 		}
 
-		if tokenSavingOn(ctx, env, resolution.Options) {
-			_, _ = fmt.Fprintln(streams.Out, self+": "+TokenSavingLine)
+		if movedHooksMissing(env.Dir, env.InstalledPlugins) {
+			_, _ = fmt.Fprintln(streams.Out, self+": "+MovedLine)
 		}
 
 		for _, line := range pathBinaryLines(env.Getenv) {
@@ -218,17 +206,6 @@ func prune(ctx context.Context, env Env, streams hookio.Streams) int {
 	}
 
 	return 0
-}
-
-// tokenSavingOn is whether, in a project carrying a graph the grounding gate
-// works on, sdd reports its own repeat filter on. An sdd without the key
-// prints nothing, and there the key cannot be set, so no line names it.
-func tokenSavingOn(ctx context.Context, env Env, options pluginconfig.Options) bool {
-	if env.SddValues == nil || !GroundingGate.On(options) || graphconfig.Resolve(env.Dir).Dir == "" {
-		return false
-	}
-
-	return env.SddValues.SddValue(ctx, env.Dir, "sessions.token_saving") == "on"
 }
 
 // machineLine names the substitutions the machine needs for the command

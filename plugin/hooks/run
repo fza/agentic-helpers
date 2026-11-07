@@ -9,8 +9,7 @@
 # or a tool call never waits on the network. A session that cannot write the data directory
 # (a sandboxed job) runs the newest version already there instead.
 #
-# With no binary at all, the grounding gate refuses (exit 2) rather than let
-# work run ungrounded, shell-guard refuses (exit 2) rather than let a Bash call
+# With no binary at all, shell-guard refuses (exit 2) rather than let a Bash call
 # run unguarded, its output scan says the output went unscanned (exit 1, which
 # cannot block a call that has run), and every other hook does nothing (exit
 # 0). One notice
@@ -46,7 +45,7 @@ fi
 binary=$1
 shift
 
-# agentic-memory, agentic-tools, agentic-capture and agentic-scratch are links
+# agentic-memory, agentic-tools and agentic-scratch are links
 # to agentic-helpers, which runs the command its name picks. A release carries
 # the links; `go install` builds agentic-helpers alone, so the launcher links a
 # missing name beside it, and replaces a program an earlier build left under
@@ -55,7 +54,7 @@ shift
 # name missing.
 link_command() {
 	case $binary in
-	agentic-memory | agentic-tools | agentic-capture | agentic-scratch) ;;
+	agentic-memory | agentic-tools | agentic-scratch) ;;
 	*) return 0 ;;
 	esac
 
@@ -283,11 +282,6 @@ if [ -n "$data" ] && [ -d "$data" ]; then
 	fi
 fi
 
-if [ "$binary" = agentic-grounding-gate ] && [ "${1:-}" = gate ]; then
-	echo "agentic-helpers: no agentic-grounding-gate binary is installed, so the grounding gate refuses every call; start a session with network so release v$version can be fetched, or set AGENTIC_HELPERS_BIN_DIR" >&2
-	exit 2
-fi
-
 if [ "$binary" = agentic-shell-guard ] && [ "${1:-}" = output ]; then
 	echo "agentic-helpers: no agentic-shell-guard binary is installed, so tool output reaches the agent unscanned; start a session with network so release v$version can be fetched, or set AGENTIC_HELPERS_BIN_DIR" >&2
 	exit 1
@@ -304,7 +298,7 @@ if $command; then
 fi
 
 if $tried && ! $fetched_elsewhere; then
-	echo "agentic-helpers: no binary for v$version (${reason:-not in the release}); its hooks are inactive and the grounding gate refuses every call until a session with network fetches it"
+	echo "agentic-helpers: no binary for v$version (${reason:-not in the release}); its hooks are inactive and shell-guard refuses every Bash call until a session with network fetches it"
 fi
 
 exit 0

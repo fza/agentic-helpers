@@ -170,8 +170,6 @@ func TestConfigYAMLMayOnlyTightenAGuard(t *testing.T) {
 	}{
 		{key: "shell_guard_enabled", config: "true", value: "true"},
 		{key: "shell_guard_enabled", config: "false", value: "true", ignored: "false"},
-		{key: "grounding_gate_enabled", config: "true", value: "true"},
-		{key: "grounding_gate_enabled", config: "false", value: "true", ignored: "false"},
 		{key: "shell_guard_lone_removal", config: "true", value: "true"},
 		{key: "shell_guard_lone_removal", config: `"false"`, value: "true", ignored: "false"},
 		{key: "shell_guard_expansion", config: "true", value: "true"},
@@ -301,7 +299,6 @@ func TestSetRefusesALooserGuardAndEveryKeyConfigNeverSets(t *testing.T) {
 		message string
 	}{
 		{key: "shell_guard_enabled", value: "false", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_enabled; loosen it in Claude Code's settings"},
-		{key: "grounding_gate_enabled", value: "false", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten grounding_gate_enabled; loosen it in Claude Code's settings"},
 		{key: "shell_guard_secrets", value: "off", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_secrets; loosen it in Claude Code's settings"},
 		{key: "shell_guard_secret_output", value: "files", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_secret_output; loosen it in Claude Code's settings"},
 		{key: "shell_guard_ask_timeout", value: "0", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_ask_timeout; loosen it in Claude Code's settings"},

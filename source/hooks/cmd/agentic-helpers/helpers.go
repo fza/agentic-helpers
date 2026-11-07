@@ -45,15 +45,15 @@ func helpersMain() int {
 	// Claude Code sets CLAUDE_PLUGIN_ROOT for a plugin's hooks and never for a
 	// command the Bash tool runs.
 	env := pieces.Env{
-		Settings:  pluginconfig.Paths(userHome, runtime.GOOS, os.Getenv),
-		Getenv:    os.Getenv,
-		Hook:      os.Getenv("CLAUDE_PLUGIN_ROOT") != "",
-		Migration: machine,
-		CacheRoot: cacheRoot,
-		SddConfig: process.SddConfig{},
-		SddValues: process.SddConfig{},
-		Dir:       cmp.Or(os.Getenv("CLAUDE_PROJECT_DIR"), workingDir()),
-		ToolPrune: tools.Prune,
+		Settings:         pluginconfig.Paths(userHome, runtime.GOOS, os.Getenv),
+		Getenv:           os.Getenv,
+		Hook:             os.Getenv("CLAUDE_PLUGIN_ROOT") != "",
+		Migration:        machine,
+		CacheRoot:        cacheRoot,
+		SddConfig:        process.SddConfig{},
+		Dir:              cmp.Or(os.Getenv("CLAUDE_PROJECT_DIR"), workingDir()),
+		ToolPrune:        tools.Prune,
+		InstalledPlugins: pieces.InstalledPlugins(pluginconfig.ConfigDir(userHome, os.Getenv)),
 	}
 	streams := hookio.Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 

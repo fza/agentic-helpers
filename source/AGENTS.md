@@ -8,11 +8,11 @@ Go rules, loaded when a session touches code under `source/`.
   published by each release and built for development as the root [`AGENTS.md`](../AGENTS.md) sets
   out. The `agentic-` prefix is not optional: a bare name on a PATH can shadow a system tool.
 - **The commands are one program.** `cmd/agentic-helpers` answers as `agentic-memory`,
-  `agentic-tools`, `agentic-capture` and the hook `agentic-scratch` to the name it runs under, and
-  as itself to any other name; each command's environment is resolved in a file of its own there.
-  A new command is a name in its `commands` table and a link in its `links/`, which the release
-  archive packs. A hook that refuses a call when it fails, shell-guard or the grounding gate, stays
-  a program of its own, so no other package's startup can fail it.
+  `agentic-tools` and the hook `agentic-scratch` to the name it runs under, and as itself to any
+  other name; each command's environment is resolved in a file of its own there. A new command is
+  a name in its `commands` table and a link in its `links/`, which the release archive packs. A
+  hook that refuses a call when it fails, such as shell-guard, stays a program of its own, so no
+  other package's startup can fail it.
 - **`.goreleaser.yaml` lists every binary the release builds.** A new `cmd/` directory is added
   there, or the plugin's launcher finds no binary for it.
 - **`main.go` resolves the environment and calls the hook's `Main`, nothing else.** Every decision
@@ -20,10 +20,10 @@ Go rules, loaded when a session touches code under `source/`.
 - **No CGO. No `/pkg`.** Every non-`cmd` package lives under `internal/`, except the module's own
   `test/` package: fakes, shared helpers and fixtures, never inline in a `_test.go`.
 - **Standard library first.** A dependency earns its place by removing a mechanism the hooks would
-  otherwise carry and test themselves. `github.com/goccy/go-yaml` reads a draft's header and
-  `.sdd/grounding.yaml`, since the standard library parses no YAML; `golang.org/x/text` normalises
+  otherwise carry and test themselves. `github.com/goccy/go-yaml` reads the plugin's `config.yaml`
+  and sdd's `.sdd/config.yaml`, since the standard library parses no YAML; `golang.org/x/text` normalises
   seat names to NFC, which the standard library cannot; `mvdan.cc/sh/v3` parses bash for
-  shell-guard and the grounding gate, the only way to tell a call from text that names one;
+  shell-guard and agentic-memory, the only way to tell a call from text that names one;
   `golang.org/x/sys` reads darwin's process table through sysctl, which the standard library does
   not expose and which saves a `ps` spawn per read, and maps memory's vector segments with
   `madvise`, which `syscall` lacks on darwin, and asks standard input for its terminal settings,

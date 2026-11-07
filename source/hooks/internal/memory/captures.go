@@ -82,9 +82,9 @@ const (
 // session's last tool call while the seat holds open entries waiting for a
 // capture, and how to settle one, and names the entries that arrived. An
 // entry arrives in the folder of its month, whichever month that is: a
-// capture lands in the current one, a pull, a merge or a checkout in any. The
-// sdd engine and agentic-capture both reach it, since nothing reads a
-// capture's output.
+// capture lands in the current one, a pull, a merge or a checkout in any.
+// Every capture path reaches it, the sdd engine's and the CLI's alike, since
+// nothing reads a capture's output.
 func (mem *memory) captureNotice(ctx context.Context, seatName string, session string) (string, []string) {
 	// A session whose id the hook refused keeps no mark, so every call of it
 	// would be a first look listing every month and telling nothing.

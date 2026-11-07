@@ -1,5 +1,0 @@
-# One call runs every read a turn owes, beside the reads it replaces.
-listing_prefix: area-
-read_command: pilot graph
-gather_command: pilot graph gather
-read_suffix: --entry <entry>

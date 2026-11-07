@@ -64,8 +64,8 @@ A scan that cannot finish, the context ended or a vendored pattern failed to com
 finding of rule `scan-incomplete`, so a caller refusing on any finding refuses rather than passes
 unscanned text. The vendored rules decode and compile in a test, so in a released binary only an
 ended context reaches it. A caller whose context ended checks that itself and reports the scan as
-cut short rather than as a credential: `agentic-capture` as an interrupt, the grounding gate with
-its own refusal, shell-guard with its own reason under `shell_guard_secrets`.
+cut short rather than as a credential: shell-guard with its own reason under
+`shell_guard_secrets`.
 
 ## What it guards against
 
@@ -73,38 +73,13 @@ The scanner guards against a credential written by accident: a token pasted into
 environment dump captured into a log, a key file attached by mistake. It does not stand against an
 agent working to get a credential past it; a credential in a shape no rule knows, or one the agent
 encodes, passes as it always would. Every caller fails closed where it cannot read what it would
-scan (standard input, a file not on disk, input it cannot decode), and leaves these accepted limits:
-
-- **A staged file built from patches.** The grounding gate scans each `mcp__sdd__stage_attachment`
-  call's text, a patch's `new` text among it, not the file the patches leave behind: that file is
-  the sdd engine's staged state, which the gate does not hold. A credential split across patches
-  passes. A staged file's `path` is read against the session's working directory, which in every
-  supported setup is the project root the sdd MCP server runs in, so it names the file the engine
-  reads.
-- **The last instant before sdd reads an attached file.** `agentic-capture` scans every attached
-  file right before it runs `sdd new`, and sdd then reads the file itself: a file changed in
-  between is never scanned. The grounding gate's earlier scan of a plain `sdd new` has the same
-  window, wider.
-- **What a launcher or an expansion would change.** The grounding gate does not resolve what the
-  shell would rewrite or a launcher would run elsewhere: it refuses it. Refused rather than resolved:
-  an attachment path holding `$` or `~`; a relative attachment path after a directory change or
-  behind a launcher; a plain `sdd new` or `agentic-capture` call with any argument holding an
-  unquoted glob or brace; a command naming `sdd`, `new` or `capture` with any shell pattern in its
-  command position (the command word, or `sdd`'s subcommand: `sd? new`, `{,}sdd new`, `sdd n?w`);
-  and a write it cannot place behind a launcher's options. A path written so that sdd reads one file
-  and the gate another would need the gate to follow the shell, which it does not try to do;
-  refusing those spellings closes that class instead.
-- **A pattern that cuts a tool's name.** A command word whose pattern stands for part of a tool's
-  name, with no word of the call naming `sdd`, `new` or `capture` (`agentic-* d.md`), is not seen
-  as a write. Refusing every patterned command word would close it, at the cost of refusing
-  ordinary commands such as `./scripts/*.sh`.
+scan (standard input, a file not on disk, input it cannot decode).
 
 A file is scanned by its name, so path rules fire, and as nameless text too: gitleaks' global
 allowlist skips whole files by name (`.bin`, images, fonts, office files), and a credential renamed
-to one would otherwise pass. agentic-tools scans every tool file both ways; the grounding gate and
-agentic-capture's rescan scan an attached or staged file by its name in the entry, and as nameless
-text where that finds nothing, since a name the allowlist does not skip finds all the nameless scan
-would.
+to one would otherwise pass. agentic-tools scans every tool file both ways; agentic-memory scans an
+attached file by its name, and as nameless text where that finds nothing, since a name the
+allowlist does not skip finds all the nameless scan would.
 
 ## Prompts
 

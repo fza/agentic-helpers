@@ -1,7 +1,7 @@
 {
   "name": "agentic-helpers",
   "version": "2.28.0",
-  "description": "Memory that survives compaction, a shared helper-script library, a scratch sweep, a decision-graph grounding gate, checked graph captures and a Bash guard, each with a skill",
+  "description": "Memory that survives compaction, a shared helper-script library, a scratch sweep and a Bash guard, each with a skill",
   "author": {
     "name": "Felix Zandanel"
   },
@@ -182,27 +182,6 @@
         "idle"
       ],
       "default": "release",
-      "required": false
-    },
-    "grounding_gate_enabled": {
-      "type": "boolean",
-      "title": "Switch on the grounding gate",
-      "description": "agentic-grounding-gate: the sdd reads owed before a question, draft or capture; off, agentic-capture goes off with it; default on",
-      "default": true,
-      "required": false
-    },
-    "capture_enabled": {
-      "type": "boolean",
-      "title": "Switch on agentic-capture",
-      "description": "agentic-capture: capturing sdd entries from drafts; off, it refuses; default on",
-      "default": true,
-      "required": false
-    },
-    "capture_remove_draft": {
-      "type": "boolean",
-      "title": "agentic-capture: remove the draft",
-      "description": "Delete a draft once its entry is captured, unless git tracks it or it lies outside the work tree, the graph repository's work tree and /tmp; off keeps every draft; default on",
-      "default": true,
       "required": false
     },
     "shell_guard_enabled": {

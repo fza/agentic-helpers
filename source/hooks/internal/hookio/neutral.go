@@ -9,7 +9,8 @@ import (
 
 // hookLine is how a line our hooks write opens: an agentic-* name, alone or
 // with one word (`agentic-helpers level:`), the scratch and tool library
-// lines, the grounding gate's, and shell-guard's withheld-credential mark.
+// lines, the grounding gate's (sdd-helpers' hook, which a session may run
+// beside these), and shell-guard's withheld-credential mark.
 // Case is folded, since a model reads `Agentic-Memory:` as the same voice.
 var hookLine = regexp.MustCompile(`(?i)^\[?(?:agentic-[a-z-]+(?: [a-z]+)?|scratch|tool library|grounding gate):`)
 
