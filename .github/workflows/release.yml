@@ -2,6 +2,14 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      # A release whose tag and draft already exist on GitHub, left by a run
+      # that failed after pushing them, is finished from its tag: GoReleaser
+      # builds there and publishes the draft. semantic-release does not run.
+      publish:
+        description: 'Finish the release of this existing tag and draft (v1.2.3); empty cuts the next release'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -19,6 +27,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.publish }}
 
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -26,6 +35,7 @@ jobs:
           cache-dependency-path: source/hooks/go.sum
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: inputs.publish == ''
         with:
           node-version: lts/*
 
@@ -34,23 +44,11 @@ jobs:
           version: v2.19.0
           install-only: true
 
-      # semantic-release counts from the newest version tag, and GitHub refuses
-      # the tag names of deleted immutable releases (v2.22.0 to v2.27.0) for
-      # good. Where the version plugin/.claude-plugin/plugin.json carries has no
-      # tag, its release commit is tagged in this checkout only, never pushed,
-      # so the next version counts from it.
-      - run: |
-          version="$(jq -r .version plugin/.claude-plugin/plugin.json)"
-          if ! git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
-            released="$(git log -1 --format=%H --fixed-strings --grep "chore(release): v${version} [skip ci]")"
-            test -n "${released}"
-            git tag "v${version}" "${released}"
-          fi
-
       # The notes generator semantic-release bundles renders with
       # conventional-changelog-writer 8; the conventionalcommits preset needs
       # writer 9 from its major 10 on, so it stays on major 9.
-      - run: >-
+      - if: inputs.publish == ''
+        run: >-
           npx --yes
           -p semantic-release@25.0.9
           -p @semantic-release/exec@7.1.0
@@ -58,5 +56,10 @@ jobs:
           -p @semantic-release/github@12.0.10
           -p conventional-changelog-conventionalcommits@9.3.1
           semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: inputs.publish != ''
+        run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
