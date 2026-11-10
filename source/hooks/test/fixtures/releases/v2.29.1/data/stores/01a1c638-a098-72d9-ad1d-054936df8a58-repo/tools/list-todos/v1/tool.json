@@ -1,0 +1,8 @@
+{
+  "name": "list-todos",
+  "summary": "print every TODO line below a folder",
+  "usage": "list-todos [\u003cfolder\u003e]",
+  "files": [
+    "list-todos.sh"
+  ]
+}
