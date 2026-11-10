@@ -27,6 +27,8 @@ skill_scope: project
 # on the repo renders the same set.
 supported_agents: [claude]
 dependencies: [github.com/fza/sdd-helpers]
+verify:
+  mode: deep
 
 # LLM provider settings (defaults shown — override here or in config.local.yaml).
 # llm:

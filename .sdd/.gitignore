@@ -1,0 +1,7 @@
+tmp/
+config.local.yaml
+index/
+stats/
+sessions/
+staged-blobs/
+hooks/local/
