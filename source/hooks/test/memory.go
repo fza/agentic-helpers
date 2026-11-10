@@ -629,12 +629,38 @@ func Random() *bytes.Reader {
 }
 
 // Graph stands in for `sdd export`: it answers Out, or fails with Err, and
-// counts the calls.
+// counts the calls. It stands in for `sdd repo path` too: it answers the
+// path Clones holds for the repo id, and fails for one it holds none for, as
+// an sdd without the command does.
 type Graph struct {
-	Out   string
-	Err   error
-	mutex sync.Mutex
-	calls int
+	Out       string
+	Err       error
+	Clones    map[string]string
+	mutex     sync.Mutex
+	calls     int
+	pathCalls int
+}
+
+func (fake *Graph) RepoPath(_ context.Context, _ string, repoID string) (string, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	fake.pathCalls++
+
+	path, found := fake.Clones[repoID]
+	if !found {
+		return "", fmt.Errorf("No help topic for 'repo path %s'", repoID)
+	}
+
+	return path, nil
+}
+
+// PathCalls counts the `sdd repo path` calls.
+func (fake *Graph) PathCalls() int {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+
+	return fake.pathCalls
 }
 
 func (fake *Graph) Export(context.Context, string) ([]byte, error) {

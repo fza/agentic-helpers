@@ -193,7 +193,8 @@ Memory works with stock sdd ([github.com/networkteam/sdd](https://github.com/net
 uses `sdd export`, which no stock release carries yet, wherever the installed `sdd` has it. Whether a
 binary carries it is read from its own `sdd --help`, never from its version, and kept in
 `<cache>/sdd-caps.json` per binary path, modification time and size. Without it, memory flags a
-graph link by whether its entry file exists.
+graph link by whether its entry file exists. Where a connected repo's copy lives, memory asks
+`sdd repo path`, and reads `<cache>/sdd/<repo_id>` where that fails.
 
 ## Grounding gate and capture
 

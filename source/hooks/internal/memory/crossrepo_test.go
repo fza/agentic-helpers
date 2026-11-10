@@ -1,6 +1,8 @@
 package memory_test
 
 import (
+	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -257,25 +259,90 @@ func TestAnExportWithoutLocalEntriesFallsBack(t *testing.T) {
 	}
 }
 
+// The copy is read where older sdd releases keep it wherever `sdd repo path`
+// gives no answer: an sdd without the command fails it, and an empty answer
+// names no folder.
 func TestGraphStatusIsCachedUntilAConnectedRepoChanges(t *testing.T) {
+	cases := []struct {
+		name   string
+		clones map[string]string
+	}{
+		{name: "sdd repo path failing"},
+		{name: "sdd repo path printing nothing", clones: map[string]string{fdbox: ""}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			withConnectedRepos(t, h)
+			h.graph.Clones = tc.clones
+			h.must("", "claim", "main")
+			h.file("Gate finding citing fdbox", "follows "+fdbox+":"+foreignClosed)
+
+			calls := h.graph.Calls()
+
+			h.must("", "search", "--term", "fdbox", "--no-heat")
+			h.must("", "search", "--term", "fdbox", "--no-heat")
+
+			if h.graph.Calls() != calls {
+				t.Errorf("sdd export should not run again while neither graph changed, ran %d more times", h.graph.Calls()-calls)
+			}
+
+			later := time.Now().Add(time.Hour)
+			synced := filepath.Join(h.cache, "sdd", filepath.FromSlash(fdbox), ".sdd", "graph", "2026", "10", "24-120000-d-tac-k2m.md")
+
+			err := os.Chtimes(synced, later, later)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			h.must("", "search", "--term", "fdbox", "--no-heat")
+
+			if h.graph.Calls() != calls+1 {
+				t.Errorf("sdd export should run again once a connected repo's cache changes, ran %d more times", h.graph.Calls()-calls)
+			}
+		})
+	}
+}
+
+func TestGraphStatusFollowsTheCopySddNames(t *testing.T) {
 	h := newHarness(t)
 	withConnectedRepos(t, h)
+
+	copyDir := filepath.Join(h.home, ".local", "share", "sdd", "repos", filepath.FromSlash(fdbox))
+	h.graph.Clones = map[string]string{fdbox: copyDir}
+	synced := filepath.Join(copyDir, ".sdd", "graph", "2026", "10", "24-120000-d-tac-k2m.md")
+	test.WriteFile(t, synced, "---\ntype: decision\n---\n")
+
 	h.must("", "claim", "main")
 	h.file("Gate finding citing fdbox", "follows "+fdbox+":"+foreignClosed)
 
-	calls := h.graph.Calls()
+	calls, pathCalls := h.graph.Calls(), h.graph.PathCalls()
 
 	h.must("", "search", "--term", "fdbox", "--no-heat")
 	h.must("", "search", "--term", "fdbox", "--no-heat")
 
-	if h.graph.Calls() != calls {
-		t.Errorf("sdd export should not run again while neither graph changed, ran %d more times", h.graph.Calls()-calls)
+	if h.graph.Calls() != calls || h.graph.PathCalls() != pathCalls {
+		t.Errorf("a cached read with no graph changed should start no sdd process, ran export %d and repo path %d more times",
+			h.graph.Calls()-calls, h.graph.PathCalls()-pathCalls)
 	}
 
 	later := time.Now().Add(time.Hour)
-	synced := filepath.Join(h.cache, "sdd", filepath.FromSlash(fdbox), ".sdd", "graph", "2026", "10", "24-120000-d-tac-k2m.md")
+	stale := filepath.Join(h.cache, "sdd", filepath.FromSlash(fdbox), ".sdd", "graph", "2026", "10", "24-120000-d-tac-k2m.md")
 
-	err := os.Chtimes(synced, later, later)
+	err := os.Chtimes(stale, later, later)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h.must("", "search", "--term", "fdbox", "--no-heat")
+
+	if h.graph.Calls() != calls {
+		t.Errorf("a change in the copy sdd no longer keeps should not refresh the statuses, export ran %d more times",
+			h.graph.Calls()-calls)
+	}
+
+	err = os.Chtimes(synced, later, later)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,6 +350,60 @@ func TestGraphStatusIsCachedUntilAConnectedRepoChanges(t *testing.T) {
 	h.must("", "search", "--term", "fdbox", "--no-heat")
 
 	if h.graph.Calls() != calls+1 {
-		t.Errorf("sdd export should run again once a connected repo's cache changes, ran %d more times", h.graph.Calls()-calls)
+		t.Errorf("a change in the copy sdd repo path names should refresh the statuses, export ran %d more times",
+			h.graph.Calls()-calls)
+	}
+}
+
+func TestAStatusCacheWithoutClonePathsRefreshesOnce(t *testing.T) {
+	h := newHarness(t)
+	withConnectedRepos(t, h)
+	// The copy the key read is gone, as sdd deletes its old cache copy: an
+	// empty copy keys the same as a missing one.
+	h.graph.Clones = map[string]string{fdbox: filepath.Join(t.TempDir(), "gone")}
+	h.must("", "claim", "main")
+	h.file("Gate finding citing fdbox", "follows "+fdbox+":"+foreignClosed)
+	h.must("", "search", "--term", "fdbox", "--no-heat")
+
+	cachePath := ""
+
+	err := filepath.WalkDir(h.cache, func(path string, entry fs.DirEntry, err error) error {
+		if err == nil && entry.Name() == "graph-status.json" {
+			cachePath = path
+		}
+
+		return err
+	})
+	if err != nil || cachePath == "" {
+		t.Fatalf("the read should keep the graph statuses in the cache, found %q (%v)", cachePath, err)
+	}
+
+	var held map[string]any
+
+	err = json.Unmarshal([]byte(test.ReadFile(t, cachePath)), &held)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if held["clones"] == nil {
+		t.Fatalf("the cache should keep where each connected repo's copy lives, got %v", held)
+	}
+
+	delete(held, "clones")
+
+	raw, err := json.Marshal(held)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WriteFile(t, cachePath, string(raw))
+
+	calls := h.graph.Calls()
+
+	h.must("", "search", "--term", "fdbox", "--no-heat")
+	h.must("", "search", "--term", "fdbox", "--no-heat")
+
+	if h.graph.Calls() != calls+1 {
+		t.Errorf("a cache kept without the copies' paths should refresh once, export ran %d more times", h.graph.Calls()-calls)
 	}
 }

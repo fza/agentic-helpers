@@ -38,6 +38,26 @@ func (SddExport) Export(ctx context.Context, dir string) ([]byte, error) {
 	return output, nil
 }
 
+// repoPathLimit bounds one `sdd repo path`, which only reads sdd's settings.
+const repoPathLimit = 5 * time.Second
+
+// RepoPath is where sdd keeps its local copy of the connected repo repoID, as
+// `sdd repo path` prints it in dir.
+func (SddExport) RepoPath(ctx context.Context, dir string, repoID string) (string, error) {
+	bounded, cancel := context.WithTimeout(ctx, repoPathLimit)
+	defer cancel()
+
+	command := exec.CommandContext(bounded, "sdd", "repo", "path", repoID)
+	command.Dir = dir
+
+	output, err := command.Output()
+	if err != nil {
+		return "", fmt.Errorf("sdd repo path %s: %w", repoID, err)
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
 // sddConfigLimit bounds one `sdd config get`, which only reads files.
 const sddConfigLimit = 5 * time.Second
 

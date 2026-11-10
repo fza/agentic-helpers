@@ -56,9 +56,11 @@ func foreignName(target string) string {
 	return repo[strings.LastIndex(repo, "/")+1:] + ":" + bare
 }
 
-// GraphExporter answers `sdd export` for the checkout in dir.
+// GraphExporter answers `sdd export` for the checkout in dir, and `sdd repo
+// path`: where sdd keeps its copy of a connected repo.
 type GraphExporter interface {
 	Export(ctx context.Context, dir string) ([]byte, error)
+	RepoPath(ctx context.Context, dir string, repoID string) (string, error)
 }
 
 var wholeGraphID = regexp.MustCompile(`^\d{8}-\d{6}-[sd]-[a-z]{3}-[a-z0-9]{3}$`)
@@ -268,10 +270,12 @@ func (mem *memory) changeLink(ctx context.Context, req request, kind memorylog.K
 // graphStatus is what became of each graph entry, as `sdd export` says: its
 // status and the entry that gave it, where one did, by bare id for the local
 // graph and by `<repo_id>:<id>` for a connected repo's. Repos are the
-// connected repos the export carried, whose caches the key covers.
+// connected repos the export carried, whose copies the key covers; Clones is
+// where sdd keeps each copy, by repo id.
 type graphStatus struct {
 	Key      string                `json:"key"`
 	Repos    []string              `json:"repos,omitempty"`
+	Clones   map[string]string     `json:"clones,omitempty"`
 	Statuses map[string]graphState `json:"statuses"`
 }
 
@@ -309,7 +313,11 @@ func (mem *memory) graphStatuses(ctx context.Context) (map[string]graphState, bo
 		return nil, false
 	}
 
-	_ = writeJSON(mem.env.Roots.Cache, cachePath, graphStatus{Key: mem.statusKey(local, repos), Repos: repos, Statuses: statuses})
+	clones := mem.clonePaths(ctx, root, repos)
+
+	_ = writeJSON(mem.env.Roots.Cache, cachePath, graphStatus{
+		Key: statusKey(local, repos, clones), Repos: repos, Clones: clones, Statuses: statuses,
+	})
 	mem.graphKnown = statuses
 
 	return statuses, true
@@ -324,7 +332,7 @@ func (mem *memory) cachedGraphStatuses(ctx context.Context) (map[string]graphSta
 
 	var cached graphStatus
 	if readJSON(filepath.Join(mem.cacheDir(), "graph-status.json"), &cached) && cached.Statuses != nil &&
-		cached.Key == mem.statusKey(mem.graphProject(ctx).entries, cached.Repos) {
+		cached.Key == statusKey(mem.graphProject(ctx).entries, cached.Repos, cached.Clones) {
 		mem.graphKnown = cached.Statuses
 
 		return cached.Statuses, true
@@ -333,16 +341,46 @@ func (mem *memory) cachedGraphStatuses(ctx context.Context) (map[string]graphSta
 	return nil, false
 }
 
-// statusKey changes whenever the local graph or the cache of one of the
+// clonePaths is where sdd keeps its copy of each connected repo, as `sdd repo
+// path` says. Where it fails or prints nothing, as an sdd without the command
+// does, the path is `sdd/<repo_id>` in the cache directory, where those
+// releases keep it.
+func (mem *memory) clonePaths(ctx context.Context, root string, repos []string) map[string]string {
+	if len(repos) == 0 {
+		return nil
+	}
+
+	clones := make(map[string]string, len(repos))
+
+	for _, repo := range repos {
+		path, err := mem.env.Graph.RepoPath(ctx, root, repo)
+		if err != nil || path == "" {
+			path = filepath.Join(mem.env.CacheRoot, "sdd", filepath.FromSlash(repo))
+		}
+
+		clones[repo] = path
+	}
+
+	return clones
+}
+
+// statusKey changes whenever the local graph or the copy of one of the
 // connected repos changes: a `sdd repo sync` pulling new entries or statuses
-// into a cache refreshes the flags. sdd keeps a connected repo's cache, a
-// clone, under `sdd/<repo_id>` in the cache directory.
-func (mem *memory) statusKey(local string, repos []string) string {
+// into a copy refreshes the flags. A repo with no copy path, as in a cache
+// written before the paths were kept, gets a part no graphKey matches, so
+// that cache refreshes once even where its copy was deleted and read empty.
+func statusKey(local string, repos []string, clones map[string]string) string {
 	parts := []string{graphKey(local)}
 
 	for _, repo := range repos {
-		cached := filepath.Join(mem.env.CacheRoot, "sdd", filepath.FromSlash(repo))
-		parts = append(parts, repo+"="+graphKey(graphconfig.ResolveAt(cached).Entries))
+		clone := clones[repo]
+		if clone == "" {
+			parts = append(parts, repo+"=")
+
+			continue
+		}
+
+		parts = append(parts, repo+"="+graphKey(graphconfig.ResolveAt(clone).Entries))
 	}
 
 	return strings.Join(parts, " ")

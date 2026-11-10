@@ -953,9 +953,13 @@ the bare id, each connected repo keyed by `<repo_id>:<id>` from `repos[].repo_id
 no `repo_id` is skipped). Memory keeps no list of connected repos of its own: sdd's dependency
 declaration decides what the export carries. The result is cached as `graph-status.json` in the cache
 with the connected repos it carried, keyed by the count of `**/*.md` under the resolved `graph_dir`
-and the newest modification time among them, and the same for each connected repo's cache, the clone
-sdd keeps under `$XDG_CACHE_HOME/sdd/<repo_id>` (`~/.cache` where unset), so a `sdd repo sync` pulling
-into it refreshes the flags. Memory runs no sync of its own. An export carrying no local entry is not
+and the newest modification time among them, and the same for each connected repo's copy, the clone
+sdd keeps of it, so a `sdd repo sync` pulling into it refreshes the flags. Where that copy lives is
+sdd's to say: each refresh runs `sdd repo path <repo_id>` once per connected repo and keeps the
+answers in `graph-status.json` under `clones`, so a cached read starts no process. Where
+`sdd repo path` fails, as on an sdd without the command, the copy is read at
+`$XDG_CACHE_HOME/sdd/<repo_id>` (`~/.cache` where unset), where those releases keep it. A cache
+kept without `clones` never matches its key and refreshes once. Memory runs no sync of its own. An export carrying no local entry is not
 trusted. A bare graph id the checkout's graph lacks resolves through the connected repos' keys; a
 qualified id naming the local `repo_id` is stored bare. Where the export fails or its shape no longer carries those fields,
 flags fall back to whether the file exists, and the read says once
