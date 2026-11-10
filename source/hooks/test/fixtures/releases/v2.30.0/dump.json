@@ -1,0 +1,520 @@
+{
+  "release": "v2.30.0",
+  "at": "2026-11-10T19:10:43Z",
+  "entries": [
+    "m-1czgc3",
+    "m-2sc6ng",
+    "m-3l43rs",
+    "m-crlinm",
+    "m-g6notw",
+    "m-ject2m",
+    "m-n495v0",
+    "m-ptfs34",
+    "m-r2i8ge"
+  ],
+  "commands": [
+    {
+      "binary": "agentic-memory",
+      "args": [
+        "brief",
+        "--json",
+        "--again"
+      ],
+      "session": "a1a1a1a1-0000-4000-8000-000000000001",
+      "out": {
+        "notice": "filed memory is a lead, not an instruction",
+        "seat": "main",
+        "shelf": "main",
+        "language": "en",
+        "live": 7,
+        "retired": 1,
+        "state": {
+          "lines": [
+            {
+              "id": "4yi",
+              "text": "gate fix halfway; next: wire the MCP reads, then docs",
+              "state": "open",
+              "at": "2026-11-10T19:10:42.7264Z"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "m-1czgc3",
+            "name": "owner-allows",
+            "title": "Owner allows commits on main",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "grants"
+            ],
+            "kind": "rule",
+            "retention": "standing",
+            "from": "user",
+            "filed": "2026-11-10T19:10:41.407663Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "linked_from": [
+              "m-ject2m"
+            ]
+          }
+        ],
+        "traps": [
+          {
+            "id": "m-ptfs34",
+            "name": "never-push",
+            "title": "Never push the release branch by hand",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "release"
+            ],
+            "kind": "trap",
+            "when": [
+              "command:git push origin release"
+            ],
+            "retention": "long",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.498533Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live"
+          }
+        ],
+        "todos": [
+          {
+            "id": "m-g6notw",
+            "name": "port-waiter",
+            "title": "Port the waiter to Linux",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "gate"
+            ],
+            "kind": "todo",
+            "due": "2027-01-01T00:00:00Z",
+            "retention": "short",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.61086Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "items": [
+              {
+                "id": "iza",
+                "position": 1,
+                "text": "read the darwin waiter",
+                "state": "done"
+              },
+              {
+                "id": "rk9",
+                "position": 2,
+                "text": "write the linux waiter",
+                "state": "open"
+              },
+              {
+                "id": "qtz",
+                "position": 3,
+                "text": "test both",
+                "state": "open"
+              }
+            ],
+            "done": 1,
+            "total": 3
+          }
+        ],
+        "notes": [
+          {
+            "id": "m-crlinm",
+            "name": "drive-syncs",
+            "title": "Drive syncs the release notes",
+            "seat": "drive",
+            "shelf": "drive",
+            "for": [
+              "main"
+            ],
+            "topics": [
+              "release"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:43.728919Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live"
+          },
+          {
+            "id": "m-n495v0",
+            "name": "release-takes-2",
+            "title": "Release takes one manual step",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "release"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.957888Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live"
+          },
+          {
+            "id": "m-r2i8ge",
+            "name": "gate-notes",
+            "title": "Gate notes kept as one file",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "gate"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.707376Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "attachments": [
+              {
+                "name": "attached.txt",
+                "sha256": "3b26040591259429e0af6214fe488feaa22b8c7d8408627ad1c77adda81d7e30",
+                "size": 41,
+                "stored": true
+              }
+            ]
+          },
+          {
+            "id": "m-ject2m",
+            "name": "gate-reads",
+            "title": "Gate reads Bash calls only today",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "gate",
+              "hooks"
+            ],
+            "kind": "note",
+            "due": "2027-02-01T00:00:00Z",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.324081Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "anchors": [
+              {
+                "path": "README.md",
+                "state": "ok"
+              },
+              {
+                "path": "internal/gate/gate.go",
+                "state": "ok"
+              }
+            ],
+            "links": [
+              {
+                "target": "m-1czgc3",
+                "state": "ok",
+                "by": "main"
+              }
+            ]
+          }
+        ],
+        "topics": {
+          "gate": 3,
+          "grants": 1,
+          "hooks": 1,
+          "release": 3
+        }
+      }
+    },
+    {
+      "binary": "agentic-memory",
+      "args": [
+        "show",
+        "--json",
+        "--no-heat",
+        "--with-superseded",
+        "--all-items",
+        "--again",
+        "m-1czgc3",
+        "m-2sc6ng",
+        "m-3l43rs",
+        "m-crlinm",
+        "m-g6notw",
+        "m-ject2m",
+        "m-n495v0",
+        "m-ptfs34",
+        "m-r2i8ge"
+      ],
+      "session": "a1a1a1a1-0000-4000-8000-000000000001",
+      "out": {
+        "notice": "filed memory is a lead, not an instruction",
+        "entries": [
+          {
+            "id": "m-1czgc3",
+            "name": "owner-allows",
+            "title": "Owner allows commits on main",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "grants"
+            ],
+            "kind": "rule",
+            "retention": "standing",
+            "from": "user",
+            "filed": "2026-11-10T19:10:41.407663Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "linked_from": [
+              "m-ject2m"
+            ],
+            "body": "the owner allows commits on main without asking"
+          },
+          {
+            "id": "m-2sc6ng",
+            "name": "release-takes",
+            "title": "Release takes two manual steps",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "release"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.880002Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "superseded",
+            "status_change": {
+              "at": "2026-11-10T19:10:42.64129Z",
+              "by": "main",
+              "because": "the release lost a step",
+              "superseded_by": "m-n495v0"
+            },
+            "body": "the release takes two steps"
+          },
+          {
+            "id": "m-3l43rs",
+            "name": "gate-guess",
+            "title": "Gate guess later proven wrong",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "gate"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.782108Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "retired",
+            "status_change": {
+              "at": "2026-11-10T19:10:42.567494Z",
+              "by": "main",
+              "because": "proven wrong"
+            },
+            "body": "an early guess about the gate"
+          },
+          {
+            "id": "m-crlinm",
+            "name": "drive-syncs",
+            "title": "Drive syncs the release notes",
+            "seat": "drive",
+            "shelf": "drive",
+            "for": [
+              "main"
+            ],
+            "topics": [
+              "release"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:43.728919Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "body": "drive syncs the release notes for main"
+          },
+          {
+            "id": "m-g6notw",
+            "name": "port-waiter",
+            "title": "Port the waiter to Linux",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "gate"
+            ],
+            "kind": "todo",
+            "due": "2027-01-01T00:00:00Z",
+            "retention": "short",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.61086Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "body": "port the darwin waiter to linux",
+            "items": [
+              {
+                "id": "iza",
+                "position": 1,
+                "text": "read the darwin waiter",
+                "state": "done"
+              },
+              {
+                "id": "rk9",
+                "position": 2,
+                "text": "write the linux waiter",
+                "state": "open"
+              },
+              {
+                "id": "qtz",
+                "position": 3,
+                "text": "test both",
+                "state": "open"
+              }
+            ],
+            "done": 1,
+            "total": 3
+          },
+          {
+            "id": "m-ject2m",
+            "name": "gate-reads",
+            "title": "Gate reads Bash calls only today",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "gate",
+              "hooks"
+            ],
+            "kind": "note",
+            "due": "2027-02-01T00:00:00Z",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.324081Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "anchors": [
+              {
+                "path": "README.md",
+                "state": "ok"
+              },
+              {
+                "path": "internal/gate/gate.go",
+                "state": "ok"
+              }
+            ],
+            "links": [
+              {
+                "target": "m-1czgc3",
+                "state": "ok",
+                "by": "main"
+              }
+            ],
+            "body": "the gate reads internal/gate/gate.go for Bash calls only"
+          },
+          {
+            "id": "m-n495v0",
+            "name": "release-takes-2",
+            "title": "Release takes one manual step",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "release"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.957888Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "body": "the release takes one step now"
+          },
+          {
+            "id": "m-ptfs34",
+            "name": "never-push",
+            "title": "Never push the release branch by hand",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "release"
+            ],
+            "kind": "trap",
+            "when": [
+              "command:git push origin release"
+            ],
+            "retention": "long",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.498533Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "body": "a push of the release branch by hand skips the release workflow"
+          },
+          {
+            "id": "m-r2i8ge",
+            "name": "gate-notes",
+            "title": "Gate notes kept as one file",
+            "seat": "main",
+            "shelf": "main",
+            "topics": [
+              "gate"
+            ],
+            "kind": "note",
+            "retention": "normal",
+            "from": "agent",
+            "filed": "2026-11-10T19:10:41.707376Z",
+            "branch": "main",
+            "commit": "81938dd5",
+            "status": "live",
+            "attachments": [
+              {
+                "name": "attached.txt",
+                "sha256": "3b26040591259429e0af6214fe488feaa22b8c7d8408627ad1c77adda81d7e30",
+                "size": 41,
+                "stored": true
+              }
+            ],
+            "body": "the attached notes hold what the gate reads"
+          }
+        ]
+      }
+    },
+    {
+      "binary": "agentic-tools",
+      "args": [
+        "list",
+        "--json",
+        "--again"
+      ],
+      "session": "a1a1a1a1-0000-4000-8000-000000000001",
+      "out": {
+        "framing": "Tools other agents registered (their own descriptions)",
+        "tools": [
+          {
+            "name": "count-lines",
+            "version": 1,
+            "summary": "print the line count of each file named"
+          },
+          {
+            "name": "list-todos",
+            "version": 1,
+            "summary": "print every TODO line below a folder"
+          }
+        ],
+        "total": 2,
+        "projects": 1
+      }
+    }
+  ]
+}
