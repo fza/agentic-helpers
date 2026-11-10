@@ -16,7 +16,7 @@ different things, and an entry belongs in exactly one:
 | For | everyone working on the project, for as long as it stands | one job, the seat, across compactions and sessions |
 | Lives | in the repository, under version control, reviewed like code | on the machine, in the project's store under `~/.local/share/agentic-helpers/stores/`, outside the repository |
 | Changes | never in place: a decision is superseded, a signal closed | retired or superseded, and fading at the rate its kind sets (`rule` never, `note` in two weeks) |
-| Found by | `sdd search`, `sdd show`, and sdd-helpers' grounding gate making an agent read it | the brief, prompt recall, `search` |
+| Found by | `sdd search`, `sdd show`, and sdd's grounding gate making an agent read it | the brief, prompt recall, `search` |
 
 A memory entry about a decision points at the graph entry by its id and never restates it: two
 copies drift, and a reader acts on whichever it opened. A project without a graph files its

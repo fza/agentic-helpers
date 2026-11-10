@@ -797,7 +797,7 @@ opening a line) or `hookio.NeutralizeInline` (text set after an id, whose first 
 
 - a line whose first visible text opens as a line of our hooks gets `> ` before it, a quote a
   reader takes as cited, never as said: `agentic-<name>:` and `agentic-<name> <word>:`, `scratch:`,
-  `tool library:`, `GROUNDING GATE:` (the sdd-helpers gate a session may run beside these) and
+  `tool library:` and
   `[agentic-shell-guard:`, case folded, with blanks
   and invisible format characters (Unicode `Cf`) before it skipped. A line break is `\n` or `\r`;
 - the `<` of a tag-shaped token, `<` then an optional `/` or `!`, any `Cf` characters and a letter,
@@ -1014,9 +1014,9 @@ met at or past the position the session's last look reached is a gain. A name al
 is never a gain again: an entry a checkout of an older ref deletes or renames back, and brings back
 on the way forward, is told once, and a folder gone keeps its mark. A session's first look records
 and says nothing. Rejected: telling a pulled entry from the seat's own capture (a fuller stamp and a
-second hint wording), and leaving pulled entries to sdd-helpers' grounding gate, which re-asks reads on
-any graph change but ends no `--until captured` line; the accepted cost is that another seat's pulled
-capture ends this seat's `--until captured` lines and asks for a link.
+second hint wording), and leaving pulled entries to sdd's grounding gate, which ends no
+`--until captured` line; the accepted cost is that another seat's pulled capture ends this seat's
+`--until captured` lines and asks for a link.
 
 A probe that finds a `merged:` branch records its tip in the slot file under `branch-tips`; once
 the branch is gone, the end asks `merge-base --is-ancestor <recorded tip> <into>`. A landed-commit
