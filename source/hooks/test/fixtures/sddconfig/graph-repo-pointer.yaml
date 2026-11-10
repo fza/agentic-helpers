@@ -1,0 +1,4 @@
+graph_repo: gitlab.com/example/mika-sdd
+project_dir: ../mika-sdd
+graph_dir: .sdd/GRAPH-ELSEWHERE.md
+supported_agents: [claude]

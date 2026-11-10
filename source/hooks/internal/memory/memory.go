@@ -200,10 +200,19 @@ type resolvedGraph struct {
 }
 
 // graphProject is the graph the main checkout resolves to, read once per
-// process.
+// process: sdd's own copy where the checkout names a `graph_repo` and sdd says
+// where it keeps it, else what `project_dir` or the checkout's own `.sdd/`
+// names.
 func (mem *memory) graphProject(ctx context.Context) resolvedGraph {
 	if mem.graphConfig == nil {
-		resolved := graphconfig.ResolveAt(mem.mainRoot(ctx))
+		root := mem.mainRoot(ctx)
+		resolved := graphconfig.ResolveAt(root)
+
+		clone := mem.graphClone(ctx, root)
+		if clone != "" {
+			resolved = graphconfig.ResolveAt(clone)
+		}
+
 		mem.graphConfig = &resolvedGraph{
 			entries: resolved.Entries, repoID: resolved.RepoID(), language: resolved.Language(),
 		}

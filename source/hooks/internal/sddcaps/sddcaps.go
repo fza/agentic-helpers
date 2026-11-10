@@ -1,5 +1,6 @@
 // Package sddcaps tells what the sdd on the PATH can do: whether it carries
-// `sdd export`, which stock releases lack. Fork versions
+// `sdd export`, which stock releases lack, and `sdd repo path`, which tells
+// where sdd keeps its own copy of a graph repository. Fork versions
 // (github.com/fza/sdd) do not order against stock ones
 // (github.com/networkteam/sdd), so the surface is read from the binary's own
 // help text, where urfave/cli lists every command under COMMANDS.
@@ -26,15 +27,16 @@ const (
 	// surfaces counts the changes to what the probe reads. It opens the cache
 	// key, so an answer kept before a surface was added is probed again
 	// rather than read as the binary lacking it.
-	surfaces = 3
+	surfaces = 4
 )
 
 // Caps is what one sdd binary offers. Runs is false where no sdd answered;
 // Printed then says what the attempt printed, for the message naming it.
 type Caps struct {
-	Runs    bool   `json:"runs"`
-	Printed string `json:"-"`
-	Export  bool   `json:"export"`
+	Runs     bool   `json:"runs"`
+	Printed  string `json:"-"`
+	Export   bool   `json:"export"`
+	RepoPath bool   `json:"repo_path"`
 }
 
 type Runner interface {
@@ -84,7 +86,8 @@ func (probe Probe) Of(ctx context.Context, dir string) Caps {
 		return Caps{Printed: err.Error()}
 	}
 
-	found := Caps{Runs: true, Export: commandsIn(root)["export"]}
+	commands := commandsIn(root)
+	found := Caps{Runs: true, Export: commands["export"], RepoPath: commands["repo"] && probe.repoPath(ctx, dir)}
 
 	if key != "" {
 		probe.save(key, found)
@@ -110,6 +113,14 @@ func (probe Probe) help(ctx context.Context, dir string, args ...string) (string
 	}
 
 	return printed, nil
+}
+
+// repoPath is whether `sdd repo` carries `path`, which stock sdd's `repo`
+// lacks. A `repo --help` that fails answers no help, which lists no `path`.
+func (probe Probe) repoPath(ctx context.Context, dir string) bool {
+	help, _ := probe.help(ctx, dir, "repo", "--help")
+
+	return commandsIn(help)["path"]
 }
 
 // commandsIn names every command the COMMANDS section lists, aliases left out.

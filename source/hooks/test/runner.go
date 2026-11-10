@@ -12,13 +12,15 @@ import (
 
 // Runner answers `sdd [<command>] --help` from the help texts under
 // fixtures/sdd: the fork's where Stock is false, stock sdd's where it is true.
-// Missing stands for no sdd on the PATH, and Unreleased takes the `export`
-// command out of the help, as no stock release carries it. It records every
+// Missing stands for no sdd on the PATH, Unreleased takes the `export`
+// command out of the help, as no stock release carries it, and NoRepo the
+// `repo` command, as builds before connected repos lack it. It records every
 // call it answers.
 type Runner struct {
 	Stock      bool
 	Missing    bool
 	Unreleased bool
+	NoRepo     bool
 
 	mutex sync.Mutex
 	Calls [][]string
@@ -63,16 +65,24 @@ func (fake *Runner) help(argv []string) (process.Result, error) {
 	help := string(text)
 
 	if fake.Unreleased {
-		var kept []string
+		help = withoutCommand(help, "export")
+	}
 
-		for line := range strings.SplitSeq(help, "\n") {
-			if !strings.HasPrefix(strings.TrimSpace(line), "export ") {
-				kept = append(kept, line)
-			}
-		}
-
-		help = strings.Join(kept, "\n")
+	if fake.NoRepo {
+		help = withoutCommand(help, "repo")
 	}
 
 	return process.Result{Stdout: help}, nil
+}
+
+func withoutCommand(help string, command string) string {
+	var kept []string
+
+	for line := range strings.SplitSeq(help, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), command+" ") {
+			kept = append(kept, line)
+		}
+	}
+
+	return strings.Join(kept, "\n")
 }

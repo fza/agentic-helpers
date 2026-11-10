@@ -1,0 +1,15 @@
+NAME:
+   sdd repo - Manage connected repos for cross-repo references
+
+USAGE:
+   sdd repo [command [command options]]
+
+COMMANDS:
+   path    Print where sdd keeps its own clone of a graph repository
+   add     Connect a repo: clone it, verify its declared repo_id, register it
+   list    List connected repos
+   remove  Drop a declared cross-repo dependency from .sdd/config.yaml (ref-safety-guarded)
+   sync    Sync connected repos (all, or the named repos) as far as the git limits allow
+
+OPTIONS:
+   --help, -h  show help

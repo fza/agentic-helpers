@@ -705,7 +705,7 @@ a run between spaces.
 
 An entry is written in the project's language, never in the language the conversation happens to
 run in: the graph's `language` from `.sdd/config.yaml` (the graph repository's, where
-`project_dir` names one), else the plugin option `memory_language`,
+`project_dir` names one, read from sdd's own copy where `graph_repo` names one), else the plugin option `memory_language`,
 else `en`. The brief's first line names it, as in
 `agentic-memory: seat main, 14 live, 6 retired, entries in de, terse, time 21:40 CET (+01:00)`, the
 style, then the local time and zone an agent has no other way of telling from its context. A claim

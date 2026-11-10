@@ -73,10 +73,10 @@ records up to the cut, then fails naming it; a file of no binary kind is refused
 A store id is a UUID v7 and a suffix fixed at creation: the last path part of the sdd `repo_id`, else
 of the origin, else the checkout directory's name. A checkout is matched, in this order, by its
 pointer, the volume UUID and inode of its git common dir, its path, the graph repository a split
-layout names, its `repo_id`, then its origin (with any user, password, query or fragment dropped);
+layout names, its `repo_id` (its `graph_repo` where `.sdd/config.yaml` names one), then its origin (with any user, password, query or fragment dropped);
 only the first four teach a store anything, and one identifier belongs to one store. A checkout
 matching nothing gets a store of its own, silently, at its first write; one whose legacy key (its
-`repo_id`, else `local/` and a hash of its git common dir) names an unclaimed store gets that store,
+`graph_repo` or `repo_id`, else `local/` and a hash of its git common dir) names an unclaimed store gets that store,
 silently. Where two checkouts compete for a store, the agent asks the user, and `agentic-memory bind`
 or `agentic-memory merge` answers ([memory usage](../memory/usage.md#which-store-a-checkout-uses)).
 
@@ -194,7 +194,10 @@ uses `sdd export`, which no stock release carries yet, wherever the installed `s
 binary carries it is read from its own `sdd --help`, never from its version, and kept in
 `<cache>/sdd-caps.json` per binary path, modification time and size. Without it, memory flags a
 graph link by whether its entry file exists. Where a connected repo's copy lives, memory asks
-`sdd repo path`, and reads `$XDG_CACHE_HOME/sdd/<repo_id>` where that fails.
+`sdd repo path`, and reads `$XDG_CACHE_HOME/sdd/<repo_id>` where that fails. In a checkout whose
+`.sdd/config.yaml` names a `graph_repo`, memory reads the graph from sdd's own copy of it, where
+`sdd repo --help` lists `path`, keeping the answer in the store cache as `graph-clone.json`; without
+that, it reads the checkout `project_dir` names.
 
 ## Grounding gate and capture
 

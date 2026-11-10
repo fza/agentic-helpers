@@ -933,7 +933,19 @@ ones `--link` named (`links`); `link` and `unlink` events add and drop explicit 
 the seat that made it. A graph id resolves where
 `<yyyy>/<mm>/<dd>-<hhmmss>-<type>-<layer>-<suffix>.md` exists under the project's resolved
 `graph_dir` (`.sdd/graph` where unset, the graph repository's where `project_dir` names one), a memory id
-where the folded log holds the entry. A merge keeps one `link` row per net explicit link with its
+where the folded log holds the entry.
+
+A checkout whose `.sdd/config.yaml` names a `graph_repo` keeps no graph of its own: sdd reads and
+writes that repository through a copy it keeps for itself, and the `project_dir` beside it, kept
+for older sdd builds, names a checkout sdd no longer updates. Memory reads the copy instead. Where
+the probe finds `repo` listing `path` in `sdd repo --help`, it asks `sdd repo path <graph_repo>`
+once and keeps the answer in the store cache as `graph-clone.json` (`graph_repo`, `path`); a later
+process reads that file and starts no process while `graph_repo` is unchanged and the folder
+exists. The copy's entries, `repo_id` and `language` are read through its own `.sdd/`. Where sdd
+lacks the command, or its answer fails or names no folder, memory reads what `project_dir` names,
+as before, and keeps nothing, so the next process asks again. The store key and legacy key of such
+a checkout are the `graph_repo` value, read without a process, since sdd refuses a copy whose
+`repo_id` differs; the split-layout link a store is shared through still follows `project_dir`. A merge keeps one `link` row per net explicit link with its
 seat, dropping a link with its `unlink`, and drops a text link with the body it came from.
 
 A tool link is a `link` event whose target is `tool:<name>`, or `tool:<name>@<store key>` for

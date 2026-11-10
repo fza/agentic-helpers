@@ -21,7 +21,7 @@ func TestWhatEachBuildOffers(t *testing.T) {
 		want   sddcaps.Caps
 	}{
 		{name: "stock sdd", runner: &test.Runner{Stock: true}, want: sddcaps.Caps{Runs: true, Export: true}},
-		{name: "the fork", runner: &test.Runner{}, want: sddcaps.Caps{Runs: true, Export: true}},
+		{name: "the fork", runner: &test.Runner{}, want: sddcaps.Caps{Runs: true, Export: true, RepoPath: true}},
 		{name: "a stock release", runner: &test.Runner{Stock: true, Unreleased: true}, want: sddcaps.Caps{Runs: true}},
 	}
 
@@ -32,6 +32,21 @@ func TestWhatEachBuildOffers(t *testing.T) {
 				t.Errorf("each surface should be read from the build's own help, got: %+v", got)
 			}
 		})
+	}
+}
+
+func TestABuildWithoutRepoIsNotAskedForItsSubcommands(t *testing.T) {
+	runner := &test.Runner{NoRepo: true}
+	got := sddcaps.Probe{Runner: runner}.Of(context.Background(), t.TempDir())
+
+	if got.RepoPath {
+		t.Errorf("a build without `repo` should lack `repo path`, got: %+v", got)
+	}
+
+	for _, call := range runner.Calls {
+		if len(call) > 1 && call[1] == "repo" {
+			t.Errorf("a build listing no `repo` command should not be asked for its help, ran: %v", call)
+		}
 	}
 }
 
@@ -94,21 +109,39 @@ func TestAnAnswerKeptBeforeASurfaceWasAddedIsProbedAgain(t *testing.T) {
 		t.Fatalf("reading the binary: %v", err)
 	}
 
-	kept, err := json.Marshal(map[string]any{
-		"key":  fmt.Sprintf("%s|%d|%d", resolved, info.ModTime().UnixNano(), info.Size()),
-		"caps": map[string]bool{"runs": true},
-	})
-	if err != nil {
-		t.Fatalf("encoding the kept answer: %v", err)
+	cases := []struct {
+		name string
+		key  string
+		caps map[string]bool
+	}{
+		{
+			name: "before export",
+			key:  fmt.Sprintf("%s|%d|%d", resolved, info.ModTime().UnixNano(), info.Size()),
+			caps: map[string]bool{"runs": true},
+		},
+		{
+			name: "before repo path",
+			key:  fmt.Sprintf("3|%s|%d|%d", resolved, info.ModTime().UnixNano(), info.Size()),
+			caps: map[string]bool{"runs": true, "export": true},
+		},
 	}
 
-	test.WriteFile(t, filepath.Join(cache, "sdd-caps.json"), string(kept))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			kept, err := json.Marshal(map[string]any{"key": tc.key, "caps": tc.caps})
+			if err != nil {
+				t.Fatalf("encoding the kept answer: %v", err)
+			}
 
-	runner := &test.Runner{}
-	got := sddcaps.Probe{Runner: runner, CacheDir: cache, LookPath: lookPath}.Of(context.Background(), t.TempDir())
+			test.WriteFile(t, filepath.Join(cache, "sdd-caps.json"), string(kept))
 
-	if !got.Export || len(runner.Calls) == 0 {
-		t.Errorf("an answer kept by an older probe should not stand for the binary, got: %+v", got)
+			runner := &test.Runner{}
+			got := sddcaps.Probe{Runner: runner, CacheDir: cache, LookPath: lookPath}.Of(context.Background(), t.TempDir())
+
+			if !got.Export || !got.RepoPath || len(runner.Calls) == 0 {
+				t.Errorf("an answer kept by an older probe should not stand for the binary, got: %+v", got)
+			}
+		})
 	}
 }
 

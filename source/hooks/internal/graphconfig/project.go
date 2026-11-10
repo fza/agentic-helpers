@@ -25,6 +25,7 @@ type Project struct {
 // here is one sdd itself defines.
 type sddConfig struct {
 	ProjectDir string `yaml:"project_dir"`
+	GraphRepo  string `yaml:"graph_repo"`
 	GraphDir   string `yaml:"graph_dir"`
 	RepoID     string `yaml:"repo_id"`
 	Language   string `yaml:"language"`
@@ -111,6 +112,21 @@ func Link(root string) string {
 	return ""
 }
 
+// GraphRepo is the `graph_repo` the `.sdd/` directly in root names: the
+// repository whose graph sdd reads and writes through a copy of its own,
+// ignoring `project_dir` and `graph_dir` beside it. Empty where root holds no
+// `.sdd/` or it names none.
+func GraphRepo(root string) string {
+	held := filepath.Join(root, GraphDirName)
+
+	info, err := os.Stat(held)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+
+	return readConfig(held).GraphRepo
+}
+
 func (project Project) config() sddConfig {
 	if project.Dir == "" {
 		return sddConfig{}
@@ -166,6 +182,7 @@ func readConfig(dir string) sddConfig {
 
 	return sddConfig{
 		ProjectDir: overlay(shared.ProjectDir, local.ProjectDir),
+		GraphRepo:  overlay(shared.GraphRepo, local.GraphRepo),
 		GraphDir:   overlay(shared.GraphDir, local.GraphDir),
 		RepoID:     overlay(shared.RepoID, local.RepoID),
 		Language:   overlay(shared.Language, local.Language),
@@ -187,6 +204,7 @@ func parseConfig(path string) sddConfig {
 
 	return sddConfig{
 		ProjectDir: strings.TrimSpace(parsed.ProjectDir),
+		GraphRepo:  strings.TrimSpace(parsed.GraphRepo),
 		GraphDir:   strings.TrimSpace(parsed.GraphDir),
 		RepoID:     strings.TrimSpace(parsed.RepoID),
 		Language:   strings.TrimSpace(parsed.Language),

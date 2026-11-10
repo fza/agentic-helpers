@@ -23,6 +23,10 @@ func TestKey(t *testing.T) {
 	declared := t.TempDir()
 	test.WriteFile(t, filepath.Join(declared, ".sdd", "config.yaml"), "repo_id: github.com/fza/agentic-helpers\n")
 
+	pointing := t.TempDir()
+	test.WriteFile(t, filepath.Join(pointing, ".sdd", "config.yaml"),
+		"graph_repo: gitlab.com/acme/app-sdd\nproject_dir: ../app-sdd\ngraph_dir: .sdd/GRAPH-ELSEWHERE.md\n")
+
 	cases := []struct {
 		name   string
 		base   string
@@ -34,6 +38,12 @@ func TestKey(t *testing.T) {
 			base:   declared,
 			lookup: test.CommonDir{Dir: filepath.Join(declared, ".git")},
 			want:   "github.com/fza/agentic-helpers",
+		},
+		{
+			name:   "a graph_repo is the key, with no graph checkout beside it",
+			base:   pointing,
+			lookup: test.CommonDir{Dir: filepath.Join(pointing, ".git")},
+			want:   "gitlab.com/acme/app-sdd",
 		},
 		{
 			name:   "without a repo_id the git common directory is hashed, as sdd hashes it",

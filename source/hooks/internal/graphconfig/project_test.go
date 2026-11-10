@@ -190,3 +190,30 @@ func TestLink(t *testing.T) {
 		})
 	}
 }
+
+func TestGraphRepo(t *testing.T) {
+	cases := []struct {
+		name  string
+		shape layout
+		want  string
+	}{
+		{name: "a graph_repo pointer", shape: layout{code: "graph-repo-pointer.yaml", graph: "graph-repo.yaml"}, want: "gitlab.com/example/mika-sdd"},
+		{name: "project_dir alone", shape: layout{code: "project-dir.yaml", graph: "graph-repo.yaml"}, want: ""},
+		{name: "a graph of its own", shape: layout{code: "graph-repo.yaml"}, want: ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			workspace := tc.shape.build(t)
+
+			got := graphconfig.GraphRepo(filepath.Join(workspace, "mika"))
+			if got != tc.want {
+				t.Errorf("graph_repo should be read from the checkout's own .sdd/ and nowhere else, got %q", got)
+			}
+		})
+	}
+
+	if graphconfig.GraphRepo(t.TempDir()) != "" {
+		t.Error("a folder without .sdd/ should name no graph_repo")
+	}
+}

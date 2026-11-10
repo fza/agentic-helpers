@@ -1,6 +1,7 @@
 // Package projectkey names a project the way sdd names it for its search index,
 // so both tools agree on one identity per repository on the machine: the
-// `repo_id` the project's `.sdd/config.yaml` declares (the graph repository's, where `project_dir` names one), else `local/` and a hash
+// `graph_repo` the project's `.sdd/config.yaml` names, else the `repo_id` it
+// declares (the graph repository's, where `project_dir` names one), else `local/` and a hash
 // of the git common directory, which every worktree of a repository shares.
 // Outside git there is no project identity; a caller wanting one anyway asks
 // for the directory's own.
@@ -51,11 +52,17 @@ func DirectoryKey(base string) string {
 	return "local/" + hex.EncodeToString(sum[:])[:12]
 }
 
-// RepoID is the `repo_id` the `.sdd/` directly in root declares, the graph
-// repository's where `project_dir` names one, or empty where it declares none
-// in sdd's shape.
+// RepoID is the `graph_repo` the `.sdd/` directly in root names, else the
+// `repo_id` it declares, the graph repository's where `project_dir` names
+// one, or empty where it declares none in sdd's shape. A `graph_repo` is read
+// without a process: sdd refuses a copy whose declared `repo_id` differs from
+// it, and the key is needed before anything else of the store is found.
 func RepoID(root string) string {
-	id := graphconfig.ResolveAt(root).RepoID()
+	id := graphconfig.GraphRepo(root)
+	if id == "" {
+		id = graphconfig.ResolveAt(root).RepoID()
+	}
+
 	if !validRepoID(id) {
 		return ""
 	}
