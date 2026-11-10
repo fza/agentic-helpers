@@ -26,7 +26,7 @@ skill_scope: project
 # .agents/skills/). Chosen via multi-select on first run; every contributor
 # on the repo renders the same set.
 supported_agents: [claude]
-dependencies: [github.com/fza/sdd-helpers]
+dependencies: []
 verify:
   mode: deep
 
