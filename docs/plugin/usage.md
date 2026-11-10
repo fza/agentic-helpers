@@ -195,27 +195,11 @@ binary carries it is read from its own `sdd --help`, never from its version, and
 `<cache>/sdd-caps.json` per binary path, modification time and size. Without it, memory flags a
 graph link by whether its entry file exists.
 
-## Moved to sdd-helpers
+## Grounding gate and capture
 
-The grounding gate and `agentic-capture` ship in the
-[sdd-helpers](https://github.com/fza/sdd-helpers) plugin, as `sdd-grounding-gate` and
-`sdd-capture`, with their skills and options. agentic-helpers carries neither, and reads none of the
-options `grounding_gate_enabled`, `capture_enabled` and `capture_remove_draft`; a `config.yaml` still
-naming one gets the line for an unknown key. Install sdd-helpers beside agentic-helpers:
-
-```bash
-claude plugin marketplace add fza/sdd-helpers
-claude plugin install sdd-helpers@sdd-helpers
-```
-
-At session start, in a project whose directory carries `.sdd/`, `agentic-helpers check` prints one
-line while Claude Code's `plugins/installed_plugins.json` (under `CLAUDE_CONFIG_DIR`, else
-`~/.claude`) lists no plugin keyed `sdd-helpers@<marketplace>`; a missing or unreadable file counts
-as none:
-
-```text
-agentic-helpers: the grounding gate and agentic-capture moved to the sdd-helpers plugin: claude plugin marketplace add fza/sdd-helpers, then claude plugin install sdd-helpers@sdd-helpers
-```
+agentic-helpers carries no grounding gate and no graph capture: the `fza/sdd` fork of sdd runs both
+itself, in its capture procedure. It reads none of the options `grounding_gate_enabled`, `capture_enabled` and
+`capture_remove_draft`; a `config.yaml` still naming one gets the line for an unknown key.
 
 ## Commands
 
@@ -471,8 +455,7 @@ feature resting on an off piece goes off with it, and the rest of its piece runs
 line per such feature, `agentic-helpers: <piece> is off, so <feature> is off; turn <key> on to restore it`,
 and, where the machine needs a command substitution shell-guard enforces, one naming them, such as
 `agentic-helpers: this machine: timeout -> agentic-helpers bound; sed and date are BSD` (see
-[shell-guard's command alternatives](../shell-guard/usage.md#command-alternatives)), and, in a
-graph project lacking the sdd-helpers plugin, the line [naming it](#moved-to-sdd-helpers); run as a
+[shell-guard's command alternatives](../shell-guard/usage.md#command-alternatives)); run as a
 command it lists every piece on or off, with its features off under it.
 
 Every binary reads `config.yaml`, then `settings.json` under `CLAUDE_CONFIG_DIR` (else `~/.claude`),

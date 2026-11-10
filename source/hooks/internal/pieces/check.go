@@ -34,9 +34,6 @@ type Env struct {
 	// works in, for the line saying an `sdd` embedding source finds none.
 	SddConfig embed.Sdd
 	Dir       string
-	// InstalledPlugins is Claude Code's `installed_plugins.json`, for the
-	// line naming the plugin the graph hooks moved to.
-	InstalledPlugins string
 	// ToolPrune is the tool library's version pruning, which `prune` runs
 	// beside the vector stores' while agentic-tools is on; nil runs none.
 	ToolPrune func(ctx context.Context, roots home.Roots, limitMB int, lifetime time.Duration, now time.Time)
@@ -51,9 +48,8 @@ const usage = "usage: " + self + " check | config [get <key> | set <key> <value>
 // `config.yaml`. As the SessionStart hook it marks the cache root for
 // backups to skip (home.Roots.ExcludeCache), then prints one line per broken
 // tie and per `config.yaml` problem, then one naming the command
-// substitutions the machine needs, nothing where none is, and one naming the
-// plugin the graph hooks moved to, in a graph project lacking it; run as a command
-// it lists every piece on or off and, under each, its features off through a
+// substitutions the machine needs, nothing where none is; run as a command it
+// lists every piece on or off and, under each, its features off through a
 // tie. sweep and end run and start the sweep of the old layout
 // (internal/migration). dump prints a data file kept in a binary format as
 // JSON lines (internal/dump).
@@ -109,10 +105,6 @@ func Main(ctx context.Context, args []string, env Env, streams hookio.Streams) i
 		line := machineLine(ctx, env, resolution.Options)
 		if line != "" {
 			_, _ = fmt.Fprintln(streams.Out, self+": "+line)
-		}
-
-		if movedHooksMissing(env.Dir, env.InstalledPlugins) {
-			_, _ = fmt.Fprintln(streams.Out, self+": "+MovedLine)
 		}
 
 		for _, line := range pathBinaryLines(env.Getenv) {

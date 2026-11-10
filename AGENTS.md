@@ -11,9 +11,8 @@ commands `agentic-memory` and `agentic-tools`, each paired with a skill that tel
 is doing. The hooks and commands install once for every project on the machine and stay silent where a hook has nothing to work on: a project without the directory it
 needs, a session holding no memory seat. Shell-guard always has something to work on, every Bash
 call, so it judges every project, and so does the session record, every session's hook events.
-The grounding gate and graph capture for [sdd](https://github.com/networkteam/sdd) ship in the
-`sdd-helpers` plugin (`fza/sdd-helpers`); in a project carrying a `.sdd/` graph without that plugin,
-`agentic-helpers check` names it at session start. [`README.md`](README.md) says what the repository is and
+The `fza/sdd` fork of [sdd](https://github.com/networkteam/sdd) runs its grounding gate and graph
+capture itself; no piece here carries them. [`README.md`](README.md) says what the repository is and
 how to install it; [`docs/`](docs/index.md) says how each piece is used and how it works.
 
 | Path | Holds |

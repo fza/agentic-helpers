@@ -70,25 +70,6 @@ Memory and the tool library are also available as MCP servers, `memory` and `too
 - **Commands that work on this machine.** A command missing here (`timeout`) or a usage BSD `sed`
   or `date` gets wrong is refused, naming the one that works.
 
-## Moved to sdd-helpers
-
-The grounding gate and `agentic-capture`, the hooks for projects keeping a decision graph with
-[sdd](https://github.com/networkteam/sdd), ship in the
-[sdd-helpers](https://github.com/fza/sdd-helpers) plugin, as `sdd-grounding-gate` and
-`sdd-capture`. agentic-helpers no longer carries them, nor their options. Install sdd-helpers beside
-it:
-
-```bash
-claude plugin marketplace add fza/sdd-helpers
-claude plugin install sdd-helpers@sdd-helpers
-```
-
-Until it is installed, each session start in a project carrying a `.sdd/` graph says so:
-
-```text
-agentic-helpers: the grounding gate and agentic-capture moved to the sdd-helpers plugin: claude plugin marketplace add fza/sdd-helpers, then claude plugin install sdd-helpers@sdd-helpers
-```
-
 ## Measurements
 
 Token use with agentic-helpers against the same work without it, measured on real Claude Code

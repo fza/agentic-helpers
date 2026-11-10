@@ -32,18 +32,6 @@ the version first installed: turn auto-update on under `/plugin`, Marketplaces, 
 - **agentic-shell-guard** keeps deletions inside the project and credentials out of commands and
   output.
 
-## Moved to sdd-helpers
-
-The grounding gate and `agentic-capture`, for projects keeping an
-[sdd](https://github.com/networkteam/sdd) decision graph, ship in the
-[sdd-helpers](https://github.com/fza/sdd-helpers) plugin as `sdd-grounding-gate` and `sdd-capture`.
-In a project carrying `.sdd/`, each session start names them until sdd-helpers is installed:
-
-```bash
-claude plugin marketplace add fza/sdd-helpers
-claude plugin install sdd-helpers@sdd-helpers
-```
-
 ## Example prompts
 
 - "main seat": the agent claims its memory seat and says where the work stands.
