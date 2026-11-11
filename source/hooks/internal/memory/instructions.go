@@ -23,7 +23,9 @@ type loadedInstructions struct {
 // ownEditTools change a file as the session itself, which needs no telling.
 var ownEditTools = []string{"Edit", "Write", "NotebookEdit"}
 
-func (mem *memory) instructionsKey(session string) string { return mem.sessionKey("instructions/", session) }
+func (mem *memory) instructionsKey(session string) string {
+	return mem.sessionKey("instructions/", session)
+}
 
 // instructions records a file Claude Code reports through InstructionsLoaded,
 // with its hash, for the session that loaded it. No seat is needed.
