@@ -322,8 +322,9 @@ point `AGENTIC_HELPERS_BIN_DIR` at the checkout's `.claude/bin`; [`docs/plugin/u
 
 ## Testing
 
-Development happens on macOS, and Linux support is tested in Linux containers. CI runs every Go
-suite on ubuntu and macOS for each push; `scripts/linux-test` runs the same `go vet` and
+Development happens on macOS, and Linux support is tested in Linux containers. The release
+workflow runs every Go suite on ubuntu and macOS before each release, and pushes run no CI;
+`scripts/linux-test` runs the same `go vet` and
 `go test -race` locally, in a container of Apple's [`container`](https://github.com/apple/container)
 tool, before a push.
 

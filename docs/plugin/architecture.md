@@ -480,7 +480,8 @@ command. Every guard
 is asserted from both sides: the same call is driven once with the evidence present and once with it
 missing, and the two outcomes have to differ.
 
-Pushes and pull requests run the same suites on Linux and macOS (`.github/workflows/test.yml`).
+The release workflow runs the same suites on Linux and macOS before it cuts a release
+(`.github/workflows/test.yml`, which nothing else starts: pushes and pull requests run no CI).
 `scripts/linux-test` runs `go vet` and `go test -race` on a macOS machine inside a Linux container
 of Apple's `container` tool, with the checkout mounted, the suites run as the calling user (as root,
 every test of a permission refusal would pass), and Go's caches kept in `.tmp/linux-test/`; its

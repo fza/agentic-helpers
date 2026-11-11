@@ -1,8 +1,8 @@
 #!/bin/sh
 # Runs every Go suite on Linux, inside a container of Apple's `container` tool:
 # scripts/linux-test [go test arguments], from the repository root. Development
-# happens on macOS; this is how Linux support is tested before a push, beside
-# the ubuntu job CI runs. The module and build caches live in .tmp/linux-test/
+# happens on macOS, and pushes run no CI; this is how Linux support is tested
+# before a push. The module and build caches live in .tmp/linux-test/
 # so a second run downloads and compiles nothing it already has.
 set -eu
 

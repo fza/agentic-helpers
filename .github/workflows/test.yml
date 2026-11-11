@@ -1,8 +1,8 @@
 name: test
 
+# Runs only as the release workflow's first job: pushes and pull requests run
+# no CI, and the suites run locally before a push (scripts/linux-test for Linux).
 on:
-  push:
-  pull_request:
   workflow_call:
 
 permissions:
