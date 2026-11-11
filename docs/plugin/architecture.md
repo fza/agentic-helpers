@@ -426,7 +426,7 @@ rest wait for it, up to 100 seconds.
 
 ## The release
 
-Before each release, the fixture of the release before it is committed: `scripts/release-fixture
+Right after each release is published, its fixture is committed and pushed: `scripts/release-fixture
 v<version>` for the version `plugin/.claude-plugin/plugin.json` names, then `go test -race ./...`
 in `source/hooks` and a `test:` commit ([release fixtures](#release-fixtures)). The `release` workflow
 runs the tests first, so a release cannot be cut until that fixture stands.
