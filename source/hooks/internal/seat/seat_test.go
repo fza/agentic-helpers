@@ -158,6 +158,23 @@ func TestTheOwnerIsClaudeCodeWhateverItsExecutableIsNamed(t *testing.T) {
 			owner: test.OwnerPID,
 		},
 		{
+			name:  "the npm package's native binary",
+			tree:  func() *test.Processes { return test.NewProcessesRunningAs("claude.exe") },
+			owner: test.OwnerPID,
+		},
+		{
+			name: "a claude.exe outside the npm package",
+			tree: withOwner("claude.exe", func(owner *test.Process) {
+				owner.Executable = "/opt/tools/bin/claude.exe"
+			}),
+		},
+		{
+			name: "a claude.exe whose command does not read",
+			tree: withOwner("claude.exe", func(owner *test.Process) {
+				owner.Hidden = true
+			}),
+		},
+		{
 			name: "a version-named executable outside the native installer's versions",
 			tree: withOwner(test.NativeVersion, func(owner *test.Process) {
 				owner.Executable = "/opt/tools/" + test.NativeVersion
@@ -230,7 +247,7 @@ func TestTheOwnerIsClaudeCodeWhateverItsExecutableIsNamed(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if seat.OwnerAncestor(context.Background(), tc.tree(), "claude") != tc.owner {
-				t.Error("the owner should be the nearest ancestor that is Claude Code by name, by the native installer's executable or by the npm package's script")
+				t.Error("the owner should be the nearest ancestor that is Claude Code by name, by the native installer's executable, or by the npm package's script or native binary")
 			}
 		})
 	}
@@ -244,6 +261,7 @@ func TestTheOwnerIsFoundThroughTheLinksItRunsBy(t *testing.T) {
 
 	test.WriteFile(t, filepath.Join(versions, test.NativeVersion), "")
 	test.WriteFile(t, filepath.Join(npm, "cli.js"), "")
+	test.WriteFile(t, filepath.Join(npm, "bin", "claude.exe"), "")
 
 	err := os.Mkdir(bin, 0o755)
 	if err != nil {
@@ -253,6 +271,7 @@ func TestTheOwnerIsFoundThroughTheLinksItRunsBy(t *testing.T) {
 	for target, link := range map[string]string{
 		filepath.Join(versions, test.NativeVersion): filepath.Join(bin, "claude"),
 		filepath.Join(npm, "cli.js"):                filepath.Join(bin, "claude-npm"),
+		filepath.Join(npm, "bin", "claude.exe"):     filepath.Join(bin, "claude-exe"),
 	} {
 		err := os.Symlink(target, link)
 		if err != nil {
@@ -277,6 +296,15 @@ func TestTheOwnerIsFoundThroughTheLinksItRunsBy(t *testing.T) {
 	if seat.OwnerAncestor(context.Background(), node, "claude") != test.OwnerPID {
 		t.Error("node running npm's claude link should be found where the link leads")
 	}
+
+	binary := test.NewProcessesRunningAs("claude.exe")
+	owner = binary.Table[test.OwnerPID]
+	owner.Executable = filepath.Join(bin, "claude-exe")
+	binary.Table[test.OwnerPID] = owner
+
+	if seat.OwnerAncestor(context.Background(), binary, "claude") != test.OwnerPID {
+		t.Error("the npm package's native binary started through a link should be found where the link leads")
+	}
 }
 
 func TestAClaimRecordsTheNameItsHolderRunsUnder(t *testing.T) {
@@ -285,6 +313,16 @@ func TestAClaimRecordsTheNameItsHolderRunsUnder(t *testing.T) {
 	owner, process := seat.Holder(ctx, test.NewProcessesRunningAs("2.1.318"), "claude")
 	if owner != test.OwnerPID || process != "2.1.318" {
 		t.Errorf("a claim should name the Claude Code process with the name it runs under, got %d %q", owner, process)
+	}
+
+	owner, process = seat.Holder(ctx, test.NewProcessesRunningAs("claude.exe"), "claude")
+	if owner != test.OwnerPID || process != "claude.exe" {
+		t.Errorf("a claim under the npm package's native binary should name it with the name it runs under, got %d %q", owner, process)
+	}
+
+	held := seat.Claim{SessionID: test.Session, PID: owner, Started: test.OwnerStarted, Process: process}
+	if !seat.Alive(ctx, test.NewProcessesRunningAs("claude.exe"), "claude", held) {
+		t.Error("a claim under the npm package's native binary should read alive while that binary runs")
 	}
 
 	owner, process = seat.Holder(ctx, test.NewProcessesOutsideClaude(), "claude")

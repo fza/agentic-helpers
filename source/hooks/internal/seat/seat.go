@@ -34,14 +34,18 @@ const ancestorDepth = 12
 // Claude Code runs under the owner name, `claude`, except where it is
 // installed another way: the native installer runs it under its version
 // number from `.../claude/versions/<version>`, an npm install as `node` running
-// a script of the npm package. A version-named or `node` process counts only
-// with that executable or that script, so an MCP server or a wrapper between
-// the caller and Claude Code is never taken for it.
+// a script of the npm package, or as the native `claude.exe` the npm package
+// ships. The kernel names a process after its executable's file, never after
+// the `claude` link it was started through. A version-named, `node` or
+// `claude.exe` process counts only with that executable or that script, so an
+// MCP server or a wrapper between the caller and Claude Code is never taken
+// for it.
 var versionName = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 const (
 	installedVersions = "claude/versions"
 	npmPackage        = "node_modules/@anthropic-ai/claude-code/"
+	npmBinary         = "claude.exe"
 )
 
 // A seat name is a word in any script, counted in runes. Letters only, never a
@@ -384,7 +388,7 @@ func OwnerAncestor(ctx context.Context, processes Processes, ownerName string) i
 // installedAnotherWay says whether pid, running under name, is Claude Code as
 // the native installer or an npm install runs it.
 func installedAnotherWay(ctx context.Context, processes Processes, pid int, name string) bool {
-	if name != "node" && !versionName.MatchString(name) {
+	if name != "node" && name != npmBinary && !versionName.MatchString(name) {
 		return false
 	}
 
@@ -394,6 +398,9 @@ func installedAnotherWay(ctx context.Context, processes Processes, pid int, name
 	}
 
 	resolved := resolvedPath(executable)
+	if name == npmBinary {
+		return strings.Contains(filepath.ToSlash(resolved), "/"+npmPackage)
+	}
 
 	return filepath.Base(resolved) == name && strings.HasSuffix(filepath.ToSlash(filepath.Dir(resolved)), "/"+installedVersions)
 }

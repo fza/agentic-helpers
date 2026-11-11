@@ -636,9 +636,11 @@ session's next hook reports it. A call finds its own
 seat by walking up the process tree to the nearest ancestor that is Claude Code: one running under
 the name `claude` (`AGENTIC_MEMORY_PROCESS_NAME` renames it); one running under a version number
 (`2.1.318`) whose executable, its links resolved, is `.../claude/versions/<that version>`, as the
-native installer runs it; or `node` whose first argument past its own options, its links resolved,
-lies inside `node_modules/@anthropic-ai/claude-code/`, as an npm install runs it. The executable
-and the arguments are the ones each process started with, read from the kernel (`kern.procargs2` on
+native installer runs it; `node` whose first argument past its own options, its links resolved,
+lies inside `node_modules/@anthropic-ai/claude-code/`, as an npm install runs it; or `claude.exe`
+whose executable, its links resolved, lies inside that package, as the native binary the npm
+package ships runs, since the kernel names a process after its executable's file, never after the
+`claude` link it was started through. The executable and the arguments are the ones each process started with, read from the kernel (`kern.procargs2` on
 darwin, `/proc/<pid>/exe` and `/proc/<pid>/cmdline` on Linux); a process whose command does not
 read is never taken for the owner. A shell between is never taken for it, whatever its environment
 holds. Rejected: the nearest ancestor whose start environment lacks the caller's

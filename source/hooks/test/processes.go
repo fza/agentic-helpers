@@ -37,12 +37,14 @@ const (
 	NativeVersion    = "2.1.318"
 	NativeExecutable = "/Users/dev/.local/share/claude/versions/" + NativeVersion
 	NpmScript        = "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+	NpmBinary        = "/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe"
 )
 
 // NewProcessesRunningAs is the tree of NewProcesses with Claude Code running
 // under name: NativeVersion as the native installer runs it, from
-// NativeExecutable, node running NpmScript as an npm install does, any other
-// name from /usr/local/bin.
+// NativeExecutable, node running NpmScript as an npm install does, claude.exe
+// from NpmBinary as the npm package's native binary runs, any other name from
+// /usr/local/bin.
 func NewProcessesRunningAs(name string) *Processes {
 	owner := Process{Parent: 1, Name: name, Started: OwnerStart, Executable: "/usr/local/bin/" + name, Args: []string{name}}
 
@@ -51,6 +53,8 @@ func NewProcessesRunningAs(name string) *Processes {
 		owner.Executable, owner.Args = NativeExecutable, []string{"claude"}
 	case "node":
 		owner.Executable, owner.Args = "/usr/local/bin/node", []string{"node", NpmScript}
+	case "claude.exe":
+		owner.Executable, owner.Args = NpmBinary, []string{"claude"}
 	}
 
 	return &Processes{self: HookPID, guard: &sync.RWMutex{}, Table: map[int]Process{
