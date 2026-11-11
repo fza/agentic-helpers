@@ -54,7 +54,9 @@ type outputAnswer struct {
 
 // Output answers one PostToolUse call: a tool's output from outside the
 // project has every line holding what looks like a credential replaced
-// before the agent sees it. The tool has run, so nothing can block it; a
+// before the agent sees it, and a search's output, the Grep tool's or a Bash
+// grep's, every line from a file holding a credential on it, inside the
+// project too. The tool has run, so nothing can block it; a
 // failure says so on stderr, exit 1, which Claude Code shows the user and
 // which leaves the output as the tool returned it.
 func Output(ctx context.Context, env Env, streams Streams) (code int) {
@@ -71,7 +73,14 @@ func Output(ctx context.Context, env Env, streams Streams) (code int) {
 		read = pluginconfig.Defaults()
 	}
 
-	if !pieces.ShellGuard.On(read) || read.ShellGuardSecretOutput == pluginconfig.ShellGuardOff {
+	if !pieces.ShellGuard.On(read) {
+		return 0
+	}
+
+	outputOn := read.ShellGuardSecretOutput != pluginconfig.ShellGuardOff
+	readOn := read.ShellGuardSecretRead != pluginconfig.ShellGuardOff
+
+	if !outputOn && !readOn {
 		return 0
 	}
 
@@ -84,7 +93,11 @@ func Output(ctx context.Context, env Env, streams Streams) (code int) {
 		return 1
 	}
 
-	if skipped(read.ShellGuardSecretOutputSkip, call.ToolName) || !fromOutside(env, read.ShellGuardSecretOutput, call) {
+	outside := outputOn && !skipped(read.ShellGuardSecretOutputSkip, call.ToolName) &&
+		fromOutside(env, read.ShellGuardSecretOutput, call)
+	searched := readOn && searchesFiles(call)
+
+	if !outside && !searched {
 		return 0
 	}
 
@@ -95,7 +108,22 @@ func Output(ctx context.Context, env Env, streams Streams) (code int) {
 		return 1
 	}
 
-	redacted, withheld, unfinished := Redact(ctx, response)
+	redacted, withheld := response, 0
+
+	if searched {
+		skips, _ := pluginconfig.SecretReadSkips(read.ShellGuardSecretReadSkip)
+		redacted, withheld = withholdFileLines(ctx, env, skips, call.Cwd, response)
+	}
+
+	unfinished := false
+
+	if outside {
+		var scanned int
+
+		redacted, scanned, unfinished = Redact(ctx, redacted)
+		withheld += scanned
+	}
+
 	if withheld == 0 {
 		return 0
 	}
@@ -119,6 +147,23 @@ func Output(ctx context.Context, env Env, streams Streams) (code int) {
 	}
 
 	return 0
+}
+
+// searchesFiles is whether the call's output prints lines of files it
+// searched behind their names: the Grep tool, or a Bash command running grep.
+func searchesFiles(call outputPayload) bool {
+	switch call.ToolName {
+	case "Grep":
+		return true
+	case "Bash":
+		var input outputInput
+
+		err := json.Unmarshal(call.ToolInput, &input)
+
+		return err == nil && input.Command != nil && runsGrep(*input.Command)
+	}
+
+	return false
 }
 
 func decodeResponse(raw json.RawMessage) (any, error) {

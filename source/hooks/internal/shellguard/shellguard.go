@@ -101,13 +101,18 @@ type Options struct {
 	// ExtraRoots is every directory outside a project its removals and move
 	// sources may still reach, by project.
 	ExtraRoots []pluginconfig.ExtraRoot
+	// SecretRead is `deny` or `off`; SecretReadSkip the paths, by project, no
+	// read is refused for.
+	SecretRead     string
+	SecretReadSkip []pluginconfig.SecretReadSkip
 }
 
 func optionsFrom(read pluginconfig.Options) Options {
 	extraRoots, _ := pluginconfig.ExtraRoots(read.ShellGuardExtraRoots)
+	skips, _ := pluginconfig.SecretReadSkips(read.ShellGuardSecretReadSkip)
 
 	return Options{
-		ExtraRoots:     extraRoots,
+		ExtraRoots: extraRoots, SecretRead: read.ShellGuardSecretRead, SecretReadSkip: skips,
 		OutsideProject: read.ShellGuardOutsideProject, FindDelete: read.ShellGuardFindDelete, Secrets: read.ShellGuardSecrets,
 		LoneRemoval: read.ShellGuardLoneRemoval, Expansion: read.ShellGuardExpansion,
 		NestedCode: read.ShellGuardNestedCode, Mktemp: read.ShellGuardMktemp, Alternatives: read.ShellGuardAlternatives,
@@ -297,6 +302,7 @@ func Judge(ctx context.Context, command string, workingDir string, env Env, opti
 	found.add(judgeCode(ctx, file, shellwalk.Scripts{Files: env.Files, Home: env.Home, Dir: workingDir}, env, options))
 	found.add(judgeAlternatives(ctx, command, env, options))
 	found.add(holdsCredential(ctx, command, options))
+	found.add(judgeCredentialReads(ctx, file, workingDir, env, options))
 
 	return found.decided
 }

@@ -58,13 +58,16 @@ func (SystemClock) Wait(ctx context.Context, duration time.Duration) error {
 }
 
 // Run answers the hook event its arguments name: none for PreToolUse,
-// `permission` for PermissionRequest, `output` for PostToolUse.
+// `permission` for PermissionRequest, `read` for PreToolUse on Read and
+// NotebookRead, `output` for PostToolUse.
 func Run(ctx context.Context, args []string, env Env, streams Streams) int {
 	switch {
 	case len(args) == 0:
 		return Main(ctx, env, streams)
 	case len(args) == 1 && args[0] == "permission":
 		return Permission(ctx, env, streams)
+	case len(args) == 1 && args[0] == "read":
+		return SecretRead(ctx, env, streams)
 	case len(args) == 1 && args[0] == "output":
 		return Output(ctx, env, streams)
 	}

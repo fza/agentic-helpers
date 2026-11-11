@@ -286,6 +286,23 @@
       "description": "Comma-separated <project>=<root>[;<root>] entries, absolute or starting with ~, e.g. ~/code/app=~/code/lib/.tmp: removals and move sources under a root pass from that project's sessions alone; default none",
       "required": false
     },
+    "shell_guard_secret_read": {
+      "type": "string",
+      "title": "Shell-guard: reads of credential files",
+      "description": "deny or off: refuse Read, NotebookRead and plain Bash readers of a file holding a credential (a secret-named config key with a real value, a credential store, a private key), handing back its lines with each credential line withheld, and withhold such lines from Grep and grep output; default deny",
+      "options": [
+        "deny",
+        "off"
+      ],
+      "default": "deny",
+      "required": false
+    },
+    "shell_guard_secret_read_skip": {
+      "type": "string",
+      "title": "Shell-guard: paths a credential read is never refused for",
+      "description": "Comma-separated <project>=<glob>[;<glob>] entries, the project absolute or starting with ~, each glob relative to it, e.g. ~/code/app=test/fixtures/**: reads there pass from that project's sessions alone; default none",
+      "required": false
+    },
     "shell_guard_ask_timeout": {
       "type": "string",
       "title": "Shell-guard: ask countdown",

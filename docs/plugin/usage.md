@@ -374,7 +374,7 @@ first:
 An empty value counts as unset at every layer. Each description names its default. Every switch
 (`type: boolean`) and every picker, an option with a fixed value set (`embedding_provider`,
 `writing_style`, `scratch_sweep`, `shell_guard_outside_project`, `shell_guard_find_delete`,
-`shell_guard_secrets`, `shell_guard_secret_output`), declares one, always the built-in one: Claude
+`shell_guard_secrets`, `shell_guard_secret_output`, `shell_guard_secret_read`), declares one, always the built-in one: Claude
 Code refuses a picker without it, and its dialog, saved untouched, stores every switch and picker, a
 switch declaring no default as `false`, which would turn every piece off. Text and number fields
 left empty are not stored and declare no default. Claude Code hands a hook no value for an option
@@ -408,11 +408,12 @@ built-in default, the layer below it:
 | `shell_guard_enabled`, `shell_guard_lone_removal`, `shell_guard_expansion`, `shell_guard_nested_code`, `shell_guard_mktemp`, `shell_guard_alternatives` | only `true` |
 | `shell_guard_outside_project`, `shell_guard_find_delete`, `shell_guard_secrets` | only as strict or stricter: `off` < `ask` < `deny` |
 | `shell_guard_secret_output` | only as strict or stricter: `off` < `files` < `all` |
+| `shell_guard_secret_read` | only `deny` |
 | `shell_guard_ask_timeout` | only as short or shorter; `0` waits without limit, the loosest |
-| `embedding_endpoint`, `embedding_path`, `embedding_api_key_env`, `shell_guard_secret_output_skip`, `shell_guard_extra_roots` | nothing: never read from it |
+| `embedding_endpoint`, `embedding_path`, `embedding_api_key_env`, `shell_guard_secret_output_skip`, `shell_guard_extra_roots`, `shell_guard_secret_read_skip` | nothing: never read from it |
 
 The embedder's endpoint and key variable together could send any environment variable to a server
-the writer picks, and its path to a route there the writer picks; the skip list and the extra roots
+the writer picks, and its path to a route there the writer picks; the skip lists and the extra roots
 can only loosen. A looser value, or any value for a key the file never
 sets, is ignored, the layer below applies, and `agentic-helpers check` names it at session start as
 `agentic-helpers: config.yaml may only tighten <key>; <value> ignored` or

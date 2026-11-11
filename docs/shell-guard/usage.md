@@ -8,7 +8,7 @@ removals (`rm`, `rmdir`, `unlink`, `git rm`) and the sources of its moves (`mv`,
 project and `/tmp`, asks before `find -delete`
 and before a command holding what looks like a credential, and bans `mktemp`. A command missing on
 the machine, or a usage its flavour of a command gets wrong, is refused with the command that works
-(see [Command alternatives](#command-alternatives)). After every tool call it withholds each line of output from outside the project that looks like a credential (see [Credentials in tool output](#credentials-in-tool-output)). A removal named inside a quoted argument (a sed script, a grep pattern, a commit
+(see [Command alternatives](#command-alternatives)). After every tool call it withholds each line of output from outside the project that looks like a credential (see [Credentials in tool output](#credentials-in-tool-output)), and before every Read, NotebookRead and plain Bash read it refuses a file holding a credential, handing back its lines with those withheld (see [Credential files](#credential-files)). A removal named inside a quoted argument (a sed script, a grep pattern, a commit
 message) is text and passes; code handed to `eval`, `trap`, a shell's `-c`, zsh's `sched`, `npx -c`,
 `pnpm exec -c`, a tmux command running a shell command (`new-session`, `new-window`,
 `split-window`, `respawn-pane`, `respawn-window`, `display-popup`, `run-shell`, tmux's own `-c`),
@@ -477,6 +477,80 @@ redacted too.
   `agentic-helpers: no agentic-shell-guard binary is installed, so tool output reaches the agent unscanned; ...`,
   exit 1.
 
+## Credential files
+
+The output hook sees a file only after the tool read it, and its scanner knows tokens by their
+shape: a password, a client secret or a key with no known prefix passes it. A third hook,
+`agentic-shell-guard read`, runs before every Read and NotebookRead, and the Bash guard runs the same
+check on every plain reader, both inside the project and outside it. A file holding a credential is
+refused before anything is read, and the refusal hands back the lines the read would have returned,
+each one inside a credential replaced:
+
+    agentic-shell-guard: <path> holds a credential (<what>); reading it is refused. Its lines, those inside a credential withheld:
+         1	db:
+         2	  user: app
+         3	[withheld]
+
+`<what>` names what was found: `secret-named keys <key>, <key>`, `a private key`, `a credential store by name`.
+The lines are numbered as Read numbers them; a refusal for a Bash reader hands back at most 2000.
+
+| A file holds a credential when | Found by |
+|---|---|
+| it is a config file and a key with a secret name holds a real value | the key, line by line, with its block for a YAML block scalar (`key: \|`) |
+| it holds a private key, in any file | the scanner's `private-key` rule (`-----BEGIN ... PRIVATE KEY-----` to its end line), its `age-secret-key` rule, and a PuTTY key file from its `PuTTY-User-Key-File-` line to its `Private-MAC:` line |
+| its name is `.netrc`, `.pgpass`, `.git-credentials` or `.htpasswd` | the name: every line is withheld |
+| it ends in `.p12`, `.pfx`, `.jks` or `.keystore`, or lies under `~/.gnupg/private-keys-v1.d/` | the path: the refusal carries no lines, `<path> holds a credential (a private key store by its path); reading it is refused` |
+
+- **Config files** are those ending in `.yaml`, `.yml`, `.json`, `.jsonc`, `.json5`, `.toml`,
+  `.ini`, `.cfg`, `.conf`, `.properties`, `.tfvars` or `.xml`, the env files `.env`, `.env.*` and
+  `*.env`, and `.npmrc`, `.pypirc`, `.yarnrc`, `credentials` and `.s3cfg`.
+- **A key name is split into words** at `_`, `-`, `.` and each camelCase step, case aside
+  (`APIKey` reads as `api key`). It is secret when its last word is `password`, `passwd`, `pwd`,
+  `pass`, `passphrase`, `secret`, `token`, `apikey`, `credential`, `credentials`, `creds`,
+  `authorization` or `cookie`, or its last two are `api key`, `access key`, `secret key`,
+  `private key`, `signing key`, `encryption key`, `master key`, `auth key`, `client secret` or
+  `session key`. A later word or a plural passes: `token_url`, `max_tokens`, `password_min_length`.
+  A bare `key` passes.
+- **No real value:** empty, `null`, `~`, a reference (`${NAME}`, `$NAME`, `{{ ... }}`, `%(name)s`,
+  `<placeholder>`), a run of only `*` or `x`, or the opening of a nested object or list.
+- **A range is judged with the file around it.** A key over several lines carries its marker only on
+  its first, so a file up to 8 MiB is scanned whole and a Read is refused only when its range
+  (`offset`, `limit`, 2000 lines where it names none) overlaps a credential; the copy is that range.
+  A larger file read by range is scanned over the range and the 1 MiB before and after it.
+- **A Bash reader returns the whole file**, so the whole file is judged: a config file over 8 MiB is
+  refused as `<path>: file too large to check; reading it is refused`, and any other file over
+  8 MiB is checked for private keys in its first 8 MiB, the rest unjudged.
+- **Bash readers** are those [the output hook trusts](#credentials-in-tool-output), named bare with
+  every word literal, each file they name judged in the directory the command runs in; a fixed
+  assignment in the same command counts as literal. A path built at run time, a glob and a script
+  pass.
+- **Symlinks are resolved** before a path is judged; the refusal names the path as written.
+
+**Searches print a file's lines behind its name.** The output hook withholds, inside the project
+too, each line of the Grep tool's output, and of a Bash command running `grep`, `egrep` or
+`fgrep` (a call naming one in any literal word, `xargs grep` included), whose `<file>:` prefix names
+a file holding a credential on that line, judged by its text after any line number (`-n`, and `-`
+on a context line). The line
+reaches the agent as `[agentic-shell-guard: credential withheld (<rule>)]`, the rule
+`secret-key-name`, `private-key`, `age-secret-key`, `putty-private-key` or `credential-store`. A
+`grep -h` or a single-file grep prints no prefix and is left to the value scan above.
+
+| Option | Values | Default | Sets |
+|---|---|---|---|
+| `shell_guard_secret_read` | `deny`, `off` | `deny` | whether a read of a credential file is refused and its lines withheld from searches |
+| `shell_guard_secret_read_skip` | comma-separated `<project>=<glob>[;<glob>]` entries | none | paths, by project, no read is refused for and no search line withheld from; the project absolute or under `~`, each glob relative to it, `**` crossing directories (`~/code/app=test/fixtures/**`) |
+
+`config.yaml` sets `shell_guard_secret_read` only to `deny` and never `shell_guard_secret_read_skip`,
+which is never taken from `CLAUDE_PLUGIN_OPTION_SHELL_GUARD_SECRET_READ_SKIP` either. An entry that
+does not parse is ignored whole, and `agentic-helpers check` names it at session start:
+`agentic-helpers: shell_guard_secret_read_skip: <entry> ignored; <why>`.
+
+- **Edit is refused with the read**: Claude Code reads a file before editing it, so a refused file
+  is changed by the user, or after a skip entry names it.
+- **A key off the lists passes** (`dsn`, `database_url`, `connection_string`), as does a value the
+  scanner sees only on a line no key names.
+- **A link swapped between the check and the read** is read as the file it then points at.
+
 ## What it does not stop
 
 shell-guard holds a careless command, not an agent set on getting around it: a command named
@@ -503,6 +577,7 @@ on macOS, `/etc/claude-code/managed-settings.json` on Linux):
         "shell_guard_find_delete": "ask",
         "shell_guard_secrets": "ask",
         "shell_guard_secret_output": "all",
+        "shell_guard_secret_read": "deny",
         "shell_guard_lone_removal": true,
         "shell_guard_expansion": true,
         "shell_guard_nested_code": true,

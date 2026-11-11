@@ -238,6 +238,12 @@ type Options struct {
 	// ShellGuardExtraRoots is the `<project>=<root>[;<root>]` entries ExtraRoots
 	// reads.
 	ShellGuardExtraRoots string
+	// ShellGuardSecretRead is `deny` or `off`: whether a read of a file holding
+	// a credential is refused before it runs; ShellGuardSecretReadSkip the
+	// `<project>=<glob>[;<glob>]` entries SecretReadSkips reads, paths no read
+	// is refused for.
+	ShellGuardSecretRead     string
+	ShellGuardSecretReadSkip string
 	// ShellGuardAskTimeout is how long an ask waits in auto and
 	// bypassPermissions mode before it denies; 0 waits without limit.
 	ShellGuardAskTimeout time.Duration
@@ -268,6 +274,7 @@ var Keys = []string{
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_ask_timeout", "shell_guard_secrets",
 	"shell_guard_secret_output", "shell_guard_secret_output_skip", "shell_guard_extra_roots", "shell_guard_alternatives",
+	"shell_guard_secret_read", "shell_guard_secret_read_skip",
 	"memory_enabled", "tools_enabled", "scratch_enabled", "scratch_sweep",
 	"shell_guard_enabled", "update_notice",
 }
@@ -307,8 +314,8 @@ var Renamed = map[string]struct {
 // prompts: the embedder's endpoint and key variable together would send any
 // environment variable to a host the writer picks, its path to a route there
 // the writer picks, and the tools whose output
-// is never scanned and the directories counted as a project's can only loosen
-// shell-guard. The CLAUDE_PLUGIN_OPTION_<KEY>
+// is never scanned, the directories counted as a project's and the paths no
+// read is refused for can only loosen shell-guard. The CLAUDE_PLUGIN_OPTION_<KEY>
 // environment never sets one either, since an agent can prefix its own command
 // with it; none is a `sensitive` option, so Claude Code keeps them in the
 // settings files Resolve reads anyway. CLAUDE_CONFIG_DIR stays honoured as
@@ -316,7 +323,7 @@ var Renamed = map[string]struct {
 // file the agent writes there, a visible step.
 var NeverConfig = []string{
 	"embedding_endpoint", "embedding_path", "embedding_api_key_env", "shell_guard_secret_output_skip",
-	"shell_guard_extra_roots",
+	"shell_guard_extra_roots", "shell_guard_secret_read_skip",
 }
 
 // TightenOnly is every guard key `config.yaml` may only set at least as strict
@@ -326,6 +333,7 @@ var TightenOnly = []string{
 	"shell_guard_enabled", "shell_guard_lone_removal", "shell_guard_expansion",
 	"shell_guard_nested_code", "shell_guard_mktemp", "shell_guard_alternatives", "shell_guard_secret_output",
 	"shell_guard_outside_project", "shell_guard_find_delete", "shell_guard_secrets", "shell_guard_ask_timeout",
+	"shell_guard_secret_read",
 }
 
 var (
@@ -394,7 +402,8 @@ func pathsUnder(config string, managed string) []string {
 
 // Resolution is the options in effect, the layer each key set apart from its
 // default comes from, and what in `config.yaml` was skipped and why, with
-// each `shell_guard_extra_roots` entry ignored.
+// each `shell_guard_extra_roots` and `shell_guard_secret_read_skip` entry
+// ignored.
 type Resolution struct {
 	Options  Options
 	From     map[string]string
@@ -458,6 +467,9 @@ func Resolve(paths []string, getenv func(string) string) (Resolution, error) {
 	resolution.Options.clamp()
 
 	_, ignored := ExtraRoots(resolution.Options.ShellGuardExtraRoots)
+	resolution.Problems = append(resolution.Problems, ignored...)
+
+	_, ignored = SecretReadSkips(resolution.Options.ShellGuardSecretReadSkip)
 	resolution.Problems = append(resolution.Problems, ignored...)
 
 	return resolution, nil
@@ -659,7 +671,8 @@ func Defaults() Options {
 		ShellGuardLoneRemoval: true, ShellGuardExpansion: true, ShellGuardNestedCode: true, ShellGuardMktemp: true,
 		ShellGuardAlternatives: true, MemoryLanguage: DefaultMemoryLanguage, TemporarySeatLifetime: DefaultTemporarySeatLifetime,
 		OrphanStoreGrace: DefaultOrphanStoreGrace, ShellGuardAskTimeout: DefaultShellGuardAskTimeout, ShellGuardSecretOutput: SecretOutputAll,
-		MemoryEnabled: true, ToolsEnabled: true, ScratchEnabled: true, ScratchSweep: ScratchSweepRelease,
+		ShellGuardSecretRead: ShellGuardDeny,
+		MemoryEnabled:        true, ToolsEnabled: true, ScratchEnabled: true, ScratchSweep: ScratchSweepRelease,
 		ShellGuardEnabled: true, UpdateNotice: true,
 	}
 }
@@ -690,6 +703,7 @@ func (options *Options) fields() fields {
 			"orphan_store_grace":             &options.OrphanStoreGrace,
 			"shell_guard_secret_output_skip": &options.ShellGuardSecretOutputSkip,
 			"shell_guard_extra_roots":        &options.ShellGuardExtraRoots,
+			"shell_guard_secret_read_skip":   &options.ShellGuardSecretReadSkip,
 		},
 		numbers: map[string]*int{
 			"embedding_dimensions": &options.EmbeddingDimensions,
@@ -725,6 +739,9 @@ func (options *Options) fields() fields {
 			"embedding_source":   &options.EmbeddingSource,
 			"embedding_provider": &options.EmbeddingProvider,
 			"scratch_sweep":      &options.ScratchSweep,
+			// A picker rather than a mode: `ask` has no meaning for a read the
+			// refusal hands back withheld.
+			"shell_guard_secret_read": &options.ShellGuardSecretRead,
 		},
 		switches: map[string]*bool{
 			"memory_require_git":       &options.MemoryRequireGit,
@@ -1010,7 +1027,8 @@ var choices = map[string][]string{
 	"embedding_provider": {
 		EmbeddingProviderAuto, EmbeddingProviderOpenAI, EmbeddingProviderOllama, EmbeddingProviderOff,
 	},
-	"scratch_sweep": {ScratchSweepRelease, ScratchSweepSession, ScratchSweepIdle},
+	"scratch_sweep":           {ScratchSweepRelease, ScratchSweepSession, ScratchSweepIdle},
+	"shell_guard_secret_read": {ShellGuardDeny, ShellGuardOff},
 }
 
 // style accepts one of the key's choices; an empty string keeps fallback.

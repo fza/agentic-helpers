@@ -190,6 +190,8 @@ func TestConfigYAMLMayOnlyTightenAGuard(t *testing.T) {
 		{key: "shell_guard_find_delete", config: `"off"`, value: "ask", ignored: "off"},
 		{key: "shell_guard_secrets", config: "deny", value: "deny"},
 		{key: "shell_guard_secrets", config: "off", value: "ask", ignored: "off"},
+		{key: "shell_guard_secret_read", config: "deny", value: "deny"},
+		{key: "shell_guard_secret_read", config: "off", value: "deny", ignored: "off"},
 		{key: "shell_guard_ask_timeout", config: "30", value: "30s"},
 		{key: "shell_guard_ask_timeout", config: "45s", value: "45s"},
 		{key: "shell_guard_ask_timeout", config: "120", value: "2m"},
@@ -249,6 +251,7 @@ func TestConfigYAMLNeverSetsTheEmbedderOrTheSkipList(t *testing.T) {
 		{key: "embedding_api_key_env", value: "GITHUB_TOKEN"},
 		{key: "shell_guard_secret_output_skip", value: "Bash"},
 		{key: "shell_guard_extra_roots", value: "~/a=~/b/.tmp"},
+		{key: "shell_guard_secret_read_skip", value: "~/a=fixtures/**"},
 	}
 
 	if len(cases) != len(pluginconfig.NeverConfig) {
@@ -308,6 +311,8 @@ func TestSetRefusesALooserGuardAndEveryKeyConfigNeverSets(t *testing.T) {
 		{key: "embedding_api_key_env", value: "", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets embedding_api_key_env; set it in Claude Code's settings"},
 		{key: "shell_guard_secret_output_skip", value: "Bash", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets shell_guard_secret_output_skip; set it in Claude Code's settings"},
 		{key: "shell_guard_extra_roots", value: "~/a=~/b/.tmp", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets shell_guard_extra_roots; set it in Claude Code's settings"},
+		{key: "shell_guard_secret_read_skip", value: "~/a=fixtures/**", refusal: pluginconfig.ErrNeverConfig, message: "config.yaml never sets shell_guard_secret_read_skip; set it in Claude Code's settings"},
+		{key: "shell_guard_secret_read", value: "off", refusal: pluginconfig.ErrLoosens, message: "config.yaml may only tighten shell_guard_secret_read; loosen it in Claude Code's settings"},
 		{key: "shell_guard_secrets", value: "deny"},
 		{key: "shell_guard_ask_timeout", value: "30"},
 		{key: "shell_guard_enabled", value: "true"},

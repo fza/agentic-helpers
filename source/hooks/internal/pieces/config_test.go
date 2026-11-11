@@ -193,6 +193,24 @@ func TestTheSessionStartNamesEveryExtraRootIgnored(t *testing.T) {
 	}
 }
 
+func TestTheSessionStartNamesEverySecretReadSkipIgnored(t *testing.T) {
+	env := layeredEnv(t, "shell_guard_secret_read_skip: \"/a=b/**\"\n", `"shell_guard_secret_read_skip":"/c=d/**, /e=/f"`)
+	env.Hook = true
+
+	var captured test.Captured
+
+	code := pieces.Main(context.Background(), []string{"check"}, env, captured.Streams(""))
+	if code != 0 {
+		t.Fatalf("check should exit 0, got %d", code)
+	}
+
+	want := "agentic-helpers: config.yaml never sets shell_guard_secret_read_skip; /a=b/** ignored\n" +
+		"agentic-helpers: shell_guard_secret_read_skip: /e=/f ignored; /f is not relative to the project\n"
+	if out := captured.Out.String(); out != want {
+		t.Errorf("a session start should name a config.yaml value and a malformed entry as ignored, got %q", out)
+	}
+}
+
 const projectEndpointLine = "agentic-helpers: sdd's embedding endpoint is set in this repository's .sdd/ (layer project), " +
 	"which a clone can bring along; search by meaning stays off until `sdd config set` sets it in sdd's global layer, " +
 	"or embedding_provider and embedding_endpoint set one here\n"

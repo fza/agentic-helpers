@@ -1,6 +1,6 @@
 ---
 name: agent-shell-guard
-description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) and the sources of moves (mv, git mv) to the project and /tmp, judges the shell scripts a command runs as its own code, asks before find -delete or a command holding a credential, refusing an ask a rewrite fixes twice first, bans mktemp, and refuses a command missing here (timeout) or a usage BSD sed or date gets wrong, naming the command that works; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential. Use when a Bash call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld", before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
+description: 'agentic-shell-guard: the PreToolUse hook on every Bash call that holds removals (rm, rmdir, unlink, git rm) and the sources of moves (mv, git mv) to the project and /tmp, judges the shell scripts a command runs as its own code, asks before find -delete or a command holding a credential, refusing an ask a rewrite fixes twice first, bans mktemp, and refuses a command missing here (timeout) or a usage BSD sed or date gets wrong, naming the command that works; in auto mode an ask nobody answers is denied after a countdown. After every tool call it withholds each output line from outside the project that looks like a credential, and refuses reading a file holding one. Use when a call is denied or asked about with a reason starting "agentic-shell-guard:", when output shows "[agentic-shell-guard: credential withheld" or a read is refused, before writing a removal or a temporary file, and when a cleanup outside the project is needed. Judges every project.'
 license: MIT
 ---
 
@@ -142,7 +142,7 @@ that looks like a credential reaches you as
 
 in its place. **Need the value?** Don't read it: use it by reference, `"$NAME"` or a file a command
 reads at run time. Never route around the marker (another tool, an encoding, a copy into the
-project). A credential in a project file you must fix → Read it by its project path; it shows whole.
+project). Grep and `grep` lines from a file holding a credential too, inside the project.
 
 - `agentic-shell-guard: the credential scan of this <tool> output could not finish, so all of it was withheld (<n> line(s)); the source is unchanged`
   → run the same call again.
@@ -150,6 +150,10 @@ project). A credential in a project file you must fix → Read it by its project
   `agentic-shell-guard: internal failure; the tool output reached the agent unscanned` and
   `agentic-shell-guard: could not answer; the tool output reached the agent unscanned` go to the
   user; the output passed as the tool returned it.
+
+`agentic-shell-guard read` (Read, NotebookRead) and the Bash guard refuse reading a credential file:
+`agentic-shell-guard: <path> holds a credential (<what>); reading it is refused. Its lines, those inside a credential withheld:`,
+`[withheld]` per credential line. Work from it; tell the user the path. See [output.md](output.md).
 
 ## Fails closed
 

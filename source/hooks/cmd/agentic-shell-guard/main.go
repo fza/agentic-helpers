@@ -3,7 +3,9 @@
 // `agentic-shell-guard permission`, the PermissionRequest hook that ends its
 // asks in auto and bypassPermissions mode, and, as `agentic-shell-guard output`,
 // the PostToolUse hook on every tool that withholds each output line from
-// outside the project looking like a credential.
+// outside the project looking like a credential, and, as
+// `agentic-shell-guard read`, the PreToolUse hook on Read and NotebookRead
+// that refuses a read of a file holding a credential.
 package main
 
 import (

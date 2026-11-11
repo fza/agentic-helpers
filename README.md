@@ -277,6 +277,8 @@ An `ask` option also takes `deny` or `off`.
 | `shell_guard_secret_output` | `all` | Hides output lines from outside the project that look like credentials. `files` checks only Read, Grep, NotebookRead, Edit, Write, NotebookEdit and Bash; `off` checks nothing |
 | `shell_guard_secret_output_skip` | none | Claude Code's settings only. Tools whose output is never hidden, comma-separated. Patterns such as `mcp__sdd__*` work |
 | `shell_guard_extra_roots` | none | Claude Code's settings only. Directories outside a project its sessions may delete in and move from, as comma-separated `<project>=<root>[;<root>]` entries (`~/code/app=~/code/lib/.tmp`) |
+| `shell_guard_secret_read` | `deny` | Refuses a Read or plain Bash read of a file holding a credential (a secret-named config key, a credential store, a private key), handing back its lines with the credential ones withheld, and hides those lines from Grep and `grep` output; `off` lets them through |
+| `shell_guard_secret_read_skip` | none | Claude Code's settings only. Paths a credential read is never refused for, as comma-separated `<project>=<glob>[;<glob>]` entries, each glob relative to the project (`~/code/app=test/fixtures/**`) |
 | `shell_guard_ask_timeout` | `2m` | How long an ask waits in `auto` and `bypassPermissions` mode before it denies (at most `1h`; `0` waits forever; a bare number counts seconds) |
 
 ## Dependencies

@@ -9,7 +9,8 @@ would let it run. A Monitor call opening a websocket (`ws`) carries no command a
 passes. `agentic-shell-guard permission` is its `PermissionRequest` hook on `Bash` and `Monitor`, which
 ends an ask in `auto` and `bypassPermissions` mode (see Permission modes). `agentic-shell-guard
 output` is its `PostToolUse` hook on every tool, which withholds credentials from tool output (see
-Tool output).
+Tool output). `agentic-shell-guard read` is its `PreToolUse` hook on `Read` and `NotebookRead`, which
+refuses a read of a file holding a credential (see Credential files).
 
 ## Parsing
 
@@ -435,13 +436,67 @@ finish. The count in the note is the lines withheld.
 a panic and an answer it cannot write say so on stderr and exit 1, a non-blocking error Claude Code
 shows the user, and the output passes as returned. The launcher, finding no binary, does the same.
 
+## Credential files
+
+`internal/credfile` tells which lines of a file hold a credential, as spans: `Span{First, Last,
+Rule, Key}`, 1-based lines, `Last` included. `Spans` finds them over a text with its first line's
+number: the whole text for a credential store by name (`Store`); each `private-key` and
+`age-secret-key` finding of `secrets.Scan`, from `Line` to `LastLine`, and the whole text for a
+`scan-incomplete` one; each PuTTY block (`puttySpans`); and, for a file `ConfigType` names, each
+key `SecretKey` names whose value `RealValue` accepts (`keySpans`). `Pairs` reads a line's keys as
+the formats write them: quoted keys as JSON does, `key: value` and `key = value` with an optional
+`- ` or `export `, and for XML an element's text and each attribute. A value opening a YAML block
+scalar (`|`, `>`) takes every following line indented deeper than its key into the span and into
+the value judged. `Words` splits a key at every non-alphanumeric rune and at each camelCase step,
+an acronym ending where a capital starts a lowercase run (`APIKey` is `api`, `key`). A quoted value
+is judged inside its quotes; an unquoted one ends at ` #`.
+
+A credential over several lines carries its key or marker on its first line only, so spans are
+found over the file and a read is judged by `Overlaps`: whether a span covers any line it returns.
+`scanned` reads the whole file up to `credfile.ScanLimit` (8 MiB); past it, for a range, the range
+with `credfile.Lookback` (1 MiB) of lines before it and after it, so a span crossing either end is
+found whole (the private-key rule needs its end line); for a whole file, its first 8 MiB.
+
+**The read hook** (`shellguard.SecretRead`) reads `file_path`, `offset` and `limit` for Read, 2000
+lines where `limit` is unset, and `notebook_path` for NotebookRead, the whole file. `judgeRead`
+resolves the path against `cwd` and through every symlink (`credentialPath`), and passes a path that
+does not resolve, a skipped one (`secretReadSkipped`: a `SecretReadSkips` entry whose project, `~`
+expanded, is the session's project through its symlinks, and one of whose globs matches the path
+relative to it by `doublestar.Match`), and anything not a regular file. `BinaryKeyStore` refuses by
+path with no copy. Otherwise the spans overlapping the range decide: none passes, any refuses, the
+reason naming the distinct keys first, then `a private key`, `a credential store by name`, and
+`a scan that could not finish` for a `scan-incomplete` span. `withheldCopy` numbers the range's
+lines as Read does (`%6d\t`), writes `[withheld]` for a covered line, cuts a line at 2000 runes and
+stops after 2000 lines. The answer is `permissionDecision` `deny`; a payload it cannot read, an
+answer it cannot write and a panic exit 2, which blocks the read.
+
+**The Bash check** (`judgeCredentialReads`, in `Judge` beside the other guards) walks the command
+with `shellwalk.WalkWith`, so each call carries the directory it runs in after a `cd`, and takes
+every call whose words are literal and unpatterned, its name a key of `readerTable` and its
+arguments parsed by `readerFiles`. A fixed assignment in the same command is literal to the walk.
+Each file is judged as a whole-file read, where a config file over `ScanLimit` refuses as
+`file too large to check`, since the reader would print what no scan saw. The first refusal is a
+`Deny`, which outranks every ask.
+
+**Searches** (`withholdFileLines`, in `Output`) run for the Grep tool and for a Bash command that
+`runsGrep` (a call with a literal word naming `grep`, `egrep` or `fgrep`), whether or not the output counts as the
+project's, and before the value scan. Each line's prefix is tried at every `:` and `-` in turn, the
+first naming a regular file winning (`prefix`), each name looked up once per call. A named file's
+first 8 MiB give its spans, kept as the text of each line they cover; a line whose text, after any
+line number (`lineNumber`, `N:` or `N-`), equals one becomes
+`[agentic-shell-guard: credential withheld (<rule>)]`. A credential store withholds every line.
+`shell_guard_secret_read` `off` switches both the hook and the check off; `Output` still runs its
+value scan under `shell_guard_secret_output`.
+
 ## Options
 
 `internal/pluginconfig` reads every `shell_guard_*` option in the layers every other piece's
 options take, with `config.yaml` held to `TightenOnly`: a value there looser than the layer below
-is dropped and named, and `shell_guard_secret_output_skip` and `shell_guard_extra_roots`, in
-`NeverConfig`, are never read from it or the environment. `Resolve` adds each extra-roots entry
-`ExtraRoots` ignores to its problems, which `agentic-helpers check` prints. `shell_guard_ask_timeout` is a span read by `internal/span`, a bare number counting seconds; above `1h` it reads as `1h`, under the hook's own
+is dropped and named, and `shell_guard_secret_output_skip`, `shell_guard_extra_roots` and
+`shell_guard_secret_read_skip`, in `NeverConfig`, are never read from it or the environment.
+`Resolve` adds each extra-roots entry `ExtraRoots` ignores, and each skip entry `SecretReadSkips`
+ignores, to its problems, which `agentic-helpers check` prints. `shell_guard_secret_read` is a
+picker of `deny` and `off`, ranked `off` < `deny` for `config.yaml`. `shell_guard_ask_timeout` is a span read by `internal/span`, a bare number counting seconds; above `1h` it reads as `1h`, under the hook's own
 `timeout` in `hooks.json` (3660 seconds), past which Claude Code would stop the hook before it
 denies. `shell_guard_secret_output` takes `all`, `files` or `off`, empty
 reading as `all`; `shell_guard_secret_output_skip` is kept as written and split on commas by the

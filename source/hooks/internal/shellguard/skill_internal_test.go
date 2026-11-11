@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/fza/agentic-helpers/source/hooks/internal/alternatives"
+	"github.com/fza/agentic-helpers/source/hooks/internal/credfile"
 	"github.com/fza/agentic-helpers/source/hooks/internal/shellwalk"
 )
 
@@ -76,7 +77,8 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		fmt.Sprintf(markerWithheld, "<rule ids>"),
 		strings.NewReplacer("%s", "<tool>", "%d", "<n>").Replace(noteScanUnfinished),
 		self + ": " + reasonOutputUnread, self + ": " + reasonOutputFailure, self + ": " + reasonOutputAnswer,
-		"agentic-shell-guard output",
+		"agentic-shell-guard output", "agentic-shell-guard read",
+		self + ": " + strings.TrimSuffix(fmt.Sprintf(reasonCredentialFile, "<path>", "<what>", ""), "\n"), lineWithheld,
 		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), "<rewritten command>"),
 		fmt.Sprintf(reasonUse, fmt.Sprintf(leadMissing, "timeout"), generic(bundledBound(t))),
 		fmt.Sprintf(reasonUse, fmt.Sprintf(leadDialect, "<command>", alternatives.FlavourBSD, "<command>", "<usage>"),
@@ -102,6 +104,10 @@ func TestTheSkillQuotesEveryRefusal(t *testing.T) {
 		"shell_guard_secret_output", "shell_guard_secret_output_skip", "shell_guard_alternatives", "124",
 		"shell_guard_extra_roots", "CLAUDE_PLUGIN_OPTION_SHELL_GUARD_EXTRA_ROOTS",
 		"agentic-helpers: shell_guard_extra_roots: <entry> ignored; <why>",
+		"shell_guard_secret_read", "shell_guard_secret_read_skip",
+		"agentic-helpers: shell_guard_secret_read_skip: <entry> ignored; <why>",
+		fmt.Sprintf(markerWithheld, credfile.RuleKeyName), fmt.Sprintf(markerWithheld, credfile.RuleStore),
+		fmt.Sprintf(reasonKeyStore, "<path>"), fmt.Sprintf(reasonTooLarge, "<path>"), self + ": " + reasonReadUnread,
 		fmt.Sprintf(reasonInScript, "x.fish", "inline code for fish names a removal or mktemp; refusing"),
 	} {
 		if !strings.Contains(whole.String(), wording) {
