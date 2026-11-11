@@ -118,6 +118,28 @@ func newSeatName(name string) string {
 	return ""
 }
 
+// nearestShown is how many processes above the call a refusal for want of
+// Claude Code names.
+const nearestShown = 3
+
+// errNoOwner is a seat no process can hold: no Claude Code process is above
+// the call, and a seat any other process holds reads as free at once.
+var errNoOwner = errors.New("no Claude Code process above this call")
+
+// noOwnerText is why a claim with no Claude Code process above it holds no
+// seat, naming the processes that are there, so an install the owner walk does
+// not know shows under the name it runs as.
+func (mem *memory) noOwnerText(ctx context.Context) string {
+	var nearest []string
+
+	for _, above := range seat.Ancestors(ctx, mem.env.Processes, nearestShown) {
+		nearest = append(nearest, strings.TrimSpace(fmt.Sprintf("%s %d", above.Name, above.PID)))
+	}
+
+	return fmt.Sprintf("%v (nearest: %s); a seat needs one to hold it", errNoOwner,
+		cmp.Or(strings.Join(nearest, ", "), "none"))
+}
+
 func (mem *memory) claim(ctx context.Context, req request) result {
 	if req.Name == "" && req.Shelf == "" {
 		return refused("claim names a seat, or a shelf with --shelf to claim a new seat on it")
@@ -142,6 +164,9 @@ func (mem *memory) claim(ctx context.Context, req request) result {
 	}
 
 	owner, process := seat.Holder(ctx, mem.env.Processes, mem.env.OwnerName)
+	if owner == 0 {
+		return refused("%s", mem.noOwnerText(ctx))
+	}
 
 	current, _ := mem.ownSeat(ctx)
 	if current != "" && current != req.Name {

@@ -117,7 +117,10 @@ func (fake *Processes) Self() int {
 }
 
 func (fake *Processes) Parent() int {
-	return ShellPID
+	fake.guard.RLock()
+	defer fake.guard.RUnlock()
+
+	return fake.Table[fake.Self()].Parent
 }
 
 func (fake *Processes) ParentAndName(_ context.Context, pid int) (int, string) {

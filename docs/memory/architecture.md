@@ -649,6 +649,20 @@ than in the environment it starts the shell with, so the shell itself passed for
 claim died with the call; any `node` or version-named process, which takes an MCP server or a
 wrapper for the owner; `CLAUDE_PID`, which the Bash tool's shell carries and the MCP server does not.
 
+A seat needs a Claude Code process to hold it: `seat.Alive` holds a claim to the owner's name, so
+any other process recorded as the holder reads as gone at once. Where the walk finds no Claude Code
+ancestor, `seat.Holder` answers no holder: a claim refuses before it writes anything, naming the
+nearest three processes above the call by kernel name and pid (`seat.Ancestors`), so an install the
+walk does not know shows under the name it runs as; a hook taking a reservation over leaves it a
+reservation and says nothing, and the direct claim that follows names the failure; a `full` spawn
+holds no seat for its subagent, which then works at `shared`. A launcher's `claim --session` records
+no process of its own and is unchanged. `seat.Owner`, which release, session end, `seat.Of` and
+agentic-tools' seen marks use only to compare or key on a pid, still answers the immediate parent
+where no ancestor is the owner. Rejected: a claim that succeeds with a warning, since its seat file
+reads as free at once and `who` and the next call contradict the claim's own answer; recording the
+nearest process under its own name, since through the `agentic-memory` command that is the Bash
+tool's shell, which exits at once, and either way the unknown install stays hidden.
+
 A seat held for a `full` subagent carries `agent`: `pending` from the spawn until the subagent's
 first hook names it, then its agent id. Its claim names the session and its `claude` process, as
 the session's own does, so every lookup by process (`seat.Of`) or by session (`seat.OfSession`), and

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -326,8 +327,24 @@ func TestAClaimRecordsTheNameItsHolderRunsUnder(t *testing.T) {
 	}
 
 	owner, process = seat.Holder(ctx, test.NewProcessesOutsideClaude(), "claude")
-	if owner != test.ShellPID || process != "" {
-		t.Errorf("without an owner the parent should stand in under no name, got %d %q", owner, process)
+	if owner != 0 || process != "" {
+		t.Errorf("without an owner no process should stand in as the holder, got %d %q", owner, process)
+	}
+}
+
+func TestAncestorsAreTheNearestProcessesAboveTheCaller(t *testing.T) {
+	ctx := context.Background()
+	outside := test.NewProcessesOutsideClaude()
+
+	got := seat.Ancestors(ctx, outside, 3)
+	want := []seat.Ancestor{{PID: test.ShellPID, Name: "zsh"}, {PID: test.LoginPID, Name: "login"}}
+
+	if !slices.Equal(got, want) {
+		t.Errorf("the walk should list each process above the caller, nearest first, up to init, got %v", got)
+	}
+
+	if got := seat.Ancestors(ctx, outside, 1); len(got) != 1 || got[0].PID != test.ShellPID {
+		t.Errorf("the walk should stop at the count asked for, got %v", got)
 	}
 }
 

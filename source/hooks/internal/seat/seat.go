@@ -338,23 +338,49 @@ func Names(held map[string]Claim) []string {
 // Owner is the owner process among the caller's ancestors, or the immediate
 // parent where none is.
 func Owner(ctx context.Context, processes Processes, ownerName string) int {
-	owner, _ := Holder(ctx, processes, ownerName)
+	owner := OwnerAncestor(ctx, processes, ownerName)
+	if owner == 0 {
+		return processes.Parent()
+	}
 
 	return owner
 }
 
 // Holder is the process a claim made now names, with the name a claim records
-// for it: the owner and the name it runs under, or the immediate parent and no
-// name where no ancestor is the owner.
+// for it: the owner and the name it runs under, or zero where no ancestor is
+// the owner. Any other process recorded as the holder reads as gone at once,
+// since `Alive` holds a claim to the owner's name.
 func Holder(ctx context.Context, processes Processes, ownerName string) (int, string) {
 	owner := OwnerAncestor(ctx, processes, ownerName)
 	if owner == 0 {
-		return processes.Parent(), ""
+		return 0, ""
 	}
 
 	_, name := processes.ParentAndName(ctx, owner)
 
 	return owner, name
+}
+
+// Ancestor is a process above the caller, by pid and the name the kernel gives it.
+type Ancestor struct {
+	PID  int
+	Name string
+}
+
+// Ancestors are the nearest count processes above the caller, nearest first,
+// the ones the owner walk passes, so a refusal can name what runs where Claude
+// Code was looked for.
+func Ancestors(ctx context.Context, processes Processes, count int) []Ancestor {
+	var found []Ancestor
+
+	pid, _ := processes.ParentAndName(ctx, processes.Self())
+	for len(found) < count && pid > 1 {
+		parent, name := processes.ParentAndName(ctx, pid)
+		found = append(found, Ancestor{PID: pid, Name: name})
+		pid = parent
+	}
+
+	return found
 }
 
 // UnderOwner says whether the owner process is among the caller's ancestors,

@@ -11,6 +11,9 @@ agentic-memory holder --session <id> --json
   label: `rename` changes only the name (and a shelf of its own with it), the old name frees. A name
   in an id's shape is refused.
 - Seat found through the owning `claude` process: Bash, MCP, `/clear` alike. No session id to pass.
+- **`no Claude Code process above this call (nearest: <name> <pid>, ...); a seat needs one to hold
+  it`** at a claim → memory does not recognise this Claude Code install; tell the user the names it
+  lists, claim nothing.
 - A fork whose parent is gone takes its seat; parent still running → a new seat on its shelf
   (`main-2`). The claim output and brief arrive as on a claim. Work on as that seat; say nothing
   about it.

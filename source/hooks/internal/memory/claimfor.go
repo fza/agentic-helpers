@@ -188,6 +188,10 @@ func (mem *memory) adopt(ctx context.Context, payload hookio.Payload) bool {
 	}
 
 	owner, process := seat.Holder(ctx, mem.env.Processes, mem.env.OwnerName)
+	if owner == 0 {
+		return false
+	}
+
 	started, running := mem.env.Processes.StartTime(ctx, owner)
 
 	took := false

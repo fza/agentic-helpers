@@ -115,6 +115,9 @@ was claimed onto another (see [Shelves](#shelves)). Every entry carries the seat
 belongs to that seat's shelf, and a search covers the own shelf unless it names seats, so one seat
 sees what another holds and nothing is done twice. A call finds its seat through the `claude` process that owns it, so a command run
 from the Bash tool, a tool call to the plugin's MCP server and a hook all agree, also after `/clear`.
+A claim with no Claude Code process above it holds nothing: it refuses with `no Claude Code process
+above this call (nearest: <name> <pid>, ...); a seat needs one to hold it`, naming the nearest three
+processes, so a Claude Code install memory does not recognise shows under the name it runs as.
 
 ```bash
 agentic-memory claim main

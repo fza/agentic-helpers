@@ -585,12 +585,16 @@ func (mem *memory) subagentMemoryLine(at channel, granted level, parent string, 
 // shelf and holds it for a subagent of the session, pending until the
 // subagent's first hook names its agent id.
 func (mem *memory) holdForSubagent(ctx context.Context, parent string, session string) (string, error) {
+	owner, process := seat.Holder(ctx, mem.env.Processes, mem.env.OwnerName)
+	if owner == 0 {
+		return "", errNoOwner
+	}
+
 	name, err := mem.mintShared(ctx, mem.shelfName(mem.shelfOf(parent)))
 	if err != nil {
 		return "", err
 	}
 
-	owner, process := seat.Holder(ctx, mem.env.Processes, mem.env.OwnerName)
 	held := seat.Claim{
 		SessionID: session, PID: owner, Process: process, Claimed: mem.now().Format(time.RFC3339Nano),
 		Commit: mem.checkout(ctx).commit, Agent: agentPending,
