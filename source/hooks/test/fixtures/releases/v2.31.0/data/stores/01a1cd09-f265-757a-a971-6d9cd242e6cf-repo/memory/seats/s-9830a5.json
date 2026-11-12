@@ -1,0 +1,8 @@
+{
+  "session_id": "a1a1a1a1-0000-4000-8000-000000000001",
+  "pid": 42402,
+  "started": "2026-11-11T23:55:39Z",
+  "claimed": "2026-11-11T23:55:44.72835Z",
+  "commit": "ac202632",
+  "process": "release-fixture"
+}
